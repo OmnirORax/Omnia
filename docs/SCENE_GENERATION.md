@@ -197,3 +197,11 @@ passed. The existing large-chunk warning remains. The user performs clipboard/
 file import, per-node restore, reload, clear/undo and image rendering checks. No
 browser suite or actual image generation was run for this local flow. Backend
 code, provider secrets, hosted settings and deployment workflows are unchanged.
+
+
+## Selected image effects (2026-11-07)
+
+The same screen-space wallpaper renderer now supports five selected audio/VFX
+controls without changing image bytes or node assignments. See
+[SCENE_VFX.md](SCENE_VFX.md) for defaults, permitted audio sources, shared settings,
+reduced-motion/performance limits and the Wallpaper Engine approximation boundary.

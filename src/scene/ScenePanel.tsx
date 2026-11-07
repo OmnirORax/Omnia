@@ -1,3 +1,4 @@
+import {SceneVfxControls} from "./SceneVfxControls";
 import { useEffect, useRef, useState } from 'react';
 import { backendConfiguration, cloud, type Workspace, type WorkspaceMember, type Asset } from '../backend/client';
 import { resolveScenePrompt, type SceneGeneration, type SceneGenerateInput, type SceneNode, type SceneSource } from '../../supabase/functions/_shared/contracts.ts';
@@ -221,6 +222,7 @@ export function ScenePanel({ node, revision, bindings, onApply, hasBackground, b
     } },
   });
   return <div className="scene-panel">
+    <SceneVfxControls bindings={bindings}/>
     <UIField id="scene.prompt" label="Image prompt" category="Scene"><CoupledField bindings={bindings} consumer="scene.generate" property="scene.prompt" /></UIField>
     <div className="scene-input-row">
       <UIField id="scene.variable" label="Prompt variable" category="Scene"><CoupledField bindings={bindings} consumer="scene.generate" property="scene.variable" /></UIField>

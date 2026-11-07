@@ -2069,6 +2069,64 @@
       "gestures": []
     },
     {
+      "id": "scene.vfx",
+      "title": "Audio-responsive scene images and selected wallpaper effects",
+      "where": "Scene → Scene effects. Import/apply an image through the existing Scene image workflow.",
+      "behavior": "Five persisted controls match the screenshot: Audio Light orange (#aa3300 approximation), Audio Bounce 1.12, Waves on, Distortion 0.4, Glitching 0.3. A shared background shader approximates bass zoom, coloured audio pulse, water waves and combined VHS distortion/tracking. Choose audio file supplies temporary website playback; Connect shared audio requests browser-permitted tab/screen audio. Disconnect audio releases the source. Existing shared property controls, settings history/save/export and scene image assignments remain the owners. Exactly five effect fields serialize; audio files, streams, capture handles, FFT values and unpictured settings never persist.",
+      "steps": [
+        {
+          "do": "Open Scene, select a node and apply an imported image, then open Scene effects.",
+          "expect": "The original image remains stored unchanged; Audio Light, Audio Bounce 1.12, Waves on, Distortion 0.4 and Glitching 0.3 are available."
+        },
+        {
+          "do": "Turn Waves off and set Distortion/Glitching to zero with no audio connected. Restore their defaults.",
+          "expect": "The image becomes static/original, then water/VHS movement returns. Camera and node coordinates stay unchanged."
+        },
+        {
+          "do": "Choose audio file, select a local music file and press its native Play button.",
+          "expect": "Bass changes image scale and sound drives the coloured light. Audio is played locally without upload."
+        },
+        {
+          "do": "Click Connect shared audio, select a tab/screen and enable Share audio; then Disconnect audio or end the share.",
+          "expect": "A permitted audio track drives the effects without echo. Missing audio shows a clear message and releases the rejected share. Disconnect ends capture/analysis."
+        },
+        {
+          "do": "Change a setting, use Undo/Redo, and reload. Inspect/export workspace settings.",
+          "expect": "Shared history/persistence restores choices. The sceneVfx branch contains only audioLight, audioBounce, waves, distortion and glitching; no source/session or hidden shader controls are saved."
+        },
+        {
+          "do": "Enable system/browser reduced motion or hide the tab, then return.",
+          "expect": "Motion pauses; reduced-motion mode displays static undistorted imagery. Ordinary visibility restoration resumes eligible effects."
+        }
+      ],
+      "reference": "docs/SCENE_VFX.md",
+      "sources": [
+        "src/scene/vfx.ts",
+        "src/scene/vfx.function.ts",
+        "src/scene/wallpaper.ts",
+        "src/scene/audio.ts",
+        "src/scene/SceneVfxControls.tsx",
+        "src/scene/ScenePanel.tsx",
+        "src/workspaceActions.ts"
+      ],
+      "actions": [
+        "scene.audioConnect",
+        "scene.audioDisconnect",
+        "scene.audioFile"
+      ],
+      "gestures": [],
+      "related": [
+        "scene.manual",
+        "scene.api"
+      ],
+      "status": "Implemented; focused local browser check passed; publication recorded in PR",
+      "limits": "Approximation only: original shaders/assets and exact orange colour were unavailable. No snow or unpictured settings. Shared system audio requires browser/OS support and explicit user permission; no unrestricted desktop audio or microphone fallback. Closing the Scene panel disconnects audio. Audio source/session/files are temporary. Audio Bounce is bounded 1–1.5; motion effects pause under reduced motion/hidden tabs. Real music, capture compatibility and interactive GPU performance remain user-tested.",
+      "verification": {
+        "browser": "2026-11-07, user-authorized focused Chromium check with disposable patterned image and 55 Hz WAV: screenshot defaults, actual file spectrum, shader compilation, wave/VHS displacement, audio-driven rendered change, original-image restoration, exact five-field serialization and stopped animation after disposal passed. This is synthetic local evidence, not Wallpaper Engine equivalence, desktop capture support or user performance acceptance.",
+        "automated": "Model checks cover exact five-field defaults/serialization, historical settings, shared property setters, audio bounds/smoothing, rejected/late capture cleanup and disconnect. Full local delivery gate recorded in PR."
+      }
+    },
+    {
       "id": "scene.api",
       "title": "Optional API scene generation",
       "where": "Scene → API generation (optional).",

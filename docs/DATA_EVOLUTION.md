@@ -391,3 +391,19 @@ positioning are transient; locate cancels unparked placement previews and uses
 existing camera history. No graph/schema migration. Depth action IDs and saved
 key assignments are unchanged; their forward/backward semantics are corrected.
 CI retry logs are private ephemeral files, not application data or credentials.
+
+
+### Scene image VFX (2026-11-07)
+
+`WorkspaceSettings.sceneVfx` is an additive five-field object. Its sole normalizer
+in `scene/vfx.ts` whitelists audioLight/audioBounce/waves/distortion/glitching and
+defines screenshot defaults for absence. Finite numbers clamp to supported bounds;
+explicit false/zero survive. Existing UI/settings persistence, shared history and
+UI-template/workspace-backup exports carry the branch. The historical combined
+backup fixture stays frozen; its test verifies only this additive default before
+comparing every older field. No image Blob, scene assignment, atlas coordinate,
+canonical identity or backend format changes. Source JSON scripts are not imported
+or evaluated. Capture streams, file URLs/bytes, FFT buffers and playback state are
+transient and never serialized. Older clients can omit the new preference when
+resaving; rollback loses only this effect preference, with original images and
+scene assignments intact. No new cloud audio/media storage or migration exists.

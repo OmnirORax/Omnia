@@ -883,6 +883,7 @@ export default function SpatialWorkspace(props: Props) {
     window.addEventListener("keydown", key, true); return () => window.removeEventListener("keydown", key, true);
   }, []);
 
+  useEffect(() => { if(ready)stateRef.current?.wallpaper.configure(settings.sceneVfx); },[ready,settings.sceneVfx]);
   useEffect(() => { if (ready) void stateRef.current?.wallpaper.setURL(props.wallpaperURL ?? null); }, [ready, props.wallpaperURL]);
 
   useEffect(() => {

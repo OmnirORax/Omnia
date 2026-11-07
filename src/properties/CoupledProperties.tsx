@@ -52,10 +52,10 @@ export function CoupledProperties({ bindings: suppliedBindings, category: reques
 }
 
 /** Existing local controls use this same setter/editor, retaining their stable action IDs. */
-export function CoupledField({ bindings, consumer, property }: { bindings: PropertyBindings; consumer: string; property: string }) {
+export function CoupledField({ bindings, consumer, property, label }: { bindings: PropertyBindings; consumer: string; property: string; label?: string }) {
   const coupling = PROPERTY_REGISTRY.consumer(consumer)?.channels[property];
   if (!coupling || bindings.values[consumer]?.[coupling] === undefined) throw new Error(`Missing property adapter: ${consumer}/${property}`);
   const definition = PROPERTY_REGISTRY.property(property)!;
-  return <label>{definition.label}<PropertyEditor property={property} value={bindings.values[consumer][coupling]}
+  return <label>{label ?? definition.label}<PropertyEditor label={label ?? definition.label} property={property} value={bindings.values[consumer][coupling]}
     onPreview={() => {}} onCommit={value => bindings.commit(preparePropertyChanges(PROPERTY_REGISTRY, property, value, [consumer]))} /></label>;
 }
