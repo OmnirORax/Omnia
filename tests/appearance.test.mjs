@@ -1649,3 +1649,14 @@ test('a synchronous selection entry advances catalog, lens geometry and continui
  assert.equal(next.catalog,freshParts);assert.equal(nearestLensBoundary(next.catalog,{x:0,y:0},18,part=>next.lensGeometry.get(part)),freshParts[0]);
  assert.deepEqual(first.continuity.groups.get('a'),['a','b']);assert.deepEqual(next.continuity.groups.get('a'),['a'],'continuity is refreshed with that same geometry revision');
 });
+
+test('sphere translucency participates in shared appearance targeting and persists independently of opacity',async()=>{
+ const {propertyFor,controllerTargets,loadController}=await import('../src/appearance/registry.ts');
+ const {defaultSettings}=await import('../src/workspaceActions.ts');const {resolveControllerAppearance}=await import('../src/appearance/resolve.ts');
+ const {atomicCarrierMaterial,updateAtomicCarrier}=await import('../src/atomicCarrier.ts');
+ assert.equal(propertyFor('translucency').initial,.82);const state=loadController({ ...emptyController(),values:{'omnium.nodes.body':{translucency:.4,opacity:.7}}});
+ assert.ok(controllerTargets(state).find(t=>t.id==='omnium.nodes.body').properties.includes('translucency'));
+ const theme=resolveControllerAppearance({...defaultSettings().appearance,controller:state});
+ assert.equal(theme.renderDefaults['omnium.nodes.body'].translucency,.4);assert.equal(theme.nodes.opacity,.7);
+ const material=atomicCarrierMaterial('#ffffff',.7,.4);assert.ok(Math.abs(material.opacity-.42)<1e-9);updateAtomicCarrier(material,.7,0);assert.equal(material.opacity,.7);updateAtomicCarrier(material,.7,1);assert.equal(material.opacity,0);assert.equal(material.userData.translucency.value,1);material.dispose();
+});

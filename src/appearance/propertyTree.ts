@@ -17,6 +17,7 @@ export const PROPERTY_TREE: PropertyNode[] = [
     children: [leaf("brightness", "Brightness"), leaf("glow", "Glow")],
   },
   leaf("opacity", "Opacity"),
+  leaf("translucency", "Translucency"),
   leaf("blur", "Blur"),
   {
     ...leaf("font", "Font"),
