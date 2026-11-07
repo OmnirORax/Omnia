@@ -4,7 +4,7 @@ import { UIField } from "./ui/UIField";
 
 export { DEFAULT_CAMERA_POSITION, DEFAULT_CAMERA_FOV, updateCameraGuide } from "./cameraGuideState";
 const axes = ["x", "y", "z"] as const;
-import { WORLD_AXIS_COLORS as colors } from "./cameraGuideState";
+const colors = { x: "#f68b88", y: "#8cdb9b", z: "#89baff" };
 
 /** A normal movable UI field; it never changes graph coordinates. */
 export function CameraGuide({ attach }: { attach: RefCallback<HTMLDivElement> }) {

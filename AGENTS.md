@@ -807,8 +807,9 @@ plane-only. Independent rotation controls are deferred. Read WORLD_NAVIGATION.md
 
 Navigator follow-up: Up is forward/camera-negative Z (away), Down is backward/positive Z
 (toward); saved key assignments retain their IDs. The camera-facing ring contains
-projected world XYZ axes using CameraGuide colors; do not rotate its ink with the
-camera or tint away semantic axis colors. Ctrl/Meta-click positions navigator and
+a single cyan end-to-end diameter, not XYZ axes. Project the world X direction
+into camera view, retaining full diameter and last direction when exactly end-on;
+inherit the ring appearance. Ctrl/Meta-click positions navigator and
 camera target at a node without mounting/moving it; cancel an unparked drive. Reuse
 the selection surface optional modifier-click owner, capture press hit, retain
 Ctrl-drag marquee and fresh geometry validation on release. No new global listener.

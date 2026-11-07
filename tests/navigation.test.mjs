@@ -446,13 +446,14 @@ test('parking releases preview ownership during synchronous commit and restores 
  fail=false;assert.equal(drive.park(),doc);assert.equal(drive.active,false);
 });
 
-test('navigator internal world-axis compass updates for camera orbit and roll while its ring faces the camera',async()=>{
+test('navigator single full-diameter compass updates for camera orbit and roll while its ring faces the camera',async()=>{
  const {createWorldNavigatorMarker}=await import('../src/worldNavigatorMarker.ts');const marker=createWorldNavigatorMarker(),position=new THREE.Vector3();
  const read=()=>Array.from(marker.object.children[1].geometry.getAttribute('position').array);
- const identity=new THREE.Quaternion();marker.update(position,identity,1,true);const front=read(),ring=marker.object.children[0];
- const yaw=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),Math.PI/2);marker.update(position,yaw,1,true);assert.notDeepEqual(read(),front);assert.ok(marker.object.quaternion.equals(yaw));assert.ok(ring.quaternion.equals(identity));
- const roll=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,0,1),Math.PI/2);marker.update(position,roll,1,true);const rolled=read();assert.notDeepEqual(rolled,front);assert.ok(Math.abs(rolled[3])<1e-6);assert.ok(Math.abs(rolled[4]+.82)<1e-6);
- marker.update(new THREE.Vector3(4,5,6),roll,2,true);assert.deepEqual(read(),rolled,'pointer and scale changes do not rebuild compass orientation');marker.dispose();
+ const identity=new THREE.Quaternion();marker.update(position,identity,1,true);const front=read(),ring=marker.object.children[0];assert.equal(front.length,6,'exactly one line, no XYZ triad');assert.deepEqual(front.map(n=>n||0),[-1,0,0,1,0,0]);
+ const yaw=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,1).normalize(),Math.PI/3);marker.update(position,yaw,1,true);assert.notDeepEqual(read(),front);assert.ok(marker.object.quaternion.equals(yaw));assert.ok(ring.quaternion.equals(identity));
+ const roll=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,0,1),Math.PI/2);marker.update(position,roll,1,true);const rolled=read();assert.notDeepEqual(rolled,front);assert.ok(Math.abs(rolled[3])<1e-6);assert.ok(Math.abs(rolled[4]+1)<1e-6);
+ assert.ok(Math.abs(Math.hypot(rolled[3]-rolled[0],rolled[4]-rolled[1])-2)<1e-6,'line spans the full ring diameter');
+ marker.update(new THREE.Vector3(4,5,6),roll,2,true);assert.deepEqual(read(),rolled,'pointer and scale changes do not rebuild compass orientation');const edgeOn=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),Math.PI/2);marker.update(position,edgeOn,1,true);assert.deepEqual(read(),rolled,'end-on projection retains the full prior diameter');marker.dispose();
 });
 test('navigator forward follows camera negative Z and preserves saved arrow assignments',async()=>{
  const {createWorldNavigator}=await import('../src/navigation/worldNavigator.ts');const {defaultSettings,normalizeSettings}=await import('../src/workspaceActions.ts');

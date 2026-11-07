@@ -132,15 +132,16 @@ through a prepared shared gesture adapter; commits use the same lattice owner. S
 
 ## World navigator and driving a node
 
-The cyan ring/centre with a projected XYZ compass is a transient
+The cyan ring/centre with a single end-to-end orientation line is a transient
 navigator, not a knowledge node. On first world interaction it starts on the
 camera-facing XY plane through the current camera target. Its internal frame
 matches the camera orientation like a compass: mouse rays resolve local XY at
 the chosen depth, and camera rotation updates that frame. Positive local Z points
 toward the camera (Down); negative Z points away (Up). The ring faces the camera,
-while its internal world axes project through the inverse camera rotation: red X,
-green Y and blue Z, using the same colors as the Camera Guide. Orbit and roll
-therefore visibly change the compass, independently of the movement frame;
+while its single cyan diameter projects world X through the inverse camera
+rotation. It stays end-to-end rather than shrinking; an exactly end-on projection
+retains the last direction. Orbit/roll update its orientation without adding XYZ
+axes, independently of the movement frame;
 independent navigator rotation controls are deferred. Parallel/behind rays
 cannot invent a usable destination.
 
