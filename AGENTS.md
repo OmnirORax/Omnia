@@ -714,3 +714,7 @@ Keep old coordinates read-only on load; first geometry alignment preserves an
 existing-format protected recovery layout view. Read docs/ATLAS_LATTICE.md before
 changing atlas placement, scale, empty-field rendering or recovery. This atlas
 rule does not impose a lattice on Omnic construction modes.
+
+Atlas selected presentation (2026-11-07): selection replaces the O carrier and
+its origin ring with full content until deselection. Keep the invisible picking
+slot and existing retained/hover/Names behavior; no coordinate or scale change.

@@ -794,8 +794,9 @@ interaction acceptance remains pending; model/build checks are separate evidence
 
 The earlier fixed square-frame interpretation was rejected. An atlas placement
 is a small uniform glowing atom. Empty space remains empty; no white lattice
-is drawn. Hover previews content, click retains it, and click again closes its
-retained expansion. Multiple expansions coexist. Structurally expanded nodes
+is drawn. Hover previews content. Selection replaces the O/origin ring with full content;
+deselection restores the carrier. Click-retained expansion remains independent;
+selection keeps content visible even if a repeat click toggles that retained state. Multiple expansions coexist. Structurally expanded nodes
 show content by default, with view-local close overrides. These overrides live
 in `nodePresentation`, scoped per atlas session, independently of graph selection,
 parentage and authored collapse state. Existing double-click structural expansion

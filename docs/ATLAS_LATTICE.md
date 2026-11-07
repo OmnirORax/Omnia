@@ -14,7 +14,11 @@ unit. Historical `nodeCellSize` remains the coordinate-unit conversion (default
 1); it is retained for compatibility. New `latticeScale` changes rendered pitch
 and O diameter together without changing addresses or stored coordinates. The
 former Node cell size resident now edits Lattice scale; historical values are not
-silently reinterpreted. Expanded text/images/glyphs retain independent world sizes.
+silently reinterpreted. Expanded text/images/glyphs retain independent world sizes. Selected nodes replace
+their O and origin ring with full content; deselection restores the carrier.
+Their invisible picking slot stays available. Existing retained expansions, hover
+previews and Names modes remain independent, so deselection does not discard a
+separately retained expansion.
 
 Creation picks the nearest unoccupied cell to the requested world point, including
 N/Create node here and library placements. Distance is Euclidean; ties are stable.

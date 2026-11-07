@@ -497,8 +497,10 @@ export function buildTextScene(
       item.text.scale.set(item.size.width, item.size.height, 1);
       item.text.position.set(0, 0, 0);
       const front = depth(item.anchor) > camera.near;
-      item.cell.visible = front; item.slot.visible = front;
-      const expanded = draftNodes.has(item) || hoveredId === item.sprite.userData.nodeId || placementExpanded(item.sprite.userData.nodeId);
+      // Selection replaces the carrier with content; its invisible picking slot stays live.
+      item.cell.visible = front && !item.selected; item.slot.visible = front;
+      item.outline.visible = front && !item.selected && hoveredId === item.sprite.userData.nodeId;
+      const expanded = item.selected || draftNodes.has(item) || hoveredId === item.sprite.userData.nodeId || placementExpanded(item.sprite.userData.nodeId);
       const revealName = names === "all" || (names === "selection" && item.selected);
       const projected = item.anchor.clone().project(camera);
       item.presentation.visible = (expanded || revealName) && front && Math.abs(projected.x) <= 1 && Math.abs(projected.y) <= 1;
