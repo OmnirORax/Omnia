@@ -1,3 +1,5 @@
+import {PROPERTY_REGISTRY} from '../appearance/registry';
+import {PULSE_CONTROLS} from './pulse';
 import {useEffect,useLayoutEffect,useRef,useState,useSyncExternalStore} from 'react';
 import {CoupledField,type PropertyBindings} from '../properties/CoupledProperties';
 import {SCENE_LIGHT_CONTROLS} from './vfx';
@@ -8,6 +10,7 @@ import {useFeatureActions} from '../ui/useFeatureActions';
 import {playSceneAudio,loadSceneAudioFile,stopSceneAudio,sceneAudioSnapshot,subscribeSceneAudio,sampleSceneAudio,parkSceneAudioPlayer} from './audio';
 export function SceneVfxControls({bindings}:{bindings:PropertyBindings}){
  const file=useRef<HTMLInputElement>(null),host=useRef<HTMLDivElement>(null),meter=useRef<HTMLMeterElement>(null),[error,setError]=useState('');
+ const pulseMode=bindings.values['scene.vfx']?.[PROPERTY_REGISTRY.consumer('scene.vfx')!.channels['scene.lightModel']]!=='legacy';
  const audio=useSyncExternalStore(subscribeSceneAudio,sceneAudioSnapshot);
  useLayoutEffect(()=>{
    const player=audio.player;if(!player||!host.current)return;
@@ -21,10 +24,17 @@ export function SceneVfxControls({bindings}:{bindings:PropertyBindings}){
  'scene.audioFile':{enabled:true,run:()=>file.current?.click()},
  });
  return <UISection id="scene-vfx" title="Scene effects">
- {([['color','Audio Light','color'],['scene.lightAllColors','All colours','allColors'],['scene.audioBounce','Audio Bounce','bounce'],['scene.waves','Waves','waves'],['scene.distortion','Distortion','distortion'],['scene.glitching','Glitching','glitching'],['scene.maxFps','Max FPS','maxFps']] as const).map(([property,label,key])=><UIField key={key} id={`scene.vfx.${key}`} label={label} category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property={property} label={label}/></UIField>)}
- <UISection id="scene-light-tuning" title="Light tuning" defaultExpanded={false}>
+ <UIField id="scene.vfx.lightModel" label="Light model" category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property="scene.lightModel" label="Light model"/></UIField>
+ {pulseMode&&<UISection id="scene-pulse" title="Wallpaper Engine pulse">
+ {([{key:'pulseTintLow',label:'Low tint'},{key:'pulseTintHigh',label:'High tint'},...PULSE_CONTROLS]).map(({key,label})=><UIField key={key} id={`scene.vfx.${key}`} label={label} category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property={`scene.${key}`} label={label}/></UIField>)}
+ </UISection>}
+ {!pulseMode&&<UISection id="scene-legacy" title="Earlier approximation">
+ {([['color','Audio Light','color'],['scene.lightAllColors','All colours','allColors'],] as const).map(([property,label,key])=><UIField key={key} id={`scene.vfx.${key}`} label={label} category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property={property} label={label}/></UIField>)}
+ <UISection id="scene-light-tuning" title="Earlier approximation tuning" defaultExpanded={false}>
  {SCENE_LIGHT_CONTROLS.map(({key,label})=><UIField key={key} id={`scene.vfx.${key}`} label={label} category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property={`scene.${key}`} label={label}/></UIField>)}
  </UISection>
+ </UISection>}
+ {([['scene.audioBounce','Audio Bounce','bounce'],['scene.waves','Waves','waves'],['scene.distortion','Distortion','distortion'],['scene.glitching','Glitching','glitching'],['scene.maxFps','Max FPS','maxFps']] as const).map(([property,label,key])=><UIField key={key} id={`scene.vfx.${key}`} label={label} category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property={property} label={label}/></UIField>)}
  <FunctionControl id="scene.audioFile"/><FunctionControl id="scene.audioConnect"/><FunctionControl id="scene.audioDisconnect"/>
  <input ref={file} type="file" accept="audio/*" hidden onChange={event=>{const selected=event.target.files?.[0];event.target.value='';if(selected){setError('');loadSceneAudioFile(selected);}}}/>
  <div ref={host}/>

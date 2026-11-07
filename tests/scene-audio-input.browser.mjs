@@ -33,7 +33,7 @@ try{
  await page.route('**/colour-harness',r=>r.fulfill({contentType:'text/html',body:'<html><body></body></html>'}));await page.goto(origin+'/colour-harness');
  const colours=await page.evaluate(async()=>{
  const T=await import('/node_modules/three/build/three.module.js'),{createWallpaper}=await import('/src/scene/wallpaper.ts'),{DEFAULT_SCENE_VFX}=await import('/src/scene/vfx.ts');
- const selective={...DEFAULT_SCENE_VFX,lightAllColors:false,lightHueInner:14.4,lightHueOuter:50.4};
+ const selective={...DEFAULT_SCENE_VFX,lightModel:'legacy',lightAllColors:false,lightHueInner:14.4,lightHueOuter:50.4};
  const renderer=new T.WebGLRenderer({preserveDrawingBuffer:true});renderer.setSize(128,128);const scene=new T.Scene(),camera=new T.PerspectiveCamera(),wallpaper=createWallpaper(scene,()=>{},renderer);wallpaper.resize(128,128);wallpaper.configure({...selective,waves:false,distortion:0,glitching:0});
  const c=document.createElement('canvas');c.width=c.height=128;const paint=c.getContext('2d');for(const [i,colour]of ['#b4743b','#5066bb','#dd7700','#008844'].entries()){paint.fillStyle=colour;paint.fillRect(i%2*64,Math.floor(i/2)*64,64,64);}await wallpaper.setURL(c.toDataURL());
  const mesh=scene.children.find(o=>o.material?.uniforms?.light),u=mesh.material.uniforms,gl=renderer.getContext();const pixels=()=>{renderer.render(scene,camera);return [[32,96],[96,96],[32,32],[96,32]].map(([x,y])=>{const p=new Uint8Array(4);gl.readPixels(x,y,1,1,gl.RGBA,gl.UNSIGNED_BYTE,p);return [...p];});};

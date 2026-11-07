@@ -1,5 +1,6 @@
+import {REFERENCE_PULSE_GLSL} from './pulse';
 import {SCENE_LIGHT_CONTROLS,normalizeSceneVfx,smoothAudio,audioScale,nextVfxDeadline,type SceneVfx} from './vfx';
-import {sampleSceneAudio,isSceneAudioConnected,subscribeSceneAudio,disposeSceneAudio} from './audio';
+import {sampleSceneAudio,sampleScenePulse,isSceneAudioConnected,subscribeSceneAudio,disposeSceneAudio} from './audio';
 import * as THREE from 'three';
 import {createWallpaperLight,wallpaperColourGLSL,wallpaperLightUniformGLSL,wallpaperLightUniforms} from './wallpaperLight';
 
@@ -9,13 +10,15 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
   const material = new THREE.ShaderMaterial({
     depthTest: false, depthWrite: false, toneMapped: false,
     uniforms: { ...wallpaperLightUniforms(),image: { value: null }, imageAspect: { value: 1 }, viewportAspect: { value: 1 },
-      nearLight:{value:null},farLight:{value:null},sceneGlowPass:{value:0}, time: {value:0}, bounce:{value:1}, light:{value:0}, lightHue:{value:.05},lightSaturation:{value:1},lightAllColors:{value:0},
+      pulseModel:{value:1},pulseTintLow:{value:new THREE.Vector3(168/255,168/255,168/255)},pulseTintHigh:{value:new THREE.Vector3(1,1,1)},nearLight:{value:null},farLight:{value:null},sceneGlowPass:{value:0}, time: {value:0}, bounce:{value:1}, light:{value:0}, lightHue:{value:.05},lightSaturation:{value:1},lightAllColors:{value:0},
       waves:{value:1}, distortion:{value:.4}, glitching:{value:.3},
       feedbackColor: { value: new THREE.Color() }, feedbackStrength: { value: 0 } },
     vertexShader: 'varying vec2 imageUV; void main() { imageUV = uv; gl_Position = vec4(position.xy, 1.0, 1.0); }',
     fragmentShader: `uniform sampler2D image; uniform float imageAspect; uniform float viewportAspect;
       uniform float sceneGlowPass; uniform float time; uniform float bounce; uniform float light; uniform float lightHue;uniform float lightSaturation;uniform float lightAllColors;
       uniform float waves; uniform float distortion; uniform float glitching;
+      uniform float pulseModel;uniform vec3 pulseTintLow;uniform vec3 pulseTintHigh;
+      ${REFERENCE_PULSE_GLSL}
       uniform sampler2D nearLight;uniform sampler2D farLight;
       float hash(float n){return fract(sin(n*127.1)*43758.5453);}
       ${wallpaperLightUniformGLSL}
@@ -37,7 +40,9 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
         else coverUV.x *= viewportAspect / imageAspect;
         vec3 color = texture2D(image, clamp(coverUV + 0.5,vec2(.001),vec2(.999))).rgb;
         vec3 enhanced=color;
-        if(light>0.0){
+        if(pulseModel>.5){
+          enhanced=linearColour(referencePulse(displayColour(color),pulseTintLow,pulseTintHigh,light));
+        }else if(light>0.0){
           vec2 lightUV=clamp(coverUV+.5,vec2(.001),vec2(.999));
           vec3 visible=displayColour(color),source=hsv(visible);
           vec3 emission=emissionColour(source)*emitter(source)*lightCoreStrength+texture2D(nearLight,lightUV).rgb*lightNearStrength+texture2D(farLight,lightUV).rgb*lightFarStrength;
@@ -62,6 +67,7 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
   let settings=normalizeSceneVfx(undefined),frame=0,last=0,deadline=0,bass=0,level=0,elapsed=0;
   const prepareLight=()=>{
     if(!texture)return;
+    if(settings.lightModel==='pulse'){spatialLight.clear();material.uniforms.nearLight.value=null;material.uniforms.farLight.value=null;return;}
     const maps=spatialLight.prepare(texture,material.uniforms.lightHue.value,material.uniforms.lightSaturation.value,settings);
     material.uniforms.nearLight.value=maps.near;material.uniforms.farLight.value=maps.far;
   };
@@ -80,7 +86,7 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
     const audio=sampleSceneAudio();bass=smoothAudio(bass,audio.bass,dt);level=smoothAudio(level,audio.level,dt);
     material.uniforms.time.value=elapsed;
     material.uniforms.bounce.value=audioScale(bass,settings.audioBounce);
-    material.uniforms.light.value=audio.active?Math.min(1,Math.pow(level,settings.lightAudioPower)*settings.lightAudioGain):0;
+    material.uniforms.light.value=settings.lightModel==='pulse'?sampleScenePulse(settings):(audio.active?Math.min(1,Math.pow(level,settings.lightAudioPower)*settings.lightAudioGain):0);
     requestPaint();schedule();
   };
   const visibility=()=>{cancel();schedule();};
@@ -90,6 +96,11 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
   return {
     configure(value:SceneVfx){
       settings=normalizeSceneVfx(value);
+      material.uniforms.pulseModel.value=Number(settings.lightModel==='pulse');
+      for(const key of ['pulseTintLow','pulseTintHigh'] as const){
+        const rgb=new THREE.Color(settings[key]).getRGB({r:0,g:0,b:0},THREE.SRGBColorSpace);
+        material.uniforms[key].value.set(rgb.r,rgb.g,rgb.b);
+      }
       const chosen={h:0,s:0,l:0},selected=new THREE.Color(settings.audioLight);
       selected.getHSL(chosen,THREE.SRGBColorSpace);
       const rgb=selected.getRGB({r:0,g:0,b:0},THREE.SRGBColorSpace),peak=Math.max(rgb.r,rgb.g,rgb.b);

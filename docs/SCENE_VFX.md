@@ -1,10 +1,85 @@
 # Scene image effects and audio response
 
-Open **Scene → Scene effects** and apply an image through the existing scene
-workflow. **Audio Light makes image regions near the picked colour pulse as
-coloured light sources, with a soft surrounding glow.** This replaces the
-saturation-only revision, which could not emit light. It also replaces unbounded
-additive gain, which washed the image out to white.
+Open **Scene → Scene effects → Light model → Wallpaper Engine pulse** (default).
+This ports the supplied `pulse.vert`, `pulse.frag` and `common_blending.h`, using
+BLENDMODE 9, PULSECOLOR on and PULSEALPHA off. It replaces the previously guessed
+colour-mix response as the default. The earlier approximation and all its saved
+tuning remain recoverable through **Light model → Earlier approximation**.
+
+## Wallpaper Engine pulse
+
+The supplied scene chooses audio processing 3: average both channels over bands
+0–15, then smoothstep from 0.01 to 1, exponent 4, and multiply by 1.2. The pulse is
+not clamped back to 1 after multiplying. The shader's mode 9 calculation is:
+
+```glsl
+low = image * tintLow;
+high = image * tintHigh;
+result = max(vec3(0), mix(low, min(low + high, vec3(1)), pulse));
+```
+
+This is image-shaped additive blending, not interpolation toward a flat saturated
+tint. No synthetic halo, hue gate, exposure operator or saturation adjustment is
+added by this path. Original source details and all colour channels participate.
+The legacy All colours/colour-range controls belong only to Earlier approximation.
+
+| Saved field | Control | Default / bounds |
+| --- | --- | --- |
+| lightModel | Light model | pulse; pulse / legacy |
+| pulseTintLow | Low tint | #a8a8a8 (8-bit approximation of source 0.65882 per channel) |
+| pulseTintHigh | High tint | #ffffff |
+| pulseFrequencyMin | First frequency band | 0; integer 0–15 |
+| pulseFrequencyMax | Last frequency band | 15; integer 0–15 |
+| pulseAudioLow | Audio lower threshold | 0.01; 0–1 |
+| pulseAudioHigh | Audio upper threshold | 1; 0–1 |
+| pulseExponent | Audio exponent | 4; 0–4 |
+| pulseAmount | Audio amount | 1.2; 0–2 |
+
+Low tint intentionally dims the image between pulses, even with no audio connected;
+that is in the supplied effect. Set Low tint to white if an undimmed rest image is
+preferred. High tint controls the image-multiplied additive contribution. Keep
+Audio Bounce at 1 for a stationary comparison. Use the actual Wallpaper Engine
+low/high customisation values when available: scene.json references user-property
+overrides that were not included in these uploads.
+
+Two stereo analyser taps supply 16 logarithmic bands per channel over 20 Hz to
+min(20 kHz, Nyquist). They never connect back to speakers; the original mono
+analysis/playback path remains audible once and still supplies bounce/RMS meter.
+Spectrum arrays are reused; no React/settings writes occur per audio frame.
+Wallpaper Engine's internal FFT band boundaries, normalization and smoothing were
+not provided, so the browser spectrum frontend is approximate. The pulse response
+and mode-9 blend are ported from source; complete visual equivalence is not claimed.
+Bounds are sorted for reversed input; equal thresholds have a defined hard transition.
+
+The blend is calculated in display RGB, then converted back to the existing linear
+render pipeline. Values above one from pulse extrapolation are retained until
+normal output; target precision, display clipping and other global scene effects
+can differ from Wallpaper Engine. No pulse bloom map is allocated or blurred.
+The shader contributes black to shared glow to avoid an extra invented emission.
+
+## Compatibility and validation
+
+The serializer now contains 29 whitelisted fields. All 20 earlier fields remain
+stored unchanged, including selected colour, All colours and 13 approximation
+knobs. Missing model/tints/pulse fields acquire the source-based defaults. Selecting
+Earlier approximation restores their old interpretation without data conversion.
+Older clients can discard the nine new fields on resave; keep a current export
+before opening older previews. Image bytes, assignments, atlas and backend formats
+are unchanged. Audio source/session/files remain transient; source scripts from the
+uploaded extract are reference data and are never executed.
+
+Model tests check stereo averaging, selected bands, thresholds/exponent, amount
+1.2, unclamped extrapolation, supplied blend values, stereo tap routing/no doubled
+speaker output, registered setters, serialization and retained earlier tuning.
+The prepared opt-in `tests/scene-pulse.browser.mjs` compares the actual shader through
+bloom/output against the source equation. It has not been run: no new browser check
+was authorised. Actual wallpaper appearance, music calibration and performance await
+user testing. Earlier browser passes do not establish this port's fidelity.
+
+## Earlier approximation (retained)
+
+The following controls and description apply only to **Light model → Earlier
+approximation**. They are not part of the supplied Wallpaper Engine pulse.
 
 ## Saved controls
 
@@ -68,13 +143,13 @@ mix or all three strengths to 0 switches off the colour effect; settings are kep
 These controls still tune a bounded colour blend, so they do not create physically
 additive scene lighting. Raising maximum mix toward 1 can erase source detail.
 
-The serializer now contains exactly 20 whitelisted fields. Audio files, permissions,
+These 20 legacy fields remain within the new 29-field serializer. Audio files, permissions,
 media/session handles and cached GPU masks remain excluded. Older six-field clients can drop the 13 numeric tunings and All colours;
 the preceding 19-field clients can drop All colours when resaving; export your
 settings from this revision before experimenting in an older preview. Original
 image bytes/assignments stay intact.
 
-## All colours
+## Earlier approximation: All colours
 
 Click **Scene → Scene effects → All colours**, beside Audio Light. On enables
 response from every source colour instead of the selected hue range: reds pulse
@@ -90,7 +165,7 @@ changes regenerate RGB masks; playback reuses them. There is no new per-frame
 blur or CPU pixel readback. Silence restores the image in both modes. This is
 still the bounded blend model, not physical relighting of world objects.
 
-## Coloured light response
+## Earlier approximation: coloured light response
 
 The picked colour selects a broad, feathered hue family across the colour wheel.
 Brighter matching pixels supply stronger emission; dark pixels supply less.
@@ -172,7 +247,7 @@ Wave scale/speed/strength and VHS internals remain fixed approximate values from
 the extract. Original shaders, exact blend/frequency mapping and exact screenshot
 orange were unavailable. This is not a pixel-identical Wallpaper Engine port.
 
-## Verification status
+## Earlier approximation verification status
 
 Model checks cover settings defaults/serialization, historical saves, shared
 setters, direct playback lifecycle, quiet signal/silence, resume/reconnect and FPS

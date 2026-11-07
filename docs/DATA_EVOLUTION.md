@@ -518,3 +518,26 @@ transient, so no saved audio conversion is needed. Older clients still offer the
 former sharing actions; rollback does not transfer a live session. Captures in
 older open preview tabs must be ended there/by closing those tabs. No native
 system-audio bridge, remote audio import or new backend service is introduced.
+
+
+### Source-based Wallpaper Engine pulse (2026-11-08)
+
+The user supplied pulse.vert/pulse.frag/common_blending.h and authorised a port.
+SceneVfx adds nine fields: lightModel (pulse/legacy, default pulse), pulseTintLow,
+pulseTintHigh and six numeric pulse controls. Normalization retains all 20 prior
+fields unchanged; the serializer whitelists 29. Missing new fields choose the
+source-based port as explicitly requested; selecting legacy restores prior knob,
+colour-range and All colours behavior. No automatic numeric reinterpretation or
+asset rewrite occurs. Source low tint 0.65882 uses #a8a8a8 in existing 8-bit colour
+controls. Spectrum FFT mapping remains approximate; supplied response/blend math
+is retained. Equal/reversed bounds are guarded for defined results. The original
+low-tint rest dimming is intentional in this mode, including when disconnected.
+
+Existing settings/history/UI templates/workspace exports carry the new fields;
+there is no new persistent store/schema version. Older clients can drop the nine
+new preferences when resaving, so preserve a current export. Earlier numeric
+preferences remain available for rollback. Audio/media/FFT buffers and legacy GPU
+masks are transient. Reference mode allocates no synthetic halo buffers. Images,
+assignments, atlas identities and backend formats stay unchanged. Unit/model
+checks cover shared setters, defaults, round trips and retained legacy tuning;
+new GPU/browser validation remains unrun, with no inferred appearance acceptance.

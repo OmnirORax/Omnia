@@ -2070,21 +2070,33 @@
     },
     {
       "id": "scene.vfx",
-      "title": "Audio-driven coloured scene light and selected wallpaper effects",
+      "title": "Source-based Wallpaper Engine pulse and scene audio effects",
       "where": "Scene → Scene effects. Import/apply an image through the existing Scene image workflow.",
-      "behavior": "Audio Light makes bright image regions near the chosen colour act as pulsing emitters, with a coloured near/far halo. Matching yellow/gold regions emit yellow light when yellow is chosen; blue and other colours follow the same rule. This replaces saturation-only adjustment and unbounded additive gain. A bounded colour blend retains chroma and source detail. The cached spatial glow follows image effects and does not add a second world-bloom contribution. Existing audio sessions, six base saved fields/defaults, Max FPS and history remain unchanged. Waves/VHS remain approximations. Scene effects → Light tuning exposes and serializes 13 additional real light parameters: core/near/far strengths, near/far radii, gain, maximum colour mix, tint saturation, full/outer hue ranges, source emphasis and audio sensitivity/response curve. They inherit existing shared property controls, history, save/reload and exports. Defaults now follow the user-selected screenshot; existing explicit tuning is preserved; the light model remains a bounded colour blend. All colours is a saved toggle beside Audio Light: it activates every source hue in its own colour instead of applying a single selected tint globally. RGB halos preserve source colours and mix where they overlap. The previous selected colour/range stays available when turning it off. Audio now comes exclusively from direct website playback: Choose audio file → Play audio. Tab/screen/system/microphone capture is removed, so this version starts no Chrome sharing indicators. Play/Stop retain the earlier action IDs and app-owned playback lifetime. Other apps/tabs are not inputs.",
+      "behavior": "Light model defaults to Wallpaper Engine pulse, ported from the supplied pulse.vert/pulse.frag/common_blending.h (mode 9). It averages selected stereo spectrum bands, smoothsteps thresholds, applies exponent/amount and blends image×low tint toward min(image×low tint + image×high tint,1), retaining pulse above 1. Defaults are bands 0–15, bounds 0.01–1, exponent 4, amount 1.2, low #a8a8a8 and high white. Low tint intentionally dims at rest. No invented hue/saturation/halo layer is added. Earlier approximation remains selectable with all prior saved controls. Direct website playback, bounce, waves/VHS, FPS cap, shared editing/history and capture-free input remain.",
       "steps": [
         {
-          "do": "Open Scene, select a node and apply an imported image, then open Scene effects.",
-          "expect": "The original image remains stored unchanged; Audio Light, Audio Bounce 1.12, Waves on, Distortion 0.4 and Glitching 0.3 are available."
+          "do": "Open Scene → Scene effects; select Light model → Wallpaper Engine pulse. Choose audio file → Play audio.",
+          "expect": "The source-based pulse is active. Low/high tint and six source audio controls appear. No browser sharing is requested."
+        },
+        {
+          "do": "Set Audio Bounce to 1. Inspect quiet/peak music and change Low tint, High tint, frequency bands, bounds, exponent and amount.",
+          "expect": "Low tint supplies the resting image; the pulse adds an image-shaped high-tint contribution using supplied blend mode 9. Default amount allows pulse 1.2; it is not clamped to 1. Lower upper threshold/exponent can calibrate a weaker browser spectrum."
+        },
+        {
+          "do": "Stop playback, then change Low tint to white.",
+          "expect": "At zero pulse the image follows Low tint, including when no audio is connected. White low tint restores source brightness at rest."
+        },
+        {
+          "do": "Choose Light model → Earlier approximation. Inspect your previous colour, All colours and numerical tuning, then return to Wallpaper Engine pulse.",
+          "expect": "Earlier saved values remain intact and operate only in the earlier mode. Reference mode processes all channels without the earlier hue gates or cached halos."
+        },
+        {
+          "do": "Edit source pulse settings, Undo/Redo, reload and export settings.",
+          "expect": "Shared history/persistence carries all 29 whitelisted fields. Earlier 20-field saves acquire the nine source-pulse defaults without rewriting their existing values. Older clients may drop the new fields on resave; preserve an export."
         },
         {
           "do": "Turn Waves off and set Distortion/Glitching to zero with no audio connected. Restore their defaults.",
           "expect": "The image becomes static/original, then water/VHS movement returns. Camera and node coordinates stay unchanged."
-        },
-        {
-          "do": "Choose audio file, select local music and click Play audio (or the native player Play).",
-          "expect": "The website plays the file and analyses that same signal for light/bounce. No tab/screen/microphone picker or sharing indicator is opened; no file upload occurs."
         },
         {
           "do": "Click Stop audio, then Play audio; also try Play before choosing a file.",
@@ -2095,36 +2107,12 @@
           "expect": "The input meter shows the signal, quiet audio can drive coloured light, and playback/analysis continues across the view closing. Stop ends it; subsequent playback reconnects safely."
         },
         {
-          "do": "Change a setting, use Undo/Redo, and reload. Inspect/export workspace settings.",
-          "expect": "Shared history/persistence restores choices. The sceneVfx branch contains six base controls plus 13 whitelisted light-tuning numbers and All colours; no source/session or cached GPU masks are saved."
-        },
-        {
           "do": "Enable system/browser reduced motion or hide the tab, then return.",
           "expect": "Motion pauses; reduced-motion mode displays static undistorted imagery. Ordinary visibility restoration resumes eligible effects."
         },
         {
           "do": "Set Scene effects → Max FPS to 60, then 144; use Undo/Redo and reload.",
           "expect": "The selected cap persists and restores through shared settings history. Values below 60 clamp to 60. Old settings default to 120; audio and other effect settings stay unchanged."
-        },
-        {
-          "do": "Set Audio Bounce to 1 for a fixed-frame comparison. Choose yellow, orange, blue or another colour in Audio Light while playing audio; pause and resume playback.",
-          "expect": "Matching bright regions pulse as coloured light sources with a soft halo reaching their neighbours. Fully saturated dim colours can brighten; distant unrelated regions stay unchanged. Chosen yellow/orange/blue stays coloured rather than turning into a white flash. Silence restores source colour."
-        },
-        {
-          "do": "Expand Scene effects → Light tuning, set Core strength to 0 and increase Far glow strength/radius while music plays.",
-          "expect": "The matching-pixel core contribution disappears while surrounding glow remains adjustable. Radii are percentages of the image long edge; larger radii spread the halo without allocating larger GPU buffers."
-        },
-        {
-          "do": "Adjust Light gain, Maximum colour mix, Light saturation, colour-range thresholds, Bright-source emphasis, Audio sensitivity and Audio response curve; use Undo/Redo, then reload.",
-          "expect": "Light response changes using the current blend model; all 13 tuning preferences persist and restore through the existing settings/history owner. Light saturation 0 makes the light white, 1 uses picked saturation. Lower response-curve values favour quiet audio. Zero mix or all-zero core/halo strengths disables the colour effect."
-        },
-        {
-          "do": "Load settings from before Light tuning, then save/export settings from this revision.",
-          "expect": "The original six choices survive; missing light parameters acquire the user-selected screenshot defaults. Existing 19-field saves preserve their explicit earlier tunings. The serializer writes 20 whitelisted fields, including All colours (absent defaults off). Older clients can drop newer preferences on resave; preserve a current export before trying older previews."
-        },
-        {
-          "do": "Click Scene effects → All colours while music plays, then turn it off; use Undo/Redo and reload.",
-          "expect": "On: different image colours react in their own hue and supply coloured halos, with neutral highlights remaining neutral. Off: the retained selected colour/range drives response again. The mode is saved and restores through shared history. Overlapping halos can mix colours."
         }
       ],
       "reference": "docs/SCENE_VFX.md",
@@ -2138,7 +2126,9 @@
         "src/workspaceActions.ts",
         "src/sceneGlow.ts",
         "tests/scene-light-emission.browser.mjs",
-        "src/scene/wallpaperLight.ts"
+        "src/scene/wallpaperLight.ts",
+        "src/scene/pulse.ts",
+        "tests/scene-pulse.browser.mjs"
       ],
       "actions": [
         "scene.audioConnect",
@@ -2150,11 +2140,11 @@
         "scene.manual",
         "scene.api"
       ],
-      "status": "Direct website audio replaces shared capture; interactive acceptance pending",
-      "limits": "Approximation, not a pixel-identical Wallpaper Engine port. Source shaders and exact screenshot orange unavailable. Six base controls, 13 numeric light-tuning preferences and All colours serialize (20 total). Audio is temporary local-file website playback; no other-app/tab/system capture or native bridge. Browser autoplay requires a user gesture. Max FPS 60–1000, default 120, is limited by display/render capacity. Halo buffers use the shared 512-pixel edge budget and are cached per image/colour/mode/spatial tuning. Broad colour matching can activate multiple image regions; halo reaches nearby nonmatching pixels. No physical scene relighting or world-object illumination. Bright pure colours have less headroom. Audio Bounce remains 1–1.5; hidden/reduced-motion suspension remains. Real imagery and interactive performance await user testing. The controls expose the existing colour-blend model, not a newly implemented additive-light algorithm. Maximum mix near 1 can remove source detail; low saturation intentionally makes white light. Older clients may drop new preferences when resaving. Large radii can show bounded-resolution halo artifacts. All colours keeps source hues, including neutral highlights; nearby RGB halos may mix into paler colours. Screenshot defaults apply only where values are missing; explicit prior choices are retained. Sharing already active in older preview tabs must be stopped there or by closing those previews; this version cannot end another page’s session.",
+      "status": "Source pulse port implemented; GPU/visual acceptance pending",
+      "limits": "The pulse/blend calculation comes from supplied source, but Wallpaper Engine FFT boundaries, spectrum scaling/smoothing, target colour space and active user tint overrides were not supplied. Browser stereo spectrum uses 16 log bands per channel over 20 Hz–20 kHz/Nyquist and may need threshold calibration. Low tint defaults intentionally darken at rest. Tints use existing 8-bit colour controls. No synthetic bloom is added in reference mode; full-scene equivalence is unverified. Earlier approximation is retained, with its All colours and tuning controls applying only there. Direct playback remains file-based; no external-app/system audio detection or browser capture. No new browser run; visual/performance acceptance remains user testing.",
       "verification": {
-        "browser": "Earlier authorised audio/brightness checks do not validate this coloured-emission revision; the user rejected those visual results. The prepared emission/halo test covers yellow/orange/blue/green/pink, neutral selection, nearby spread, distant regions, pulse intensity and silence through bloom/output. It has not been run; no fresh browser approval. Actual image appearance remains user acceptance. No browser run was performed for the new tuning controls; their live visual behavior remains user testing. Screenshot defaults and All colours have no fresh browser run; the prepared opt-in emission check now includes per-source hue response in All colours mode. No new browser run for capture removal; the prepared direct-playback script uses Play audio and rejects any capture API invocation.",
-        "automated": "Model checks cover five pictured defaults plus Max FPS serialization/defaults, historical settings, shared property setters, audio bounds/smoothing, direct playback signal routing and stop. Full local delivery gate recorded in PR. Repair regressions cover quiet input/silence, same-media suspended-context resume, app-owned playback across view subscription changes and stop/reconnect/dispose. Frame-pacing models cover 60/120/144/240 Hz clocks and dropping stalled-frame debt at the selected cap; Max FPS default/minimum/shared persistence regressions pass. Spatial-light regression covers caching across unchanged settings, image/colour invalidation, shared GPU size bounds, state restoration on failure/success, retry and disposal; it does not execute GLSL. Historical six-field fixture and tuning regressions cover additive defaults, preservation of original values, shared setters, bounds/nonfinite input, zero values, settings round trips and exclusion of non-whitelisted fields. Cache tests distinguish spatial tuning invalidation from intensity-only reuse. Default snapshot and frozen preceding 19-field fixture check new default values without rewriting saved tuning. Toggle regressions cover saved true/false, shared setters, retained selected colour, round trips and 20-field serialization; cache regression covers mode invalidation/reuse. Capture-free regressions reject capture APIs in the source module, fail on any browser capture request, verify media→analyser→speaker routing and Play/Stop/replay with a fresh element after explicit stop."
+        "browser": "No browser run authorised for this port. Prepared opt-in tests/scene-pulse.browser.mjs compares shader pixels against the supplied source equation through the normal bloom/output pipeline. Earlier visual passes do not validate the new port or actual music calibration.",
+        "automated": "Model regressions cover the supplied stereo averaging/threshold/exponent/amount and mode-9 equation, pulse above one, zero/equal/reversed inputs, stereo analyser routing without doubled playback, shared new setters/serialization and preservation of all earlier tuning. Existing playback/settings/cache checks remain. Full local delivery gate runs before push; model/build success does not establish GPU or visual fidelity."
       }
     },
     {

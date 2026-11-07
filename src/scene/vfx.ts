@@ -1,3 +1,4 @@
+import {PULSE_CONTROLS,type PulseKey} from './pulse.ts';
 /** Scene effects and user-adjustable light tuning; no capture/session data. */
 export const SCENE_VFX_FPS = 120;
 export const MIN_SCENE_VFX_FPS = 60;
@@ -19,14 +20,16 @@ export const SCENE_LIGHT_CONTROLS = [
  {key:'lightAudioPower',label:'Audio response curve',initial:8,min:.25,max:8,step:.1},
 ] as const;
 export type SceneLightKey = typeof SCENE_LIGHT_CONTROLS[number]['key'];
-export type SceneVfx = { audioLight: string; audioBounce: number; waves: boolean; distortion: number; glitching: number; maxFps: number; lightAllColors: boolean } & Record<SceneLightKey,number>;
+export type SceneVfx = { audioLight: string; audioBounce: number; waves: boolean; distortion: number; glitching: number; maxFps: number; lightAllColors: boolean; lightModel:"pulse"|"legacy"; pulseTintLow:string; pulseTintHigh:string } & Record<PulseKey,number> & Record<SceneLightKey,number>;
 const LIGHT_DEFAULTS=Object.fromEntries(SCENE_LIGHT_CONTROLS.map(({key,initial})=>[key,initial])) as Record<SceneLightKey,number>;
-export const DEFAULT_SCENE_VFX: Readonly<SceneVfx> = Object.freeze({audioLight:'#aa3300',audioBounce:1.12,waves:true,distortion:.4,glitching:.3,maxFps:SCENE_VFX_FPS,lightAllColors:false,...LIGHT_DEFAULTS});
+export const DEFAULT_SCENE_VFX: Readonly<SceneVfx> = Object.freeze({audioLight:'#aa3300',audioBounce:1.12,waves:true,distortion:.4,glitching:.3,maxFps:SCENE_VFX_FPS,lightAllColors:false,lightModel:'pulse',pulseTintLow:'#a8a8a8',pulseTintHigh:'#ffffff',...Object.fromEntries(PULSE_CONTROLS.map(c=>[c.key,c.initial])) as Record<PulseKey,number>,...LIGHT_DEFAULTS});
 export function normalizeSceneVfx(raw: unknown): SceneVfx {
  const r=(raw&&typeof raw==='object'?raw:{}) as Partial<SceneVfx>;
  const number=(v:unknown,f:number,min:number,max:number)=>typeof v==='number'&&Number.isFinite(v)?Math.max(min,Math.min(max,v)):f;
  const light=Object.fromEntries(SCENE_LIGHT_CONTROLS.map(({key,initial,min,max})=>[key,number(r[key],initial,min,max)])) as Record<SceneLightKey,number>;
- return {...light,lightAllColors:typeof r.lightAllColors==='boolean'?r.lightAllColors:false,audioLight:typeof r.audioLight==='string'&&/^#[a-f\d]{6}$/i.test(r.audioLight)?r.audioLight:DEFAULT_SCENE_VFX.audioLight,
+ const pulse=Object.fromEntries(PULSE_CONTROLS.map(c=>[c.key,c.integer?Math.round(number(r[c.key],c.initial,c.min,c.max)):number(r[c.key],c.initial,c.min,c.max)])) as Record<PulseKey,number>;
+ const color=(value:unknown,fallback:string)=>typeof value==='string'&&/^#[a-f\d]{6}$/i.test(value)?value:fallback;
+ return {...light,...pulse,lightModel:r.lightModel==='legacy'?'legacy':'pulse',pulseTintLow:color(r.pulseTintLow,'#a8a8a8'),pulseTintHigh:color(r.pulseTintHigh,'#ffffff'),lightAllColors:typeof r.lightAllColors==='boolean'?r.lightAllColors:false,audioLight:typeof r.audioLight==='string'&&/^#[a-f\d]{6}$/i.test(r.audioLight)?r.audioLight:DEFAULT_SCENE_VFX.audioLight,
  audioBounce:number(r.audioBounce,1.12,1,1.5),waves:typeof r.waves==='boolean'?r.waves:true,
  distortion:number(r.distortion,.4,0,1),glitching:number(r.glitching,.3,0,1),maxFps:Math.round(number(r.maxFps,SCENE_VFX_FPS,MIN_SCENE_VFX_FPS,MAX_SCENE_VFX_FPS))};
 }

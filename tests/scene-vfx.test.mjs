@@ -1,10 +1,11 @@
+import {PULSE_CONTROLS,referencePulse,referencePulseRGB} from '../src/scene/pulse.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {SCENE_LIGHT_CONTROLS,DEFAULT_SCENE_VFX,normalizeSceneVfx,serializeSceneVfx,smoothAudio,audioScale,normalizeAudioLevel,nextVfxDeadline,SCENE_VFX_FPS} from '../src/scene/vfx.ts';
 import {defaultSettings,normalizeSettings} from '../src/workspaceActions.ts';
 import {SETTINGS_PROPERTY_ADAPTERS} from '../src/properties/settingsAdapter.ts';
 test('scene effects serialize base controls plus requested light tuning, excluding session internals',()=>{
- const keys=['audioBounce','audioLight','distortion','glitching','maxFps','waves','lightAllColors',...SCENE_LIGHT_CONTROLS.map(c=>c.key)].sort();
+ const keys=['audioBounce','audioLight','distortion','glitching','maxFps','waves','lightAllColors','lightModel','pulseTintLow','pulseTintHigh',...PULSE_CONTROLS.map(c=>c.key),...SCENE_LIGHT_CONTROLS.map(c=>c.key)].sort();
  assert.deepEqual(Object.keys(JSON.parse(serializeSceneVfx({audioLight:'#aa3300',audioBounce:1.12,waves:true,distortion:.4,glitching:.3,frequency:99,source:'private',particles:true}))).sort(),keys);
  assert.deepEqual(normalizeSceneVfx(undefined),{...DEFAULT_SCENE_VFX,audioLight:'#aa3300',audioBounce:1.12,waves:true,distortion:.4,glitching:.3,maxFps:120});
  assert.deepEqual(defaultSettings().sceneVfx,DEFAULT_SCENE_VFX);
@@ -155,8 +156,57 @@ test('requested screenshot defaults and saved all-colour activation preserve ear
  const settings=normalizeSettings({sceneVfx:old}),changed=SETTINGS_PROPERTY_ADAPTERS['scene.vfx'].channels['scene.lightAllColors'].write(settings,true);
  assert.equal(changed.sceneVfx.lightAllColors,true);assert.equal(settings.sceneVfx.lightAllColors,false);
  assert.equal(changed.sceneVfx.audioLight,old.audioLight);assert.equal(changed.appearance,settings.appearance);
- const saved=JSON.parse(serializeSceneVfx(changed.sceneVfx));assert.equal(Object.keys(saved).length,20);assert.equal(saved.lightAllColors,true);
+ const saved=JSON.parse(serializeSceneVfx(changed.sceneVfx));assert.equal(Object.keys(saved).length,29);assert.equal(saved.lightAllColors,true);
  assert.deepEqual(normalizeSettings({sceneVfx:saved}).sceneVfx,saved);
  const off=SETTINGS_PROPERTY_ADAPTERS['scene.vfx'].channels['scene.lightAllColors'].write(changed,false);
  assert.deepEqual(off.sceneVfx,settings.sceneVfx,'turning off restores selective settings without changing the saved colour/tuning');
+});
+
+
+test('source pulse matches stereo band selection, smoothstep/exponent and amount without clamping 1.2',()=>{
+ const bands=new Float32Array(32).fill(1);
+ assert.equal(referencePulse(bands,0,15,.01,1,4,1.2),1.2);
+ bands.fill(0);assert.equal(referencePulse(bands,0,15,.01,1,4,1.2),0);
+ bands[2]=1;bands[18]=0;
+ assert.equal(referencePulse(bands,2,2,0,1,1,1.2),.6,'left/right are averaged, not summed or replaced by RMS');
+ assert.equal(referencePulse(bands,2,2,0,1,4,1.2),.075);
+ assert.equal(referencePulse(bands,3,3,0,1,1,1.2),0);
+ assert.equal(referencePulse(bands,2,2,.5,.5,1,1.2),0,'equal bounds are defined without NaN');
+ const rgb=referencePulseRGB([.2,.6,.9],[.65882,.65882,.65882],[1,1,1],1.2);
+ for(let i=0;i<3;i++){const v=[.2,.6,.9][i],a=v*.65882;assert.ok(Math.abs(rgb[i]-(a+(Math.min(a+v,1)-a)*1.2))<1e-12);}
+ assert.ok(rgb[2]>1,'the supplied pulse blend can exceed one; no artificial output clamp');
+ assert.deepEqual(referencePulseRGB([.2,.6,.9],[1,1,1],[0,0,0],1.2),[.2,.6,.9]);
+});
+
+test('pulse settings retain legacy tuning, use source defaults, and inherit shared setters/serialization',()=>{
+ const old={...DEFAULT_SCENE_VFX,lightModel:undefined,pulseTintLow:undefined,pulseTintHigh:undefined};
+ for(const {key}of PULSE_CONTROLS)delete old[key];
+ const value=normalizeSceneVfx(old);assert.equal(value.lightModel,'pulse');assert.equal(value.pulseTintLow,'#a8a8a8');assert.equal(value.pulseTintHigh,'#ffffff');
+ for(const {key,initial}of PULSE_CONTROLS)assert.equal(value[key],initial);
+ const channels=SETTINGS_PROPERTY_ADAPTERS['scene.vfx'].channels;
+ for(const [key,v]of [['lightModel','legacy'],['pulseTintLow','#112233'],['pulseTintHigh','#445566'],...PULSE_CONTROLS.map(c=>[c.key,c.min])]){
+  const base=defaultSettings(),changed=channels[`scene.${key}`].write(base,v);
+  assert.equal(changed.sceneVfx[key],v);assert.equal(changed.sceneVfx.lightCoreStrength,base.sceneVfx.lightCoreStrength);
+  assert.equal(normalizeSceneVfx(JSON.parse(serializeSceneVfx(changed.sceneVfx)))[key],v);
+ }
+ assert.equal(normalizeSceneVfx({...value,pulseAmount:0,pulseExponent:0}).pulseAmount,0);
+ assert.equal(normalizeSceneVfx({...value,pulseFrequencyMin:12.6}).pulseFrequencyMin,13);
+});
+
+test('pulse audio reads both real splitter channels without duplicating audible playback',async()=>{
+ const audio=await import('../src/scene/audio.ts'),previous=globalThis.AudioContext;
+ class Node{links=[];disconnect(){}connect(node,output){this.links.push({node,output});return node;}}
+ let ctx;
+ class Context{state='running';sampleRate=48000;destination={};nodes=[];constructor(){ctx=this;}resume(){return Promise.resolve();}close(){return Promise.resolve();}createMediaElementSource(){this.source=new Node();return this.source;}createChannelSplitter(){this.splitter=new Node();return this.splitter;}createAnalyser(){const node=Object.assign(new Node(),{frequencyBinCount:1024,value:255,getByteFrequencyData(buffer){buffer.fill(this.value);},getByteTimeDomainData(buffer){buffer.fill(128);}});this.nodes.push(node);return node;}}
+ globalThis.AudioContext=Context;
+ try{
+ await audio.connectSceneAudioElement({pause(){},addEventListener(){},removeEventListener(){}});
+ assert.equal(ctx.nodes.length,3);assert.deepEqual(ctx.splitter.links.map(l=>l.output),[0,1]);
+ assert.equal(ctx.nodes[0].links[0].node,ctx.destination);assert.equal(ctx.nodes[1].links.length,0);assert.equal(ctx.nodes[2].links.length,0,'spectrum taps are never sent to speakers a second time');
+ assert.equal(audio.sampleScenePulse(DEFAULT_SCENE_VFX),1.2);
+ ctx.nodes[1].value=0;const bands=new Float32Array(32);bands.fill(1,16);
+ assert.equal(audio.sampleScenePulse(DEFAULT_SCENE_VFX),referencePulse(bands,0,15,.01,1,4,1.2));
+ ctx.nodes[2].value=0;assert.equal(audio.sampleScenePulse(DEFAULT_SCENE_VFX),0);
+ audio.disconnectSceneAudio();assert.equal(audio.sampleScenePulse(DEFAULT_SCENE_VFX),0);
+ }finally{audio.disposeSceneAudio();globalThis.AudioContext=previous;}
 });
