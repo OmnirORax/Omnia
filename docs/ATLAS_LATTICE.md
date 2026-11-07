@@ -64,17 +64,17 @@ precision coordinates or GPU/browser acceptance is claimed. Very small scales
 can become invisible or unreliable; this is an experiment to identify those
 boundaries, not a promise that all positive JavaScript numbers render correctly.
 
-**Empty lattice cells** spans the camera viewport in a lattice-aligned slice
-through the camera target. Its extent follows zoom, aspect, panning and rotation
-by intersecting the slice with the camera frustum. A view-distance/zoom-relative
-horizon bounds distant intersections in tilted views, preventing far-away cells
-from exhausting the local marker budget. Markers fade near that horizon; the
-scene camera far plane and real node visibility are unchanged. One instanced draw holds at
-most 16,384 markers. At dense overview scales, power-of-two sampling of real
-world-anchored cells covers the full span instead of cropping a central patch;
-marker diameter remains one true cell. Unsampled empty cells remain available
-for creation. The render owner updates on camera/projection changes, including
-resize, and reuses unchanged geometry. The slice chooses
+**Empty lattice cells** covers the visible screen horizontally and vertically at
+its current zoom. A bounded screen-space sample grid casts into the same real
+lattice-aligned creation slice through the camera target. Resizing updates the
+sample grid; zoom, pan and rotation update its world intersections. Real-cell
+addresses deduplicate repeated samples, and occupied cells remain omitted. One
+instanced draw holds at most 16,384 markers. The screen sample spacing is at least
+eight CSS pixels (larger for budgeted large viewports). Fine cells at overview
+scales are sampled, without enlarging cell diameter; unsampled empty cells remain
+available for creation. No fixed world patch or artificial distance horizon is
+used. Unchanged camera/projection/viewport state reuses instance data.
+The slice chooses
 the closest fixed lattice orientation to the camera. Occupied cells, including
 filtered-out nodes, have no empty marker. The field follows panning and is a
 bounded creation aid, not a full infinite or fully drawn 3D volume. Aim at an O

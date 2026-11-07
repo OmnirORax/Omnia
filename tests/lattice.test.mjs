@@ -137,7 +137,7 @@ test('vacant lattice span follows zoom and aspect without changing real cell siz
  const measure=()=>{field.update(target,camera);let x=0,y=0;for(let i=0;i<field.object.count;i++){field.object.getMatrixAt(i,matrix);const p=new THREE.Vector3().setFromMatrixPosition(matrix),scale=new THREE.Vector3().setFromMatrixScale(matrix);assert.ok(Math.abs(scale.x-1)<1e-6);assert.equal(p.x,Math.round(p.x));x=Math.max(x,Math.abs(p.x));y=Math.max(y,Math.abs(p.y));}return {x,y,count:field.object.count};};
  camera.position.z=5;camera.lookAt(target);const near=measure();
  camera.position.z=50;const far=measure();assert.ok(far.x>near.x&&far.y>near.y);assert.ok(far.count>near.count);
- camera.aspect=2;camera.updateProjectionMatrix();const wide=measure();assert.ok(wide.x>far.x);assert.equal(wide.y,far.y);
+ camera.aspect=2;camera.updateProjectionMatrix();const wide=measure();assert.ok(wide.x>far.x);assert.ok(Math.abs(wide.y-far.y)<=1);
  camera.position.z=1000;const overview=measure();assert.ok(overview.x>wide.x);assert.ok(overview.count<=LATTICE_FIELD_CAPACITY);
  camera.position.set(10,12,14);camera.lookAt(target);assert.ok(measure().count>0);field.dispose();
 });
@@ -149,4 +149,12 @@ test('tilted near-horizon span preserves local coverage instead of spending the 
  field.update(new THREE.Vector3(),camera);let visible=0,nearby=0;
  for(let i=0;i<field.object.count;i++){field.object.getMatrixAt(i,matrix);const world=new THREE.Vector3().setFromMatrixPosition(matrix),p=world.clone().project(camera);if(Math.abs(p.x)<1&&Math.abs(p.y)<1&&p.z>=-1&&p.z<=1){visible++;if(world.length()<20)nearby++;}}
  assert.ok(visible>100,`${visible} visible markers`);assert.ok(nearby>50,`${nearby} nearby markers`);assert.ok(field.object.count<=LATTICE_FIELD_CAPACITY);field.dispose();
+});
+
+test('screen sampling covers both screen axes at oblique zoom without an arbitrary world horizon',()=>{
+ const field=createLatticeField(fixture([])),camera=new THREE.PerspectiveCamera(55,1.8,.001,100000),matrix=new THREE.Matrix4();
+ camera.position.set(14.094298433892122,5.48165164671577,-13.0882484267546);camera.up.set(.77983384030233,.44349949855861626,.4417775190042786);camera.lookAt(0,0,0);
+ field.update(new THREE.Vector3(),camera,1440,800);let minX=1,maxX=-1,minY=1,maxY=-1;
+ for(let i=0;i<field.object.count;i++){field.object.getMatrixAt(i,matrix);const p=new THREE.Vector3().setFromMatrixPosition(matrix).project(camera);if(p.z< -1||p.z>1)continue;minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);minY=Math.min(minY,p.y);maxY=Math.max(maxY,p.y);}
+ assert.ok(minX<-.9&&maxX>.9&&minY<-.9&&maxY>.9);assert.ok(field.object.count<=LATTICE_FIELD_CAPACITY);field.dispose();
 });

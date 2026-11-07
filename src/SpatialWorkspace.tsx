@@ -257,7 +257,7 @@ export default function SpatialWorkspace(props: Props) {
         const selected = textScene.current?.nodes.get(callbacks.current.selectedId ?? "")?.anchor ?? worldCoordinates.current.get(callbacks.current.selectedId ?? "");
         for (const guide of guides.current) updateCameraGuide(guide, camera, controls.target, selected ? asVector(selected) : undefined);
         if (selectedBackground || hierarchyBackground !== null) applyBackgroundFeedback();
-        latticeFieldRef.current?.update(controls.target,camera);
+        latticeFieldRef.current?.update(controls.target,camera,host.clientWidth,host.clientHeight);
         appearance.render();
       });
     };

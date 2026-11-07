@@ -749,12 +749,13 @@ Reuse nodePresentation expansion state; no saved graph mutation for visibility.
 
 Empty lattice field span follows the viewport/frustum, not a fixed cell radius.
 Reuse the shared render lifecycle for zoom/resize updates and cached camera state.
-Bound overview work with world-anchored sampling of real cells, never enlarged
+Bound overview work with screen-based sampling of real cells, never enlarged
 fake cells or dense world allocation. Preserve hidden occupancy and creation slice;
 no saved-data or coordinate changes. See docs/ATLAS_LATTICE.md for sampling limits.
 
-Lattice horizon regression: a tilted slice can intersect the scene far plane
-and starve nearby coverage through coarse global sampling. Clip display bounds
-to a view-distance/zoom-relative horizon, fade only decorative empty markers there,
-and keep real nodes, creation, occupancy and scene camera clipping unchanged.
-Include an oblique near-horizon camera regression, not only front-facing counts.
+Lattice sparse-field correction: sample the visible screen in both axes and
+intersect the actual creation slice, deduplicating real cell addresses. Do not
+budget from a far-plane world bounding box, which starves tilted nearby views.
+Do not impose a fixed world patch or a view-distance horizon. Keep screen work
+bounded, cell diameter/occupancy/creation unchanged, and reuse camera/viewport
+invalidation in the render owner. Supersedes world-anchored power-of-two sampling.
