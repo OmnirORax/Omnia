@@ -439,3 +439,12 @@ Prepared bright-colour headroom correction (2026-11-07): runtime flash brightnes
 is bounded to remaining source headroom and halo energy is separate. No six-field
 sceneVfx settings, defaults, image bytes, assignments or exported formats change.
 Older clients render the former unbounded gain from the same stored preferences.
+
+Audio Light saturation correction (2026-11-07): the user explicitly replaced the
+rejected brightness/bloom interpretation with saturation. The stored audioLight
+RGB still selects a broad hue family; audio now changes display-space saturation
+with fixed hue/HSV value. No exposure or audio bloom is added. All six stored
+fields/defaults/bounds remain unchanged, with no image, assignment or atlas rewrite.
+Older clients interpret the same preference using the former light-gain response;
+rollback needs no data conversion. Obsolete visual tests are replaced to reflect
+the requested semantics, without claiming the new visual check was run.

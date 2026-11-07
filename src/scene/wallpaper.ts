@@ -7,12 +7,12 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void) {
   const material = new THREE.ShaderMaterial({
     depthTest: false, depthWrite: false, toneMapped: false,
     uniforms: { image: { value: null }, imageAspect: { value: 1 }, viewportAspect: { value: 1 },
-      sceneGlowPass:{value:0}, time: {value:0}, bounce:{value:1}, light:{value:0}, lightColor:{value:new THREE.Color('#aa3300')},
+      sceneGlowPass:{value:0}, time: {value:0}, bounce:{value:1}, light:{value:0}, lightHue:{value:.05},
       waves:{value:1}, distortion:{value:.4}, glitching:{value:.3},
       feedbackColor: { value: new THREE.Color() }, feedbackStrength: { value: 0 } },
     vertexShader: 'varying vec2 imageUV; void main() { imageUV = uv; gl_Position = vec4(position.xy, 1.0, 1.0); }',
     fragmentShader: `uniform sampler2D image; uniform float imageAspect; uniform float viewportAspect;
-      uniform float sceneGlowPass; uniform float time; uniform float bounce; uniform float light; uniform vec3 lightColor;
+      uniform float sceneGlowPass; uniform float time; uniform float bounce; uniform float light; uniform float lightHue;
       uniform float waves; uniform float distortion; uniform float glitching;
       float hash(float n){return fract(sin(n*127.1)*43758.5453);}
       vec3 hsv(vec3 c){
@@ -22,13 +22,23 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void) {
         float d=q.x-min(q.w,q.y),e=1.e-10;
         return vec3(abs(q.z+(q.w-q.y)/(6.0*d+e)),d/(q.x+e),q.x);
       }
-      float affinity(vec3 sampleColor){
-        vec3 a=hsv(sampleColor),b=hsv(lightColor);
-        float distance=abs(a.x-b.x);distance=min(distance,1.0-distance);
+      vec3 rgbFromHSV(vec3 c){
+        vec3 p=abs(fract(c.xxx+vec3(0.0,2.0/3.0,1.0/3.0))*6.0-3.0);
+        return c.z*mix(vec3(1.0),clamp(p-1.0,0.0,1.0),c.y);
+      }
+      vec3 displayColour(vec3 c){
+        return mix(c*12.92,1.055*pow(max(c,vec3(0.0)),vec3(1.0/2.4))-.055,step(vec3(.0031308),c));
+      }
+      vec3 linearColour(vec3 c){
+        return mix(c/12.92,pow((c+.055)/1.055,vec3(2.4)),step(vec3(.04045),c));
+      }
+      float affinity(vec3 a){
+        float distance=abs(a.x-lightHue);distance=min(distance,1.0-distance);
         return (1.0-smoothstep(.04,.14,distance))*smoothstep(.06,.22,a.y)*smoothstep(.001,.025,a.z);
       }
       uniform vec3 feedbackColor; uniform float feedbackStrength; varying vec2 imageUV;
       void main() {
+        if(sceneGlowPass!=0.0){gl_FragColor=vec4(0.0,0.0,0.0,1.0);return;}
         vec2 uv=(imageUV-.5)/bounce+.5;
         // Reference water-wave scale 10, speed 5, strength .025; fixed internals.
         uv.x+=waves*.025*sin(uv.y*62.83185+time*5.0)*.35;
@@ -42,25 +52,21 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void) {
         if (viewportAspect > imageAspect) coverUV.y *= imageAspect / viewportAspect;
         else coverUV.x *= viewportAspect / imageAspect;
         vec3 color = texture2D(image, clamp(coverUV + 0.5,vec2(.001),vec2(.999))).rgb;
-        // The colour picker selects a broad hue family; the source image stays intact.
-        float match=affinity(color),value=max(color.r,max(color.g,color.b));
-        // Boost source radiance, never add a colour-normalized floor to shadows.
-        // This keeps dark fabric/space dark while bright coloured details flash.
-        float highlights=smoothstep(.025,.55,value);
-        float response=match*light*highlights;
-        // Spend only the remaining SDR headroom, scaling RGB together to retain colour.
-        float peak=value+(1.0-value)*(1.0-exp(-2.5*response));
-        vec3 boosted=color*(1.0+(peak-value)/max(value,.00001));
-        // Halo energy is separate and bounded; bright source pixels never emit 3x HDR.
-        vec3 halo=color*response*.12;
-        vec3 outputColor=sceneGlowPass==0.0?mix(boosted,feedbackColor,feedbackStrength):
-          (sceneGlowPass>0.0?halo*sceneGlowPass:vec3(0.0));
+        // Saturation is edited in display colour space, keeping visible hue/value fixed.
+        // There is no exposure gain and no contribution to the bloom mask.
+        vec3 enhanced=color;
+        if(light>0.0){
+          vec3 source=hsv(displayColour(color));
+          float amount=affinity(source)*light;
+          if(amount>0.0&&source.y<1.0){source.y=mix(source.y,1.0,clamp(amount,0.0,1.0));enhanced=linearColour(rgbFromHSV(source));}
+        }
+        vec3 outputColor=mix(enhanced,feedbackColor,feedbackStrength);
         gl_FragColor = vec4(outputColor, 1.0);
         #include <colorspace_fragment>
       }`,
   });
   const geometry = new THREE.PlaneGeometry(2, 2), mesh = new THREE.Mesh(geometry, material);
-  mesh.userData.glowIntensity = 1; mesh.frustumCulled = false; mesh.renderOrder = -100000; mesh.visible = false; mesh.raycast = () => {};
+  mesh.userData.glowIntensity = 0; mesh.frustumCulled = false; mesh.renderOrder = -100000; mesh.visible = false; mesh.raycast = () => {};
   scene.add(mesh);
   let texture: THREE.Texture | null = null, epoch = 0, alive = true;
   let settings=normalizeSceneVfx(undefined),frame=0,last=0,deadline=0,bass=0,level=0,elapsed=0;
@@ -87,7 +93,7 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void) {
   const stopAudio=subscribeSceneAudio(schedule);
   document.addEventListener('visibilitychange',visibility);reduced.addEventListener('change',motion);
   return {
-    configure(value:SceneVfx){settings=normalizeSceneVfx(value);material.uniforms.lightColor.value.set(settings.audioLight);motion();},
+    configure(value:SceneVfx){settings=normalizeSceneVfx(value);const chosen={h:0,s:0,l:0};new THREE.Color(settings.audioLight).getHSL(chosen,THREE.SRGBColorSpace);material.uniforms.lightHue.value=chosen.h;motion();},
     async setURL(url: string | null) {
       const mine = ++epoch;
       cancel();bass=0;level=0;elapsed=0;material.uniforms.time.value=0;material.uniforms.bounce.value=1;material.uniforms.light.value=0;
