@@ -113,3 +113,9 @@ nodes, settings normalization and bounded instanced empty fields. Required full
 model/build/backend checks are recorded in the capability guide. No browser suite
 or performance profiling is run for this change; the user owns visual/interaction
 acceptance and the scale threshold experiment.
+
+Drag landing preview uses a camera-facing circular cell outline at the current
+lattice diameter, independent of content size. It retains cyan valid/red invalid
+feedback, snapping, nesting targets and existing cancellation/disposal. This is a
+transient renderer change; saved coordinates, formats and history are unaffected.
+Visual confirmation is user-owned.

@@ -1,3 +1,4 @@
+import { analyticSelectionRing } from "./materialCoverage";
 import type { BinderEnd } from "./graph/reconnectBinder";
 import type { DisplayBinder } from "./graph/binders";
 import { prepareLattice, prepareLatticeTransform, cellPoint, latticeScale, latticeUnit } from "./graph/lattice";
@@ -615,8 +616,9 @@ export default function SpatialWorkspace(props: Props) {
       const id = hit.object.userData.nodeId as string, group = groups.current.get(id); if (!group) return;
       const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(camera.getWorldDirection(new THREE.Vector3()), group.position);
       const intersection = raycaster.ray.intersectPlane(plane, new THREE.Vector3()); if (!intersection) return;
-      const label = textScene.current?.nodes.get(id)?.slot;
-      const marker = new THREE.Mesh(new THREE.PlaneGeometry(label?.scale.x ?? 2, label?.scale.y ?? 0.5), new THREE.MeshBasicMaterial({ color: 0x6cdbdf, wireframe: true, transparent: true, opacity: 0.7, depthWrite: false, side: THREE.DoubleSide }));
+      const marker = new THREE.Mesh(new THREE.RingGeometry(0.835, 1.125, 64), new THREE.MeshBasicMaterial({ color: 0x6cdbdf, transparent: true, opacity: 0.7, depthWrite: false, side: THREE.DoubleSide }));
+      analyticSelectionRing(marker.material);
+      marker.scale.setScalar(latticeUnit(callbacks.current.settings.spatial.nodeCellSize)*latticeScale(callbacks.current.settings.spatial.latticeScale)/2);
       marker.quaternion.copy(camera.quaternion);
       marker.position.copy(group.position); marker.visible = false; scene.add(marker);
       const anchor = asVector(graphRef.current.nodes.find((n) => n.id === id)!.world);
