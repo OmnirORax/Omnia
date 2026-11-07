@@ -29,7 +29,7 @@ ${target===material?'outgoingLight *= 1.0 + carrierGlow * carrierEdge;':''}
 ${target===material&&background?'adaptiveSphere(outgoingLight,diffuseColor.a,opacity/max(1.0-carrierTranslucency,0.0001),carrierTranslucency);':''}
 #include <opaque_fragment>`);
   };
-  target.customProgramCacheKey=()=> `atomic-configured-edge-glow-v1${target===material&&background?'-adaptive-live-brightness-v1':''}`;
+  target.customProgramCacheKey=()=> `atomic-configured-edge-glow-v1${target===material&&background?'-adaptive-live-modes-v2':''}`;
  });return material;
 }
 export const atomicCarrierOpacity=(opacity:number,translucency=.82)=>translucentOpacity(opacity,translucency);

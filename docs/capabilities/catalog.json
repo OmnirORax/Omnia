@@ -3921,20 +3921,20 @@
     {
       "id": "render.adaptiveComparison",
       "title": "Live adaptive sphere blending",
-      "where": "MS / Master controller → Visuals → Omnium → Nodes → Sphere / geometric body → Adaptive blending → Blend strength. Works on the live atlas and paint previews.",
-      "behavior": "Adaptive blending and Blend strength are normal serialized appearance properties on the sphere-body target, inheriting existing applicability, targeting, locks, draft Apply/Discard and history. Adaptive blending defaults off; strength defaults .65 in range 0–1. Toggle or drag the field to update the live world shader uniforms. The same per-world wallpaper sampler feeds saved spheres and paint previews, using the actual viewport size and cover transform. Adaptation changes hue-preserving scalar brightness only; alpha is unchanged, with authored Opacity and Translucency authoritative. The prior separate comparison window, synthetic scene and timing UI are retired.",
+      "where": "MS / Master controller → Visuals → Omnium → Nodes → Sphere / geometric body → Adaptive blending → On, Blend mode, Blend strength and Body coverage. Updates the actual atlas and paint previews.",
+      "behavior": "Serialized sphere-body properties inherit normal MS applicability, targeting, locks, Apply/Discard and history. Adaptive blending defaults off; strength .65, mode Auto contrast, Body coverage 1. Modes are Auto contrast (hue-preserving brightness), Screen (lighten), Multiply (darken), Difference (invert against background), Soft light and Normal colour. Modes operate across the whole visible sphere surface using the per-world wallpaper sampler. Body coverage explicitly fills the near-empty bubble interior up to authored Opacity × (1−Translucency), scaled by strength; 0 retains the legacy bubble profile. This explicit coverage supersedes the earlier brightness-only fixed-alpha behavior. No opaque backing or separate comparator is added.",
       "steps": [
         {
-          "do": "In MS → Visuals target the sphere body and enable Adaptive blending. Expand it to Blend strength, then drag the numeric field while looking at your scene.",
-          "expect": "Actual spheres and paint previews respond immediately; no separate scene/window is needed. The selected colour is retained while brightness adapts to wallpaper."
+          "do": "Target Sphere / geometric body in MS → Visuals, enable Adaptive blending and expand its controls. Start with Screen, strength 1 and Body coverage 1 against a busy wallpaper.",
+          "expect": "The whole sphere interior participates immediately, including saved carriers and paint previews. Screen lightens; Multiply darkens; Difference changes colour relative to wallpaper; Soft light is gentler. These modes may alter perceived hue."
         },
         {
-          "do": "Set Blend strength to 0, then toggle Adaptive blending off. Adjust Opacity or Translucency separately.",
-          "expect": "Zero strength/off uses the original rendering. Adaptation never raises opacity; the existing opacity/translucency controls determine coverage and full-clear states."
+          "do": "Compare Auto contrast and Normal colour, then vary Body coverage. Set strength 0 or turn blending off.",
+          "expect": "Auto contrast retains source hue but saturated colours have limited brightening headroom. Normal colour retains source colour while coverage adjusts the interior. Coverage 0 restores the original bubble profile; strength 0/off restores original rendering exactly. Full translucency or zero opacity stays invisible."
         },
         {
-          "do": "Apply the appearance changes, reload, then use normal appearance history/reset controls.",
-          "expect": "Enabled state and strength survive reload through existing settings serialization. History/reset use the shared controller; absent values remain off/.65."
+          "do": "Apply, reload and inspect all four blend fields. Use normal appearance history/reset or Discard a draft.",
+          "expect": "Mode, coverage, strength and enabled state use existing controller persistence/history. Missing values read off/Auto contrast/.65/1; existing enabled sessions gain explicit whole-body coverage unless set to 0."
         }
       ],
       "reference": "docs/ATLAS_LATTICE.md",
@@ -3949,7 +3949,8 @@
         "src/SpatialWorkspace.tsx",
         "tests/appearance.test.mjs",
         "tests/adaptive-texture.browser.mjs",
-        "tests/adaptive-spheres.harness.html"
+        "tests/adaptive-spheres.harness.html",
+        "src/properties/sphereBlendModes.ts"
       ],
       "actions": [],
       "gestures": [],
@@ -3957,11 +3958,11 @@
         "graph.lattice",
         "camera.navigation"
       ],
-      "limits": "Experimental brightness-only heuristic. Samples wallpaper/plain background, not other nodes or the completed scene. Exact hue and fixed opacity limit contrast; no universal readability guarantee. Bloom retains the authored edge-glow response. Old comparison timings concern a retired synthetic setup and do not establish live-atlas hardware GPU cost. Older clients may discard unknown appearance properties on rewrite. Retired comparator frame IDs remain preserved as unavailable UI records rather than deleting saved organization.",
+      "limits": "Samples wallpaper/plain background only, not other nodes or the completed scene. No universal readability guarantee. Body coverage respects existing Opacity/Translucency: high translucency still limits the effect. Auto contrast cannot brighten an already saturated channel while retaining hue; other modes intentionally change composite colours. Bloom retains authored edge glow. One background sample per enabled base fragment except Normal colour; no additional render pass or CPU per-node background readback. No hardware performance claim. Older clients may drop unknown properties on rewrite. Retired comparator UI records remain preserved as unavailable organization.",
       "status": "Live implementation for review; off by default; user visual acceptance pending",
       "verification": {
-        "automated": "All 607 model/architecture tests, preview/type/property/capability build and backend checks pass. Checks cover serialized enabled/strength fields, sphere applicability, defaults, explicit zero, live uniform reference updates, fixed alpha across strengths, hue ratios, disabled/clear endpoints and shader/preprocessor wiring.",
-        "browser": "Prior sampler/zero-state/texture checks are retained as evidence for shared infrastructure only. No new browser run or hardware profiling for this live integration; direct MS/live-scene/reload acceptance remains user-owned."
+        "automated": "All 609 model/architecture tests, preview/type/property/capability build and backend checks pass. Models cover conventional mode equations, explicit bounded interior coverage, zero/clear endpoints, all mode IDs/settings round trips and live uniform wiring.",
+        "browser": "User chose to test this preview. No browser run for these live mode/coverage controls; physical MS activation, Apply/reload and visual quality remain user acceptance. Earlier sampler checks cover shared infrastructure only, not this new behavior."
       }
     }
   ]
