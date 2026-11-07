@@ -795,3 +795,10 @@ wins before nearest-boundary lookup. The lens is the fallback for nearby edges,
 not a requirement that clicks inside visible filled geometry stay near its outline.
 Surface/scope eligibility still filters both; bounds never substitute for ink.
 This applies to attached and independent clipped fills through the same matcher.
+
+The shared surface adapter may claim a non-drag modifier click with
+`onModifierClick`. The registry captures its original press hit, validates the same
+surface/context at release and dispatches once. Declined clicks and modifier drags
+use normal selection with fresh release geometry; preview still reuses its prepared
+snapshot. Atlas Ctrl/Meta-click opts in to navigator positioning without mounting.
+Composer and other surfaces retain their existing membership behavior.

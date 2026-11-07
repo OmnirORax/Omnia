@@ -7,7 +7,7 @@ import { uiContextEnabled } from "./ui/contextMenuOwnership";
 import { analyticSelectionRing } from "./materialCoverage";
 import type { BinderEnd } from "./graph/reconnectBinder";
 import type { DisplayBinder } from "./graph/binders";
-import { prepareLattice, prepareLatticeTransform, cellPoint, latticeScale, latticeUnit } from "./graph/lattice";
+import { latticeWorld, prepareLattice, prepareLatticeTransform, cellPoint, latticeScale, latticeUnit } from "./graph/lattice";
 import { createLatticeField, latticeFrame } from "./latticeField";
 import { expansionState } from "./graph/nodePresentation";
 import {cursorSample} from './ui/cursorPosition';
@@ -490,6 +490,14 @@ export default function SpatialWorkspace(props: Props) {
     };
     const stopSelectionSurface=selectionSurfaces.register({
       element:()=>renderer.domElement,context:()=>callbacks.current.omnicPreviewContext,nativePicking:true,
+      onModifierClick:(pointer,mode,id)=>{
+        if(mode!=='toggle'||!id)return false;
+        try{
+          cancelDrive();const point=latticeWorld(callbacks.current.document,id,callbacks.current.settings.spatial.nodeCellSize),scale=latticeScale(callbacks.current.settings.spatial.latticeScale),world=new THREE.Vector3(point.x,point.y,point.z).multiplyScalar(scale);
+          navigator.initialize(world);navigatorDriving.current=false;navigatorVisible=true;relocateCamera(world);rebaseNavigatorPointer({clientX:pointer.x,clientY:pointer.y});callbacks.current.onNodeSelect(id);setFeedback('Navigator positioned · node is not mounted');
+        }catch(error){setFeedback(error instanceof Error?error.message:String(error));}
+        return true;
+      },
       snapshot:()=>{
         const rect=host.getBoundingClientRect();
         const units=[...(textScene.current?.nodes??[])].flatMap(([id,item])=>{
@@ -612,10 +620,10 @@ export default function SpatialWorkspace(props: Props) {
     nudgeEngine.current = nudging;
     const depthNudging=createNudgeGesture({schedule:tick=>requestAnimationFrame(tick),cancel:id=>cancelAnimationFrame(id),now:()=>performance.now(),snapshot:()=>{
       if(!navigator.initialized||uiPointerActive||navigation.active||drag||selecting||binderDown)return null;
-      const origin=navigator.position.clone(),normal=navigator.normal();return {step:pitch(),frame:new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0),normal),preview:delta=>{const previous=navigator.position.clone();navigator.position.copy(origin).add(delta);if(!updateNavigator(navigatorPointer()))navigator.position.copy(previous);},restore:()=>{},commit:()=>{}};
+      const origin=navigator.position.clone(),normal=navigator.forward();return {step:pitch(),frame:new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0),normal),preview:delta=>{const previous=navigator.position.clone();navigator.position.copy(origin).add(delta);if(!updateNavigator(navigatorPointer()))navigator.position.copy(previous);},restore:()=>{},commit:()=>{}};
     }});
     stateRef.current!.navigatorCanStep=()=>navigatorVisible&&!uiPointerActive&&!navigation.active&&!drag&&!selecting&&!binderDown&&document.elementFromPoint(cursorSample().x,cursorSample().y)===renderer.domElement;
-    stateRef.current!.navigatorDepth=(action,input)=>{navigator.orientation.copy(camera.quaternion);if(input instanceof KeyboardEvent){if(!navigatorDepthHeld){if(input.repeat)return;props.heldNudges.stop();navigatorDepthHeld=true;}props.heldNudges.press(action,input.code||input.key,input.repeat);}else{const previous=navigator.position.clone();navigator.depth((action==='nudgeUp'?1:-1)*pitch());if(!updateNavigator(navigatorPointer()))navigator.position.copy(previous);}};
+    stateRef.current!.navigatorDepth=(action,input)=>{navigator.orientation.copy(camera.quaternion);if(input instanceof KeyboardEvent){if(!navigatorDepthHeld){if(input.repeat)return;props.heldNudges.stop();navigatorDepthHeld=true;}props.heldNudges.press(action,input.code||input.key,input.repeat);}else{const previous=navigator.position.clone();navigator.depth((action==='nudgeUp'?-1:1)*pitch());if(!updateNavigator(navigatorPointer()))navigator.position.copy(previous);}};
     const stopHeldNudges = props.heldNudges.subscribe(() => { try { const actions=props.heldNudges.getSnapshot().actions;if(navigatorDepthHeld){depthNudging.update(actions.filter(action=>action==='nudgeUp'||action==='nudgeDown'));if(!actions.length)navigatorDepthHeld=false;}else nudging.update(actions); } catch (error) { nudging.finish(true); props.heldNudges.stop(); setFeedback(error instanceof Error ? error.message : String(error)); } });
 
     const down = (event: PointerEvent) => {
@@ -1062,7 +1070,7 @@ export default function SpatialWorkspace(props: Props) {
   const menuItems = menu?.target.kind === "selection" ? selectionMenu : menu?.target.kind === "node" ? nodeMenu : spaceMenu;
   return <div className="spatial-workspace" aria-label="3D Omnium workspace" ref={hostRef}>
     {error && <div className="spatial-error" role="alert">{error}</div>}
-    <div className="spatial-help">Click node: drive · click empty slot: park/unmount · Up/Down: navigator depth · Esc: cancel drive · Right-click: actions / expand / collapse · {settings.mouse.subtreeModifier !== "none" && `${settings.mouse.subtreeModifier}-click: entire subtree · `}{settings.mouse.selectionModifier}-drag: select · {settings.mouse.nestModifier}-drag: nest · {navigationShortcuts.binding("world.navigate") || "unbound"}-drag: {MODES.find(mode => mode.id === activeNavigation.mode)?.label} · {activeNavigation.mode === "auto" ? "node: object center · selected branch: orbit · no selection: look" : activeNavigation.mode === "orient" ? "own node centers" : activeNavigation.mode === "look" || activeNavigation.mode === "walk" || activeNavigation.mode === "pan" ? "camera position" : `${activeNavigation.pivot} pivot`} · {navigationConstraint(activeNavigation)} · Shift configures</div>
+    <div className="spatial-help">Click node: drive · Ctrl-click: position without mounting · click empty slot: park/unmount · Up/Down: navigator depth · Esc: cancel drive · Right-click: actions / expand / collapse · {settings.mouse.subtreeModifier !== "none" && `${settings.mouse.subtreeModifier}-click: entire subtree · `}{settings.mouse.selectionModifier}-drag: select · {settings.mouse.nestModifier}-drag: nest · {navigationShortcuts.binding("world.navigate") || "unbound"}-drag: {MODES.find(mode => mode.id === activeNavigation.mode)?.label} · {activeNavigation.mode === "auto" ? "node: object center · selected branch: orbit · no selection: look" : activeNavigation.mode === "orient" ? "own node centers" : activeNavigation.mode === "look" || activeNavigation.mode === "walk" || activeNavigation.mode === "pan" ? "camera position" : `${activeNavigation.pivot} pivot`} · {navigationConstraint(activeNavigation)} · Shift configures</div>
     {props.optionNodeId && <div ref={optionBarRef} className="node-options" role="toolbar" aria-label="Node options">
       <button data-ui-id="open-node-document" onClick={() => { setDocumentNodeId(props.optionNodeId); props.onDismissOptions(); }}>Document</button>
       {NODE_OPTIONS.map((option) => <div className="node-option" key={option.id}>

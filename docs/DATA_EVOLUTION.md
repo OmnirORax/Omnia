@@ -385,3 +385,9 @@ rebindings remain authoritative. Plain world click semantics are now drive/park;
 right-click retains inspection/expansion, and selection modifiers retain ownership.
 Older clients keep their older interaction behavior; no load-time coordinate
 rewrite or backend rollout is introduced by the navigator.
+
+Navigator compass/locate follow-up (2026-11-07): compass geometry and Ctrl-click
+positioning are transient; locate cancels unparked placement previews and uses
+existing camera history. No graph/schema migration. Depth action IDs and saved
+key assignments are unchanged; their forward/backward semantics are corrected.
+CI retry logs are private ephemeral files, not application data or credentials.

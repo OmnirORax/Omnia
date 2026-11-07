@@ -2,6 +2,7 @@ import * as THREE from "three";
 
 export const DEFAULT_CAMERA_POSITION = new THREE.Vector3(7, 5, 9);
 export const DEFAULT_CAMERA_FOV = 55;
+export const WORLD_AXIS_COLORS = { x: "#f68b88", y: "#8cdb9b", z: "#89baff" } as const;
 const axes = ["x", "y", "z"] as const;
 const coordinates = (point: THREE.Vector3) => axes.map(axis => `${axis.toUpperCase()} ${point[axis].toFixed(2)}`).join(" · ");
 

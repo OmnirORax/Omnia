@@ -5,7 +5,7 @@ export function createWorldNavigator(){
  const position=new THREE.Vector3(),orientation=new THREE.Quaternion();let initialized=false;
  const normal=()=>new THREE.Vector3(0,0,1).applyQuaternion(orientation);
  const valid=(p:THREE.Vector3)=>[p.x,p.y,p.z].every(Number.isFinite);
- return {position,orientation,normal,get initialized(){return initialized;},
+ return {position,orientation,normal,forward:()=>normal().negate(),get initialized(){return initialized;},
   reset(){initialized=false;orientation.identity();position.set(0,0,0);},
   initialize(point:THREE.Vector3){if(initialized)return;position.copy(point);initialized=true;},
   plane(){return new THREE.Plane().setFromNormalAndCoplanarPoint(normal(),position);},

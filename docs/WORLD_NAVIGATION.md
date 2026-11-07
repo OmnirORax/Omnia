@@ -132,16 +132,19 @@ through a prepared shared gesture adapter; commits use the same lattice owner. S
 
 ## World navigator and driving a node
 
-The cyan ring/diameter/centre with a local corner orientation mark is a transient
+The cyan ring/centre with a projected XYZ compass is a transient
 navigator, not a knowledge node. On first world interaction it starts on the
 camera-facing XY plane through the current camera target. Its internal frame
 matches the camera orientation like a compass: mouse rays resolve local XY at
 the chosen depth, and camera rotation updates that frame. Positive local Z points
-toward the camera (Up); negative Z points away (Down). The mark exposes the frame;
+toward the camera (Down); negative Z points away (Up). The ring faces the camera,
+while its internal world axes project through the inverse camera rotation: red X,
+green Y and blue Z, using the same colors as the Camera Guide. Orbit and roll
+therefore visibly change the compass, independently of the movement frame;
 independent navigator rotation controls are deferred. Parallel/behind rays
 cannot invent a usable destination.
 
-Up/Down (Navigator depth +/−, rebindable) step one rendered lattice pitch along
+Up/Down (Navigator forward/backward, rebindable) step one rendered lattice pitch along
 local Z. Holding uses the existing bounded held-movement scheduler, rather than
 OS repeat queues. Plain arrow ownership is local to the world canvas, including
 when a node is selected. UI/text/blocked input, active selectors' higher-priority
@@ -158,6 +161,14 @@ The driven root is ignored for drive-target clicking, so its own marker cannot
 mask an empty parking slot. Other nodes, including its descendants, retain normal
 detection and can become the next controlled node. All other world selection remains ordinary projected hits;
 there is no new depth-only selection restriction.
+
+Ctrl/Meta-click a node to position the navigator and camera target there without
+mounting or moving it. The node becomes the selected context; mouse and depth
+movement then move only the navigator. Any unparked drive is canceled, restoring
+its starting placements. Ctrl-drag still adds a marquee; Shift-click keeps spatial
+range selection and other surfaces keep their modifier-click behavior. The shared
+selection registry captures the original hit before renderer changes and dispatches
+the optional surface modifier-click action only on a non-drag release.
 
 Click an empty slot to park and unmount. The last valid snapped placement commits
 once through normal document/history/autosave ownership; the camera follows it.
@@ -186,7 +197,9 @@ performance acceptance remain user-owned.
 2026-11-07 authorized focused local Chromium check passes mount/camera follow,
 mouse preview, camera-relative depth preview, empty-slot parking/save and Esc
 cancellation. It also checks that the first one-pixel movement does not jump the
-node, Up advances toward the camera, and camera offset/direction/zoom stay intact.
+node and camera offset/direction/zoom stay intact. That earlier check used the old
+arrow direction. The subsequent compass, reversed arrows and Ctrl-click changes
+have model/build coverage only; the user chose to test the new preview.
 No page errors were reported. Disposable synthetic data, local server and blocked
 external requests only. Opt-in: OMNIA_URL=http://127.0.0.1:5182 node
 tests/world-navigator.browser.mjs. This is not standing browser-suite permission

@@ -445,3 +445,17 @@ test('parking releases preview ownership during synchronous commit and restores 
  drive.begin(doc,'a');drive.move(new THREE.Vector3(4,0,0));assert.throws(()=>drive.park(),/save rejected/);assert.equal(drive.active,true);assert.deepEqual(drive.position,{x:4,y:0,z:0});
  fail=false;assert.equal(drive.park(),doc);assert.equal(drive.active,false);
 });
+
+test('navigator internal world-axis compass updates for camera orbit and roll while its ring faces the camera',async()=>{
+ const {createWorldNavigatorMarker}=await import('../src/worldNavigatorMarker.ts');const marker=createWorldNavigatorMarker(),position=new THREE.Vector3();
+ const read=()=>Array.from(marker.object.children[1].geometry.getAttribute('position').array);
+ const identity=new THREE.Quaternion();marker.update(position,identity,1,true);const front=read(),ring=marker.object.children[0];
+ const yaw=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),Math.PI/2);marker.update(position,yaw,1,true);assert.notDeepEqual(read(),front);assert.ok(marker.object.quaternion.equals(yaw));assert.ok(ring.quaternion.equals(identity));
+ const roll=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,0,1),Math.PI/2);marker.update(position,roll,1,true);const rolled=read();assert.notDeepEqual(rolled,front);assert.ok(Math.abs(rolled[3])<1e-6);assert.ok(Math.abs(rolled[4]+.82)<1e-6);
+ marker.update(new THREE.Vector3(4,5,6),roll,2,true);assert.deepEqual(read(),rolled,'pointer and scale changes do not rebuild compass orientation');marker.dispose();
+});
+test('navigator forward follows camera negative Z and preserves saved arrow assignments',async()=>{
+ const {createWorldNavigator}=await import('../src/navigation/worldNavigator.ts');const {defaultSettings,normalizeSettings}=await import('../src/workspaceActions.ts');
+ const navigator=createWorldNavigator();navigator.initialize(new THREE.Vector3());navigator.orientation.setFromAxisAngle(new THREE.Vector3(0,1,0),Math.PI/2);assert.ok(navigator.forward().distanceTo(new THREE.Vector3(-1,0,0))<1e-9);
+ const bindings=defaultSettings().bindings;assert.equal(normalizeSettings({bindings}).bindings['world.navigatorDepthUp'],'ArrowUp');assert.equal(normalizeSettings({bindings}).bindings['world.navigatorDepthDown'],'ArrowDown');
+});

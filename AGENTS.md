@@ -804,3 +804,12 @@ camera/target without fit/rotation and rebases the local grab offset. Navigator
 previews/depth never enter data or undo; camera and placement commits retain their
 existing separate history owners. Picking remains ordinary projected hits, not
 plane-only. Independent rotation controls are deferred. Read WORLD_NAVIGATION.md.
+
+Navigator follow-up: Up is forward/camera-negative Z (away), Down is backward/positive Z
+(toward); saved key assignments retain their IDs. The camera-facing ring contains
+projected world XYZ axes using CameraGuide colors; do not rotate its ink with the
+camera or tint away semantic axis colors. Ctrl/Meta-click positions navigator and
+camera target at a node without mounting/moving it; cancel an unparked drive. Reuse
+the selection surface optional modifier-click owner, capture press hit, retain
+Ctrl-drag marquee and fresh geometry validation on release. No new global listener.
+The user chose preview testing for this compass follow-up; no new browser run authorized.
