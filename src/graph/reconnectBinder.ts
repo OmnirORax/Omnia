@@ -50,7 +50,11 @@ function reconnectCandidate(doc:Document,binder:DisplayBinder,end:BinderEnd,dest
    const {variantOwner: _owner,...detached}=p;return detached;
   })};
  }
- if(parentChanges.size)next=rebaseParentage(next,parentChanges,savedViews);
+ if(parentChanges.size){
+  next=rebaseParentage(next,parentChanges,savedViews);
+  const owners=new Set([...parentChanges.values()].filter((id):id is string=>!!id));
+  next={...next,placements:next.placements.map(p=>owners.has(p.id)&&p.collapsed?{...p,collapsed:false}:p)};
+ }
  next=validateDocument(next);
  if(binder.kind==='variant')next=validateDocument(ensureVariantPlacements(next,undefined,binder.id));
  return next;

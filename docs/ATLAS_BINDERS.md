@@ -35,7 +35,8 @@ The original connection remains intact during preview. A colored preview line
 and the existing feedback readout show the candidate. Validation is refreshed
 when the hovered node changes, not on every pointer motion. Hover checks omit
 saved-view rebasing; drop repeats full validation against the current document.
-A valid release commits one existing document/history transaction. Empty/invalid
+A valid release commits one existing document/history transaction and reveals
+the new visual parent/variant owner so its connected branch stays visible. Empty/invalid
 release, Escape, lost capture, input suspension or stale document state cancels;
 no provisional relationship is saved. Releasing after cancellation cannot open
 the binder editor. Pointer capture and the existing shared camera/input lifecycle

@@ -83,3 +83,12 @@ test('rewiring a low legacy root into nesting keeps XYZ and fits existing 2D chi
  const doc=composition();doc.placements[2].position={x:0,y:0};const before=worldPositions(doc),next=reconnectBinder(doc,binder(doc,'composition'),'target','c');
  assert.deepEqual(worldPositions(next),before);assert.ok(next.placements.find(p=>p.id==='c').position.x>=24);assert.ok(next.placements.find(p=>p.id==='c').position.y>=96);
 });
+
+
+test('reconnection reveals a closed new parent instead of hiding the connected branch',()=>{
+ for(const kind of ['composition','visual','variant']){
+  const doc=kind==='variant'?variant():composition();if(kind==='visual')doc.compositions=[];
+  doc.placements.find(p=>p.id==='c').collapsed=true;
+  const next=reconnectBinder(doc,binder(doc,kind),'source','c');assert.equal(next.placements.find(p=>p.id==='c').collapsed,false);positionsEqual(doc,next);
+ }
+});
