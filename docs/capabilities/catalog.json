@@ -2072,7 +2072,7 @@
       "id": "scene.vfx",
       "title": "Audio-responsive scene images and selected wallpaper effects",
       "where": "Scene → Scene effects. Import/apply an image through the existing Scene image workflow.",
-      "behavior": "Five persisted controls match the screenshot: Audio Light orange (#aa3300 approximation), Audio Bounce 1.12, Waves on, Distortion 0.4, Glitching 0.3. A shared background shader approximates bass zoom, coloured audio pulse, water waves and combined VHS distortion/tracking. Choose audio file supplies temporary website playback; Connect shared audio requests browser-permitted tab/screen audio. Disconnect audio releases the source. Existing shared property controls, settings history/save/export and scene image assignments remain the owners. Exactly five effect fields serialize; audio files, streams, capture handles, FFT values and unpictured settings never persist.",
+      "behavior": "Five persisted controls match the screenshot: Audio Light orange (#aa3300 approximation), Audio Bounce 1.12, Waves on, Distortion 0.4, Glitching 0.3. A shared background shader approximates bass zoom, coloured audio pulse, water waves and combined VHS distortion/tracking. Choose audio file supplies temporary website playback; Connect shared audio requests browser-permitted tab/screen audio. Disconnect audio releases the source. Closing the controls keeps the app-owned audio session active. A readonly live input meter shows analysed signal; quiet audible input is mapped into the response range before light shaping. Existing shared property controls, settings history/save/export and scene image assignments remain the owners. Exactly five effect fields serialize; audio files, streams, capture handles, FFT values and unpictured settings never persist.",
       "steps": [
         {
           "do": "Open Scene, select a node and apply an imported image, then open Scene effects.",
@@ -2089,6 +2089,10 @@
         {
           "do": "Click Connect shared audio, select a tab/screen and enable Share audio; then Disconnect audio or end the share.",
           "expect": "A permitted audio track drives the effects without echo. Missing audio shows a clear message and releases the rejected share. Disconnect ends capture/analysis."
+        },
+        {
+          "do": "Play a quiet audio file and inspect Audio input, then close/reopen the Scene controls without pressing Disconnect.",
+          "expect": "The input meter shows the signal, quiet audio can drive light response, and playback/analysis continues across the view closing. Disconnect ends it; subsequent playback reconnects safely."
         },
         {
           "do": "Change a setting, use Undo/Redo, and reload. Inspect/export workspace settings.",
@@ -2119,11 +2123,11 @@
         "scene.manual",
         "scene.api"
       ],
-      "status": "Implemented; focused local browser check passed; publication recorded in PR",
-      "limits": "Approximation only: original shaders/assets and exact orange colour were unavailable. No snow or unpictured settings. Shared system audio requires browser/OS support and explicit user permission; no unrestricted desktop audio or microphone fallback. Closing the Scene panel disconnects audio. Audio source/session/files are temporary. Audio Bounce is bounded 1–1.5; motion effects pause under reduced motion/hidden tabs. Real music, capture compatibility and interactive GPU performance remain user-tested.",
+      "status": "Audio-pickup repair implemented; quiet/shared-source browser retest pending",
+      "limits": "Approximation only: original shaders/assets and exact orange colour were unavailable. No snow or unpictured settings. Shared system audio requires browser/OS support and explicit user permission; no unrestricted desktop audio or microphone fallback. Closing controls preserves audio; explicit Disconnect or scene-renderer teardown releases it. Audio source/session/files are temporary. Audio Bounce is bounded 1–1.5; motion effects pause under reduced motion/hidden tabs. Real music, capture compatibility and interactive GPU performance remain user-tested.",
       "verification": {
-        "browser": "2026-11-07, user-authorized focused Chromium check with disposable patterned image and 55 Hz WAV: screenshot defaults, actual file spectrum, shader compilation, wave/VHS displacement, audio-driven rendered change, original-image restoration, exact five-field serialization and stopped animation after disposal passed. This is synthetic local evidence, not Wallpaper Engine equivalence, desktop capture support or user performance acceptance.",
-        "automated": "Model checks cover exact five-field defaults/serialization, historical settings, shared property setters, audio bounds/smoothing, rejected/late capture cleanup and disconnect. Full local delivery gate recorded in PR."
+        "browser": "2026-11-07, user-authorized focused Chromium check with disposable patterned image and 55 Hz WAV: screenshot defaults, actual file spectrum, shader compilation, wave/VHS displacement, audio-driven rendered change, original-image restoration, exact five-field serialization and stopped animation after disposal passed. This is synthetic local evidence, not Wallpaper Engine equivalence, desktop capture support or user performance acceptance. User subsequently reported no audio response. New quiet/shared-stream check requested; approval and source-specific feedback pending. Earlier synthetic success does not establish the repair.",
+        "automated": "Model checks cover exact five-field defaults/serialization, historical settings, shared property setters, audio bounds/smoothing, rejected/late capture cleanup and disconnect. Full local delivery gate recorded in PR. Repair regressions cover quiet input/silence, shared suspended-context resume, app-owned playback across view subscription changes and stop/reconnect/dispose."
       }
     },
     {

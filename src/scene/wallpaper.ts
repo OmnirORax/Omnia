@@ -1,5 +1,5 @@
 import {normalizeSceneVfx,smoothAudio,audioScale,type SceneVfx} from './vfx';
-import {sampleSceneAudio,isSceneAudioConnected,subscribeSceneAudio} from './audio';
+import {sampleSceneAudio,isSceneAudioConnected,subscribeSceneAudio,disposeSceneAudio} from './audio';
 import * as THREE from 'three';
 
 /** A screen-space image behind the existing scene, with the same selection feedback. */
@@ -81,6 +81,6 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void) {
     feedback(color: THREE.Color, strength: number) {
       material.uniforms.feedbackColor.value.copy(color); material.uniforms.feedbackStrength.value = strength;
     },
-    dispose() { alive = false;cancel();stopAudio();document.removeEventListener('visibilitychange',visibility);reduced.removeEventListener('change',motion); epoch++; texture?.dispose(); scene.remove(mesh); material.dispose(); geometry.dispose(); },
+    dispose() { alive = false;cancel();stopAudio();disposeSceneAudio();document.removeEventListener('visibilitychange',visibility);reduced.removeEventListener('change',motion); epoch++; texture?.dispose(); scene.remove(mesh); material.dispose(); geometry.dispose(); },
   };
 }

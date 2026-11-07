@@ -407,3 +407,9 @@ or evaluated. Capture streams, file URLs/bytes, FFT buffers and playback state a
 transient and never serialized. Older clients can omit the new preference when
 resaving; rollback loses only this effect preference, with original images and
 scene assignments intact. No new cloud audio/media storage or migration exists.
+
+Scene audio-pickup repair (2026-11-07): changes only ephemeral audio-session/view
+ownership and input normalization. The sceneVfx object remains exactly five fields
+with unchanged defaults/bounds. The readonly input meter, media element, stream,
+context state and playback URL never enter settings, graph/history or exports.
+No stored image, assignment, audio bytes or existing preference is converted.

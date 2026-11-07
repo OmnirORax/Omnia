@@ -39,8 +39,8 @@ and enable its **Share audio** option. Availability of tab versus desktop/system
 audio depends on the browser and OS. The app reads only the audio track; it never
 samples the captured screen video and does not echo captured audio to speakers.
 A stream without audio is rejected and all tracks/context are released. There is
-no microphone fallback. **Disconnect audio**, ending the share, or closing the
-Scene panel releases the connection. Starting another source cancels the former
+no microphone fallback. **Disconnect audio**, ending the share, releases the connection. Closing the Scene panel keeps the app-owned audio
+session playing/analysing. Leaving the scene renderer releases the session. Starting another source cancels the former
 source; a late permission response cannot reconnect it. Audio file output is routed
 through its analyser to the destination exactly once. Browser autoplay restrictions
 remain authoritative; the native Play action retries audio-context resume.
@@ -52,8 +52,8 @@ movement and one VHS displacement combining the Distortion and Glitching control
 No extra full-screen pass, particle system or image decode occurs per frame.
 Reference fixed internals are wave scale 10, speed 5 and strength .025, VHS slow
 speed .5 and strip tracking, and audio smoothing 25. Bass is approximated by the
-31–65 Hz FFT band for bounce from scale 1 to Audio Bounce. Broadband RMS drives the
-coloured light pulse, using the reference exponent 4 and amount 1.2. Unlike the
+31–65 Hz FFT band for bounce from scale 1 to Audio Bounce. Broadband RMS is noise-gated and mapped to an audible 0–1 response range before
+driving the coloured light pulse, using the reference exponent 4 and amount 1.2. Unlike the
 extract's separate low/high tint controls, the requested single colour is the pulse
 tint and the unconnected image remains untinted. The exact original shaders,
 blend implementation and frequency mapping cannot be reproduced from references.
@@ -87,3 +87,29 @@ errors were observed. Browser capture permission/OS compatibility and interactiv
 performance remain unverified. Playback connects through native media interaction
 rather than ref mounting, avoiding duplicate media-source creation during React
 lifecycle replay. Disconnect replaces this player's media element before reuse.
+
+
+## Audio-pickup repair after user testing (2026-11-07)
+
+The user reported that Audio Light/Bounce did not respond. The earlier loud 55 Hz
+synthetic check did not establish ordinary-music or desktop-capture acceptance.
+A quiet RMS .05 previously yielded light strength .00012, effectively invisible.
+The adapter now maps audible RMS to an engine-style 0–1 response range before the
+existing shader shaping. The waveform noise floor keeps digital silence still;
+no sixth gain/frequency setting is introduced.
+
+Audio/file-URL ownership now lives in the app session rather than the settings
+panel. Closing/reparenting controls detaches their view without stopping playback
+or capture; reopening reuses the same player. Explicit Disconnect stops and closes
+the graph, with a fresh media element available for reconnection. Renderer disposal
+releases the player URL and capture resources. Cancelled/stale source events cannot
+replace the current source. Shared capture can resume a suspended context without
+requesting a second share. A readonly input meter shows actual analysed signal,
+updates its DOM at 10 Hz without React/settings writes, and is never serialized.
+
+New model evidence covers quiet audible input, silence, shared-context resume,
+source cleanup/no echo, view subscriptions retaining playback, stop/reconnect and
+final disposal. The newly requested quiet/shared-stream browser extension is
+pending explicit approval; the earlier browser result is historical evidence,
+not acceptance of this repair or the user's capture path. Actual effect matching
+is deferred until the original effect code is supplied.

@@ -14,3 +14,8 @@ export function smoothAudio(previous:number,next:number,seconds:number) {
  return previous+(Math.max(0,Math.min(1,next))-previous)*Math.min(1,Math.max(0,Math.min(.1,seconds))*25);
 }
 export function audioScale(bass:number,maximum:number) { return 1+Math.max(0,Math.min(1,bass))*(maximum-1); }
+/** Map audible input to the engine-style 0–1 response range before shader shaping.
+ * A small noise floor keeps digital silence from pulsing; quiet music stays visible. */
+export function normalizeAudioLevel(rms:number) {
+ return Math.sqrt(Math.min(1,Math.max(0,rms-.002)*8));
+}
