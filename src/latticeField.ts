@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { attachMaterialCoverage } from './materialCoverage.ts';
 import type { Document } from './graph/structural.ts';
 import { prepareLattice, cellAt, cellPoint, latticeScale } from './graph/lattice.ts';
 /** Camera-relative intent chooses distinct signed world axes; the lattice itself
@@ -17,6 +18,16 @@ export const LATTICE_FIELD_CAPACITY=16384;
 export function createLatticeField(doc:Document,size?:number,scale?:number){
  const index=prepareLattice(doc,size),pitch=index.unit*latticeScale(scale);
  const geometry=new THREE.RingGeometry(.4,.5,24),material=new THREE.MeshBasicMaterial({color:0x78c9d4,transparent:true,opacity:.2,side:THREE.DoubleSide,depthWrite:false});
+ const horizon={value:1};
+ attachMaterialCoverage(material,target=>{
+  const previous=target.onBeforeCompile;
+  target.onBeforeCompile=(shader,renderer)=>{
+   previous.call(target,shader,renderer);shader.uniforms.latticeHorizon=horizon;
+   shader.vertexShader='varying float latticeDepth;\n'+shader.vertexShader.replace('#include <project_vertex>','#include <project_vertex>\nlatticeDepth=-mvPosition.z;');
+   shader.fragmentShader='uniform float latticeHorizon; varying float latticeDepth;\n'+shader.fragmentShader.replace('#include <alphatest_fragment>','diffuseColor.a*=1.0-smoothstep(latticeHorizon*0.75,latticeHorizon,latticeDepth);\n#include <alphatest_fragment>');
+  };
+  target.customProgramCacheKey=()=> 'omnium.lattice-horizon.v1';
+ });
  const object=new THREE.InstancedMesh(geometry,material,LATTICE_FIELD_CAPACITY);object.frustumCulled=false;object.count=0;
  const matrix=new THREE.Matrix4(),extent=new THREE.Vector3(pitch,pitch,pitch);let stamp='';
  return {object,update(target:THREE.Vector3,camera:THREE.PerspectiveCamera){
@@ -28,8 +39,14 @@ export function createLatticeField(doc:Document,size?:number,scale?:number){
   const frame=latticeFrame(camera.quaternion),a=new THREE.Vector3(1,0,0).applyQuaternion(frame).round(),b=new THREE.Vector3(0,1,0).applyQuaternion(frame).round();
   const origin=new THREE.Vector3(base.x*pitch,base.y*pitch,base.z*pitch);
   const plane=new THREE.Plane().setFromNormalAndCoplanarPoint(a.clone().cross(b),origin);
+  // A near-horizon slice can reach the scene's 100000-unit far plane.
+  // Do not let those distant cells consume the local display budget. The
+  // horizon tracks view distance/zoom, rather than a fixed number of cells.
+  const view=camera.clone();
+  view.far=Math.min(camera.far,Math.max(camera.near*2,camera.position.distanceTo(origin)*8/camera.zoom,pitch*8));
+  view.updateProjectionMatrix();horizon.value=view.far;
   const corners:THREE.Vector3[]=[];
-  for(const z of [-1,1])for(const y of [-1,1])for(const x of [-1,1])corners.push(new THREE.Vector3(x,y,z).unproject(camera));
+  for(const z of [-1,1])for(const y of [-1,1])for(const x of [-1,1])corners.push(new THREE.Vector3(x,y,z).unproject(view));
   const points:THREE.Vector3[]=[];
   // Clip the slice to all twelve frustum edges, including tilted/horizon views.
   for(let i=0;i<8;i++)for(const bit of [1,2,4]){const j=i^bit;if(j<i)continue;const hit=plane.intersectLine(new THREE.Line3(corners[i],corners[j]),new THREE.Vector3());if(hit)points.push(hit);}

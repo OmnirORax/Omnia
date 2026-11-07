@@ -66,7 +66,10 @@ boundaries, not a promise that all positive JavaScript numbers render correctly.
 
 **Empty lattice cells** spans the camera viewport in a lattice-aligned slice
 through the camera target. Its extent follows zoom, aspect, panning and rotation
-by intersecting the slice with the camera frustum. One instanced draw holds at
+by intersecting the slice with the camera frustum. A view-distance/zoom-relative
+horizon bounds distant intersections in tilted views, preventing far-away cells
+from exhausting the local marker budget. Markers fade near that horizon; the
+scene camera far plane and real node visibility are unchanged. One instanced draw holds at
 most 16,384 markers. At dense overview scales, power-of-two sampling of real
 world-anchored cells covers the full span instead of cropping a central patch;
 marker diameter remains one true cell. Unsampled empty cells remain available

@@ -752,3 +752,9 @@ Reuse the shared render lifecycle for zoom/resize updates and cached camera stat
 Bound overview work with world-anchored sampling of real cells, never enlarged
 fake cells or dense world allocation. Preserve hidden occupancy and creation slice;
 no saved-data or coordinate changes. See docs/ATLAS_LATTICE.md for sampling limits.
+
+Lattice horizon regression: a tilted slice can intersect the scene far plane
+and starve nearby coverage through coarse global sampling. Clip display bounds
+to a view-distance/zoom-relative horizon, fade only decorative empty markers there,
+and keep real nodes, creation, occupancy and scene camera clipping unchanged.
+Include an oblique near-horizon camera regression, not only front-facing counts.

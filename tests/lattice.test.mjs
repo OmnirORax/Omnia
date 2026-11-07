@@ -141,3 +141,12 @@ test('vacant lattice span follows zoom and aspect without changing real cell siz
  camera.position.z=1000;const overview=measure();assert.ok(overview.x>wide.x);assert.ok(overview.count<=LATTICE_FIELD_CAPACITY);
  camera.position.set(10,12,14);camera.lookAt(target);assert.ok(measure().count>0);field.dispose();
 });
+
+test('tilted near-horizon span preserves local coverage instead of spending the budget at the far plane',()=>{
+ const camera=new THREE.PerspectiveCamera(55,1.8,.001,100000),field=createLatticeField(fixture([])),matrix=new THREE.Matrix4();
+ camera.position.set(14.094298433892122,5.48165164671577,-13.0882484267546);
+ camera.up.set(.77983384030233,.44349949855861626,.4417775190042786);camera.lookAt(0,0,0);
+ field.update(new THREE.Vector3(),camera);let visible=0,nearby=0;
+ for(let i=0;i<field.object.count;i++){field.object.getMatrixAt(i,matrix);const world=new THREE.Vector3().setFromMatrixPosition(matrix),p=world.clone().project(camera);if(Math.abs(p.x)<1&&Math.abs(p.y)<1&&p.z>=-1&&p.z<=1){visible++;if(world.length()<20)nearby++;}}
+ assert.ok(visible>100,`${visible} visible markers`);assert.ok(nearby>50,`${nearby} nearby markers`);assert.ok(field.object.count<=LATTICE_FIELD_CAPACITY);field.dispose();
+});
