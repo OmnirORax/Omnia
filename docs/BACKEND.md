@@ -206,8 +206,14 @@ now defaults `SUPABASE_USE_SLIM_IMAGES=false` when `CI=true`, using the CLI's st
 image distribution consistently for startup, serving and cleanup. An explicit
 environment setting still overrides this default. The local developer default stays slim;
 no health/permission check is skipped and no hosted backend is changed. This
-registry-distribution change awaits the normal automatic CI result; no local
-Docker startup or manual workflow retry was run for this follow-up.
+same-source Backend foundation run #326 passed, while Cloudflare Pages #324
+failed at startup with a registry rate limit after its model/build/type checks
+passed. The shared startup wrapper now retries that fixed diagnostic category
+only, at most three attempts with 15s and 45s waits. Persistent throttling still
+fails with the original exit status. Health, SQL, config, registry 403 and unknown
+failures fail immediately. Each attempt captures private mode-600 logs; only fixed
+safe categories/progress are printed. No health/permission gates are skipped, no
+hosted backend is changed, and no local Docker startup or manual CI rerun was used.
 
 ## ♾️ click quests and leaderboards
 

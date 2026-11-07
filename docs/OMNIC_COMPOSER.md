@@ -1,5 +1,27 @@
 # Omnic composer: Stage 1 contract
 
+Composer wheel ownership: ordinary wheel over the editing surface zooms Composer
+even while MS is active; it does not resize the MS lens. The surface declares
+native wheel navigation through the shared selection registry. Shift-wheel retains
+explicit MS geometry rotation and Ctrl-wheel retains browser zoom. View zoom uses
+the existing coalesced view-size writer and limits; membership, geometry and lens
+radius are not changed by the ownership handoff. No new saved format or migration.
+Physical input/browser acceptance remains user-owned.
+
+Selection context correction: right-clicking a selected component (or a descendant
+of a selected authored group) retains the accepted selection and opens its shared
+DOF editor. Right-clicking empty editing space also opens that selection's DOFs;
+creation presets open there only with no selection. An unselected component
+becomes the new context target. Shared DOFs (such as Position, Size, Rotation, Color and Opacity) use the existing writable-property adapters
+for all selected compatible owners, including selected group members; editing does
+not broaden to unselected components. Clearing selection restores empty-space
+creation; rim construction tools remain available. Active edit/settings and
+explicit borrowed-reference requests retain priority. No new menu owner, event
+listeners, save schema, IDs or migration: existing draft/commit, undo, Save shared,
+copy, reload and workspace/export paths own authored color changes. Shared Position retains relative placement rather than collapsing units onto one point. Model scope,
+mass-edit and serialization checks pass; browser acceptance remains user-owned.
+
+
 Composer top toolbar now includes the existing Omnic library command (☷), in both Atomnic modes. It opens the same workspace-wide library; no extra library state or new shortcut identity. Normal MS sessions opened on a registered content surface are bounded to that source root/context. The selector cursor and hover/wheel targeting apply there; a primary/secondary press or focus change on other controls ends normal targeting without consuming the control input or clearing accepted membership. Selector-owned configuration remains usable. ActiveContext preserves the source only for pointer picks inside that boundary. Standalone UI MS remains global. Explicit borrowed reference requests retain their rejection/cancel contract and navigation context.
 
 Q always starts ordinary MS, even with a numeric editor open. Only an explicit reference request borrows MS for a one-target reference; the ⟴ control and DOF reference entry retain that workflow. Numeric information registration must never override the selector opening command. After Q → hold Shift+Q or Ctrl+Q → successive target clicks, Q must still configure MS rather than reopen a property setter.

@@ -310,3 +310,84 @@ blank Visual.size remain stored for compatibility but cannot alter carriers.
 Actual content visuals retain authored sizes/editors; logical cell size remains
 separate. Defaults now use diameter 1; historical explicit preferences still
 roundtrip, but only older clients apply them. No coordinates or IDs are rewritten.
+
+
+### Atlas lattice compatibility (2026-11-07)
+
+The exact-overlap/camera-relative-nudge/fixed-radius interpretations above are
+superseded by [ATLAS_LATTICE.md](ATLAS_LATTICE.md). `latticeScale` and
+`showVacantCells` are additive settings defaults, independent of historical
+`nodeCellSize`, radius, clearance and visual sizes. Logical addresses are derived
+as safe integers from existing coordinates; scale never resizes stored coordinates.
+Reads project historical overlaps without writing. An explicit geometry edit
+settles the shared lattice and preserves pre-alignment local XYZ in an ordinary
+manual view with additive `preservePositions: true`. The existing validation,
+autosave, history, atlas/workspace export and ID remapping owners remain in use.
+Protected snapshots are not overwritten by view switching/active autosnapshot;
+view-budget exhaustion fails the edit before originals are discarded. View
+switching itself keeps the old view's coordinates. Frozen fixtures are unchanged;
+assertions cover added defaults. Older clients can ignore/drop these settings or
+overwrite protected snapshots, so concurrent old-client editing is not guaranteed.
+No schema-version bump, new data store, cloud synchronization or backend deployment.
+
+
+### Binder reconnection and parent rebasing (2026-11-07)
+
+No schema/version changes: reconnectBinder edits the existing canonical relation,
+composition, visual-parent or variant-reference fields with stable binder IDs and
+existing validation/history/autosave/export owners. No entity is replaced. Variant
+reference changes preserve prior node content as ordinary detached occurrences;
+existing variant materialization can create additional placements for new owners.
+coordinates.rebaseParentage preserves live and saved-view world XYZ by converting
+local coordinates when parentage changes, including protected recovery views.
+Legacy 2D fallbacks convert too, with existing child-header minimums enforced;
+this can clamp their local 2D placement without moving actual 3D coordinates.
+Invalid/cyclic/conflicting candidates reject before commit; hover checks never
+write or rebase saved views. Label orientation is transient rendering only.
+No new store, migration, backend rollout or stronger cross-client sync guarantee.
+
+### Live visual glyph references and binder actions (2026-11-07)
+
+Visual adds optional omnicEntityId, referencing an existing canonical entity with
+an Omnic definition, mutually exclusive with assetId/character. Absence retains
+all old visual behavior; no load-time rewrite or schema-version bump. Validation
+checks all placements, nesting binders, relationships, compositions and variants.
+Atlas import remaps references through the existing canonical identity map;
+workspace/atlas export retains the canonical pool, with no generated glyph assets
+persisted. Source removal rejects while a surviving visual references it. Existing
+source dependency/revision resolution owns live saved-recipe updates. Old clients
+can render a default marker and may lose the field if they replace a visual; no
+cross-version concurrent editing guarantee is added. Preserve a current export.
+
+Binder reverse/delete edit existing relationship participants, containment,
+visual parents and variant references, preserving entities and authored content.
+Parent conversions use coordinates.rebaseParentage for live and saved XYZ;
+legacy 2D header constraints still apply. Variant materialization retains existing
+semantics and can add new-owner occurrences. Candidate validation rejects stale,
+cyclic or conflicting edits before the existing atomic history/save transaction.
+UI menu availability is transient and retains authored menu members/geometry.
+No new storage owner, migration pipeline, cloud protocol or backend deployment.
+
+### World navigator and drive previews (2026-11-07)
+
+No saved entity/placement/format/schema fields are added. Navigator position,
+camera-aligned frame, held depth and driven preview remain transient. The existing
+canonical UUID/name system is unchanged. Parking uses latticeMove and the existing
+document commit/history/autosave/recovery path; previews are renderer-only and
+cancellation restores their captured anchors without saving. Prepared occupancy
+includes hidden descendants. Camera-follow uses existing camera history, separate
+from the one placement transaction. Incompatible document/context replacement
+cancels a preview before replacing renderer objects; compatible visual refresh
+reapplies preview geometry to current hosts. Live scale changes cancel before
+rescaling the cursor. New world-scope commands acquire standard declared binding
+defaults without colliding with authored Composer/content shortcuts; clears and
+rebindings remain authoritative. Plain world click semantics are now drive/park;
+right-click retains inspection/expansion, and selection modifiers retain ownership.
+Older clients keep their older interaction behavior; no load-time coordinate
+rewrite or backend rollout is introduced by the navigator.
+
+Navigator compass/locate follow-up (2026-11-07): compass geometry and Ctrl-click
+positioning are transient; locate cancels unparked placement previews and uses
+existing camera history. No graph/schema migration. Depth action IDs and saved
+key assignments are unchanged; their forward/backward semantics are corrected.
+CI retry logs are private ephemeral files, not application data or credentials.

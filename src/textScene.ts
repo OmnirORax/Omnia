@@ -1,7 +1,8 @@
-import { contentExpanded, toggleContent, expansionState, type ExpansionState } from "./graph/nodePresentation";
+import { placeBinderText } from "./graph/binderLabels";
+import { incomingBinderVisible, contentExpanded, toggleContent, expansionState, type ExpansionState } from "./graph/nodePresentation";
 import {analyticSelectionRing} from './materialCoverage';
 import { RENDER_BUDGET } from "./renderBudget";
-import { structuralVisual, omnicAsset, omnicBudgetAsset, omnicLiveDependents, omnicDraftAssets, OMNIC_SCENE_BUDGET } from "./omnic/presentation";
+import { resolveOmnicVisual, structuralVisual, omnicAsset, omnicBudgetAsset, omnicLiveDependents, omnicDraftAssets, OMNIC_SCENE_BUDGET } from "./omnic/presentation";
 import type { OmnicWorldPreview } from "./omnic/worldPreview";
 import { brightHex, effectsFor } from "./appearance/resolve";
 import { connected } from "./appearance/model";
@@ -44,8 +45,8 @@ const symbolStyle=(theme:WorkspaceSettings['appearance'],id:string,authored:stri
 };
 export type LabelMesh = THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial | THREE.MeshPhongMaterial>;
 
-export function textSprite(value: string, color: string, selected = false, node = false, neon = false, font: FontId = "system", textGlow = 0, textColor = color, surface: SurfaceStyle = {}, contentOnly = false) {
-  const lines = labelLines(value),
+export function textSprite(value: string, color: string, selected = false, node = false, neon = false, font: FontId = "system", textGlow = 0, textColor = color, surface: SurfaceStyle = {}, contentOnly = false, columns = 32) {
+  const lines = labelLines(value,columns),
     canvas = document.createElement("canvas");
   const measure = canvas.getContext("2d")!;
   measure.font = canvasFont(font);
@@ -129,7 +130,8 @@ export function textSprite(value: string, color: string, selected = false, node 
   sprite.userData.textColor = textColor;
   sprite.userData.aspect = canvas.width / canvas.height;
   sprite.userData.lines = lines.length;
-  const size = labelSize(value);
+  sprite.userData.wrapColumns = columns;
+  const size = labelSize(value,columns);
   sprite.scale.set(size.width, size.height, 1);
   return sprite;
 }
@@ -179,8 +181,10 @@ export function buildTextScene(
   theme: WorkspaceSettings["appearance"] = defaultSettings().appearance,
   expansion: ExpansionState = expansionState(),
   names: "expanded" | "all" | "selection" = "expanded",
+  carrierDiameter = DEFAULT_SPHERE_DIAMETER,
+  selectedBinderKey: string | null = null,
 ) {
-  const sphereDiameter = DEFAULT_SPHERE_DIAMETER;
+  const sphereDiameter = carrierDiameter;
   const placementExpanded = (id:string) => contentExpanded(expansion,id,placements.get(id)?.collapsed === false);
   const neon = theme.theme === "neon", accent = theme.accent;
   const nodes = new Map<string, NodeItem>();
@@ -218,20 +222,19 @@ export function buildTextScene(
       {}, true,
     );
     text.material.opacity = style.opacity;
-    const cell: LabelMesh = new THREE.Mesh(new THREE.SphereGeometry(.5, 20, 14), new THREE.MeshPhongMaterial({color, transparent:true, opacity:style.opacity, shininess:35}));
+    const cell: LabelMesh = new THREE.Mesh(new THREE.RingGeometry(.4,.5,32), new THREE.MeshBasicMaterial({color, transparent:true, opacity:style.opacity, side:THREE.DoubleSide}));
     cell.scale.setScalar(sphereDiameter);
     const presentation = new THREE.Group(); group.add(presentation);
     const slot: LabelMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1),
       new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide }));
     slot.scale.setScalar(sphereDiameter);
-    slot.userData.nodeId = node.id; slot.userData.visualProxy = true;
+    slot.userData.nodeId = node.id; slot.userData.visualProxy = true; slot.userData.atomicSlot = true;
+    cell.userData.carrier = true;
     group.add(cell, slot);
     const hasVisual = !!(displayedVisual?.assetId || displayedVisual?.character);
     const footprint = visualFootprint(labelSize(node.label), displayedVisual, sphereDiameter);
     const visual = hasVisual ? visualObject(displayedVisual!, derivedAsset ? [derivedAsset] : doc.assets ?? [], (value) => textSprite(value, color, false, false, neon, theme.font, theme.textGlow, theme.textColor), requestRender, { opacity: style.opacity,textureOnly:effectsFor(theme,'symbols.nodes').effect==='electric-text' }, derivedAsset ? RENDER_BUDGET.omnicTextureEdge : 512) : undefined;
-    const sprite: LabelMesh = footprint.sphere
-      ? new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 24), new THREE.MeshPhongMaterial({ color, shininess: 35, transparent: true, opacity: style.opacity }))
-      : hasVisual ? new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide })) : text;
+    const sprite: LabelMesh = hasVisual ? new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide })) : text;
     // Picking volumes remain fully invisible, even while hovered or selected.
     const outline = new THREE.Mesh(
       new THREE.RingGeometry(0.835, 1.125, 64),
@@ -239,7 +242,7 @@ export function buildTextScene(
     );
     analyticSelectionRing(outline.material);
     outline.visible = selected; outline.userData.selected = selected;
-    outline.renderOrder = 20;
+    outline.renderOrder = 20; outline.scale.setScalar(sphereDiameter*.8);
     sprite.userData.hoverOutline = outline;
     slot.userData.hoverOutline = outline;
     group.add(outline);
@@ -284,7 +287,7 @@ export function buildTextScene(
     const textStyle = { ...resolveAppearance(theme.nodes, neon ? accent : "#dce9fa", b.textAppearance), ...(theme.textColor ? { color: theme.textColor } : {}) };
     style.opacity *= theme.opacity; textStyle.opacity *= theme.opacity;
     const color = style.color;
-    const related = !selectedId || b.source === selectedId || b.target === selectedId;
+    const related = selectedBinderKey===b.key || incomingBinderVisible(b.target, nodes.get(b.target)!.selected, expansion);
     const opacity = style.opacity;
     const material = new LineMaterial({ color: new THREE.Color(color).getHex(), linewidth: Number(theme.renderDefaults?.["omnium.binders.path"]?.contourWidth ?? 1.5), worldUnits: false, alphaToCoverage: true, transparent: true, depthWrite: false, opacity, dashed: b.kind === "visual" || b.kind === "variant", dashSize: 0.15, gapSize: 0.1 });
     const line = new Line2(new LineGeometry(), material);
@@ -293,15 +296,18 @@ export function buildTextScene(
       new THREE.ConeGeometry(1, 1, 12),
       new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false }),
     );
-    const custom = !!(b.visual?.assetId || b.visual?.character);
-    const arrow = custom ? visualObject(b.visual!, doc.assets ?? [], (value) => textSprite(value, color, false, false, neon, theme.font, theme.textGlow, theme.textColor), requestRender, { opacity }) : defaultArrow;
+    const displayedVisual=resolveOmnicVisual(b.visual);
+    let binderAsset:import('./graph/assets').VisualAsset|undefined;
+    if(displayedVisual?.assetId?.startsWith('omnic:'))binderAsset=omnicPreviews++<OMNIC_SCENE_BUDGET?omnicAsset(doc,displayedVisual.assetId.slice(6)):omnicBudgetAsset;
+    const custom = !!(displayedVisual?.assetId || displayedVisual?.character);
+    const arrow = custom ? visualObject(displayedVisual!, binderAsset?[...(doc.assets??[]),binderAsset.id===displayedVisual!.assetId?binderAsset:{...binderAsset,id:displayedVisual!.assetId!}] : doc.assets ?? [], (value) => textSprite(value, color, false, false, neon, theme.font, theme.textGlow, theme.textColor), requestRender, { opacity }) : defaultArrow;
     arrow.userData.glowIntensity = style.glow;
     if (custom) { defaultArrow.geometry.dispose(); defaultArrow.material.dispose(); }
     const markerHit = custom ? new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide })) : undefined;
-    const label = b.label && b.visual?.showText !== false ? textSprite(b.label, textStyle.color, false, false, neon, glyphFont(theme, 'text.binders'), glyphGlow(theme, 'text.binders'), b.textAppearance?.color ?? glyphColor(theme, 'text.binders', textStyle.color)) : null;
-    if (label) label.userData.glowIntensity = textStyle.glow;
+    const label = b.label && b.visual?.showText !== false ? textSprite(b.label, textStyle.color, false, false, neon, glyphFont(theme, 'text.binders'), glyphGlow(theme, 'text.binders'), b.textAppearance?.color ?? glyphColor(theme, 'text.binders', textStyle.color), {}, false, 14) : null;
     for (const object of [line, ...(custom ? [markerHit!] : [defaultArrow]), ...(label ? [label] : [])]) {
       object.userData.binderId = b.id;
+      object.userData.binderKey = b.key;
       object.userData.binderKind = b.kind;
       object.userData.label = b.label;
       content.add(object);
@@ -476,11 +482,7 @@ export function buildTextScene(
       item.text.userData.setSelected(next);
 
     }
-    for (const item of connectors) {
-      const related = !primary || item.data.source === primary || item.data.target === primary;
-      if (related === item.related) continue;
-      item.related = related; applyConnectorTheme(item, currentTheme, currentPreview);
-    }
+
   }
 
   function update(camera: THREE.PerspectiveCamera, width: number, height: number) {
@@ -492,11 +494,15 @@ export function buildTextScene(
     // Presentations face the camera; their atomic anchors retain world coordinates.
     for (const item of nodes.values()) {
       item.group.position.copy(item.anchor);
+      item.cell.quaternion.copy(item.group.quaternion).invert().multiply(camera.quaternion);
+      item.outline.quaternion.copy(item.cell.quaternion);
       item.text.scale.set(item.size.width, item.size.height, 1);
       item.text.position.set(0, 0, 0);
       const front = depth(item.anchor) > camera.near;
-      item.cell.visible = front; item.slot.visible = front;
-      const expanded = draftNodes.has(item) || hoveredId === item.sprite.userData.nodeId || placementExpanded(item.sprite.userData.nodeId);
+      // Selection replaces the carrier with content; its invisible picking slot stays live.
+      item.cell.visible = front && !item.selected; item.slot.visible = front;
+      item.outline.visible = front && (item.selected || hoveredId === item.sprite.userData.nodeId);
+      const expanded = item.selected || draftNodes.has(item) || hoveredId === item.sprite.userData.nodeId || placementExpanded(item.sprite.userData.nodeId);
       const revealName = names === "all" || (names === "selection" && item.selected);
       const projected = item.anchor.clone().project(camera);
       item.presentation.visible = (expanded || revealName) && front && Math.abs(projected.x) <= 1 && Math.abs(projected.y) <= 1;
@@ -537,6 +543,12 @@ export function buildTextScene(
       return item.group.position.clone().addScaledVector(direction, Number.isFinite(fraction) ? Math.min(0.45, fraction) : 0);
     };
     for (const b of connectors) {
+      b.related = selectedBinderKey===b.data.key || incomingBinderVisible(b.data.target, nodes.get(b.data.target)!.selected, expansion);
+      b.line.material.linewidth=Number(currentTheme.renderDefaults?.["omnium.binders.path"]?.contourWidth??1.5)*(selectedBinderKey===b.data.key?1.8:1);
+      b.line.visible = b.related;
+      b.arrow.visible = b.related;
+      if (b.markerHit) b.markerHit.visible = b.related;
+      if (!b.related) { if (b.label) b.label.visible = false; continue; }
       const from = nodes.get(b.data.source)!, to = nodes.get(b.data.target)!;
       const start = edge(from, to.group.position), end = edge(to, from.group.position);
       const direction = end.clone().sub(start).normalize();
@@ -564,6 +576,8 @@ export function buildTextScene(
       const center = path.getPoint(0.5), tangent = path.getTangent(0.5).normalize();
       const markerSize = operatorSize(b.data.visual);
       if (b.markerHit) {
+        b.arrow.quaternion.copy(camera.quaternion);
+        b.markerHit.quaternion.copy(camera.quaternion);
         b.arrow.scale.setScalar(markerSize);
         b.markerHit.scale.set(markerSize, markerSize, 1);
         b.markerHit.position.copy(center);
@@ -579,11 +593,17 @@ export function buildTextScene(
           }
       });
       if (b.label) {
-        const size = labelSize(b.data.label);
+        const size = labelSize(b.data.label,b.label.userData.wrapColumns??32);
         b.label.scale.set(size.width * 0.7, size.height * 0.7, 1);
-        b.label.position.copy(center).addScaledVector(up, b.label.scale.y / 2 + 0.22);
+        // One authored binder midpoint, one directed normal. Hover/content
+        // obstacles never select a different attachment or push the text away.
+        const p=center.clone().project(camera),a=path.getPoint(.49).project(camera),z=path.getPoint(.51).project(camera),units=unitsPerPixel(center);
+        const anchor={x:(p.x+1)*width/2,y:(1-p.y)*height/2,dx:(z.x-a.x)*width/2,dy:(a.y-z.y)*height/2,width:b.label.scale.x/units,height:b.label.scale.y/units};
+        const placed=b.related?placeBinderText(anchor):undefined;
+        if(placed){b.label.position.copy(center).addScaledVector(cameraRight,(placed.x-anchor.x)*units).addScaledVector(cameraUp,(anchor.y-placed.y)*units);b.label.quaternion.copy(camera.quaternion).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,0,1),-placed.angle));}
         b.label.material.opacity = b.textOpacity;
-        b.label.visible = b.related && depth(b.label.position) > camera.near && b.label.scale.y / unitsPerPixel(b.label.position) >= 5;
+        b.label.visible = !!placed && depth(b.label.position) > camera.near && b.label.scale.y / unitsPerPixel(b.label.position) >= 5;
+
       }
     }
     content.updateMatrixWorld(true);

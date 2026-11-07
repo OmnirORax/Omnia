@@ -9,3 +9,8 @@ export function toggleContent(state:ExpansionState,id:string,structurallyExpande
  if(contentExpanded(state,id,structurallyExpanded)){state.open.delete(id);state.closed.add(id);}
  else {state.closed.delete(id);state.open.add(id);}
 }
+
+/** Incoming context belongs to the downstream node, never its source or hover. */
+export function incomingBinderVisible(target:string,selected:boolean,state:ExpansionState) {
+ return selected || state.open.has(target);
+}

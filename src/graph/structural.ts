@@ -55,6 +55,8 @@ export type StructuralRelationship = BinderPresentation & {
   qualifierIds: string[];
 };
 export type LayoutView = {
+  /** A recovery snapshot is never overwritten by normal view switching/edits. */
+  preservePositions?: boolean;
   id: string;
   name: string;
   rule: "manual" | "hierarchy" | "compact" | "flow";
@@ -259,8 +261,9 @@ export function validateDocument(doc: Document): Document {
     doc.assets.forEach(validateAsset);
     if (doc.assets.reduce((sum, a) => sum + a.dataUrl.length, 0) > 3_500_000) fail("Embedded assets exceed the 3.5 MB atlas budget.");
   }
-  for (const value of [...doc.placements, ...doc.compositions, ...doc.relationships, ...(doc.variants ?? [])]) validateVisual(value.visual, doc.assets ?? []);
-  for (const p of doc.placements) if (p.nestingBinder) { validatePresentation(p.nestingBinder); validateVisual(p.nestingBinder.visual, doc.assets ?? []); }
+  const visualGlyphIds=new Set(doc.entities.filter(e=>e.omnic).map(e=>e.id));
+  for (const value of [...doc.placements, ...doc.compositions, ...doc.relationships, ...(doc.variants ?? [])]) validateVisual(value.visual, doc.assets ?? [],visualGlyphIds);
+  for (const p of doc.placements) if (p.nestingBinder) { validatePresentation(p.nestingBinder); validateVisual(p.nestingBinder.visual, doc.assets ?? [],visualGlyphIds); }
   for (const [key, list] of [
     ["entity", doc.entities],
     ["placement", doc.placements],
@@ -438,6 +441,7 @@ export function validateDocument(doc: Document): Document {
     unique(doc.layoutViews.map((v) => v.id), "layout view");
     for (const v of doc.layoutViews) {
       if (!rec(v) || !id(v.id) || !str(v.name, 500) || !["manual", "hierarchy", "compact", "flow"].includes(v.rule) || !Array.isArray(v.positions) || v.positions.length > 4000) fail("Invalid layout view.");
+      if (v.preservePositions !== undefined && typeof v.preservePositions !== "boolean") fail("Invalid layout recovery policy.");
       if (v.ordering !== undefined && (!rec(v.ordering) || !id(v.ordering.typeId) || !id(v.ordering.fromRoleId) || !id(v.ordering.toRoleId) || v.ordering.fromRoleId === v.ordering.toRoleId)) fail("Invalid view ordering roles.");
       if (v.positions.some((p) => !rec(p))) fail("Invalid view position.");
       unique(v.positions.map((p) => p.placementId), "view placement");

@@ -51,7 +51,7 @@ export function useFeatureActions<Owner extends FeatureOwner>(owner: Owner, hand
       if ("gestureSurface" in definition && event instanceof MouseEvent && !eventPathMatches(event,definition.gestureSurface)) return false;
       if (current.ui.shortcutCapturing || current.ui.shortcutsBlocked && !("allowBlocked" in definition && definition.allowBlocked) || event.defaultPrevented || !effectiveRef.current(id).enabled) return false;
       if (event instanceof MouseEvent && recordedShortcutTail(event)) return false;
-      if (event instanceof KeyboardEvent && (event.repeat || isTypingTarget(event.target) && !("allowTyping" in definition && definition.allowTyping))) return false;
+      if (event instanceof KeyboardEvent && (event.repeat && !('held' in definition && definition.held) || isTypingTarget(event.target) && !("allowTyping" in definition && definition.allowTyping))) return false;
       return event instanceof KeyboardEvent
         ? preferredFeatureKey(current.ui.shortcutBindings ?? {}, normalizeKey(event), candidate => featureActionRuntime.available(candidate), isTypingTarget(event.target), !!current.ui.shortcutsBlocked) === id
         : matchesPointerShortcut(id,current.ui.shortcutBindings??{},event,false)

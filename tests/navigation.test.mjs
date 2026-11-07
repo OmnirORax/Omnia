@@ -382,3 +382,81 @@ test('simultaneous atlas arrows advance a whole cell on each active camera axis'
  gesture.update(['nudgeRight','nudgeUp']);vectorNear(value,new THREE.Vector3(1,1,0));
  gesture.update([]);vectorNear(committed,new THREE.Vector3(1,1,0));
 });
+
+test('world navigator projects its own oriented XY plane and local Z independently of camera selection',async()=>{
+ const {createWorldNavigator,followNavigator}=await import('../src/navigation/worldNavigator.ts');
+ const navigator=createWorldNavigator();navigator.initialize(new THREE.Vector3(0,0,2));
+ const ray=new THREE.Ray(new THREE.Vector3(3,4,10),new THREE.Vector3(0,0,-1));assert.equal(navigator.aim(ray),true);assert.deepEqual(navigator.position.toArray(),[3,4,2]);
+ navigator.depth(1);assert.deepEqual(navigator.position.toArray(),[3,4,3]);
+ navigator.orientation.setFromAxisAngle(new THREE.Vector3(0,1,0),Math.PI/2);navigator.depth(2);assert.ok(Math.abs(navigator.position.x-5)<1e-9);
+ const before=navigator.position.clone();assert.equal(navigator.aim(new THREE.Ray(new THREE.Vector3(),new THREE.Vector3(0,1,0))),false);assert.ok(navigator.position.equals(before));
+ const camera=new THREE.PerspectiveCamera(55,2,.1,1000),target=new THREE.Vector3(1,2,3);camera.position.set(7,5,9);camera.lookAt(target);const offset=camera.position.clone().sub(target),q=camera.quaternion.clone(),zoom=camera.zoom;
+ followNavigator(camera,target,new THREE.Vector3(20,30,40));assert.deepEqual(target.toArray(),[20,30,40]);assert.ok(camera.position.clone().sub(target).equals(offset));assert.ok(camera.quaternion.equals(q));assert.equal(camera.zoom,zoom);
+ navigator.rescale(.5);assert.ok(navigator.position.distanceTo(before.multiplyScalar(.5))<1e-9);navigator.reset();assert.equal(navigator.initialized,false);
+});
+
+test('navigator driving previews a hidden-reserved branch, cancels exactly, and parks in one owner transaction',async()=>{
+ const {createNavigatorDrive}=await import('../src/navigation/navigatorDrive.ts');const {latticeMove}=await import('../src/graph/lattice.ts');const {worldPositions}=await import('../src/graph/coordinates.ts');
+ const doc=fixture();doc.entities.push({id:'obstacle',label:'',aliases:[],notes:''});doc.placements.push({id:'obstacle',entityId:'obstacle',parentId:null,position:{x:0,y:0},spatialPosition:{x:7,y:0,z:0},collapsed:true,hidden:true});
+ const original=JSON.stringify(doc),hosts=new Map(doc.placements.filter(p=>!p.hidden).map(p=>{const point=worldPositions(doc).get(p.id);return [p.id,{anchor:new THREE.Vector3(point.x,point.y,point.z),group:new THREE.Group()}];}));let commits=0,last;
+ const drive=createNavigatorDrive({hosts:()=>hosts,commit:(id,world)=>{commits++;return last=latticeMove(doc,id,world,1,true);}});
+ assert.deepEqual(drive.begin(doc,'a').toArray(),[2,0,0]);assert.equal(drive.owns('b'),true);
+ assert.equal(drive.move(new THREE.Vector3(4,0,0)),true);assert.equal(hosts.get('a').anchor.x,4);assert.equal(hosts.get('b').anchor.x,5);assert.equal(commits,0);assert.equal(JSON.stringify(doc),original);
+ // Child b would collide with the hidden cell at 7.
+ assert.equal(drive.move(new THREE.Vector3(6,0,0)),false);assert.equal(drive.park(),null);assert.equal(commits,0);assert.equal(hosts.get('a').anchor.x,4);
+ drive.cancel();assert.equal(hosts.get('a').anchor.x,2);assert.equal(hosts.get('b').anchor.x,3);
+ drive.begin(doc,'a');drive.move(new THREE.Vector3(4,1,1));const parked=drive.park();assert.equal(commits,1);assert.equal(drive.active,false);assert.equal(worldPositions(parked).get('a').x,4);assert.deepEqual(validateDocument(JSON.parse(JSON.stringify(last))),last);
+});
+test('navigator camera frame determines XY projection and depth after orbit/roll, without changing node selection',async()=>{
+ const {createWorldNavigator}=await import('../src/navigation/worldNavigator.ts');const navigator=createWorldNavigator();navigator.initialize(new THREE.Vector3());
+ const camera=new THREE.PerspectiveCamera(55,1,.1,1000);camera.position.set(10,0,0);camera.up.set(0,0,1);camera.lookAt(0,0,0);navigator.orientation.copy(camera.quaternion);
+ navigator.depth(1);assert.ok(navigator.position.distanceTo(new THREE.Vector3(1,0,0))<1e-9);
+ camera.updateMatrixWorld();const ray=new THREE.Raycaster();ray.setFromCamera(new THREE.Vector2(.2,.3),camera);const point=navigator.project(ray.ray);assert.ok(point);assert.ok(Math.abs(point.x-1)<1e-9);
+});
+test('world depth commands participate in scoped shortcut priority and explicit rebinding',async()=>{
+ const {preferredFeatureKey,shortcutBinding}=await import('../src/workspaceActions.ts');const {FEATURE_ACTIONS}=await import('../src/featureActions.ts');
+ assert.equal(preferredFeatureKey({},'ArrowUp',id=>id==='world.navigatorDepthUp'),'world.navigatorDepthUp');
+ assert.equal(preferredFeatureKey({},'ArrowUp',()=>false),null);
+ assert.equal(shortcutBinding('world.navigatorDepthUp',{'world.navigatorDepthUp':'K'}),'K');assert.equal(shortcutBinding('world.navigatorDepthUp',{'world.navigatorDepthUp':''}),'');
+ assert.equal(FEATURE_ACTIONS.find(a=>a.id==='world.navigatorDepthUp').held,true);
+});
+
+test('drive preview survives renderer refresh and rejected parking; switching can use the last valid slot',async()=>{
+ const {createNavigatorDrive}=await import('../src/navigation/navigatorDrive.ts');const {latticeMove}=await import('../src/graph/lattice.ts');
+ const doc=fixture();let hosts=new Map(['a','b'].map(id=>[id,{anchor:new THREE.Vector3(),group:new THREE.Group()}])),allowed=false,commits=0;
+ const drive=createNavigatorDrive({hosts:()=>hosts,commit:(id,point)=>{commits++;return allowed?latticeMove(doc,id,point,1,true):null;}});
+ drive.begin(doc,'a');drive.move(new THREE.Vector3(4,0,1));assert.equal(drive.park(),null);assert.equal(drive.active,true);
+ hosts=new Map(['a','b'].map(id=>[id,{anchor:new THREE.Vector3(),group:new THREE.Group()}]));drive.refresh();assert.deepEqual(hosts.get('a').anchor.toArray(),[4,0,1]);
+ drive.cancel();assert.deepEqual(hosts.get('a').anchor.toArray(),[2,0,0]);assert.deepEqual(hosts.get('b').anchor.toArray(),[3,0,0]);
+ drive.begin(doc,'a');drive.move(new THREE.Vector3(4,0,1));allowed=true;assert.ok(drive.park(true));assert.equal(commits,2);assert.equal(drive.active,false);
+});
+
+test('parking a parent and mounting its child transfers control against the newly committed document',async()=>{
+ const {createNavigatorDrive}=await import('../src/navigation/navigatorDrive.ts');const {latticeMove}=await import('../src/graph/lattice.ts');
+ let doc=fixture(),commits=0;const hosts=new Map(['a','b'].map(id=>[id,{anchor:new THREE.Vector3(),group:new THREE.Group()}]));
+ const drive=createNavigatorDrive({hosts:()=>hosts,commit:(id,point)=>{commits++;return doc=latticeMove(doc,id,point,1,true);}});
+ drive.begin(doc,'a');drive.move(new THREE.Vector3(4,0,0));const updated=drive.park(true);assert.equal(commits,1);
+ assert.deepEqual(drive.begin(updated,'b').toArray(),[5,0,0]);drive.move(new THREE.Vector3(5,1,0));assert.equal(hosts.get('a').anchor.x,4);assert.equal(commits,1);drive.cancel();assert.deepEqual(hosts.get('b').anchor.toArray(),[5,0,0]);
+});
+
+test('parking releases preview ownership during synchronous commit and restores it on failure',async()=>{
+ const {createNavigatorDrive}=await import('../src/navigation/navigatorDrive.ts');const doc=fixture();let fail=true,drive;
+ drive=createNavigatorDrive({hosts:()=>new Map(),commit:()=>{assert.equal(drive.active,false,'a synchronous renderer refresh must not cancel an old preview into the new document');if(fail)throw Error('save rejected');return doc;}});
+ drive.begin(doc,'a');drive.move(new THREE.Vector3(4,0,0));assert.throws(()=>drive.park(),/save rejected/);assert.equal(drive.active,true);assert.deepEqual(drive.position,{x:4,y:0,z:0});
+ fail=false;assert.equal(drive.park(),doc);assert.equal(drive.active,false);
+});
+
+test('navigator single full-diameter compass updates for camera orbit and roll while its ring faces the camera',async()=>{
+ const {createWorldNavigatorMarker}=await import('../src/worldNavigatorMarker.ts');const marker=createWorldNavigatorMarker(),position=new THREE.Vector3();
+ const read=()=>Array.from(marker.object.children[1].geometry.getAttribute('position').array);
+ const identity=new THREE.Quaternion();marker.update(position,identity,1,true);const front=read(),ring=marker.object.children[0];assert.equal(front.length,6,'exactly one line, no XYZ triad');assert.deepEqual(front.map(n=>n||0),[-1,0,0,1,0,0]);
+ const yaw=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,1).normalize(),Math.PI/3);marker.update(position,yaw,1,true);assert.notDeepEqual(read(),front);assert.ok(marker.object.quaternion.equals(yaw));assert.ok(ring.quaternion.equals(identity));
+ const roll=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,0,1),Math.PI/2);marker.update(position,roll,1,true);const rolled=read();assert.notDeepEqual(rolled,front);assert.ok(Math.abs(rolled[3])<1e-6);assert.ok(Math.abs(rolled[4]+1)<1e-6);
+ assert.ok(Math.abs(Math.hypot(rolled[3]-rolled[0],rolled[4]-rolled[1])-2)<1e-6,'line spans the full ring diameter');
+ marker.update(new THREE.Vector3(4,5,6),roll,2,true);assert.deepEqual(read(),rolled,'pointer and scale changes do not rebuild compass orientation');const edgeOn=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),Math.PI/2);marker.update(position,edgeOn,1,true);assert.deepEqual(read(),rolled,'end-on projection retains the full prior diameter');marker.dispose();
+});
+test('navigator forward follows camera negative Z and preserves saved arrow assignments',async()=>{
+ const {createWorldNavigator}=await import('../src/navigation/worldNavigator.ts');const {defaultSettings,normalizeSettings}=await import('../src/workspaceActions.ts');
+ const navigator=createWorldNavigator();navigator.initialize(new THREE.Vector3());navigator.orientation.setFromAxisAngle(new THREE.Vector3(0,1,0),Math.PI/2);assert.ok(navigator.forward().distanceTo(new THREE.Vector3(-1,0,0))<1e-9);
+ const bindings=defaultSettings().bindings;assert.equal(normalizeSettings({bindings}).bindings['world.navigatorDepthUp'],'ArrowUp');assert.equal(normalizeSettings({bindings}).bindings['world.navigatorDepthDown'],'ArrowDown');
+});

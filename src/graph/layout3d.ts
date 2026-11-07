@@ -1,14 +1,15 @@
+import { latticeCreatePoint, resolveLatticePoint, latticeMove } from "./lattice.ts";
 import { editorView, ensureVariantPlacements, validateDocument, type Document, type Placement, type XYZ } from "./structural.ts";
 import { DEFAULT_NODE_CELL_SIZE, DEFAULT_SPHERE_DIAMETER, nodeFootprint } from "./assets.ts";
 import { contractAlongRay, stopBeforeSphere, enclosingBox, translateBox, type Box3 } from "./packing.ts";
-import { localPosition, worldPositions } from "./coordinates.ts";
+import { localPosition, worldPositions, rebaseParentage } from "./coordinates.ts";
 import { chartedBinders, type DisplayBinder } from "./binders.ts";
 import { binderGap, minimumBinderDistance, placementFootprint } from "./binderGeometry.ts";
 export { localPosition, worldPositions } from "./coordinates.ts";
 
 export type GridSpacing = 0 | 0.25 | 0.5 | 1 | 2 | 5;
 export type Axis = "x" | "y" | "z" | null;
-export type SpatialSettings = { spacing: GridSpacing; radius: number; sphereDiameter?: number; nodeCellSize?: number; nodeNames?: "expanded" | "all" | "selection"; clearance: number };
+export type SpatialSettings = { spacing: GridSpacing; radius: number; sphereDiameter?: number; nodeCellSize?: number; nodeNames?: "expanded" | "all" | "selection"; latticeScale?: number; showVacantCells?: boolean; clearance: number };
 export const DEFAULT_SPATIAL_SETTINGS: SpatialSettings = { spacing: 2, nodeNames: "expanded", nodeCellSize: DEFAULT_NODE_CELL_SIZE, radius: DEFAULT_SPHERE_DIAMETER / 2, sphereDiameter: DEFAULT_SPHERE_DIAMETER, clearance: 0.35 };
 const origin = (): XYZ => ({ x: 0, y: 0, z: 0 });
 const add = (a: XYZ, b: XYZ): XYZ => ({ x: a.x + b.x, y: a.y + b.y, z: a.z + b.z });
@@ -88,6 +89,12 @@ function offsets(limit: number): XYZ[] {
 }
 /** Search is deterministic, closest first, with positive X preferred for equal distances. */
 export function nearestFree(doc: Document, placementId: string, desired: XYZ, settings: SpatialSettings): XYZ {
+  if(settings.latticeScale!==undefined){
+    const p=doc.placements.find(p=>p.id===placementId);if(!p)throw Error(`Missing placement: ${placementId}`);
+    const parent=p.parentId?worldPositions(doc).get(p.parentId)!:origin();
+    const world=resolveLatticePoint(doc,placementId,add(parent,desired),settings.nodeCellSize);
+    return {x:world.x-parent.x,y:world.y-parent.y,z:world.z-parent.z};
+  }
   const step = settings.spacing || Math.max(0.25, settings.radius * 2 + settings.clearance);
   const base = snapXYZ(desired, settings.spacing);
   const moving = doc.placements.find((p) => p.id === placementId);
@@ -130,6 +137,7 @@ export function nearestFree(doc: Document, placementId: string, desired: XYZ, se
 }
 export function movePlacement(doc: Document, id: string, desired: XYZ, settings: SpatialSettings): Document {
   if (!doc.placements.some((p) => p.id === id)) throw new Error(`Missing placement: ${id}`);
+  if(settings.latticeScale!==undefined){const p=doc.placements.find(p=>p.id===id)!;const parent=p.parentId?worldPositions(doc).get(p.parentId)!:origin();return validateDocument(latticeMove(doc,id,add(parent,desired),settings.nodeCellSize));}
   const local = nearestFree(doc, id, desired, settings);
   return validateDocument({ ...doc, placements: doc.placements.map((p) => p.id === id ? { ...p, spatialPosition: local } : p) });
 }
@@ -144,7 +152,9 @@ export function createPlacement(doc: Document, entityId: string, parentId: strin
     collapsed: true, hidden: false };
   const draft = { ...doc, placements: [...doc.placements, placement] };
   if(mode==='exact'&&!desired)throw Error('Exact placement requires a position.');
-  const local = mode==='exact'?{...desired!}:nearestFree(draft, placementId, placement.spatialPosition!, settings);
+  const parentWorld=parentId?worldPositions(doc).get(parentId)!:origin();
+  const world=settings.latticeScale!==undefined?latticeCreatePoint(doc,add(parentWorld,placement.spatialPosition!),settings.nodeCellSize):undefined;
+  const local = world?{x:world.x-parentWorld.x,y:world.y-parentWorld.y,z:world.z-parentWorld.z}:mode==='exact'?{...desired!}:nearestFree(draft, placementId, placement.spatialPosition!, settings);
   placement.spatialPosition = local;
   return { next: ensureVariantPlacements(validateDocument(draft), placementId), placementId };
 }
@@ -189,11 +199,8 @@ export function reparentVisual(doc: Document, id: string, parentId: string | nul
 export function detachPlacement(doc:Document,id:string):Document {
  const moving=doc.placements.find(p=>p.id===id);if(!moving)throw Error('Missing placement for detachment.');
  if(!moving.parentId&&!moving.variantOwner)return doc;
- const spatialPosition=worldPositions(doc).get(id)!,position={...moving.position};
- let parent=moving.parentId;while(parent){const item=doc.placements.find(p=>p.id===parent)!;position.x+=item.position.x;position.y+=item.position.y;parent=item.parentId;}
- const byId=new Map(doc.placements.map(p=>[p.id,p]));
- const layoutViews=doc.layoutViews?.map(view=>{const saved=new Map(view.positions.map(p=>[p.placementId,p.position]));let world=saved.get(id)??localPosition(moving),parent=moving.parentId;while(parent){const item=byId.get(parent)!;world=add(saved.get(parent)??localPosition(item),world);parent=item.parentId;}return {...view,positions:[...view.positions.filter(p=>p.placementId!==id),{placementId:id,position:world}]};});
- return validateDocument({...doc,...(layoutViews?{layoutViews}:{}),placements:doc.placements.map(p=>{if(p.id!==id)return p;const {variantOwner,...rest}=p;return {...rest,parentId:null,spatialPosition,position};})});
+ const next=rebaseParentage(doc,new Map([[id,null]]));
+ return validateDocument({...next,placements:next.placements.map(p=>{if(p.id!==id)return p;const {variantOwner,...rest}=p;return rest;})});
 }
 /** Remove the current authored containment edge and detach this occurrence.
  * Other placements, typed relationships and the child's own subtree are retained. */
@@ -293,6 +300,7 @@ export function compactLayout(doc: Document, scope: ReflowScope, settings: Spati
 /** An explicit presentation edit may need more room. Extend the affected branch,
  * preserve identities/relations, and keep the change in the caller's single undo step. */
 export function ensureBinderSpacing(doc: Document, settings: SpatialSettings, binderId?: string): Document {
+  if(settings.latticeScale!==undefined)return doc; // Content expands independently of carrier occupancy.
   let next = doc;
   for (const b of spacingBinders(doc).filter(b => !binderId || b.id === binderId)) {
     if (b.source === b.target) continue;

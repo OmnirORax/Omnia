@@ -794,8 +794,10 @@ interaction acceptance remains pending; model/build checks are separate evidence
 
 The earlier fixed square-frame interpretation was rejected. An atlas placement
 is a small uniform glowing atom. Empty space remains empty; no white lattice
-is drawn. Hover previews content, click retains it, and click again closes its
-retained expansion. Multiple expansions coexist. Structurally expanded nodes
+is drawn. Hover previews content. Selection hides the atomic O and shows full content while keeping its pulsing
+selection ring;
+deselection restores the carrier. Click-retained expansion remains independent;
+selection keeps content visible even if a repeat click toggles that retained state. Multiple expansions coexist. Structurally expanded nodes
 show content by default, with view-local close overrides. These overrides live
 in `nodePresentation`, scoped per atlas session, independently of graph selection,
 parentage and authored collapse state. Existing double-click structural expansion
@@ -809,21 +811,26 @@ content may overlap rather than shrink or relocate atoms. Camera/view changes
 update geometry; ordinary selection animation does not rebuild arrangement.
 `nodeFootprint` remains the content-independent logical organizational cell;
 `visualFootprint` measures independently sized presentation content. Atom size
-uses the existing sphere-diameter setting. No square node frame is rendered.
+follows rendered lattice pitch; legacy sphere-diameter values stay stored. No square node frame is rendered.
 
-N remains exact cursor projection onto the camera-facing navigation plane, with
-selected/focused parent semantics and contextual fallback over UI. Broader
-search/filter/contextual representation is future direction, not implemented.
-See [walkthrough](CAPABILITIES.md#graph-cells). Browser acceptance pending.
+N/Create node here now choose the nearest unoccupied cell to the cursor. One
+sparse shared lattice includes all hidden and filtered placements across parent
+scopes. The previous exact-overlap bypass and camera-rotating lattice are retired.
+Carrier O's and cell pitch scale together through **Lattice scale**; independent
+content retains its size. **Empty lattice cells** shows a bounded nearby creation
+slice. Both controls live below Names in the upper-right atlas stack and in
+Spatial settings. The earlier fixed radius 0.5 interpretation is superseded.
 
-Atlas scale baseline (2026-11-07): one logical cell is 1 world unit by default,
-independent of the small visible atom diameter. Arrow/nudge actions read the
-shared cell size, advance in whole camera-relative cells and bypass drag snap/
-nearest-free displacement on commit. Holds preview discrete repeats and commit
-once on release; cancellation restores. Explicit steps may overlap other atoms.
+Loading historical coordinates stays read-only. The first geometry edit preserves
+original positions in a protected **Before lattice alignment** layout view before
+settling cells; ordinary metadata edits and switching views do not rewrite saved
+positions. See [the owner, compatibility path and limits](ATLAS_LATTICE.md) and
+[walkthrough](CAPABILITIES.md#graph-lattice). Browser acceptance pending.
 
-Atomic radius correction (2026-11-07): visible atoms are fixed at radius 0.5,
-diameter 1. Remove the earlier small/editable-dot interpretation. The renderer
-uses DEFAULT_SPHERE_DIAMETER, never saved sphereDiameter or per-node Visual.size.
-Blank carriers have no size editor; actual expanded visual content retains one.
-Logical cell size remains separately configurable and owns arrow-step size.
+
+Binder labels now extend perpendicular from the binder into indexed free screen
+space. Existing lines/markers/labels support drag-to-reconnect of the nearer
+endpoint through shared domain validation/history; normal clicks still edit.
+Canonical links, visual nesting and variant references keep their own owners.
+Live and saved-view XYZ rebase through coordinates.rebaseParentage, also used by
+Detach. See [ATLAS_BINDERS.md](ATLAS_BINDERS.md); browser acceptance pending.

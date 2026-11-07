@@ -479,3 +479,21 @@ test('names view defaults to expanded for old settings and persists explicit sel
  for(const nodeNames of ['expanded','all','selection'])assert.equal(normalizeSettings({spatial:{nodeNames}}).spatial.nodeNames,nodeNames);
  assert.equal(normalizeSettings({spatial:{nodeNames:'unknown'}}).spatial.nodeNames,'expanded');
 });
+
+test('registered content can retain plain wheel navigation without resizing MS or touching membership',async()=>{
+ const {createSelectionSurfaces}=await import('../src/appearance/selectionSurfaces.ts');
+ const registry=createSelectionSurfaces(),child={},root={contains:element=>element===child},other={};let reads=0,applies=0;
+ const off=registry.register({element:()=>root,nativeWheel:true,snapshot:()=>{reads++;return {units:[],selected:['keep'],hit:()=>undefined};},apply:()=>{applies++;}});
+ for(const event of [{shiftKey:false,ctrlKey:false},{shiftKey:false,ctrlKey:true}])assert.equal(registry.wheelOwner(child,event),'surface');
+ assert.equal(registry.wheelOwner(child,{shiftKey:true}),'selector');
+ assert.equal(registry.wheelOwner(other,{shiftKey:false}),'selector');
+ assert.equal(reads,0);assert.equal(applies,0);off();assert.equal(registry.wheelOwner(child,{shiftKey:false}),'selector');
+});
+
+test('registered modifier-click intent captures its node before renderer changes, without replacing drag selection',async()=>{
+ const {createSelectionSurfaces}=await import('../src/appearance/selectionSurfaces.ts');const registry=createSelectionSurfaces(),root={};let hits='node',calls=0,context='first';
+ registry.register({element:()=>root,context:()=>context,onModifierClick:(point,mode,id)=>{assert.equal(id,'node');assert.equal(mode,'toggle');assert.equal(point.x,1);calls++;return true;},snapshot:()=>({units:[{id:'node',box:{left:0,top:0,right:3,bottom:3}}],selected:[],hit:()=>hits}),apply:()=>assert.fail('an owner click must not mutate selection membership')});
+ const click=registry.beginPointer(root,{x:0,y:0},'toggle');hits='changed';assert.equal(click({x:1,y:0}),undefined);assert.equal(calls,1);click({x:1,y:0});assert.equal(calls,1,'physical release is handled only once');
+ const drag=registry.beginPointer(root,{x:0,y:0},'toggle');assert.deepEqual(drag({x:10,y:10}).after,['node']);assert.equal(calls,1);
+ const stale=registry.beginPointer(root,{x:0,y:0},'toggle');context='replacement';assert.equal(stale({x:1,y:0}),undefined);assert.equal(calls,1);
+});

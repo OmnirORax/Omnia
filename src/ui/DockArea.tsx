@@ -63,7 +63,7 @@ function bridges(shapes: Shape[]) {
   }
   return paths.join(" ");
 }
-export function DockArea({ container, contour = true, hidden = false }: { container: string; contour?: boolean; hidden?: boolean }) {
+export function DockArea({ container, contour = true, hidden = false, visibleResidents }: { container: string; contour?: boolean; hidden?: boolean; visibleResidents?: ReadonlySet<string> }) {
   const ui = useUITracked(ui=>[
     ...residentRenderSlice(ui,container),
     // A same-sized icon can change contour geometry without a ResizeObserver event.
@@ -82,8 +82,9 @@ export function DockArea({ container, contour = true, hidden = false }: { contai
   const preview = useDockPreview(container);
   // Live dragging reserves the source footprint. Destination hints must not
   // reflow residents; only a committed drop changes the authored arrangement.
-  const entries = members;
-  const occupied = members;
+  // Context availability is a transient projection; retain authored membership.
+  const entries = visibleResidents ? members.filter(member=>visibleResidents.has(residentKey(member))) : members;
+  const occupied = entries;
   const positioned = !stacked && occupied.length > 0 && occupied.every((m) => m.position && m.size);
   const minX = positioned ? Math.min(0, ...occupied.map((m) => m.position!.x - 12)) : 0,
     minY = positioned ? Math.min(0, ...occupied.map((m) => m.position!.y - 12)) : 0;

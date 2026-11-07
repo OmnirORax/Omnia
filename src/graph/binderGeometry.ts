@@ -14,8 +14,8 @@ export function operatorSize(visual?: Visual) {
 /** Custom assets are normalized to a unit box; character visuals may be three units wide.
  * Use their occupied envelope so sizing does not depend on asynchronous asset loading. */
 export function operatorExtent(visual?: Visual) {
-  if (!visual?.assetId && !visual?.character) return arrowLength(visual);
-  return operatorSize(visual) * Math.hypot(visual.character ? 3 : 1, 1, visual.assetId ? 1 : 0);
+  if (!visual?.assetId && !visual?.character && !visual?.omnicEntityId) return arrowLength(visual);
+  return operatorSize(visual) * Math.hypot(visual.character ? 3 : 1, 1, visual.assetId||visual.omnicEntityId ? 1 : 0);
 }
 export function binderGap(binder: Pick<DisplayBinder, "visual" | "label">, direction?: XYZ) {
   const label = labelSize(binder.label);

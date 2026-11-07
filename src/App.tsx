@@ -1,3 +1,8 @@
+import { UIAction } from "./ui/UIAction";
+import { editBinderConnection } from "./graph/binderActions";
+import { uiContextEnabled } from "./ui/contextMenuOwnership";
+import { reconnectBinder, binderReconnectReason } from "./graph/reconnectBinder";
+import { localLatticePoint, latticeDocument, latticeWorld, latticeScale, latticeMove, resolveLatticePoint, reconcileLattice } from "./graph/lattice";
 import {createWorkspaceBackup,parseWorkspaceBackup,validateWorkspaceUI,type WorkspaceUI} from './omnic/workspaceBackup';
 import { ScoreTracker } from './metrics/ScoreTracker';
 import {readWorkspaceSlot,readWorkspaceReplacement,saveWorkspaceSlot} from "./omnic/workspaceStorage";
@@ -55,7 +60,7 @@ import {
   type FrameScope,
 } from "./graph/structural";
 import { parseChangeSet, validateChangeSet, type Preview } from "./graph/changeset";
-import { ensureBinderSpacing, compactLayout, createPlacement, movePlacement, nearestFree, reparentStructure, reparentVisual, detachPlacement, detachNodeConnection, worldPositions, type ReflowScope, type GridSpacing } from "./graph/layout3d";
+import { ensureBinderSpacing, compactLayout, createPlacement, movePlacement, reparentStructure, reparentVisual, detachPlacement, detachNodeConnection, type ReflowScope, type GridSpacing } from "./graph/layout3d";
 import { ACTIONS, SETTINGS_KEY, allowsShiftShortcut, actionForKey, defaultSettings, isFeatureAction, isNudgeAction, isTypingTarget, keyConflict, loadSettings, normalizeSettings, normalizeKey, normalizePointer, preferredFeatureKey, type ActionId, type NudgeActionId, type WorkspaceSettings } from "./workspaceActions";
 import { clearRecordedShortcutPress, FEATURE_ACTIONS, featureActionRuntime, recordedShortcutTail, recordShortcutPress } from "./featureActions";
 import { claimUIPress } from "./ui/pointerOwnership";
@@ -72,7 +77,7 @@ import { addVariant, nodeEntityId, projectVariants } from "./graph/variants";
 import { ShortcutDisplay, ShortcutGestures } from "./ShortcutDisplay";
 import { VisualControls } from "./VisualControls";
 import { deleteConceptSubtrees, deletionSummary } from "./graph/selection";
-import { DEFAULT_NODE_CELL_SIZE, type Visual, type VisualAsset } from "./graph/assets";
+import { type Visual, type VisualAsset } from "./graph/assets";
 import type { BinderPresentation } from "./graph/structural";
 import { isolateSpatialContext, projectSpatial } from "./graph/spatial";
 import { UIWorkspace, FunctionControl, UIArrangeButtons, UIPanel } from "./ui/UIWorkspace";
@@ -99,7 +104,7 @@ type ViewConfig = {
   version: 1 | 2;
   atlas: AtlasDocument | Atlas;
 };
-type Selection = { kind: "node" | "relationship" | "composition" | "variantBinder" | "visualBinder"; id: string } | null;
+type Selection = { kind: "node" | "relationship" | "composition" | "variantBinder" | "visualBinder"; id: string; binderKey?:string; binderEndpoints?:{source:string;target:string} } | null;
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 type InitialWorkspace={ workspace: WorkspaceSnapshot; error: string };
 async function loadInitial(): Promise<InitialWorkspace> {
@@ -324,13 +329,15 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
     clearAtlasContext();
   }
   function placeLibraryObject(entityId: string) {
-    const placed=createPlacement(documentRef.current,entityId,creationParentId(),settings.spatial);
+    const placed=createPlacement(documentRef.current,entityId,creationParentId(),settings.spatial,localLatticePoint(documentRef.current,creationParentId(),creationPointRef.current?.(),settings.spatial.nodeCellSize));
     if(!commitDocument(placed.next))throw Error("Placement failed.");
     setSelection({kind:"node",id:placed.placementId});
   }
   function commitDocument(next: AtlasDocument, copied?:{entityId:string;sourceId:string}) {
     try {
-      const synced = next.layoutViews ? { ...next, layoutViews: next.layoutViews.map((view) => view.id === next.activeLayoutViewId ? { ...view, positions: next.placements.map((p) => ({ placementId: p.id, position: p.spatialPosition ?? { x: p.position.x / 100, y: p.parentId ? -2 : 0, z: p.position.y / 100 } })) } : view) } : next;
+      const viewChanged=next.activeLayoutViewId!==documentRef.current.activeLayoutViewId;
+      if(!viewChanged)next = reconcileLattice(documentRef.current, next, settings.spatial.nodeCellSize);
+      const synced = next.layoutViews ? { ...next, layoutViews: next.layoutViews.map((view) => view.id === next.activeLayoutViewId && !view.preservePositions && !viewChanged ? { ...view, positions: next.placements.map((p) => ({ placementId: p.id, position: p.spatialPosition ?? { x: p.position.x / 100, y: p.parentId ? -2 : 0, z: p.position.y / 100 } })) } : view) } : next;
       const validated = validateDocument({ ...synced, revision: document.revision + 1 });
       let nextWorkspace = withActiveDocument(workspaceRef.current, validated);
       if(copied)nextWorkspace={...nextWorkspace,library:{...nextWorkspace.library,items:[...nextWorkspace.library.items,{entityId:copied.entityId,tags:[],collections:[],preset:false,derivedFrom:copied.sourceId}]}};
@@ -393,7 +400,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
     if (omnicEditorId === entityId && omnicNewDraft) return;
     const candidate = { ...documentRef.current, entities: [...documentRef.current.entities,
       { id: entityId, label: "", aliases: [], notes: "", omnic: newOmnicDraft() }] };
-    const placed = createPlacement(candidate, entityId, parentId, settings.spatial);
+    const placed = createPlacement(candidate, entityId, parentId, settings.spatial,localLatticePoint(candidate,parentId,creationPointRef.current?.(),settings.spatial.nodeCellSize));
     const placement = placed.next.placements.find(p => p.id === placed.placementId)!;
     setOmnicNewDraft({ entityId, placementId: placement.id, parentId,
       position: placement.spatialPosition ?? { x: placement.position.x / 100, y: parentId ? -2 : 0, z: placement.position.y / 100 } });
@@ -408,7 +415,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
       const parent = next.placements.find(p => p.id === parentId)!;
       next = {...next, compositions:[...next.compositions,{id:newId(),parentId:parent.entityId,childId:entityId}], placements:next.placements.map(p=>p.id===parentId?{...p,collapsed:false}:p)};
     }
-    const placed = createPlacement(next, entityId, parentId, settings.spatial, location?.position);
+    const placed = createPlacement(next, entityId, parentId, settings.spatial, location?.position??localLatticePoint(next,parentId,creationPointRef.current?.(),settings.spatial.nodeCellSize));
     const frame = placed.next.frames.find(f => f.id === placed.next.activeFrameId);
     if (frame && !frame.locked) frame.scope.entityIds.push(entityId);
     if (frame?.locked) placed.next.activeFrameId = null;
@@ -435,10 +442,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
         next.compositions.push({ id: newId(), parentId: parent.entityId, childId: entityId });
         parent.collapsed = false;
       }
-      const desired = atWorld && parentId ? (() => {
-        const origin = worldPositions(next).get(parentId)!;
-        return { x: atWorld.x - origin.x, y: atWorld.y - origin.y, z: atWorld.z - origin.z };
-      })() : atWorld;
+      const desired = localLatticePoint(next,parentId,atWorld,settings.spatial.nodeCellSize);
       const placed = createPlacement(next, entityId, parentId, settings.spatial, desired, atWorld ? 'exact' : 'packed');
       const frame = placed.next.frames.find((f) => f.id === placed.next.activeFrameId);
       if (frame && !frame.locked) frame.scope.entityIds.push(entityId);
@@ -651,6 +655,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
     ));
   }
   function insertExisting(entityId: string, parentId: string | null = null, atWorld?: { x: number; y: number; z: number }) {
+    atWorld??=creationPointRef.current?.();
     const entity = document.entities.find((e) => e.id === entityId);
     if (!entity) {
       setError("Choose an existing identity.");
@@ -663,10 +668,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
         if (!parent) throw new Error("Parent placement missing.");
         parent.collapsed = false;
       }
-      const desired = atWorld && parentId ? (() => {
-        const origin = worldPositions(next).get(parentId)!;
-        return { x: atWorld.x - origin.x, y: atWorld.y - origin.y, z: atWorld.z - origin.z };
-      })() : atWorld;
+      const desired = localLatticePoint(next,parentId,atWorld,settings.spatial.nodeCellSize);
       const placed = createPlacement(next, entityId, parentId, settings.spatial, desired);
       const frame = placed.next.frames.find((f) => f.id === placed.next.activeFrameId);
       if (frame && !frame.locked && !frame.scope.entityIds.includes(entityId)) frame.scope.entityIds.push(entityId);
@@ -731,6 +733,19 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
   }
   const selectedBinder: BinderPresentation | undefined = selection?.kind === "relationship" ? selectedRelationData : selection?.kind === "composition" ? selectedComposition : selection?.kind === "variantBinder" ? document.variants?.find((v) => v.id === selection.id) : selection?.kind === "visualBinder" ? document.placements.find((p) => p.id === selection.id)?.nestingBinder ?? {} : undefined;
   const selectedBinderText = selectedBinder && selection ? chartedBinders(document, atlas).find((b) => b.id === selection.id)?.label ?? "" : "";
+  const selectedBinderEdge=selectedBinder&&selection?chartedBinders(document,atlas).find(b=>b.id===selection.id&&(!selection.binderKey||b.key===selection.binderKey)&&({relationship:'relationship',composition:'composition',visual:'visualBinder',variant:'variantBinder'}[b.kind]===selection.kind)):undefined;
+  const binderGlyphs=useMemo(()=>document.entities.filter(entity=>entity.omnic).map(entity=>({id:entity.id,label:entity.label})),[document.entities]);
+  function binderConnectionAction(action:'reverse'|'delete'){
+    if(!selectedBinderEdge)return;
+    try{
+      if(selection?.binderEndpoints&&(selection.binderEndpoints.source!==selectedBinderEdge.source||selection.binderEndpoints.target!==selectedBinderEdge.target))throw Error('Expand or reselect the actual binder endpoints before editing this connection.');
+      const next=editBinderConnection(documentRef.current,selectedBinderEdge,action);
+      if(!commitDocument(next))return;
+      if(action==='delete'){setSelection(null);setBinderPopup(null);return;}
+      const edge=chartedBinders(next,editorView(next,new Set(next.placements.map(p=>p.id)))).find(b=>b.kind===selectedBinderEdge.kind&&b.source===selectedBinderEdge.target&&b.target===selectedBinderEdge.source&&(b.kind==='visual'||b.id===selectedBinderEdge.id));
+      if(edge){setSelection({kind:edge.kind==='variant'?'variantBinder':edge.kind==='visual'?'visualBinder':edge.kind,id:edge.id,binderKey:edge.key,binderEndpoints:{source:edge.source,target:edge.target}});if(edge.kind==='variant')setExpandedVariants(previous=>new Set([...previous,edge.source]));}
+    }catch(error){setError(message(error));}
+  }
   function editBinder(changes: BinderPresentation, asset?: VisualAsset) {
     if (!selection) return;
     const next = { ...document, ...(asset ? { assets: [...(document.assets ?? []), asset] } : {}) };
@@ -905,16 +920,15 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
     } catch (e) { setError(message(e)); }
   }
   function moveDisplayedNode(id: string, position: { x: number; y: number; z: number }, preview = false, exact = false) {
-    // Hidden variant branches must not block the active workspace's drag targets.
-    const visibleIds = new Set(structuralGraph.nodes.filter((n) => n.visible).map((n) => n.id));
-    const collisionDoc = { ...document, placements: document.placements.map((p) => ({ ...p, hidden: p.hidden || !visibleIds.has(p.id) })) };
-    const placement = document.placements.find(p => p.id === id)!;
-    const parent = placement.parentId && !structuralGraph.nodes.find(n => n.id === id)?.parentId ? worldPositions(document).get(placement.parentId) : undefined;
-    const desired = parent ? { x: position.x - parent.x, y: position.y - parent.y, z: position.z - parent.z } : position;
-    const local = exact ? desired : nearestFree(collisionDoc, id, desired, settings.spatial);
-    if (!preview) commitDocument({ ...document, placements: document.placements.map((p) => p.id === id ? { ...p, spatialPosition: local } : p) });
-    return parent ? { x: local.x + parent.x, y: local.y + parent.y, z: local.z + parent.z } : local;
+    const scale=latticeScale(settings.spatial.latticeScale),unit=settings.spatial.nodeCellSize;
+    const displayParent=structuralGraph.nodes.find(n=>n.id===id)?.parentId;
+    const parent=displayParent?latticeWorld(document,displayParent,unit):{x:0,y:0,z:0};
+    const desired={x:position.x/scale+parent.x,y:position.y/scale+parent.y,z:position.z/scale+parent.z};
+    const resolved=resolveLatticePoint(document,id,desired,unit,exact);
+    if(!preview)commitDocument(latticeMove(document,id,desired,unit,exact));
+    return {x:(resolved.x-parent.x)*scale,y:(resolved.y-parent.y)*scale,z:(resolved.z-parent.z)*scale};
   }
+
   function compact(scope: ReflowScope) {
     try { commitDocument(compactLayout(document, scope, settings.spatial)); }
     catch (e) { setError(message(e)); }
@@ -1069,7 +1083,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
     }
     const id = target.kind === "node" ? target.id : null;
     switch (action) {
-      case "createUIFrame": { const point = target.kind === "space" ? target.screen : undefined; updateUI((layout) => ({ ...layout, frames: [...layout.frames, { id: crypto.randomUUID(), name: "New frame", x: point?.x ?? 120, y: point?.y ?? 180, cellSize: 96, collapsed: false, pinned: false }] })); break; }
+      case "createUIFrame": { const point = target.kind === "space" ? target.screen : undefined; updateUI((layout) => uiContextEnabled(layout)?({ ...layout, frames: [...layout.frames, { id: crypto.randomUUID(), name: "New frame", x: point?.x ?? 120, y: point?.y ?? 180, cellSize: 96, collapsed: false, pinned: false }] }):layout); break; }
       case "createChild": if (id) addNode(id); break;
       case "createAt": if (target.kind === "space") addNode(null, target.world); break;
       case "insertExisting": setInsertQuery(""); setInsertContext({ parentId: id, world: target.kind === "space" ? target.world : undefined }); break;
@@ -1107,7 +1121,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
       case "ui:arrange": updateUI((layout) => ({ ...layout, panels: { ...layout.panels, "@library": true } })); break;
       case "ui:createFrame": setUICommand(old => ({ action: "createFrame", sequence: (old?.sequence ?? 0) + 1 })); break;
       case "selectAll": selectMany(structuralGraph.nodes.filter((n) => n.visible).map((n) => n.id)); break;
-      case "deleteSelected": deleteSelectedConcepts(); break;
+      case "deleteSelected": if(selectedBinderEdge)binderConnectionAction("delete");else deleteSelectedConcepts(); break;
       case "shortcuts": setShortcutsPinned((v) => !v); setShortcutsHovered(false); break;
       case "focus": featureActionRuntime.invoke("world.faceSelection"); break;
       case "isolateFocus":
@@ -1155,6 +1169,9 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
         assignBinding(key); return;
       }
       if (event.defaultPrevented || isTypingTarget(event.target)) { heldNudges.stop(); return; }
+      // Registered scoped owners get first refusal before legacy global actions,
+      // regardless of capture-listener mount order (notably held world arrows).
+      if(preferredFeatureKey(settings.bindings,normalizeKey(event),id=>featureActionRuntime.available(id),false,settingsOpen||!!insertContext))return;
       const action = actionForKey(settings.bindings, normalizeKey(event));
       if (!action || (event.repeat && !isNudgeAction(action))) return;
       if (isNudgeAction(action) && selection?.kind !== "node") return;
@@ -1310,7 +1327,8 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
   replaceFunction("ui:snap", "Snap spacing", <label className="toolbar-snap">Snap<select aria-label="Snap spacing" value={settings.spatial.spacing} onChange={(e) => setSettings((old) => ({ ...old, spatial: { ...old.spatial, spacing: Number(e.target.value) as GridSpacing } }))}>{[0,.25,.5,1,2,5].map((v) => <option key={v} value={v}>{v || "Off"}</option>)}</select></label>, true);
   replaceFunction("ui:settingsSnap", "Settings snap spacing", <label>Snap spacing<select aria-label="Settings snap spacing" value={settings.spatial.spacing} onChange={(event) => setSettings((old) => ({ ...old, spatial: { ...old.spatial, spacing: Number(event.target.value) as GridSpacing } }))}>{[0, 0.25, 0.5, 1, 2, 5].map((step) => <option key={step} value={step}>{step || "Off"}</option>)}</select></label>, true);
   replaceFunction("ui:nodeNames", "Node names", <label>Names<select aria-label="Node names" value={settings.spatial.nodeNames ?? "expanded"} onChange={event => setSettings(old => ({ ...old, spatial: { ...old.spatial, nodeNames: event.target.value as "expanded" | "all" | "selection" } }))}><option value="expanded">Expanded</option><option value="all">All</option><option value="selection">Selection</option></select></label>, true);
-  replaceFunction("ui:nodeCellSize", "Node cell size", <label>Node cell size<input aria-label="Node cell size" type="number" min="0.1" max="5" step="0.05" value={settings.spatial.nodeCellSize ?? DEFAULT_NODE_CELL_SIZE} onChange={event => setSettings(old => ({ ...old, spatial: { ...old.spatial, nodeCellSize: Math.max(0.1, Math.min(5, Number(event.target.value) || DEFAULT_NODE_CELL_SIZE)) } }))} /><small>World units · one uniform cell per node; content keeps its own size.</small></label>, true);
+  replaceFunction("ui:nodeCellSize", "Lattice scale", <label>Lattice scale<input key={settings.spatial.latticeScale??1} aria-label="Lattice scale" type="number" step="any" defaultValue={settings.spatial.latticeScale ?? 1} onBlur={event=>{const value=event.target.valueAsNumber;if(Number.isFinite(value)&&value>0)setSettings(old=>({...old,spatial:{...old.spatial,latticeScale:value}}));else event.target.value=String(settings.spatial.latticeScale??1);}} onKeyDown={event=>{if(event.key==='Enter'){event.preventDefault();event.currentTarget.blur();}if(event.key==='Escape'){event.preventDefault();event.stopPropagation();event.currentTarget.value=String(settings.spatial.latticeScale??1);event.currentTarget.blur();}}} title="Positive scale, including scientific notation. Enter applies. Scales cells and O carriers together; content keeps its size." /></label>, true);
+  replaceFunction("ui:vacantCells", "Show empty lattice cells", <label><input type="checkbox" checked={!!settings.spatial.showVacantCells} onChange={event=>setSettings(old=>({...old,spatial:{...old.spatial,showVacantCells:event.target.checked}}))}/>Empty lattice cells</label>, true);
   replaceFunction("ui:radius", "Minimum placement clearance radius", <CoupledField bindings={propertyBindings} consumer="spatial.placement" property="placement.radius" />, true);
   replaceFunction("ui:clearance", "Collision clearance", <CoupledField bindings={propertyBindings} consumer="spatial.placement" property="placement.clearance" />, true);
   replaceFunction("ui:subtreeModifier", "Subtree click modifier", <label>Expand/collapse subtree click modifier<select aria-label="Subtree click modifier" value={settings.mouse.subtreeModifier} onChange={(event) => setSettings((old) => ({ ...old, mouse: { ...old.mouse, subtreeModifier: event.target.value as WorkspaceSettings["mouse"]["subtreeModifier"] } }))}><option value="shift">Shift</option><option value="alt">Alt</option><option value="ctrl">Ctrl / Cmd</option><option value="none">Off</option></select></label>, true);
@@ -1702,7 +1720,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
             )}
           </UIPanel>
           <UIPanel id="inspector" title="Inspector" className="inspector">
-            {selectedBinder && !binderPopup && <VisualControls key={selection?.id} label="Binder" value={selectedBinder.visual} assets={document.assets ?? []} onChange={(visual) => editBinder({ visual })} onAsset={(asset, visual) => editBinder({ visual }, asset)} />}
+            {selectedBinder && !binderPopup && <VisualControls key={selection?.id} label="Binder" glyphs={binderGlyphs} value={selectedBinder.visual} assets={document.assets ?? []} onChange={(visual) => editBinder({ visual })} onAsset={(asset, visual) => editBinder({ visual }, asset)} />}
             {selectedNode ? (
               <>
                 <div className="omnic-object-actions"><FunctionControl id="omnic.open" mirror /><FunctionControl id="omnic.show" mirror /></div>
@@ -2248,7 +2266,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
           </UIPanel>
           <UIPanel id="help" title="Workspace help" className="help">
             <p>
-              Left-drag empty space to pan; right-drag to rotate; scroll to zoom. Drag a name to move it. Shift-drag it onto another name to nest. Click a binder to edit its operators and appearance.
+              Click a node to drive it with the mouse and Up/Down depth steps; click an empty slot to park, or Esc to cancel. Right-click for node actions. Drag empty space to pan; right-drag to navigate; scroll to zoom. Click a binder for connection and glyph actions.
             </p>
             <FunctionControl id="compactSelected" />
             <FunctionControl id="compactFrame" />
@@ -2266,7 +2284,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
               omnicPreviewContext={omnicPreviewContext}
               bindings={propertyBindings}
               history={actionHistory}
-              onTransformNodes={(ids, rotation, pivot, layout) => commitDocument(transformPlacements(document, ids, rotation, pivot, layout))}
+              onTransformNodes={(ids, rotation, pivot, layout) => {const scale=latticeScale(settings.spatial.latticeScale);commitDocument(transformPlacements(layout?latticeDocument(document,settings.spatial.nodeCellSize):document, ids, rotation, layout?{x:pivot.x/scale,y:pivot.y/scale,z:pivot.z/scale}:pivot, layout));}}
               wallpaperURL={safeView ? null : sceneBackground.url}
               atlas={atlas}
               creationPointRef={creationPointRef}
@@ -2299,11 +2317,17 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
               onNodeClick={nodeClicked}
               onNodeDoubleClick={nodeDoubleClicked}
               onSubtreeClick={nodeSubtreeClicked}
-              onBinderSelect={(id, kind, point) => {
-                setSelection({ kind: kind === "variant" ? "variantBinder" : kind === "visual" ? "visualBinder" : kind, id });
+              selectedBinderKey={selectedBinderEdge?.key}
+              onBinderSelect={(binder, point) => {
+                const {id,kind,key}=binder;
+                setSelectedIds(new Set());
+                setSelection({ kind: kind === "variant" ? "variantBinder" : kind === "visual" ? "visualBinder" : kind, id, binderKey:key, binderEndpoints:{source:binder.source,target:binder.target} });
                 setBinderPopup({ x: Math.min(point.x + 12, window.innerWidth - 370), y: Math.min(point.y + 12, window.innerHeight - 460) });
               }}
-              resolveMove={(id, local) => moveDisplayedNode(id, local, true)}
+              canReconnectBinder={(binder,end,destination)=>binderReconnectReason(document,binder,end,destination)}
+              onReconnectBinder={(binder,end,destination)=>{try{const next=reconnectBinder(documentRef.current,binder,end,destination);if(next!==documentRef.current&&commitDocument(next)&&binder.kind==='variant')setExpandedVariants(previous=>new Set([...previous,end==='source'?destination:binder.source]));}catch(error){setError(message(error));}}}
+              onNavigatorPark={(id,world)=>{try{const current=documentRef.current,scale=latticeScale(settings.spatial.latticeScale),desired={x:world.x/scale,y:world.y/scale,z:world.z/scale},original=latticeWorld(current,id,settings.spatial.nodeCellSize);if(original.x===desired.x&&original.y===desired.y&&original.z===desired.z)return current;return commitDocument(latticeMove(current,id,desired,settings.spatial.nodeCellSize,true))?documentRef.current:null;}catch(error){setError(message(error));return null;}}}
+              resolveMove={(id, local, exact) => moveDisplayedNode(id, local, true, exact)}
               onMove={(id, local, exact) => { try { moveDisplayedNode(id, local, false, exact); } catch (e) { setError(message(e)); } }}
               canNest={nestReason}
               onNest={nest}
@@ -2325,7 +2349,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
         <button onClick={() => setInsertContext(null)}>Close</button>
       </FloatingWindow>}
       {(shortcutsPinned || shortcutsHovered) && <div onMouseLeave={() => setShortcutsHovered(false)}><ShortcutDisplay onInteract={() => setShortcutsPinned(true)} settings={renderSettings} onChange={setSettings} capturing={capturing} onCapture={setCapturing} onAction={runAction} onClose={() => { setShortcutsPinned(false); setShortcutsHovered(false); }} /></div>}
-      {binderPopup && selectedBinder && <FloatingWindow id="binder-editor" openingKey={`${selection?.kind}:${selection?.id}:${binderPopup.x}:${binderPopup.y}`} title="Binder editor" className="binder-editor" x={binderPopup.x} y={binderPopup.y} width={370} height={560} onClose={() => setBinderPopup(null)} closeLabel="Close binder editor"><BinderControls {...binderThemeProps} value={selectedBinder} defaultText={selectedBinderText} onChange={editBinder} composition={selection?.kind === "composition"} /><VisualControls key={selection?.id} label="Binder" value={selectedBinder.visual} assets={document.assets ?? []} onChange={(visual) => editBinder({ visual })} onAsset={(asset, visual) => editBinder({ visual }, asset)} /></FloatingWindow>}
+      {binderPopup && selectedBinder && <FloatingWindow id="binder-editor" openingKey={`${selection?.kind}:${selection?.id}:${binderPopup.x}:${binderPopup.y}`} title="Binder editor" className="binder-editor" x={binderPopup.x} y={binderPopup.y} width={370} height={560} onClose={() => setBinderPopup(null)} closeLabel="Close binder editor">{selectedBinderEdge&&<UISection id="binder-connection-actions" title="Binder actions"><UIAction id="binder:reverse" label="Reverse direction / hierarchy" category="Relationships" onClick={()=>binderConnectionAction('reverse')}/><UIAction id="binder:focus-endpoints" label="Focus both endpoints" category="Relationships" onClick={()=>{selectMany([selectedBinderEdge.source,selectedBinderEdge.target]);navigate('selection');setBinderPopup(null);}}/><UIAction id="binder:delete" label="Delete binder" category="Relationships" onClick={()=>binderConnectionAction('delete')}/></UISection>}<BinderControls {...binderThemeProps} value={selectedBinder} defaultText={selectedBinderText} onChange={editBinder} composition={selection?.kind === "composition"} /><VisualControls key={selection?.id} label="Binder" glyphs={binderGlyphs} value={selectedBinder.visual} assets={document.assets ?? []} onChange={(visual) => editBinder({ visual })} onAsset={(asset, visual) => editBinder({ visual }, asset)} /></FloatingWindow>}
       {omnicLibraryOpen && <FloatingWindow id="omnic-library" title="Omnic library" width={560} height={590} onClose={()=>setOmnicLibraryOpen(false)}>
         <Suspense fallback={<p>Opening library…</p>}><OmnicLibrary onExport={exportWorkspaceBackup} onImport={importWorkspaceBackup} onRecover={recoverWorkspaceBackup} workspace={workspace} onChange={commitWorkspace} onSwitch={switchAtlas} onOpen={setOmnicEditorId} onPlace={placeLibraryObject} onCopy={(recipe,label,source)=>createOmnicObject(recipe,label,source)} /></Suspense>
       </FloatingWindow>}
@@ -2354,7 +2378,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
         <CloudPanel />
         <FunctionControl id="appearance" palette />
         <UISection id="spatial-settings" title="Spatial settings">
-          {["ui:nodeNames", "ui:nodeCellSize", "ui:settingsSnap", "ui:radius", "ui:clearance", "isolateFocus"].map(id => <FunctionControl key={id} id={id} />)}
+          {["ui:nodeNames", "ui:nodeCellSize", "ui:vacantCells", "isolateFocus"].map(id => <FunctionControl key={id} id={id} />)}
         </UISection>
         <UISection id="mouse-settings" title="Mouse & gestures">
           <FunctionControl id="ui:subtreeModifier" />

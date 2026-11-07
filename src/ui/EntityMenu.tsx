@@ -14,6 +14,7 @@ export function EntityMenu<T extends string>({
   x,
   y,
   items,
+  hiddenActions = [],
   onChoose,
   onDismiss,
   bounds: viewport,
@@ -22,6 +23,7 @@ export function EntityMenu<T extends string>({
   x: number;
   y: number;
   items: [T, string][];
+  hiddenActions?: readonly T[];
   onChoose: (id: T) => void;
   onDismiss: () => void;
   bounds: { width: number; height: number };
@@ -33,13 +35,14 @@ export function EntityMenu<T extends string>({
     choose = useRef(onChoose);
   useOutsideDismiss(true, () => [element?.closest(".entity-menu") ?? element], onDismiss);
   choose.current = onChoose;
-  const signature = JSON.stringify(items);
+  const signature = JSON.stringify([items,hiddenActions]);
   useLayoutEffect(() => {
     const cleanups = items.map(([action, label]) =>
       ui.registerFunction({
         id: `${id}:${action}`,
         label,
         category: "Context actions",
+        available: !hiddenActions.includes(action),
         scope: key,
         element: (
           <button role="menuitem" onClick={() => choose.current(action)}>
@@ -112,7 +115,7 @@ export function EntityMenu<T extends string>({
           onClose={onDismiss}
           onChange={(patch) => ui.update((s) => updateContainer(s, key, patch))}
         />
-        <DockArea container={key} />
+        <DockArea container={key} visibleResidents={new Set(items.filter(([action])=>!hiddenActions.includes(action)).map(([action])=>`function:${id}:${action}`))} />
       </div>
     </Rnd>
   );

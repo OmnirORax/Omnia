@@ -690,6 +690,7 @@ export function VisualSelectionProvider({ children, onInspect, masterOpen }: { c
           (latest.current.phase !== "aim" && latest.current.phase !== "configure")) return;
       if(!requestOwns(event)||!requestedPick.current&&event.target instanceof Element&&!selectionSurfaces.sessionOwns(event.target,event.composedPath()))return;
       const current = latest.current;
+      if(event.target instanceof Element&&selectionSurfaces.wheelOwner(event.target,event,event.composedPath())==='surface')return;
       const rotation = selectionWheelRotation(event, current.configuration.pattern, !!current.selection.scope, innerHeight);
       if (rotation) {
         event.preventDefault(); event.stopImmediatePropagation();

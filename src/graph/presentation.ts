@@ -179,7 +179,7 @@ export function switchLayoutView(doc: Document, id: string): Document {
   const outgoing = next.layoutViews.find(
     (v) => v.id === (next.activeLayoutViewId ?? "authored-layout"),
   );
-  if (outgoing) outgoing.positions = snapshot(doc);
+  if (outgoing && !outgoing.preservePositions) outgoing.positions = snapshot(doc);
   const incoming = next.layoutViews.find((v) => v.id === id);
   if (!incoming) throw new Error("Layout view missing.");
   const positions = new Map(incoming.positions.map((p) => [p.placementId, p.position]));

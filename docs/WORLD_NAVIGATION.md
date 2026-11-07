@@ -116,3 +116,92 @@ New node uses the shared current-context creation path for its catalog command
 and clickable control: a selected placement is its parent; otherwise a single
 focused branch is its parent. With no unambiguous parent it creates at root.
 Explicit Create node here remains a world-position/root action.
+
+
+## Atlas lattice movement (2026-11-07)
+
+Atlas arrow axes now choose the nearest distinct signed fixed-world axes at the
+start of a gesture. They do not rotate the lattice with the camera. Each repeat
+moves one rendered cell (legacy coordinate unit × Lattice scale); occupied branch
+landings are rejected and hidden/filtered nodes still reserve their cells. The
+held gesture keeps one commit/cancel lifecycle, including sub-microunit rendered
+steps without a fixed world-distance completion epsilon. Node orientation remains
+separate from lattice occupancy. Layout rotation previews snap to cells and reject occupied/duplicate targets
+through a prepared shared gesture adapter; commits use the same lattice owner. See
+[ATLAS_LATTICE.md](ATLAS_LATTICE.md) for placement, scale and precision limits.
+
+## World navigator and driving a node
+
+The cyan ring/centre with a single end-to-end orientation line is a transient
+navigator, not a knowledge node. On first world interaction it starts on the
+camera-facing XY plane through the current camera target. Its internal frame
+matches the camera orientation like a compass: mouse rays resolve local XY at
+the chosen depth, and camera rotation updates that frame. Positive local Z points
+toward the camera (Down); negative Z points away (Up). The ring faces the camera,
+while its single cyan diameter projects world X through the inverse camera
+rotation. It stays end-to-end rather than shrinking; an exactly end-on projection
+retains the last direction. Orbit/roll update its orientation without adding XYZ
+axes, independently of the movement frame;
+independent navigator rotation controls are deferred. Parallel/behind rays
+cannot invent a usable destination.
+
+Up/Down (Navigator forward/backward, rebindable) step one rendered lattice pitch along
+local Z. Holding uses the existing bounded held-movement scheduler, rather than
+OS repeat queues. Plain arrow ownership is local to the world canvas, including
+when a node is selected. UI/text/blocked input, active selectors' higher-priority
+commands and explicitly rebound shortcuts retain shared arbitration. Left/Right
+retain existing selected-node movement outside a drive; they cannot start a second
+geometry gesture while a node is controlled. Leaving the canvas or losing capture/
+focus stops held motion; no catch-up steps occur after a stalled frame.
+
+A plain left-click on a node selects and mounts it as the driven object. The
+camera translates with its target to the node while preserving view angle,
+offset and zoom. The grab is rebased after camera follow so the first movement
+cannot jump the node. Mouse/depth then preview the branch on the navigator plane.
+The driven root is ignored for drive-target clicking, so its own marker cannot
+mask an empty parking slot. Other nodes, including its descendants, retain normal
+detection and can become the next controlled node. All other world selection remains ordinary projected hits;
+there is no new depth-only selection restriction.
+
+Ctrl/Meta-click a node to position the navigator and camera target there without
+mounting or moving it. The node becomes the selected context; mouse and depth
+movement then move only the navigator. Any unparked drive is canceled, restoring
+its starting placements. Ctrl-drag still adds a marquee; Shift-click keeps spatial
+range selection and other surfaces keep their modifier-click behavior. The shared
+selection registry captures the original hit before renderer changes and dispatches
+the optional surface modifier-click action only on a non-drag release.
+
+Click an empty slot to park and unmount. The last valid snapped placement commits
+once through normal document/history/autosave ownership; the camera follows it.
+Click another node to park the first at its last valid preview and mount the next.
+Blocked destinations show a red navigator and retain the last valid node preview;
+invalid empty-slot parking is rejected. Esc cancels and restores starting
+placements. UI capture, pointer cancellation, document/context replacement and
+scale changes cancel incompatible previews. Hidden descendants still reserve
+cells and move with their branch. At most 256 visible preview hosts are allowed;
+geometry preparation uses existing sparse occupancy and renderer adapters.
+No scene object is added to picking or persisted as an entity.
+
+Right-click retains node/binder actions, including inspection and expansion.
+Plain node clicks now drive instead of the prior delayed options/double-click
+entry; existing explicit subtree/selection modifier gestures keep their ownership.
+Dragging before mounting still uses the navigator's plane and existing constraints.
+Creation (N and Create node here) reads the navigator location, then uses ordinary
+nearest-free placement. After first world interaction, creation controls also use
+its last world point while the mouse is over UI. Node creation, insertion, Omnic
+drafts/copies and library placements share parent-local lattice conversion; saved
+draft locations remain authoritative. Camera movement is camera history; parking is document
+history; pointer/depth previews never write either. Navigator location/orientation
+and the mounted state do not persist or enter graph undo. Browser interaction and
+performance acceptance remain user-owned.
+
+2026-11-07 authorized focused local Chromium check passes mount/camera follow,
+mouse preview, camera-relative depth preview, empty-slot parking/save and Esc
+cancellation. It also checks that the first one-pixel movement does not jump the
+node and camera offset/direction/zoom stay intact. That earlier check used the old
+arrow direction. The subsequent compass, reversed arrows and Ctrl-click changes
+have model/build coverage only; the user chose to test the new preview.
+No page errors were reported. Disposable synthetic data, local server and blocked
+external requests only. Opt-in: OMNIA_URL=http://127.0.0.1:5182 node
+tests/world-navigator.browser.mjs. This is not standing browser-suite permission
+or full workspace/undo/reload/performance acceptance.

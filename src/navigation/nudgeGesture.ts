@@ -49,7 +49,7 @@ export function createNudgeGesture(env: {
     const current = active; active = null;
     if (!current) return;
     current.snapshot.restore();
-    if (!cancelled && current.delta.lengthSq() > 1e-12) current.snapshot.commit(current.delta);
+    if (!cancelled && (current.delta.x!==0||current.delta.y!==0||current.delta.z!==0)) current.snapshot.commit(current.delta);
   };
   return {
     get active() { return !!active; },

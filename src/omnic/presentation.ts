@@ -45,8 +45,12 @@ function context(doc:Document) {
   value={...pool,assets:new Map()};contexts.set(doc,value);return value;
 }
 /** Derived presentation envelope only; this object is never saved as a recipe/asset. */
+/** Runtime projection only; the saved visual retains its canonical source ID. */
+export function resolveOmnicVisual(visual:Visual|undefined):Visual|undefined {
+ return visual?.omnicEntityId?{...visual,assetId:`omnic:${visual.omnicEntityId}`,character:undefined}:visual;
+}
 export function structuralVisual(doc:Document,p:Pick<Placement,"entityId"|"visual">):Visual|undefined {
-  if(p.visual?.assetId||p.visual?.character||!context(doc).recipes.has(p.entityId))return p.visual;
+  if(p.visual?.omnicEntityId||p.visual?.assetId||p.visual?.character||!context(doc).recipes.has(p.entityId))return resolveOmnicVisual(p.visual);
   return {...p.visual,assetId:`omnic:${p.entityId}`,showText:p.visual?.showText??isOperationTool(context(doc).recipes.get(p.entityId)!)};
 }
 export function omnicAsset(doc:Document,entityId:string):VisualAsset|undefined {

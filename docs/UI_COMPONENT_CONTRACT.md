@@ -1105,3 +1105,11 @@ restore only the selected resident's ownership/order/placement. The UI owner
 commits through existing validation, autosave and UI history. Respect source and
 destination pins, scopes, docking validity and cycles. No invented default for
 user-created residents, no deletion of their authored contents.
+
+Omnium context menus follow the same uiContextEnabled policy as other controls:
+Create UI frame is hidden with UI edit mode off and the action rechecks the current
+layout mode at execution. Domain graph actions stay available. EntityMenu projects
+hidden action availability through DockArea.visibleResidents without deleting saved
+menu members, positions, sizes or customizations. Toggling edit mode restores the
+same authored menu organization. This projection is transient; no saved format or
+migration, new event listener or alternate movement permission is introduced.

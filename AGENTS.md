@@ -704,3 +704,113 @@ saving/reload without Undo. Use residentHome's shipped/native-home resolution an
 the existing UI transaction; preserve styling, settings, identities and unrelated
 organization. Unknown custom homes cannot be guessed. Local frame arrangement
 cleanup and whole-layout reset remain separate actions.
+
+
+Atlas lattice (2026-11-07): one sparse occupancy field includes hidden/filtered
+placements across all parents. Use graph/lattice for safe-integer addresses,
+nearest-free creation, fixed-axis whole-cell movement and commit reconciliation.
+Scale changes rendering, not stored coordinates or independently sized content.
+Keep old coordinates read-only on load; first geometry alignment preserves an
+existing-format protected recovery layout view. Read docs/ATLAS_LATTICE.md before
+changing atlas placement, scale, empty-field rendering or recovery. This atlas
+rule does not impose a lattice on Omnic construction modes.
+
+Atlas selected presentation (2026-11-07): selection hides only the atomic O
+carrier and shows full content until deselection. Preserve the pulsing selection
+ring as the selection indicator, separately from the carrier. Keep the invisible
+picking slot and retained/hover/Names behavior; no coordinate or scale change.
+
+Atlas binders (2026-11-07): labels attach perpendicular to their projected binder
+toward free screen space; shared rotated-label packing never falls back over nodes.
+Drag-to-reconnect uses graph/reconnectBinder's actual relationship/containment/
+visual/variant owners, preserving IDs/content/positions and committing only after
+validation. Reuse coordinates.rebaseParentage for live and saved-view parent
+conversion. Keep source connections intact during preview and honor shared cancel/
+input ownership. Read docs/ATLAS_BINDERS.md for semantics and limits.
+
+Binder rotation correction (2026-11-07): use true projected carrier circles and
+selection-pulse annuli in label packing. If a rooted perpendicular label is
+blocked, keep its binder root and advance a short stem into clear space. Wrap
+long phrases without dropping text; validate complete rotated bounds rather than
+clipping glyphs or disabling depth tests. Preserve the selection pulse. The
+authorized local rotation diagnostic is opt-in, not standing browser permission.
+
+Atlas binder anchoring correction (supersedes packing/stem rules above): labels
+start directly at the fixed binder midpoint and extend along its directed screen
+normal. No leader line, obstacle packing, side/sample switching or hover-driven
+relocation. Upright glyph rotation preserves attachment side. Expansion-space
+realignment is deferred; overlap/viewport clipping is possible for now.
+
+Atlas incoming binder visibility: use the downstream placement's selection or
+explicit transient open state for every binder kind. Source selection, hover,
+Names and structural expansion alone must not expose outgoing relations. Hide
+all line/marker/text/hit objects together; do not merely dim unrelated binders.
+Reuse nodePresentation expansion state; no saved graph mutation for visibility.
+
+Empty lattice field span follows the viewport/frustum, not a fixed cell radius.
+Reuse the shared render lifecycle for zoom/resize updates and cached camera state.
+Bound overview work with screen-based sampling of real cells, never enlarged
+fake cells or dense world allocation. Preserve hidden occupancy and creation slice;
+no saved-data or coordinate changes. See docs/ATLAS_LATTICE.md for sampling limits.
+
+Lattice sparse-field correction: sample the visible screen in both axes and
+intersect the actual creation slice, deduplicating real cell addresses. Do not
+budget from a far-plane world bounding box, which starves tilted nearby views.
+Do not impose a fixed world patch or a view-distance horizon. Keep screen work
+bounded, cell diameter/occupancy/creation unchanged, and reuse camera/viewport
+invalidation in the render owner. Supersedes world-anchored power-of-two sampling.
+
+Composer context selection: right-click a selected component/selected-group
+member without replacing accepted membership; empty editing space opens the
+selection's compatible DOFs while a selection exists, otherwise creation presets.
+An unselected component becomes the new context target. Reuse componentTargets
+context scope, selectedEditorDegrees, existing selection and property writers;
+no color-specific menu, duplicated setter or new global input owner. Active DOF
+settings/reference gestures retain priority. See docs/OMNIC_COMPOSER.md.
+
+Composer wheel correction: an opted-in selection surface may declare nativeWheel
+in the shared selection registry. Plain wheel over Composer retains existing
+view zoom even during MS/reference aiming, before selector lens resizing. Shift
+retains explicit selector geometry rotation; Ctrl retains native browser zoom.
+Do not use a Composer CSS exception or another global listener. Lens geometry
+opt-in and wheel ownership are independent. Update docs/VISUAL_SELECTION.md.
+
+Omnium UI-context actions must use shared uiContextEnabled even within content
+menus; recheck the live layout at execution. Hide availability without deleting
+saved menu residents/positions/customization. EntityMenu/DockArea provide this
+transient projection. Graph context actions remain usable outside UI edit mode.
+
+Binder selection/actions use graph/binderActions with real domain owners and
+shared coordinate rebasing/validation/history. Click/right-click visible binder
+ink selects its occurrence key and opens its existing editor; selected ink stays
+visible and thickens. Reverse/Delete/Focus endpoints reuse registered actions.
+Live glyph visuals use optional visual.omnicEntityId, shared Omnic renderer/budget,
+strict canonical validation and atlas-import identity remapping. Source changes
+follow saved shared recipes; no new unsaved binder preview protocol. Preserve old
+asset/character visuals and reject deleting in-use sources. Read ATLAS_BINDERS and
+DATA_EVOLUTION for exact semantics and older-client limits.
+
+World navigator (2026-11-07): its transient internal frame follows camera
+orientation like a compass. Mouse controls camera-facing XY; Up/Down step local
+Z toward/away by one rendered lattice pitch. Reuse registered world-scope held
+commands and the bounded held scheduler; OS repeats never queue. Scoped feature
+owners get first refusal before legacy keys, independent of listener order.
+Plain node click mounts/selects a driven branch; empty-slot click parks/unmounts.
+Use navigatorDrive's prepared occupancy/renderer preview and one normal document
+commit. Another-node click parks the old car at its last valid preview. The driven root
+cannot mask parking hits; descendants retain normal detection. Invalid targets keep last valid geometry; Esc/capture/
+context replacement cancels. Right-click retains actions. Camera follow translates
+camera/target without fit/rotation and rebases the local grab offset. Navigator
+previews/depth never enter data or undo; camera and placement commits retain their
+existing separate history owners. Picking remains ordinary projected hits, not
+plane-only. Independent rotation controls are deferred. Read WORLD_NAVIGATION.md.
+
+Navigator follow-up: Up is forward/camera-negative Z (away), Down is backward/positive Z
+(toward); saved key assignments retain their IDs. The camera-facing ring contains
+a single cyan end-to-end diameter, not XYZ axes. Project the world X direction
+into camera view, retaining full diameter and last direction when exactly end-on;
+inherit the ring appearance. Ctrl/Meta-click positions navigator and
+camera target at a node without mounting/moving it; cancel an unparked drive. Reuse
+the selection surface optional modifier-click owner, capture press hit, retain
+Ctrl-drag marquee and fresh geometry validation on release. No new global listener.
+The user chose preview testing for this compass follow-up; no new browser run authorized.
