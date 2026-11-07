@@ -2,7 +2,7 @@ import {sameValue} from '../valueEquality';
 import { createContext, useCallback, useContext, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useUI } from "./context";
 import { getContainer, ownerOf } from "./layout";
-import { fitDockRect, fitDockResidents, workspaceDockRects, type DockRect } from "./docking";
+import { fitDockRect, fitDockResidents, workspaceDockRects, clearNativeSidebar, type DockRect } from "./docking";
 
 export function dockWorkspaceArea(): DockRect {
   const workspace = document.querySelector(".workspace")?.getBoundingClientRect();
@@ -40,7 +40,7 @@ export function DockWorkspace({ children, projection }: { children: ReactNode; p
   const proposedGeometry = useMemo(() => workspaceDockRects(layout, area), [layout, area]);
   const lastGeometry=useRef(proposedGeometry);if(!sameValue(lastGeometry.current,proposedGeometry))lastGeometry.current=proposedGeometry;
   const geometry=lastGeometry.current;
-  const floating = useMemo(() => geometry.active ? { ...geometry.center, x: geometry.center.x + sidebarWidth, width: Math.max(1, geometry.center.width-sidebarWidth) } : geometry.center, [geometry, sidebarWidth]);
+  const floating = useMemo(() => clearNativeSidebar(geometry.center, sidebarWidth), [geometry, sidebarWidth]);
   const visibleResidents = useMemo(() => {
     if (!allocation) return residents;
     const remaining = Object.fromEntries(Object.entries(residents).filter(([key]) =>

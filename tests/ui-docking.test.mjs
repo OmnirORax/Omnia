@@ -163,3 +163,11 @@ test("shared float command projects native panels while retaining contents and p
   const pinned = { ...before, windows: { "panel:help": { ...before.windows["panel:help"], pinned: true } } };
   assert.equal(floatResident(pinned, "window:panel:help", 100, 150), pinned);
 });
+
+
+test('native sidebar clearance applies without edge docks and composes with docked areas',async()=>{
+ const {clearNativeSidebar}=await import('../src/ui/docking.ts');const area={x:8,y:60,width:1184,height:732};
+ const plain=workspaceDockRects(emptyUILayout(),area);assert.equal(plain.active,false);assert.deepEqual(clearNativeSidebar(plain.center,300),{x:308,y:60,width:884,height:732});
+ const docked={x:210,y:60,width:780,height:732};assert.deepEqual(clearNativeSidebar(docked,300),{x:510,y:60,width:480,height:732});assert.deepEqual(clearNativeSidebar(area,0),area);
+ const narrow=clearNativeSidebar({...area,width:200},300);assert.equal(narrow.width,1);assert.ok(narrow.x<area.x+200);
+});
