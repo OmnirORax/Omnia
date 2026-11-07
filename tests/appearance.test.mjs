@@ -1668,7 +1668,7 @@ test('UI surfaces and scoped glyphs expose applicable translucency without chang
  const state=loadController({...emptyController(),values:{'ui.buttons.background':{translucency:.6}}}),targets=controllerTargets(state),read=createValueResolver(defaultSettings().appearance,state,targets);
  for(const target of targets.filter(t=>t.id.startsWith('ui.')&&(t.binding?.selector||t.id.startsWith('ui.scrollbars.'))&&!t.couplings?.opacity&&t.properties?.includes('opacity')))assert.ok(target.properties.includes('translucency'),target.id);
  assert.ok(GLYPH_PROPERTIES.includes('translucency'));assert.equal(read(targets.find(t=>t.id==='ui.buttons.background'),'translucency'),.6);
- assert.equal(read(targets.find(t=>t.id==='ui.windows.background'),'translucency'),0);assert.equal(read(targets.find(t=>t.id==='omnium.nodes.body'),'translucency'),.82);
+ assert.equal(read(targets.find(t=>t.id==='ui.windows.background'),'translucency'),0);assert.equal(read(targets.find(t=>t.id==='omnium.nodes.body'),'translucency'),.7);
  assert.equal(translucentOpacity(.5,.6),.2);assert.equal(translucentOpacity(.5,0),.5);assert.equal(translucentOpacity(.5,1),0);
 });
 
@@ -1734,12 +1734,12 @@ test('blend mode and coverage survive settings serialization and bind live unifo
 });
 
 
-test('sphere translucency radius is a serialized sphere-only property with legacy default and explicit zero',async()=>{
+test('sphere translucency radius is a serialized sphere-only property with current default and explicit zero',async()=>{
  const {loadController,controllerTargets}=await import('../src/appearance/registry.ts');const {defaultSettings}=await import('../src/workspaceActions.ts');const {resolveControllerAppearance}=await import('../src/appearance/resolve.ts');
  const base=defaultSettings().appearance;const targets=controllerTargets(emptyController());
  assert.ok(targets.find(t=>t.id==='omnium.nodes.body').properties.includes('translucencyRadius'));
  assert.ok(!targets.find(t=>t.id==='ui.buttons.background').properties.includes('translucencyRadius'));
- assert.equal(resolveControllerAppearance(base).renderDefaults['omnium.nodes.body'].translucencyRadius,1);
+ const defaults=resolveControllerAppearance(base).renderDefaults['omnium.nodes.body'];assert.equal(defaults.translucencyRadius,.76);assert.equal(defaults.translucency,.7);assert.equal(defaults.glow,.35);assert.equal(defaults.opacity,1);assert.equal(defaults.color,'#ffb000');
  for(const radius of [0,.65,1]){
   const controller=loadController(JSON.parse(JSON.stringify({...emptyController(),values:{'omnium.nodes.body':{translucency:.95,translucencyRadius:radius}}})));
   const values=resolveControllerAppearance({...base,controller}).renderDefaults['omnium.nodes.body'];assert.equal(values.translucencyRadius,radius);assert.equal(values.translucency,.95);
@@ -1753,5 +1753,5 @@ test('radial transmission updates base and bloom uniforms without losing authore
  assert.equal(base.uniforms.carrierTranslucencyRadius.value,.7);assert.equal(base.uniforms.carrierAuthoredOpacity.value,.6,'fully clear centre does not erase shell opacity');
  assert.equal(base.uniforms.carrierTranslucencyRadius,bloom.uniforms.carrierTranslucencyRadius);assert.equal(base.uniforms.carrierAuthoredOpacity,bloom.uniforms.carrierAuthoredOpacity);
  updateAtomicCarrier(material,.4,.9,.8,0);assert.equal(base.uniforms.carrierTranslucencyRadius.value,0);assert.equal(bloom.uniforms.carrierAuthoredOpacity.value,.4);
- updateAtomicCarrier(material,0);assert.equal(base.uniforms.carrierAuthoredOpacity.value,0);assert.equal(base.uniforms.carrierTranslucencyRadius.value,1,'omitted argument preserves historical whole-surface default');material.dispose();mask.dispose();
+ updateAtomicCarrier(material,0);assert.equal(base.uniforms.carrierAuthoredOpacity.value,0);assert.equal(base.uniforms.carrierTranslucencyRadius.value,.76,'omitted argument uses the shared default radius');material.dispose();mask.dispose();
 });

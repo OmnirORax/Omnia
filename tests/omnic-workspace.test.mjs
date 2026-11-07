@@ -210,6 +210,8 @@ test('all workspace commit paths reject oversized UTF-8 data while preserving th
  for(const [id,binding] of Object.entries(restoredUI.settings.bindings))if(!Object.hasOwn(source.ui.settings.bindings,id)){
   assert.ok(Object.hasOwn(defaults,id),`unknown synthesized binding: ${id}`);assert.equal(binding,defaults[id]);delete restoredUI.settings.bindings[id];
  }
+ // Absent node colour acquires the newly selected default; explicit historical glow/opacity stay exact.
+ assert.equal(restoredUI.settings.appearance.nodes.color,'#ffb000');delete restoredUI.settings.appearance.nodes.color;
  // Historical settings acquire the additive atlas presentation defaults.
  assert.equal(restoredUI.settings.spatial.nodeCellSize,1);delete restoredUI.settings.spatial.nodeCellSize;
  assert.equal(restoredUI.settings.spatial.nodeNames,"expanded");delete restoredUI.settings.spatial.nodeNames;

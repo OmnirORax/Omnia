@@ -1,3 +1,4 @@
+import {SPHERE_VISUAL_DEFAULTS} from './properties/sphereVisualDefaults.ts';
 import {sphereBackgroundGLSL,sphereBackgroundUniforms,adaptiveBlendGLSL,type SphereBackground} from './scene/sphereBlend.ts';
 import {attachMaterialCoverage} from './materialCoverage.ts';
 import {translucentOpacity} from './properties/translucency.ts';
@@ -5,7 +6,7 @@ import * as THREE from 'three';
 /** One carrier appearance for saved nodes and creation previews. Nearly clear
  * at the centre, with a translucent rim from the actual sphere surface normal. */
 export function atomicCarrierGeometry(diameter=1){return new THREE.SphereGeometry(diameter/2,24,16);}
-export function atomicCarrierMaterial(color:THREE.ColorRepresentation,opacity=1,translucency=.82,glow=1,background?:SphereBackground,translucencyRadius=1){
+export function atomicCarrierMaterial(color:THREE.ColorRepresentation,opacity=1,translucency:number=SPHERE_VISUAL_DEFAULTS.translucency,glow:number=SPHERE_VISUAL_DEFAULTS.glow,background?:SphereBackground,translucencyRadius:number=SPHERE_VISUAL_DEFAULTS.translucencyRadius){
  const material=new THREE.MeshPhongMaterial({color,transparent:true,opacity:atomicCarrierOpacity(opacity,translucency),depthWrite:false});
  material.userData.translucency={value:translucency};
  material.userData.edgeGlow={value:glow};
@@ -42,8 +43,8 @@ ${target===material&&background?'adaptiveSphere(outgoingLight,diffuseColor.a,car
   target.customProgramCacheKey=()=> `atomic-radial-translucency-v2${target===material&&background?'-adaptive-live-modes-v2':''}`;
  });return material;
 }
-export const atomicCarrierOpacity=(opacity:number,translucency=.82)=>translucentOpacity(opacity,translucency);
-export function updateAtomicCarrier(material:THREE.Material,opacity:number,translucency=.82,glow=1,translucencyRadius=1){
+export const atomicCarrierOpacity=(opacity:number,translucency:number=SPHERE_VISUAL_DEFAULTS.translucency)=>translucentOpacity(opacity,translucency);
+export function updateAtomicCarrier(material:THREE.Material,opacity:number,translucency:number=SPHERE_VISUAL_DEFAULTS.translucency,glow:number=SPHERE_VISUAL_DEFAULTS.glow,translucencyRadius:number=SPHERE_VISUAL_DEFAULTS.translucencyRadius){
  material.userData.edgeGlow.value=glow;material.opacity=atomicCarrierOpacity(opacity,translucency);material.userData.translucency.value=translucency;
  material.userData.authoredOpacity.value=opacity;material.userData.translucencyRadius.value=translucencyRadius;
 }

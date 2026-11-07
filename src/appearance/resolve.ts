@@ -1,3 +1,4 @@
+import {SPHERE_VISUAL_DEFAULTS} from '../properties/sphereVisualDefaults.ts';
 import {translucentOpacity} from '../properties/translucency.ts';
 import { RENDER_BUDGET } from "../renderBudget.ts";
 import { boundedNumber } from "../properties/numericRange.ts";
@@ -80,7 +81,7 @@ export function legacyValue(base: Appearance, target: RegisteredTarget, property
     return map[property] ?? propertyFor(property)?.initial ?? 0;
   }
   if (property === "contourWidth" && target.id === "omnium.binders.path") return 1.5;
-  if (property === "translucency") return (target.instance?.base??target.id)==="omnium.nodes.body"?.82:0;
+  if (property === "translucency") return (target.instance?.base??target.id)==="omnium.nodes.body"?SPHERE_VISUAL_DEFAULTS.translucency:0;
   if (property === "font") return base.font;
   if (property === "brightness") return 1;
   if (property === "blur") return base.blur;
