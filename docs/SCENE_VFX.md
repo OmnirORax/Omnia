@@ -26,6 +26,10 @@ controls value (brightness). Omni ignores the picker’s hue strip: each image
 region supplies its own hue. The swatch is the native picker’s chosen display
 colour, not a restriction to that hue. Picker appearance depends on the browser.
 
+Omni extracts the full HSV hue even from pale image colours; it does not
+blend that hue back toward white based on the source saturation. Exactly neutral
+regions have no hue and retain a neutral response.
+
 At the left edge, high tint is neutral; at the right, it uses source hues.
 At the bottom, high tint is black (no added high contribution); at the top its
 value is one. Both dimensions change together in a single picker, just like
@@ -128,7 +132,8 @@ Local regressions cover the direct source pulse and stereo analysis, changing
 light uniforms at exponent 0.1 with independent bounce, compile-variant switching,
 Selected retirement and preservation of inactive palette fields, Omni saturation/value hue independence and legacy preference conversion, Image tint opt-in/serialization, and existing native output/lifecycle.
 No fresh browser run was authorised for this picker. The numerical checks
-verify colour math and settings wiring, not GPU appearance. Test Omni
+verify colour math and settings wiring, including normal-versus-Omni blend
+equality for pale gold/blue source hues; they do not verify GPU appearance. Test Omni
 with different saturation/brightness positions, then compare Single colour; actual brightness,
 highlight clipping and response on the user’s display remain user acceptance.
 

@@ -44,8 +44,8 @@ export const PULSE_COLOUR_GLSL=`
  #if PULSE_ALL_COLORS
  vec3 pulseSourceTint(vec3 image){
   float hi=max(image.r,max(image.g,image.b)),lo=min(image.r,min(image.g,image.b));
-  vec3 chroma=(image-vec3(lo))/max(hi-lo,.000001);
-  return mix(vec3(1.0),chroma,smoothstep(.03,.2,(hi-lo)/max(hi,.000001)));
+  float delta=hi-lo;
+  return delta>.000001?(image-vec3(lo))/delta:vec3(1.0);
  }
  uniform vec3 pulseOmniTint;
  vec3 omniHighTint(vec3 image,vec3 control){
@@ -57,8 +57,8 @@ export const PULSE_COLOUR_GLSL=`
 `;
 /** Numerical contract for independent coloured responses and source-hue All. */
 export function sourcePulseTint(image:readonly number[]):number[]{
- const hi=Math.max(...image),lo=Math.min(...image),s=hi?(hi-lo)/hi:0,t=Math.max(0,Math.min(1,(s-.03)/.17)),w=t*t*(3-2*t);
- return image.map(c=>1-w+w*(c-lo)/Math.max(hi-lo,.000001));
+ const hi=Math.max(...image),lo=Math.min(...image),delta=hi-lo;
+ return image.map(c=>delta>.000001?(c-lo)/delta:1);
 }
 
 /** Normal HSV saturation/value, with hue supplied independently by each image region. */

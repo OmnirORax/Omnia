@@ -268,3 +268,20 @@ test('Omni picker persists independently, inherits old strength once, and leaves
  const saved=normalizeSceneVfx(JSON.parse(serializeSceneVfx({...converted,pulseOmniTint:'#000000'})));
  assert.equal(saved.pulseOmniTint,'#000000');assert.equal(saved.pulseOmniHighBrightness,1.8);assert.equal(saved.pulseAllBrightness,.4);
 });
+
+
+test('pale source hues receive the same fully saturated High tint as normal mode without a white bias',()=>{
+ const cases=[{image:[.95,.92,.88],hue:[1,4/7,0]},{image:[.88,.92,.95],hue:[0,4/7,1]},{image:[.501,.5,.499],hue:[1,.5,0]}];
+ for(const {image,hue} of cases){
+  for(const control of [[.2,0,0],[.7,0,0],[1,.5,.5]]){
+   const value=Math.max(...control),sat=1-Math.min(...control)/value,normal=hue.map(c=>(1-sat+sat*c)*value),omni=omniHighTintRGB(image,control);
+   for(let c=0;c<3;c++)assert.ok(Math.abs(normal[c]-omni[c])<1e-12);
+   for(const pulse of [0,.25,1,2]){
+    const low=[.6,.65,.7],expected=referencePulseRGB(image,low,normal,pulse),actual=referencePulseRGB(image,low,omni,pulse);
+    for(let c=0;c<3;c++)assert.ok(Math.abs(actual[c]-expected[c])<1e-12);
+   }
+  }
+  const saturated=omniHighTintRGB(image,[.7,0,0]);assert.equal(Math.min(...saturated),0);assert.equal(Math.max(...saturated),.7);
+ }
+ assert.deepEqual(sourcePulseTint([.4,.4,.4]),[1,1,1]);
+});

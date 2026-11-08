@@ -679,3 +679,14 @@ rendering cannot be represented exactly by the requested High tint model; this
 semantic change is deliberate. Whitelist: 38 fields, 17 active, 21 archived.
 Older clients may discard the new field and render old semantics; preserve an
 export before rollback. No backend/asset/identity format changes.
+
+
+### Omni saturation follows the chosen High tint, not source paleness (2026-11-08)
+
+Fix source hue extraction: remove the source-saturation-dependent mix toward
+white. Pale chromatic pixels now use their full HSV hue before applying the
+saved picker saturation/value, matching a normal High tint of that hue. Neutral
+pixels within 0.000001 RGB delta retain neutral response because hue is undefined.
+No saved field, default, conversion, ID, audio curve or backend contract changes.
+Saved Omni picker positions keep their meaning and now honor saturation without
+the unintended white bias. Older previews still render the former bias.

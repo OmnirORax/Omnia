@@ -2079,11 +2079,11 @@
       "id": "scene.vfx",
       "title": "Source-based Wallpaper Engine pulse and scene audio effects",
       "where": "Scene → Scene effects. Import/apply an image through the existing Scene image workflow.",
-      "behavior": "Low tint sets the base in both modes. Single uses normal High tint. Omni uses High tint (Omni) through the same native colour picker: saturation/brightness square controls all source hues together, ignoring the chosen picker hue. Both feed the supplied Low/High blend. Separate Colour strength and Base/Flash brightness sliders are retired with saved fields archived. Audio processing, exponent 0.1, timing and bounce remain unchanged. Image tint stays separate.",
+      "behavior": "Low tint sets the base in both modes. Single uses normal High tint. Omni uses High tint (Omni) through the same native colour picker: saturation/brightness square controls all source hues together, ignoring the chosen picker hue. Both feed the supplied Low/High blend. Separate Colour strength and Base/Flash brightness sliders are retired with saved fields archived. Audio processing, exponent 0.1, timing and bounce remain unchanged. Image tint stays separate. Pale chromatic source pixels use their full hue without a source-paleness white blend; only neutral pixels remain neutral.",
       "steps": [
         {
           "do": "Open Scene → Scene effects → Wallpaper Engine pulse → High tint type → Omni (all colours) → High tint (Omni). Move within its saturation/brightness square, then play audio.",
-          "expect": "Left/right changes saturation and up/down brightness across every image hue. The hue strip is ignored. Black adds no High contribution; neutral values add neutral light. Low tint still sets the base. Native picker layout varies by browser."
+          "expect": "Left/right changes saturation and up/down brightness across every image hue. The hue strip is ignored. Black adds no High contribution; neutral values add neutral light. Low tint still sets the base. Native picker layout varies by browser. At maximum saturation, pale gold/blue regions receive fully saturated gold/blue High tints, matching normal High tint of those hues."
         },
         {
           "do": "Switch High tint type to Single colour, then back to Omni.",
@@ -2155,7 +2155,7 @@
       "status": "Omni High tint saturation/brightness picker implemented; visual acceptance pending",
       "limits": "Selected colours is deliberately retired; old palette/range data stays archived only. Single/All and optional Image tint compile separately. Omni uses the adjustable shared Low tint and a source-coloured High tint with numeric strength; existing explicit brightness survives. Image tint is disabled by default and can intentionally recolour the full wallpaper. The reported Single freeze/slowdown is not visually verified repaired; local frame tests only prove changing uniforms at 0.1. Source FFT mapping remains approximate. Waves remains the rejected guessed deformation pending its actual shaders. No audio-input, exponent, smoothing or frame-pacing change was made. Existing native-resolution caps/capture-free file playback remain.",
       "verification": {
-        "automated": "Models cover neutral/black/coloured source hues, simultaneous saturation/value response, ignored picker hue, direct Low/High blend, old strength conversion/idempotence, preserved archived sliders, shared setters and renderer uniforms. Required full gate before delivery.",
+        "automated": "Models cover neutral/black/coloured source hues, simultaneous saturation/value response, ignored picker hue, direct Low/High blend, old strength conversion/idempotence, preserved archived sliders, shared setters and renderer uniforms. Required full gate before delivery. Regression compares pale gold, blue and near-grey chromatic Omni tints and blended outputs with normal High tint at multiple saturation/value positions and pulse values through 2.",
         "browser": "No new browser run. Native picker appearance, audio-reactive visual result and clipping await user acceptance."
       }
     },
