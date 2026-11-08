@@ -32,12 +32,12 @@ export function pulsePalette(value:unknown):string[]{
  if(typeof value!=='string')return [];
  return [...new Set(value.slice(0,200).split(/[\s,;]+/).filter(c=>/^#[a-f\d]{6}$/i.test(c)).map(c=>c.toLowerCase()))].slice(0,MAX_PULSE_COLORS);
 }
-export const OMNI_BRIGHTNESS_CONTROLS=[
+/** Archived from the superseded separate-slider preview; never rendered or edited. */
+export const RETIRED_OMNI_BRIGHTNESS_CONTROLS=[
  {key:'pulseOmniLowBrightness',label:'Base brightness',initial:.5,min:0,max:2,step:.01},
  {key:'pulseOmniHighBrightness',label:'Flash brightness',initial:1.5,min:0,max:4,step:.01},
 ] as const;
-export type OmniBrightnessKey=typeof OMNI_BRIGHTNESS_CONTROLS[number]['key'];
-export function omniBrightness(base:number,flash:number,pulse:number){return Math.max(0,base+(flash-base)*pulse);}
+export type RetiredOmniBrightnessKey=typeof RETIRED_OMNI_BRIGHTNESS_CONTROLS[number]['key'];
 export const PULSE_COLOUR_GLSL=`
  vec3 displayColour(vec3 c){return mix(c*12.92,1.055*pow(max(c,vec3(0.0)),vec3(1.0/2.4))-.055,step(vec3(.0031308),c));}
  vec3 linearColour(vec3 c){return mix(c/12.92,pow((c+.055)/1.055,vec3(2.4)),step(vec3(.04045),c));}
@@ -47,12 +47,22 @@ export const PULSE_COLOUR_GLSL=`
   vec3 chroma=(image-vec3(lo))/max(hi-lo,.000001);
   return mix(vec3(1.0),chroma,smoothstep(.03,.2,(hi-lo)/max(hi,.000001)));
  }
- uniform float pulseAllBrightness;
- uniform float pulseOmniLowBrightness;uniform float pulseOmniHighBrightness;
+ uniform vec3 pulseOmniTint;
+ vec3 omniHighTint(vec3 image,vec3 control){
+  float value=max(control.r,max(control.g,control.b));
+  float saturation=value>0.0?1.0-min(control.r,min(control.g,control.b))/value:0.0;
+  return mix(vec3(1.0),pulseSourceTint(image),saturation)*value;
+ }
  #endif
 `;
 /** Numerical contract for independent coloured responses and source-hue All. */
 export function sourcePulseTint(image:readonly number[]):number[]{
  const hi=Math.max(...image),lo=Math.min(...image),s=hi?(hi-lo)/hi:0,t=Math.max(0,Math.min(1,(s-.03)/.17)),w=t*t*(3-2*t);
  return image.map(c=>1-w+w*(c-lo)/Math.max(hi-lo,.000001));
+}
+
+/** Normal HSV saturation/value, with hue supplied independently by each image region. */
+export function omniHighTintRGB(image:readonly number[],control:readonly number[]){
+ const value=Math.max(...control),saturation=value?1-Math.min(...control)/value:0;
+ return sourcePulseTint(image).map(c=>(1-saturation+saturation*c)*value);
 }

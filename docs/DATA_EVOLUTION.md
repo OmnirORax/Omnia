@@ -661,3 +661,21 @@ brightness envelope. Single tint and audio processing remain unchanged. No new
 field or migration: 37 whitelisted fields, now 19 active and 18 archived. The
 preceding brightness-only preview ignores colour strength but retains it; older
 clients can still discard the two brightness fields. Keep an export for rollback.
+
+
+### Omni High tint uses native picker saturation/value (2026-11-08)
+
+User clarified that Omni is the normal High tint picker with source-local hues,
+not separate scalar colour/exposure sliders. Add sceneVfx.pulseOmniTint as a hex
+colour: HSV saturation/value are used; hue is ignored. Existing shared colour
+property/editor/history/export paths own it. Low tint applies in both modes.
+The source mode-9 Low/High blend and audio processing remain unchanged.
+If absent, encode old pulseAllBrightness as fully saturated red at the same value,
+rounded to 8-bit; default #380000. Explicit new hex, including black, wins. The
+conversion is idempotent and retains original fields without eager save writes.
+Old pulseAllBrightness and two exposure endpoints remain inspectable/exportable
+archives, but their sliders and exposure multiplier are retired. Their prior
+rendering cannot be represented exactly by the requested High tint model; this
+semantic change is deliberate. Whitelist: 38 fields, 17 active, 21 archived.
+Older clients may discard the new field and render old semantics; preserve an
+export before rollback. No backend/asset/identity format changes.

@@ -16,23 +16,25 @@ bands from both stereo channels, smoothsteps bounds, applies exponent and amount
 Amount is not clamped to one after multiplying. Browser spectrum mapping remains
 an approximation of Wallpaper Engine's undocumented FFT bands/scaling/smoothing.
 
-## Low and high levels
+## Low and high tints
 
-**High tint type → Single colour** keeps the original Low/High tint pickers and
-supplied blend equation. **Omni (all colours)** instead exposes two independent
-sliders: **Base brightness** and **Flash brightness**. The restored **Colour strength** slider controls the source-coloured pulse,
-using each region’s own hue. The two brightness sliders multiply that result
-in linear RGB independently. Colour strength zero leaves brightness-only response;
-higher colour strength adds the earlier coloured response. It can also brighten
-matching channels; this is the retained source blend, not a pure saturation filter.
+**Low tint (base)** remains the resting colour/level in both modes. **High tint
+type → Single colour** uses the normal High tint picker. **Omni (all colours)**
+uses **High tint (Omni)** through the same shared native colour picker, with its
+usual saturation/brightness square. Left–right controls saturation; up–down
+controls value (brightness). Omni ignores the picker’s hue strip: each image
+region supplies its own hue. The swatch is the native picker’s chosen display
+colour, not a restriction to that hue. Picker appearance depends on the browser.
 
-Base brightness defaults to 0.5 (range 0–2); Flash brightness defaults to 1.5
-(range 0–4). Zero is black, one leaves the coloured pulse at its existing intensity, and
-higher values increase exposure. With Colour strength zero, one is original intensity. Pulse zero uses Base; pulse one uses Flash. Audio amount above one
-can overdrive beyond Flash, preserving the existing unclamped audio curve.
-Strong exposure can still clip bright highlights. Equal sliders give constant
-brightness. Single tint choices are retained when switching modes.
+At the left edge, high tint is neutral; at the right, it uses source hues.
+At the bottom, high tint is black (no added high contribution); at the top its
+value is one. Both dimensions change together in a single picker, just like
+normal High tint. Low and high feed the same supplied mode-9 pulse equation.
+Audio amount above one still overdrives the blend; very strong settings can clip.
 
+The separate Colour strength, Base brightness and Flash brightness sliders are
+removed. Their saved preferences remain in JSON for rollback. Single and Omni
+high tint choices are saved independently, while Low tint remains shared.
 Audio processing, exponent 0.1, timing, smoothing and bounce are unchanged.
 Selected colours remains removed. Image tint stays separate and off by default.
 
@@ -63,9 +65,7 @@ approximated as #ffe5e5 / #001438. Explicit older saved choices are preserved.
 | pulseExponent | Audio exponent | 0.1; 0–4 |
 | pulseAmount | Audio amount | 2; 0–2 |
 | pulseColorMode | High tint type | tint; Single colour / Omni |
-| pulseAllBrightness | Colour strength (Omni) | 56/255; 0–1 |
-| pulseOmniLowBrightness | Base brightness (Omni) | 0.5; 0–2 |
-| pulseOmniHighBrightness | Flash brightness (Omni) | 1.5; 0–4 |
+| pulseOmniTint | High tint (Omni); only HSV saturation/value used | #380000 (S 1, V 56/255) |
 | imageTintEnabled | Enable image tint | false |
 | imageTint | Image tint colour | #c20000 |
 | audioBounce | Audio Bounce | 1.3; 1–1.5 |
@@ -82,23 +82,24 @@ tint white, Bounce 1 and Waves/Distortion/Glitching off for original-file compar
 
 ## Compatibility and retirement
 
-The current serializer whitelists 37 fields: 19 active fields above and 18 inactive
-historical approximation/model fields kept only for settings round trips and older
-client rollback. No current renderer or registered editor consumes those retired
-fields. The earlier shader/cache implementation and its obsolete browser test are
-deleted. Loading lightModel=legacy cannot select the retired renderer in this
-version. Retained values are inspectable in the existing JSON exports; they are
-not silently erased or reinterpreted as the new palette.
+The current serializer whitelists 38 fields: 17 active and 21 archived.
+Selected mode maps to Single; its palette/range remain archived. The earlier
+approximation fields and three superseded Omni sliders remain exportable without
+active controls/render paths. Existing Low/High tint choices are preserved.
 
-Older selected mode now maps to tint; its palette/range remain archived. Missing
-Image tint fields acquire disabled/red defaults. Missing Omni brightness fields
-acquire 0.5/1.5 defaults; pulseAllBrightness retains its saved colour-strength meaning. The former shared Low tint now applies only to Single. Explicit tint and pulse choices
-are retained.
-Missing numeric/tint values acquire the screenshot defaults; existing explicit
-values, including zeros, survive. Older clients may drop the new palette/brightness
-fields when resaving and still expose their old rendering modes. Preserve a current
-export before using older previews. No image bytes, assignments, atlas/backend
-formats, source permissions or durable audio storage change.
+If pulseOmniTint is absent, the compatibility reader encodes the saved old
+pulseAllBrightness as a fully saturated reference red of the same value (rounded
+to the native picker’s 8-bit precision). Its hue is ignored. The default is
+#380000. Explicit picker colours, including black, take precedence and round-trip
+unchanged. The former exposure multipliers are retained but not applied: the user
+requested the High tint blend instead. This is an intentional rendering change,
+not a claim of equivalent output to the abandoned exposure model. Normalization
+is idempotent; no eager storage writes are added.
+
+Older clients can drop the new picker field and render their old Omni semantics
+when resaving. Retain a current export before rollback. No image bytes,
+assignments, atlas/backend formats, source permissions or durable audio storage
+change. Missing Image tint fields retain disabled/red defaults.
 
 ## Audio and rendering
 
@@ -125,10 +126,10 @@ remain; actual rate depends on hardware. Waves/VHS are still approximate.
 
 Local regressions cover the direct source pulse and stereo analysis, changing
 light uniforms at exponent 0.1 with independent bounce, compile-variant switching,
-Selected retirement and preservation of inactive palette fields, independent Omni brightness endpoints, Image tint opt-in/serialization, and existing native output/lifecycle.
-No fresh browser run was authorised for these two sliders. The numerical checks
-verify endpoint interpolation and settings wiring, not GPU appearance. Test Omni
-with different Base/Flash values, then compare Single colour; actual brightness,
+Selected retirement and preservation of inactive palette fields, Omni saturation/value hue independence and legacy preference conversion, Image tint opt-in/serialization, and existing native output/lifecycle.
+No fresh browser run was authorised for this picker. The numerical checks
+verify colour math and settings wiring, not GPU appearance. Test Omni
+with different saturation/brightness positions, then compare Single colour; actual brightness,
 highlight clipping and response on the user’s display remain user acceptance.
 
 ## Waves fidelity limit

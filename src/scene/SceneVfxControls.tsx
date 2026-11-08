@@ -1,5 +1,5 @@
 import {PROPERTY_REGISTRY} from '../appearance/registry';
-import {PULSE_CONTROLS,OMNI_BRIGHTNESS_CONTROLS} from './pulse';
+import {PULSE_CONTROLS} from './pulse';
 import {useEffect,useLayoutEffect,useRef,useState,useSyncExternalStore} from 'react';
 import {CoupledField,type PropertyBindings} from '../properties/CoupledProperties';
 import {UISection} from '../ui/UISection';
@@ -25,9 +25,10 @@ export function SceneVfxControls({bindings}:{bindings:PropertyBindings}){
  });
  return <UISection id="scene-vfx" title="Scene effects">
  <UISection id="scene-pulse" title="Wallpaper Engine pulse">
- {mode!=='all'&&<UIField id="scene.vfx.pulseTintLow" label="Low tint (base)" category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property="scene.pulseTintLow" label="Low tint (base)"/></UIField>}
+ <UIField id="scene.vfx.pulseTintLow" label="Low tint (base)" category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property="scene.pulseTintLow" label="Low tint (base)"/></UIField>
  <UIField id="scene.vfx.pulseColorMode" label="High tint type" category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property="scene.pulseColorMode" label="High tint type"/></UIField>
- {([...(mode==='all'?[]:[{key:'pulseTintHigh',label:'High tint'}]),...(mode==='all'?[{key:'pulseAllBrightness',label:'Colour strength'},...OMNI_BRIGHTNESS_CONTROLS]:[]),...PULSE_CONTROLS]).map(({key,label})=><UIField key={key} id={`scene.vfx.${key}`} label={label} category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property={`scene.${key}`} label={label}/></UIField>)}
+ {([{key:mode==='all'?'pulseOmniTint':'pulseTintHigh',label:mode==='all'?'High tint (Omni)':'High tint'},...PULSE_CONTROLS]).map(({key,label})=><UIField key={key} id={`scene.vfx.${key}`} label={label} category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property={`scene.${key}`} label={label}/></UIField>)}
+ {mode==='all'&&<small>Omni uses the picker’s saturation and brightness for every image hue; the hue strip is ignored.</small>}
  </UISection>
  <UISection id="scene-image-tint" title="Image tint" defaultExpanded={false}>
  <UIField id="scene.vfx.imageTintEnabled" label="Enable image tint" category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property="scene.imageTintEnabled" label="Enable image tint"/></UIField>
