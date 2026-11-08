@@ -128,6 +128,8 @@ export function useInterfaceState(
     layout: current.layout,
     settings: preview?.base===session?preview.settings:current.settings,
     previewSettings,
+    committedSettings:current.settings,
+    previewingSettings:preview?.base===session,
     savedSettings: session.saved.present.settings,
     update,
     setSettings,

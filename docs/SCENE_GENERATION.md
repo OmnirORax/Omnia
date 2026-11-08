@@ -213,3 +213,135 @@ The same screen-space wallpaper renderer now supports the pictured audio/VFX
 controls and the requested Max FPS cap without changing image bytes or node assignments. See
 [SCENE_VFX.md](SCENE_VFX.md) for defaults, permitted audio sources, shared settings,
 reduced-motion/performance limits and the Wallpaper Engine approximation boundary.
+
+## Non-destructive image normalization
+
+Scene → **Image normalization** defaults on globally. It applies during local
+Choose image/Paste image import and when viewing existing scene images. Originals
+are committed to the existing library first and never rewritten; download still
+returns the encoded source. The active world uses a disposable corrected PNG when
+ready, or the original while processing/on failure. **Normalize scene images** switches
+that same world between before/after without moving its camera or creating a
+separate comparator. The enabled setting and
+constraints use discovered settings inputs, existing settings persistence/history,
+Master Controller and normal movable UIField/CoupledField controls.
+
+Preferred ranges are soft constraints, not a filter preset or one image's histogram.
+Current user-selected raw defaults are luminance minimum .10 / maximum 0, contrast
+minimum .66 / maximum .02, saturation 1 / 1, neutral colour tolerance .30, maximum
+exposure correction 1 EV, contrast/saturation correction .75 and neutral colour
+correction .20. Crossed endpoints are kept as authored in controls and interpreted
+as unordered pairs: effective luminance 0–.10, contrast .02–.66. Min/max bound one
+acceptable interval: below it correction increases the metric, above it correction
+decreases it, and inside it that constraint requests no change. These are not two
+independent contrast effects. Limits can prevent reaching the requested interval;
+remaining violations are reported. Explicit saved values still override defaults.
+EV labels the bounded log-odds tone adjustment, not physical camera simulation.
+
+A portable deterministic search evaluates small bounded corrections against
+measured range violations plus an identity penalty. Already acceptable images
+are unchanged. Colour balance uses only low-saturation midtone pixels, and needs
+at least 2% neutral coverage plus 32 weighted samples; dominant artistic casts are
+preserved without that evidence. Saturation/balance adjustments are searched only
+when their respective output constraints are violated. Tone mapping preserves
+black/white endpoints, neutral correction retains linear luminance, and chroma is
+compressed to gamut instead of clipping channels. Quantization never introduces a
+new 0/255 channel endpoint; alpha and fully transparent pixels are preserved.
+Original clipping cannot be reconstructed. The worker remeasures its actual output
+sample before lossless PNG encoding and reports remaining violations rather than
+claiming success at the bounds. Metrics use up to 16,384 regularly sampled pixels;
+protection applies to every transformed pixel, not just that sample. This is a
+global correction, not semantic relighting, local dodging or style transfer.
+
+Pixel correction runs in an inline worker, without a new dependency or render pass.
+Existing 4096px/12MP limits apply. Decoding/canvas readback/PNG encoding still use
+browser APIs and may cost time; no hardware performance claim is made. Constraint
+or source changes cancel obsolete display work, close decoded bitmaps, terminate
+workers and revoke derived URLs. Original/derivative display uses the existing
+reference/account guard. The same actual texture feeds wallpaper and adaptive
+sphere blending, so the latter samples the image being displayed.
+
+Disposable local derivatives and reports use a separate IndexedDB cache keyed by
+SHA-256 source bytes, algorithm version and all constraints. It retains at most
+8 results / 32 MiB with LRU eviction; oversized derivatives work but are uncached.
+Identity results cache only a report. Preference changes reprocess from the source,
+not a previous derivative. Cache failure cannot reject an import or overwrite an
+original. Source deletion purges its derivative keys before source removal; if
+purging fails deletion reports failure and retains the original. Private cloud
+scene derivatives stay transient and are not persisted in this cache. Settings
+travel with existing settings/UI exports; scene bytes, references and cache remain
+outside those exports. No backend schema/deployment or graph migration is needed.
+Older clients may retain numeric/boolean unknown function values but do not apply
+normalization. Cache version changes invalidate disposable results; originals
+remain authoritative. Browser import/toggle/cache/visual/performance acceptance is
+user-owned; model/build success does not establish it.
+
+Live control correction: shared CoupledField/CoupledProperties now forward optional
+transient preview candidates, and settingsAdapter validates them through the same
+state adapters without writing settings/history. Active context bindings route
+preview to the same owner as commits. Restoring the stored value cancels the
+candidate; release clears preview and commits through the existing settings owner.
+Normalization consumes that transient settings view. A serial latest-candidate
+queue provides reduced 384px images during held drags without aborting every
+pointer sample; a bounded eight-source sample cache keeps correction parameters
+consistent with full-image analysis. These source samples and drag images stay in
+memory; private samples are never persisted. Release generates the full image and
+normal persistent cache entry. Live-preview output measurements are approximate
+at preview resolution and labelled; the final image is remeasured normally. The
+last same-source result stays on screen while processing/loading its replacement.
+Scene/account identity changes and explicit clear still clear immediately. Keeping
+or collapsing the settings section does not control scene refresh. No saved format
+changes or new global input listeners are introduced.
+
+Responsiveness follow-up: the user confirmed that the header click was incidental;
+both metrics and image were delayed by processing. The focused built-app trace
+showed worker processing followed by PNG encoding and image loading on the drag
+path. Dragging now passes reduced canvases directly to the existing wallpaper
+sampler (CanvasTexture, sRGB, matching orientation) and requests paint immediately.
+Only committed full-size results use PNG encoding/persistent caching. Candidate
+changes kick the serial latest-value queue directly; there is no polling interval.
+A processor/worker is reused within the display editing session and disposed on
+cancellation/source changes. Pixel metrics/transforms use scalar inner loops to
+remove repeated arrays/callbacks; frozen fixtures retain pre-optimization byte
+output. Existing source samples, correction equations, clipping guards, saved
+settings and cache keys are unchanged. Source/account changes still clear prior
+imagery; same-source updates retain it until a replacement is ready. These remove
+concrete overhead, but user interactive latency acceptance and hardware performance
+remain unverified after this change; model/build checks do not establish them.
+Short drags also catch up with a small final frame before starting full-size PNG
+work if no preview of the committed value arrived yet. This is still a transient
+frame; settings commit normally and only the full result enters the saved cache.
+
+
+## Full-resolution normalization display
+
+The reduced 384px drag image was visibly blurry before the full image arrived.
+Normalization now retains the original full-resolution texture through dragging,
+release and on/off comparison. The shared wallpaper sampler applies correction
+coefficients in GLSL using the CPU tone, neutral balance, gamut and quantization
+equations; adaptive sphere blending samples the same corrected image. Updating
+coefficients changes uniforms and requests paint without replacing/loading images.
+The worker solves from the original bounded source sample during dragging; no small
+image is generated, encoded, uploaded or substituted. Final CPU processing and PNG
+caching remain on commit for verified output/reuse. The hook no longer creates URLs
+for normalized derivatives; the existing original-background owner still owns URLs,
+identity/account guards and deletion. Texture resolution and viewport pixel budgets
+are unchanged. GPU floating-point and sampling can differ from CPU-cached output;
+exact visual/pixel parity and GPU cost remain user browser acceptance. The user
+chose to test the preview; no new browser suite/profiling was run for this path.
+This supersedes reduced-image/canvas preview descriptions above. It changes display
+implementation, not saved original bytes or constraint interpretation.
+
+The redundant Preview original UI field and its transient app state are retired. Use Normalize scene images off/on for original/corrected comparison. Existing saved organization for scene.normalize.preview is retained by unavailable-ID compatibility; no normalization settings or image bytes are removed.
+
+
+PR #58/#59 integration (2026-11-08): normalization now feeds the audio-capable
+native wallpaper owner directly. Correction uniforms transform the original
+full-resolution sample before the Low/High audio tint, without changing texture
+identity/dimensions while dragging. Source replacement/clear retains normalization
+ownership/correction reset and existing stale-load guards. The shared interface
+preview owner supplies normalization candidates and the preview-vs-committed flag,
+so drag samples stay outside settings/history and derivative-cache writes. The
+user explicitly retired wallpaper-to-sphere blending; its old shared sphere
+sampler is removed. Normalization, source originals, native output and audio
+controls remain. No browser/GPU parity claim is inferred from the merge tests.

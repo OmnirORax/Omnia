@@ -1,4 +1,7 @@
 import {SceneVfxControls} from "./SceneVfxControls";
+
+import {NormalizationPanel,type NormalizationState} from './NormalizationPanel.tsx';
+import type {NormalizationPreferences} from './normalization.ts';
 import { useEffect, useRef, useState } from 'react';
 import { backendConfiguration, cloud, type Workspace, type WorkspaceMember, type Asset } from '../backend/client';
 import { resolveScenePrompt, type SceneGeneration, type SceneGenerateInput, type SceneNode, type SceneSource } from '../../supabase/functions/_shared/contracts.ts';
@@ -10,7 +13,8 @@ import { useFeatureActions } from '../ui/useFeatureActions';
 import type { SceneReference } from './background';
 import { deleteLocalScene, downloadScene, importLocalScene, listLocalScenes, loadCopiedPrompt, localSceneBlob, saveCopiedPrompt, type LocalScene, type ScenePromptSnapshot } from './library';
 
-export function ScenePanel({ node, revision, bindings, onApply, hasBackground, backgroundError, backgroundKey, onForgetLocal, nodeExists }: {
+export function ScenePanel({ normalization,normalizationState,node, revision, bindings, onApply, hasBackground, backgroundError, backgroundKey, onForgetLocal, nodeExists }: {
+  normalization:NormalizationPreferences;normalizationState:NormalizationState;
   node: SceneNode | null; revision: number; bindings: PropertyBindings;
   onApply: (value: SceneReference | null, targetNodeId?: string | null) => void;
   onForgetLocal: (id: string) => void; nodeExists: (id: string) => boolean; hasBackground: boolean; backgroundError: string; backgroundKey?: string;
@@ -78,7 +82,7 @@ export function ScenePanel({ node, revision, bindings, onApply, hasBackground, b
     } catch { if (live.current) setLocalError('Could not copy/save the prompt. Select the text under Resolved prompt and copy it manually; choose Active node as the image destination.'); }
   }
   async function receiveImage(file: File, context: ImportContext) {
-    const item = await importLocalScene(file, context.input);
+    const item = await importLocalScene(file, context.input,normalization);
     if (!live.current) return;
     setLocalImages(items => [item, ...items]); setLocalId(item.id);
     // The explicit destination may differ from the currently selected node. Do not
@@ -248,6 +252,7 @@ export function ScenePanel({ node, revision, bindings, onApply, hasBackground, b
       <small>{copied.node.label || 'Untitled'} · {new Date(copied.copiedAt).toLocaleString()}</small>
       <pre className="scene-resolved">{copied.resolved}</pre>
     </UISection>}
+    <NormalizationPanel bindings={bindings} state={normalizationState}/>
     <UISection id="scene-imported-images" title="Imported images" defaultExpanded={false}>
       <UIField id="scene.localImage" label="Imported scene image" category="Scene"><label>Image<select value={localId} onChange={event => setLocalId(event.target.value)}>
         <option value="">Choose saved image</option>{localImages.map(item => <option key={item.id} value={item.id}>{item.input?.node.label || item.name} · {new Date(item.createdAt).toLocaleString()}</option>)}

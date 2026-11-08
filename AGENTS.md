@@ -848,3 +848,47 @@ Whole-node blend controls supersede the brightness-only fixed-alpha rule above: 
 Radial sphere transmission: Translucency → Translucency radius is a shared sphere-body-only numeric property (0–1, absent/neutral 1). Radius 1 preserves previous all-surface transmission; below 1, centre transmission remains authored inside that projected radial fraction and smoothly falls to zero at the silhouette. Shared base/bloom coverage uses an authored-opacity uniform so fully clear centres can retain shells; zero authored opacity clears everything. Adaptive blending uses local transmission. Actual nodes/live theme updates/paint factories inherit the same radius. No UI transmission radius, physical refraction, backing mask or new pass. Existing controller Apply/Discard/history owns persistence; preview acceptance stays user-owned.
 
 User-selected sphere defaults supersede previous absent/default values: shared sphereVisualDefaults defines orange #ffb000 (approximate screenshot match), Glow .35, Opacity 1, Translucency .70 and Translucency radius .76. Fresh workspace node style, MS base resolution and actual/preview carrier fallbacks inherit this definition. Saved explicit styles/controller values, including zeros and radius 1, remain authoritative; missing transmission fields intentionally pick up the new defaults. Radius 1 still selects historical all-surface transmission. UI translucency and adaptive blending defaults are unchanged. No graph/schema migration or browser acceptance is inferred.
+
+Scene normalization is owned by scene/normalization.ts (portable metrics/bounded
+search), normalization.function.ts (shared serialized settings), inline worker,
+normalizationCache and the existing scene import/background owners. Never overwrite
+originals, normalize an already-derived image, persist private cloud derivatives,
+or create a separate comparator. Initial broad ranges are qualitative starting
+values, not learned reference calibration. Neutral evidence gates colour balance;
+output measurements and unmet constraints must remain visible. Source/preference
+changes cancel obsolete display work. Cache is disposable, SHA/version/constraint
+keyed and bounded to 8/32MiB; local source deletion purges matching derivatives first.
+Existing settings/UI/history, original-download, account guards and graph ownership
+remain authoritative. User owns browser/visual/performance acceptance.
+
+Live settings corrections: shared PropertyBindings.preview is optional and must
+route through the same validated owner as commit, including active context adapters.
+Normalization reads transient candidate settings; dragging must not persist or
+pollute history/cache. Its serial latest-candidate queue must complete previews
+rather than restart on every pointer sample. Preview/full solving shares original
+source samples. Release runs full resolution without needing collapse/blur. Retain
+last same-source imagery through processing and texture load, but clear it on
+source/account changes or explicit null. User authorized only a focused local
+normalization drag/release/image-refresh check; no broad suites/profile inference.
+
+Normalization latency correction: the heading refresh theory was disproved by the
+user; metrics and imagery were delayed together. Keep drag frames as direct canvas
+uploads in the existing wallpaper owner, never PNG encode/reload per input sample.
+Use an event-driven serial latest-value queue with an owned reusable worker, not
+polling or full-resolution processing during dragging. Full PNG/cache work remains
+on commit. Preserve scalar-kernel byte parity, source/account guards and transient
+settings/history boundaries. The user owns post-fix latency acceptance; do not
+extend delivery into repeated profiling/benchmarks or claim sufficiency from tests.
+
+Normalization sharpness correction supersedes reduced drag canvases: keep the
+original full-resolution texture and update correction uniforms in the shared
+wallpaper/sphere-background sampler. Worker dragging solves samples/coefficients
+only; CPU PNG preparation/cache stays on commit. Before/after toggles uniforms;
+never change resolution on drag/release. User chose preview testing, so no GPU
+pixel parity/quality/performance acceptance is inferred from model/build checks.
+Current user-selected raw defaults are luma .10/0, contrast .66/.02, saturation1/1,
+neutral tolerance .30, exposure limit1, contrast/saturation limits .75, balance .20.
+Keep raw crossed endpoints and existing unordered-range interpretation; explicit
+saved values/zero/false remain authoritative. The min/max controls bound one range.
+
+The redundant scene.normalize.preview field and transient show-original state are removed. Original/corrected comparison uses the existing serialized normalization enabled toggle. Saved layout references to the retired field remain unavailable-ID records, not deleted organization. No image, graph, cache or normalization-setting conversion. No browser run needed for this UI removal.

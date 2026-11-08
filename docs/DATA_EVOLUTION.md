@@ -923,3 +923,59 @@ shared value previews retain their existing owners. No graph schema, image bytes
 scene-effect defaults or backend migration. Regression covers archive roundtrip
 and absent renderer applicability. No browser acceptance is inferred from merge
 checks; ordinary sphere/wallpaper appearance remains user-owned verification.
+
+Scene normalization adds settings functionValues['scene.normalize'] entries through
+existing discovered property adapters (enabled, preferred metric ranges and bounded
+correction limits). Absence resolves global enabled=true and documented broad
+starting ranges; explicit false/zero is retained. No settings/schema version change
+or graph/image-reference conversion. Existing original scene blobs remain untouched.
+Disposable normalization results/reports use a new local IndexedDB cache, keyed by
+source SHA-256 + algorithm version + constraints, bounded to 8 results/32 MiB. Cache
+failure falls back to originals; algorithm/key changes recompute from originals.
+Private cloud derivatives are transient only. Original deletion purges derived
+keys first and retains the source if purge fails. Original downloads/assignments
+and existing auth guards remain the authorities. Settings use existing UI exports;
+local images/cache/scene assignments are still not included in atlas/UI backups.
+Older clients do not apply these controls and may drop unknown settings on rewrite.
+No hosted migration, paid generation or new cloud persistence is introduced.
+
+Live normalization slider previews are transient candidate settings, validated by
+existing shared property adapters and routed through active context ownership.
+Dragging never writes settings/history or the derivative cache; restoring the
+stored value cancels and release commits normally. Reduced previews/source samples
+are memory-only; full-size derivatives retain the existing SHA/version/constraint
+cache and authored formats. Source/account guards still clear previous imagery;
+only same-source updates retain the last visible texture until replacement loads.
+No migration or change to saved image bytes, constraints or graph fields.
+
+Direct-canvas normalization previews are transient renderer inputs, never saved or
+cached as derivatives. Full PNG output, algorithm/cache keys, authored constraints,
+image bytes and graph settings retain their formats. Scalar kernel optimization
+is checked against frozen historical pixel-byte hashes. The shared wallpaper owner
+now accepts URL or canvas sources; source/account clear and resource disposal are
+preserved. No data migration/version bump or cloud deployment is required.
+
+Full-resolution normalization now renders the original texture with transient shared
+correction uniforms instead of displaying reduced canvases/derived image URLs.
+CPU correction equations/cache/output remain unchanged; originals, assignments and
+version-1 settings/cache formats are retained. GPU floating-point/sample rounding
+can differ from cached CPU output; visual parity is user-owned. Raw initial settings
+now use the user's screenshot: luminance .10/0, contrast .66/.02, saturation 1/1,
+neutral tolerance .30, exposure limit 1, contrast/saturation limits .75 and balance
+limit .20. Existing unordered-interval interpretation yields luminance 0–.10 and
+contrast .02–.66. Explicit saved fields including false/zero are retained; absent
+fields intentionally acquire the new defaults. Preference keys naturally separate
+old/new constraints; there is no migration or rewriting of original image bytes.
+
+The redundant scene.normalize.preview field and transient show-original state are removed. Original/corrected comparison uses the existing serialized normalization enabled toggle. Saved layout references to the retired field remain unavailable-ID records, not deleted organization. No image, graph, cache or normalization-setting conversion. No browser run needed for this UI removal.
+
+
+PR #59 integration into #58 preserves normalization preferences/defaults and their
+existing functionValues format. A single transient interface preview layer feeds
+both normalization and other settings; committed settings remain authoritative
+for history/storage/cache decisions. The wallpaper owns its correction uniforms
+and original texture; normalization runs before audio tint. No derivative replaces
+the display texture and no graph/source/account contract changes. Retired
+adaptiveBlend* settings remain archive-only; new orange sphere defaults remain.
+Combined source, normalization, VFX, archive and settings regressions are required
+before publication. Merging current master changes no production branch here.

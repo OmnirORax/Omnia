@@ -1656,7 +1656,7 @@ test('shared colour and number settings preview without persistence, validate th
  const {defaultSettings}=await import('../src/workspaceActions.ts');
  const {PROPERTY_REGISTRY}=await import('../src/appearance/registry.ts');
  let saved=defaultSettings(),shown=saved,writes=0;
- const original=saved,bindings=settingsPropertyBindings(saved,change=>{saved=change(saved);shown=saved;writes++;},change=>{shown=change?change(saved):saved;});
+ const original=saved,bindings=settingsPropertyBindings(saved,change=>{saved=change(saved);shown=saved;writes++;},candidate=>{shown=candidate??saved;});
  const color=preparePropertyChanges(PROPERTY_REGISTRY,'scene.pulseTintHigh','#ff8800',['scene.vfx']);
  const amount=preparePropertyChanges(PROPERTY_REGISTRY,'scene.pulseAmount',.5,['scene.vfx']);
  bindings.preview(color);assert.equal(shown.sceneVfx.pulseTintHigh,'#ff8800');assert.equal(saved,original);assert.equal(writes,0);
