@@ -739,6 +739,7 @@ export function useButtonSelection({
   }, [ids, layout, functions]);
   return {
     ids,
+    selectResident: (key: string) => { if (uiContextEnabled(current.current.layout)) select(new Set([selectionId(key)])); },
     locked,
     toggleLock,
     mode,

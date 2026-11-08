@@ -696,6 +696,7 @@ export function UIWorkspace({
     command,
     suppress: suppressActivation,
   });
+  const buttonSelectionRef = useRef(buttonSelection); buttonSelectionRef.current = buttonSelection;
   const reset = () => {
     buttonSelection.clear();
     configure(null); configureFrame(null); configureControl(null);
@@ -1494,6 +1495,9 @@ export function UIWorkspace({
         }
         return previous;
         });
+        // A moved control stays visibly selected so Delete can act on it immediately.
+        if (source.key.startsWith("function:") && !p.control && uiContextEnabled(current.current.layout))
+          buttonSelectionRef.current.selectResident(source.key);
       });
     };
     const end = () => {
