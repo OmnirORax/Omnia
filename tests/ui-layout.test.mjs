@@ -526,3 +526,11 @@ test('removing a docked UI control retains its container membership and styling'
   assert.deepEqual(restoreUIFunction(hidden,'control').items.control,{...layout.items.control,hidden:false});
   assert.equal(ownerOf(hidden,'function:control'),'frame:group');
 });
+
+test('workspace-only presentation is opt-in and survives layout export',()=>{
+  const old=validateUILayout(emptyUILayout());
+  assert.equal(old.panels['@workspaceOnly'],undefined);
+  const layout=validateUILayout({...old,panels:{...old.panels,'@workspaceOnly':true}});
+  assert.equal(validateUILayout(JSON.parse(JSON.stringify(layout))).panels['@workspaceOnly'],true);
+  assert.deepEqual(old.windows,layout.windows,'presentation flag does not move saved residents');
+});

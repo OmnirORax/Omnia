@@ -1316,3 +1316,7 @@ input,textarea,[contenteditable]:not([contenteditable="false"]){caret-color:auto
 :root[data-omnium-ui-hidden] .visual-selection-controller,
 :root[data-omnium-ui-hidden] .contextual-master-controller,
 :root[data-omnium-ui-hidden] .ui-background-menu { visibility:hidden !important; pointer-events:none !important; }
+
+/* Consolidated layout keeps its live panels in Workspace settings. */
+:root[data-workspace-settings-only] .workbench > .workspace > .sidebar,
+:root[data-workspace-settings-only] .spatial-controls { display: none !important; }

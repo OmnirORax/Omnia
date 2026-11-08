@@ -194,6 +194,10 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
     }
     return revealSearchPath(revealed, searchReveal);
   }, [savedUILayout, searchReveal, masterInspection, dismissedInspection]);
+  useEffect(() => {
+    window.document.documentElement.toggleAttribute("data-workspace-settings-only", !!uiLayout.panels["@workspaceOnly"]);
+    return () => window.document.documentElement.removeAttribute("data-workspace-settings-only");
+  }, [uiLayout.panels["@workspaceOnly"]]);
   const [colorPreview, setColorPreview] = useState<ColorPreview | null>(null);
   const [activityRequests, setActivityRequests] = useState<ActivityPreview[]>([]);
   const [appearancePreview, setAppearancePreview] = useState<WorkspaceSettings["appearance"] | null>(null);
@@ -2218,9 +2222,9 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
         </MasterController>
       </FloatingWindow>}
       {settingsOpen && <FloatingWindow id="settings" title="Workspace settings" width={520} height={640} onClose={() => setSettingsOpen(false)}>
-        <UISection id="workspace-interface-tools" title="Workspace interface tools">
+        {!uiLayout.panels["@workspaceOnly"] && <UISection id="workspace-interface-tools" title="Workspace interface tools">
           {["ui:devMode", "shortcuts", "ui:arrange", "ui:createFrame", "ui:select", "ui:compact", "ui:align", "ui:undo", "ui:redo"].map(id => <FunctionControl key={id} id={id} mirror />)}
-        </UISection>
+        </UISection>}
         <CloudPanel />
         <FunctionControl id="appearance" palette />
         <UISection id="spatial-settings" title="Spatial settings">
@@ -2239,7 +2243,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
             <ShortcutGestures category={category} />
           </UISection>)}
         </UISection>
-        <div className="dialog-actions"><FunctionControl id="ui:reset" palette /><button title="Reset mouse, keybindings and spatial preferences" onClick={() => { setSettings(old => ({ ...defaultSettings(), appearance: old.appearance })); setCapturing(null); }}>Reset controls</button><button onClick={() => { setSettingsOpen(false); setCapturing(null); }}>Close</button></div>
+        <div className="dialog-actions">{!uiLayout.panels["@workspaceOnly"] && <FunctionControl id="ui:reset" palette />}<button title="Reset mouse, keybindings and spatial preferences" onClick={() => { setSettings(old => ({ ...defaultSettings(), appearance: old.appearance })); setCapturing(null); }}>Reset controls</button><button onClick={() => { setSettingsOpen(false); setCapturing(null); }}>Close</button></div>
       </FloatingWindow>}
     </div><WindowSparkles source={renderSource} appearance={renderedAppearance} /></UIWorkspace></>
   );
