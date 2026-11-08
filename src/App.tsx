@@ -83,7 +83,7 @@ import { fontFamily, MAX_FONT_TEMPLATE_BYTES, type CustomFont } from "./fonts";
 import { embeddedFont, importCustomFonts, importFontFile, listCustomFonts, loadFont } from "./fontLibrary";
 import { createLayoutView, hierarchyLayout, flowLayout, switchLayoutView, chartedBinders } from "./graph/presentation";
 import { addVariant, nodeEntityId, projectVariants } from "./graph/variants";
-import { ShortcutDisplay, ShortcutGestures } from "./ShortcutDisplay";
+import { ShortcutDisplay, ShortcutGestures, ShortcutPicker } from "./ShortcutDisplay";
 import { VisualControls } from "./VisualControls";
 import { deleteConceptSubtrees, deletionSummary } from "./graph/selection";
 import { type Visual, type VisualAsset } from "./graph/assets";
@@ -2195,7 +2195,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
         <div className="entity-results">{document.entities.filter((entity) => `${entity.id} ${entity.label} ${entity.aliases.join(" ")}`.toLowerCase().includes(insertQuery.toLowerCase())).slice(0, 30).map((entity) => <button key={entity.id} onClick={() => insertExisting(entity.id, insertContext.parentId, insertContext.world)}>{entity.label || entity.id}<small>{entity.id}</small></button>)}</div>
         <button onClick={() => setInsertContext(null)}>Close</button>
       </FloatingWindow>}
-      {(shortcutsPinned || shortcutsHovered) && <div onMouseLeave={() => setShortcutsHovered(false)}><ShortcutDisplay onInteract={() => setShortcutsPinned(true)} settings={renderSettings} onChange={setSettings} capturing={capturing} onCapture={setCapturing} onAction={runAction} onClose={() => { setShortcutsPinned(false); setShortcutsHovered(false); }} /></div>}
+      {(shortcutsPinned || shortcutsHovered) && <div onMouseLeave={() => setShortcutsHovered(false)}><ShortcutDisplay onInteract={() => setShortcutsPinned(true)} settings={renderSettings} onChange={setSettings} capturing={capturing} onCapture={(id,label) => { captureLabel.current=label ?? ""; setCapturing(id); }} onAction={runAction} onClose={() => { setShortcutsPinned(false); setShortcutsHovered(false); }} /></div>}
       {binderPopup && selectedBinder && <FloatingWindow id="binder-editor" openingKey={`${selection?.kind}:${selection?.id}:${binderPopup.x}:${binderPopup.y}`} title="Binder editor" className="binder-editor" x={binderPopup.x} y={binderPopup.y} width={370} height={560} onClose={() => setBinderPopup(null)} closeLabel="Close binder editor">{selectedBinderEdge&&<UISection id="binder-connection-actions" title="Binder actions"><UIAction id="binder:reverse" label="Reverse direction / hierarchy" category="Relationships" onClick={()=>binderConnectionAction('reverse')}/><UIAction id="binder:focus-endpoints" label="Focus both endpoints" category="Relationships" onClick={()=>{selectMany([selectedBinderEdge.source,selectedBinderEdge.target]);navigate('selection');setBinderPopup(null);}}/><UIAction id="binder:delete" label="Delete binder" category="Relationships" onClick={()=>binderConnectionAction('delete')}/></UISection>}<BinderControls {...binderThemeProps} value={selectedBinder} defaultText={selectedBinderText} onChange={editBinder} composition={selection?.kind === "composition"} /><VisualControls key={selection?.id} label="Binder" glyphs={binderGlyphs} value={selectedBinder.visual} assets={document.assets ?? []} onChange={(visual) => editBinder({ visual })} onAsset={(asset, visual) => editBinder({ visual }, asset)} /></FloatingWindow>}
       {omnicLibraryOpen && <FloatingWindow id="omnic-library" title="Omnic library" width={560} height={590} onClose={()=>setOmnicLibraryOpen(false)}>
         <Suspense fallback={<p>Opening library…</p>}><OmnicLibrary onExport={exportJSON} onImport={importWorkspaceBackup} onRecover={recoverWorkspaceBackup} workspace={workspace} onChange={commitWorkspace} onSwitch={switchAtlas} onOpen={setOmnicEditorId} onPlace={placeLibraryObject} onCopy={(recipe,label,source)=>createOmnicObject(recipe,label,source)} /></Suspense>
@@ -2237,11 +2237,15 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
           {["backButton", "forwardButton"].map(key => <FunctionControl key={key} id={`ui:mouse:${key}`} />)}
         </UISection>
         <UISection id="keyboard-actions" title="Shortcuts & gestures">
+          <ShortcutPicker id="workspace-shortcut-search" settings={settings} capturing={capturing} onCapture={(id,label) => { captureLabel.current=label; setCapturing(id); }} />
           {ACTIONS.some(action => keyConflict(settings.bindings, action.id, settings.bindings[action.id])) && <p role="alert">Some bindings conflict. Reassign or clear the duplicate keys.</p>}
           {Array.from(new Set(ACTIONS.map(action => action.category))).map(category => <UISection key={category} id={`shortcuts-${category}`} title={category} className="settings-category">
-            {ACTIONS.filter(action => action.category === category).map(action => <FunctionControl key={action.id} id={`shortcut:${action.id}`} />)}
+            {ACTIONS.filter(action => action.category === category && !!functionShortcutBinding(action.id, settings.bindings)).map(action => <FunctionControl key={action.id} id={`shortcut:${action.id}`} />)}
             <ShortcutGestures category={category} />
           </UISection>)}
+          {Object.keys(settings.bindings).some(id => id.startsWith("button:") && !!settings.bindings[id]) && <UISection id="workspace-button-shortcuts" title="Button shortcuts">
+            {Object.keys(settings.bindings).filter(id => id.startsWith("button:") && !!settings.bindings[id]).map(id => <FunctionControl key={id} id={`shortcut:${id}`} />)}
+          </UISection>}
         </UISection>
         <div className="dialog-actions">{!uiLayout.panels["@workspaceOnly"] && <FunctionControl id="ui:reset" palette />}<button title="Reset mouse, keybindings and spatial preferences" onClick={() => { setSettings(old => ({ ...defaultSettings(), appearance: old.appearance })); setCapturing(null); }}>Reset controls</button><button onClick={() => { setSettingsOpen(false); setCapturing(null); }}>Close</button></div>
       </FloatingWindow>}
