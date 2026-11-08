@@ -2079,27 +2079,23 @@
       "id": "scene.vfx",
       "title": "Source-based Wallpaper Engine pulse and scene audio effects",
       "where": "Scene → Scene effects. Import/apply an image through the existing Scene image workflow.",
-      "behavior": "Wallpaper Engine pulse is now the only light renderer; Earlier approximation and its controls/cache are removed. Defaults follow the user screenshot: bands 14–15, bounds 0.01–1, exponent 0.1, amount 2, Bounce 1.3; low/high tint swatches are approximated #ffe5e5/#001438 pending exact hex values. Colour activation offers Single tint (original high-tint multiplication), Selected colours (up to eight independent tinted responses, such as blue plus orange), and All colours (a source-hue coloured response per region, rather than a white pulse). Palette matches form a union, never doubled intensity. Low tint stays the shared rest tint. Existing explicit settings survive; archived approximation values remain only in serialization for rollback. Shared editing/history/exports, capture-free playback and native wallpaper output remain. Each palette tint retains its actual RGB/brightness through the supplied blend. All-colour brightness is editable and starts from saved High tint intensity when absent, avoiding an abrupt full-white strength.",
+      "behavior": "Single tint now directly uses the source pulse equation in a compiled variant without palette or All-colour work. Selected colours is removed at user request after rejected visuals. All colours uses source-region hues and an untinted original-image rest base; both tint pickers are hidden and ignored there. All-colour brightness is independent of tint choices. Full-image tinting is kept separately as optional Image tint, off by default. Audio processing, exponent 0.1, timing, native-resolution output and existing saved pulse choices remain unchanged.",
       "steps": [
         {
-          "do": "Open Scene → Scene effects → Wallpaper Engine pulse. Inspect numeric controls in a fresh/default settings context.",
-          "expect": "Bands 14–15, thresholds 0.01–1, exponent 0.1, amount 2 and Bounce 1.3 are defaults. Existing saved overrides stay unchanged. No Earlier approximation option or controls remain."
+          "do": "Open Scene effects. Select Single tint, retain exponent 0.1 and play the website audio.",
+          "expect": "The direct source path is used; no palette loop or All calculation is compiled into Single. Selected colours is absent. Actual response/speed regression still requires user visual verification."
         },
         {
-          "do": "Choose Colour activation → Selected colours. Use blue and orange in Selected colours (#hex), or choose Colour to add and press Add tint colour. Play music.",
-          "expect": "Both source hue families participate in their matching tint’s own pulse response; unrelated hues remain at their Low tint rest appearance. Matching overlap never doubles the pulse. At most eight unique colours are retained."
+          "do": "Switch to All colours while Low/High tint settings have coloured values.",
+          "expect": "Neither tint picker is shown or affects All. Each source region uses its own coloured response over an untinted rest image; All-colour brightness controls its strength."
         },
         {
-          "do": "Adjust Colour range; edit/remove hex entries, then press Clear selected colours and Undo.",
-          "expect": "Range controls soft hue neighbourhoods. An empty palette activates no colours in Selected mode. Undo restores the edit. Text accepts six-digit hex separated by commas/space; invalid entries are ignored."
+          "do": "Expand Image tint, enable it and select red; then disable it and Undo/Redo.",
+          "expect": "The separate filter colours only the wallpaper, independently of pulse mode and audio settings. Disabling restores the underlying response; shared history/save/reload retains the filter."
         },
         {
-          "do": "Choose All colours, then Single tint.",
-          "expect": "All colours activates each source region’s own chromatic light response instead of a white multiplier. Single tint restores the saved High tint and the original source-blend behavior. Palette and tints remain saved when switching modes."
-        },
-        {
-          "do": "Change palette/mode/tints, Undo/Redo, reload and export settings.",
-          "expect": "Shared settings/history restores the active fields. Serializer contains 33 whitelisted fields, including 16 inactive archived preferences retained for older-client round trips. Loading a retired model choice cannot activate old rendering."
+          "do": "Load prior Selected colours settings and inspect/export settings.",
+          "expect": "Mode falls back to Single; palette/range values remain inactive in JSON. Serializer preserves 35 whitelisted fields, including 18 archived preferences. No selected renderer/editor/actions remain."
         },
         {
           "do": "Turn Waves off and set Distortion/Glitching to zero with no audio connected. Restore their defaults.",
@@ -2124,10 +2120,6 @@
         {
           "do": "Apply a detailed image on a 2560-wide display. For a static comparison set Waves off, Distortion/Glitching 0, Audio Bounce 1 and Low tint white. Compare fine image lines with the original; resize, enable/disable scene glow, then clear the image.",
           "expect": "Wallpaper uses output pixels instead of the reduced graph buffer and bypasses graph AA/glow filtering. Graph/bloom buffers remain budgeted; clearing restores the original output budget. At larger/high-DPI dimensions the separate 4K-equivalent output cap can still reduce density."
-        },
-        {
-          "do": "In Selected colours, compare blue alone with blue plus a distant orange; then select All colours and adjust All-colour brightness.",
-          "expect": "The blue region keeps its blue tint/strength while orange gains a separate orange response. All uses each region’s hue and an explicit strength, not full white. Neutral regions remain neutral. Undo/reload retains the brightness; absent brightness initially follows saved High tint intensity."
         }
       ],
       "reference": "docs/SCENE_VFX.md",
@@ -2149,20 +2141,18 @@
       "actions": [
         "scene.audioConnect",
         "scene.audioDisconnect",
-        "scene.audioFile",
-        "scene.pulseColorAdd",
-        "scene.pulseColorClear"
+        "scene.audioFile"
       ],
       "gestures": [],
       "related": [
         "scene.manual",
         "scene.api"
       ],
-      "status": "New defaults, pulse colour palette and approximation removal implemented; interactive acceptance pending",
-      "limits": "Exact screenshot tint hex values are unconfirmed, so the two swatches are approximated. Existing explicit settings are preserved rather than overwritten by new defaults. Selected palette is bounded at eight unique six-digit hex colours; hue range is 1–180 degrees. Low tint is global at rest in every mode. Selected/All are extensions to the source pulse; Single tint retains its equation. Retired preferences remain in JSON only, with no old renderer/editor. All uses source-region hue and a global brightness, with neutral pixels remaining neutral. Overlap blends complete tinted responses instead of adding unbounded light. Browser FFT normalization/bands and original render-space details remain approximate. Capture-free playback is local-file only; native system audio bridge is deferred. Native output cap remains 8,294,400 pixels / DPR 2; graph targets stay budgeted. No fresh browser run; actual appearance and GPU performance await user testing. The user rejected current Waves deformation. It is a guessed base-image sine formula, not a port: only scale/speed/strength and a project-layer target were supplied, with no waterwaves effect/shaders. Matching those numbers does not establish visual equivalence. Waves behavior/default is unchanged here; disable it for undistorted display until the source is available.",
+      "status": "Selected removed; direct Single path restored; separate Image tint implemented; visual regression verification pending",
+      "limits": "Selected colours is deliberately retired; old palette/range data stays archived only. Single/All and optional Image tint compile separately. All ignores Low/High tint and uses a fixed-default numeric brightness; existing explicit brightness survives. Image tint is disabled by default and can intentionally recolour the full wallpaper. The reported Single freeze/slowdown is not visually verified repaired; local frame tests only prove changing uniforms at 0.1. Source FFT mapping remains approximate. Waves remains the rejected guessed deformation pending its actual shaders. No audio-input, exponent, smoothing or frame-pacing change was made. Existing native-resolution caps/capture-free file playback remain.",
       "verification": {
-        "browser": "No fresh browser run authorised. The user rejected the preceding untinted All implementation; its appearance does not validate this corrected independent-colour version. Real music and selected/all appearance remain user acceptance.",
-        "automated": "Regressions cover screenshot numeric defaults, palette parsing/deduplication/bounds, blue+orange union, exclusion of green/neutral pixels, red wrap, feathering, empty palette and no overlap amplification. Shared setters/round trips and archived preference preservation/absence of old editors are checked. Source equation/stereo/no-capture and native output/lifecycle regressions remain. Full local gate runs before delivery. Independent-response tests compare isolated palette entries with the original tint equation, verify blue/orange isolation and duplicate non-amplification, distinguish source-hue All from white, and cover brightness migration/zero/serialization/shared setter."
+        "browser": "No fresh browser run. The user rejected Selected and reported Single frozen/slow with unchanged settings; model/build checks do not establish GPU response or performance recovery. The new direct Single path and independent All/Image tint require visual verification.",
+        "automated": "Frame regression drives changing stereo signals through actual wallpaper ticks at exponent 0.1 and checks light changes while bounce remains active. Variant flags, Selected retirement/archived data, independent All brightness and separate Image tint shared setters/save round trips are checked. Source pulse, stereo, no-capture and native-output/lifecycle regressions remain."
       }
     },
     {

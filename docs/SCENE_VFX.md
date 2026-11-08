@@ -18,35 +18,37 @@ an approximation of Wallpaper Engine's undocumented FFT bands/scaling/smoothing.
 
 ## Colour activation
 
-**Colour activation** has three saved modes:
+Only **Single tint** and **All colours** remain. The user rejected Selected colours;
+its menu option, editors, actions, palette shader loop and runtime response helper
+are removed. Older selected mode maps to Single tint. Palette data/range remain
+inactive in saved JSON for rollback, not as a current rendering option.
 
-- **Single tint** uses High tint directly: the original supplied shader behavior.
-- **Selected colours** activates the union of source-image hue families in a
-  palette, evaluating each selected tint through the original pulse equation with its
-  actual RGB and brightness. Matching regions receive that tint’s own response. Blue and orange can react
-  together. Unselected regions retain their Low tint rest appearance.
-- **All colours** activates every source colour, including neutral highlights,
-  deriving a chromatic high tint from each source region’s hue, rather than
-  substituting white. Neutral regions keep a neutral response. High tint stays saved when switching back to Single tint.
+**Single tint** directly calls the original source equation using Low tint and
+High tint. It is compiled separately from All; no palette loop, hue matching or
+All-colour calculation runs in its program. Audio processing, exponent 0.1,
+frequency selection, smoothing, frame pacing and bounce were not changed by this
+repair. A regression drives the actual renderer tick with changing stereo signals
+and verifies varying light uniforms at 0.1 while bounce remains active. This is not
+a claim of verified GPU appearance or measured recovery of the reported slowdown.
 
-In Selected colours, pick **Colour to add** and press **Add tint colour**. The
-palette initially contains blue and orange. Use **Selected colours (#hex)** to
-edit/remove entries directly (comma-separated six-digit hex), or **Clear selected
-colours** to empty it. Undo restores edits. Up to eight unique colours are kept;
-case is normalized and invalid tokens are ignored. Empty palette means no audio
-activation in Selected colours, not automatic All colours. Overlapping hue ranges blend the independently evaluated coloured responses
-without doubling their intensity; isolated matches reproduce the matching tint’s
-Single tint result.
+**All colours** derives its response tint from each image region and uses an
+untinted original-image rest base. It ignores both Low/High tint pickers, which are
+hidden in this mode. **All-colour brightness** is a numeric strength control,
+independent of the tint colours. Existing explicit brightness survives; absent
+brightness uses the fixed default (56/255), not the selected tint's channels.
+Neutral image regions stay neutral. The saved Single tint colours remain intact
+when switching back. The source-region extension remains an approximation beyond
+the original supplied single-tint shader.
 
-**Colour range (°)** sets the hue distance around each selected colour. The inner
-half has full weight and the outer half feathers to zero, wrapping around red.
-Neutral selections match neutral pixels; chromatic selections exclude greys.
-Detection uses the image before Low tint. Low tint remains a global rest tint in
-all modes. Selected/All are explicit extensions of the supplied shader; Single
-tint preserves its original high-tint multiplication. All colours uses
-**All-colour brightness** for response strength. For older saves missing that
-field, it starts from the maximum channel of the saved High tint, preserving its
-brightness instead of jumping to full white strength. Explicit zero stays zero.
+## Optional Image tint
+
+The user liked full-image tinting as a separate effect. Open **Scene effects →
+Image tint → Enable image tint**, then choose **Image tint colour**. This multiplies
+wallpaper RGB after its audio pulse, without changing audio input, response curves
+or graph/UI colours. It works with Single/All and is off by default. The starter
+colour is #c20000 (red from the user's screenshot). Disable it to restore the
+underlying image response. Both toggle and colour inherit shared controls,
+history, save/reload and exports. The tint shader code is compiled only when on.
 
 ## Current defaults and controls
 
@@ -64,10 +66,10 @@ approximated as #ffe5e5 / #001438. Explicit older saved choices are preserved.
 | pulseAudioHigh | Audio upper threshold | 1; 0–1 |
 | pulseExponent | Audio exponent | 0.1; 0–4 |
 | pulseAmount | Audio amount | 2; 0–2 |
-| pulseColorMode | Colour activation | tint; tint / selected / all |
-| pulseColors | Selected colours (#hex) | #0044ff,#ff8800; up to eight |
-| pulseAllBrightness | All-colour brightness | initially High tint’s peak channel; 0–1 |
-| pulseColorWidth | Colour range (°) | 30; 1–180 |
+| pulseColorMode | Colour activation | tint; tint / all |
+| pulseAllBrightness | All-colour brightness | fixed default 56/255; 0–1 |
+| imageTintEnabled | Enable image tint | false |
+| imageTint | Image tint colour | #c20000 |
 | audioBounce | Audio Bounce | 1.3; 1–1.5 |
 | waves | Waves | true |
 | distortion | Distortion | 0.4; 0–1 |
@@ -82,7 +84,7 @@ tint white, Bounce 1 and Waves/Distortion/Glitching off for original-file compar
 
 ## Compatibility and retirement
 
-The current serializer whitelists 33 fields: 17 active fields above and 16 inactive
+The current serializer whitelists 35 fields: 17 active fields above and 18 inactive
 historical approximation/model fields kept only for settings round trips and older
 client rollback. No current renderer or registered editor consumes those retired
 fields. The earlier shader/cache implementation and its obsolete browser test are
@@ -90,7 +92,9 @@ deleted. Loading lightModel=legacy cannot select the retired renderer in this
 version. Retained values are inspectable in the existing JSON exports; they are
 not silently erased or reinterpreted as the new palette.
 
-Older 29-field saves acquire mode=tint, a blue/orange starter palette and width 30.
+Older selected mode now maps to tint; its palette/range remain archived. Missing
+Image tint fields acquire disabled/red defaults. Explicit tint and pulse choices
+are retained.
 Missing numeric/tint values acquire the screenshot defaults; existing explicit
 values, including zeros, survive. Older clients may drop the new palette/brightness
 fields when resaving and still expose their old rendering modes. Preserve a current
@@ -113,30 +117,21 @@ is not a claim of bit-identical Wallpaper Engine audio processing.
 
 The native wallpaper composition remains: 2560×1440/1600 at DPR 1 gets native
 output, bounded at 8,294,400 pixels / DPR 2. Graph targets stay at 1.5 million pixels;
-graph AA/glow does not filter the wallpaper. Colour detection adds at most eight
-hue comparisons per image pixel in Selected mode, with palette HSV prepared only
-on settings changes. Single/All bypass palette matching. There are no synthetic
-halo buffers or blur passes. Hidden/reduced-motion suspension and saved FPS cap
+graph AA/glow does not filter the wallpaper. There is no palette detection or synthetic halo work. Single/All and optional
+Image tint are separate compiled shader variants; changing ordinary colour/response
+values does not recompile their variant. Hidden/reduced-motion suspension and saved FPS cap
 remain; actual rate depends on hardware. Waves/VHS are still approximate.
 
 ## Verification
 
-Model regressions cover screenshot defaults, palette parsing/bounds/deduplication,
-blue/orange union, exclusion of green/neutral pixels, hue wrap, feathering, empty
-palette and non-amplification of overlapping matches. Settings tests cover shared
-palette setters, round trips, archived old preferences and absence of old editors.
-Source pulse/stereo/no-capture and native output/lifecycle regressions remain.
-
-Independent-response regressions compare a single palette tint with the original
-Single tint calculation, verify blue/orange isolation and overlap handling, and
-distinguish source-hue All from uniform white. Brightness migration/zero values
-and the shared brightness setter are covered.
-
-No fresh browser check was authorised. Prepared opt-in source-pulse and native
-wallpaper checks remain unrun; they do not establish this revision's visual result.
-Actual colour selection, picker/Add/Clear interaction, appearance and GPU performance
-await user testing. Exact screenshot tint hex values remain unconfirmed.
-
+Local regressions cover the direct source pulse and stereo analysis, changing
+light uniforms at exponent 0.1 with independent bounce, compile-variant switching,
+Selected retirement and preservation of inactive palette fields, independent
+All brightness, Image tint opt-in/serialization, and existing native output/lifecycle.
+No fresh browser run was authorised. The user reported Single tint looked frozen
+and slowed after the shared palette change; this repair restores its direct shader
+path without changing audio.ts or response settings. GPU response/speed recovery
+is not inferred from model/build success and remains user testing.
 
 ## Waves fidelity limit
 

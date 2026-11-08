@@ -1,11 +1,11 @@
-import {PULSE_CONTROLS,referencePulse,referencePulseRGB,pulsePalette,pulseColorWeight,sourcePulseTint,combinePulseResponses} from '../src/scene/pulse.ts';
+import {PULSE_CONTROLS,referencePulse,referencePulseRGB,pulsePalette,sourcePulseTint} from '../src/scene/pulse.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {RETIRED_LIGHT_CONTROLS,DEFAULT_SCENE_VFX,normalizeSceneVfx,serializeSceneVfx,smoothAudio,audioScale,normalizeAudioLevel,nextVfxDeadline,SCENE_VFX_FPS} from '../src/scene/vfx.ts';
 import {defaultSettings,normalizeSettings} from '../src/workspaceActions.ts';
 import {SETTINGS_PROPERTY_ADAPTERS} from '../src/properties/settingsAdapter.ts';
 test('scene effects serialize base controls plus requested light tuning, excluding session internals',()=>{
- const keys=['audioBounce','audioLight','distortion','glitching','maxFps','waves','lightAllColors','lightModel','pulseTintLow','pulseTintHigh','pulseColorMode','pulseColors','pulseAllBrightness',...PULSE_CONTROLS.map(c=>c.key),...RETIRED_LIGHT_CONTROLS.map(c=>c.key)].sort();
+ const keys=['audioBounce','audioLight','distortion','glitching','maxFps','waves','lightAllColors','lightModel','pulseTintLow','pulseTintHigh','pulseColorMode','pulseColors','pulseColorWidth','pulseAllBrightness','imageTintEnabled','imageTint',...PULSE_CONTROLS.map(c=>c.key),...RETIRED_LIGHT_CONTROLS.map(c=>c.key)].sort();
  assert.deepEqual(Object.keys(JSON.parse(serializeSceneVfx({audioLight:'#aa3300',audioBounce:1.12,waves:true,distortion:.4,glitching:.3,frequency:99,source:'private',particles:true}))).sort(),keys);
  assert.deepEqual(normalizeSceneVfx(undefined),{...DEFAULT_SCENE_VFX,audioLight:'#aa3300',audioBounce:1.3,waves:true,distortion:.4,glitching:.3,maxFps:120});
  assert.deepEqual(defaultSettings().sceneVfx,DEFAULT_SCENE_VFX);
@@ -183,28 +183,10 @@ test('native wallpaper composition restores visibility and shader inputs after r
 });
 
 
-test('selected colours form a bounded union; all colours uses untinted source channels',()=>{
- assert.deepEqual(pulsePalette(' #0044FF, #ff8800;#0044ff bad '),['#0044ff','#ff8800']);
- assert.equal(pulsePalette(Array(20).fill('#ffffff').join(',')).length,1);
- assert.equal(pulsePalette('#111111,#222222,#333333,#444444,#555555,#666666,#777777,#888888,#999999').length,8);
- const blue={h:225/360,s:1},orange={h:32/360,s:1};
- assert.equal(pulseColorWeight(blue.h,1,[blue,orange],30),1);
- assert.equal(pulseColorWeight(orange.h,1,[blue,orange],30),1);
- assert.equal(pulseColorWeight(120/360,1,[blue,orange],30),0);
- assert.equal(pulseColorWeight(0,0,[blue,orange],30),0);
- assert.equal(pulseColorWeight(0,0,[{h:0,s:0}],30),1);
- assert.equal(pulseColorWeight(blue.h,1,[blue,blue],30),1,'overlap does not double response');
- assert.equal(pulseColorWeight(blue.h,1,[],30),0);
- assert.equal(pulseColorWeight(.99,1,[{h:.01,s:1}],30),1,'hue matching wraps');
- const w=pulseColorWeight((225+22)/360,1,[blue],30);assert.ok(w>0&&w<1);
- const orangeImage=[.5,.25,.05],lit=referencePulseRGB(orangeImage,[1,1,1],[1,1,1],.5);
- assert.ok(lit[0]>lit[1]&&lit[1]>lit[2],'all-colour white multiplier keeps the source orange rather than applying a global blue tint');
-});
-
-test('new screenshot defaults and palette controls use shared settings/history serialization',()=>{
+test('screenshot defaults and remaining Single/All controls use shared settings/history serialization',()=>{
  const v=normalizeSceneVfx(undefined);assert.equal(v.pulseFrequencyMin,14);assert.equal(v.pulseFrequencyMax,15);assert.equal(v.pulseAudioLow,.01);assert.equal(v.pulseAudioHigh,1);assert.equal(v.pulseExponent,.1);assert.equal(v.pulseAmount,2);assert.equal(v.audioBounce,1.3);
  const channels=SETTINGS_PROPERTY_ADAPTERS['scene.vfx'].channels;
- for(const [key,value]of [['pulseColorMode','selected'],['pulseColors','#0044ff,#ff8800'],['pulseColorWidth',45]]){
+ for(const [key,value]of [['pulseColorMode','all'],['pulseAllBrightness',.4]]){
   const settings=defaultSettings(),changed=channels[`scene.${key}`].write(settings,value);
   assert.equal(changed.sceneVfx[key],value);assert.equal(changed.appearance,settings.appearance);
   assert.equal(normalizeSceneVfx(JSON.parse(serializeSceneVfx(changed.sceneVfx)))[key],value);
@@ -215,18 +197,44 @@ test('new screenshot defaults and palette controls use shared settings/history s
 });
 
 
-test('palette responses keep the exact chosen tint and strength; All follows source hue rather than white',()=>{
- const low=[1,.9,.9],blue=[.08,.15,.8],orange=[.8,.35,.03],blueTint=[0,.05,.3],orangeTint=[1,.45,0],pulse=1.2;
- assert.deepEqual(combinePulseResponses(blue,low,[{rgb:blueTint,weight:1}],pulse),referencePulseRGB(blue,low,blueTint,pulse));
- assert.deepEqual(combinePulseResponses(orange,low,[{rgb:blueTint,weight:0},{rgb:orangeTint,weight:1}],pulse),referencePulseRGB(orange,low,orangeTint,pulse));
- assert.deepEqual(combinePulseResponses(blue,low,[{rgb:blueTint,weight:1},{rgb:orangeTint,weight:0}],pulse),referencePulseRGB(blue,low,blueTint,pulse));
- assert.deepEqual(combinePulseResponses(blue,low,[{rgb:blueTint,weight:1},{rgb:blueTint,weight:1}],pulse),referencePulseRGB(blue,low,blueTint,pulse));
- assert.deepEqual(combinePulseResponses(blue,low,[],pulse),referencePulseRGB(blue,low,blueTint,0));
- const allTint=sourcePulseTint(blue).map(c=>c*.3),all=referencePulseRGB(blue,low,allTint,pulse),white=referencePulseRGB(blue,low,[.3,.3,.3],pulse);
- assert.equal(all[0],blue[0]*low[0],'blue-region light does not indiscriminately raise the red channel');assert.ok(white[0]>all[0]);assert.ok(all[2]>blue[2]*low[2]);
- assert.deepEqual(sourcePulseTint([.4,.4,.4]),[1,1,1],'neutral regions do not acquire an arbitrary hue');
- assert.equal(normalizeSceneVfx({pulseTintHigh:'#224466'}).pulseAllBrightness,102/255);
- assert.equal(normalizeSceneVfx({pulseTintHigh:'#224466',pulseAllBrightness:0}).pulseAllBrightness,0);
- const settings=defaultSettings(),changed=SETTINGS_PROPERTY_ADAPTERS['scene.vfx'].channels['scene.pulseAllBrightness'].write(settings,.4);
- assert.equal(normalizeSceneVfx(JSON.parse(serializeSceneVfx(changed.sceneVfx))).pulseAllBrightness,.4);
+test('Selected colours is retired; All brightness no longer depends on either tint',()=>{
+ const v=normalizeSceneVfx({pulseColorMode:'selected',pulseColors:'#0044ff,#ff8800',pulseColorWidth:45});
+ assert.equal(v.pulseColorMode,'tint');assert.equal(v.pulseColors,'#0044ff,#ff8800');assert.equal(v.pulseColorWidth,45);
+ const channels=SETTINGS_PROPERTY_ADAPTERS['scene.vfx'].channels;assert.equal(channels['scene.pulseColors'],undefined);assert.equal(channels['scene.pulseColorWidth'],undefined);
+ assert.equal(normalizeSceneVfx({pulseTintLow:'#ff0000',pulseTintHigh:'#000000'}).pulseAllBrightness,DEFAULT_SCENE_VFX.pulseAllBrightness);
+ assert.equal(normalizeSceneVfx({pulseAllBrightness:0}).pulseAllBrightness,0);
+ const blue=[.08,.15,.8],tint=sourcePulseTint(blue).map(c=>c*.3),response=referencePulseRGB(blue,[1,1,1],tint,1.2);
+ assert.equal(response[0],blue[0]);assert.ok(response[2]>blue[2]);assert.deepEqual(sourcePulseTint([.4,.4,.4]),[1,1,1]);
+});
+
+
+test('Single tint ticks remain live at exponent 0.1 while bounce works; colour variants do not edit timing',async()=>{
+ const T=await import('three'),audio=await import('../src/scene/audio.ts'),{createWallpaper}=await import('../src/scene/wallpaper.ts');
+ const prior={window:globalThis.window,document:globalThis.document,AudioContext:globalThis.AudioContext,raf:globalThis.requestAnimationFrame,cancel:globalThis.cancelAnimationFrame,load:T.TextureLoader.prototype.loadAsync};
+ const pending=new Map();let id=0,ctx;
+ globalThis.window={matchMedia:()=>({matches:false,addEventListener(){},removeEventListener(){}})};globalThis.document=Object.assign(new EventTarget(),{hidden:false});
+ globalThis.requestAnimationFrame=fn=>{pending.set(++id,fn);return id;};globalThis.cancelAnimationFrame=i=>pending.delete(i);
+ class Node{connect(n){return n;}disconnect(){}}
+ class Context{state='running';sampleRate=48000;destination={};nodes=[];constructor(){ctx=this;}resume(){return Promise.resolve();}close(){return Promise.resolve();}createMediaElementSource(){return new Node();}createChannelSplitter(){return new Node();}createAnalyser(){const node=Object.assign(new Node(),{frequencyBinCount:1024,value:255,getByteFrequencyData(b){b.fill(this.value);},getByteTimeDomainData(b){b.fill(140);}});this.nodes.push(node);return node;}}
+ globalThis.AudioContext=Context;T.TextureLoader.prototype.loadAsync=async()=>new T.Texture({width:8,height:8});
+ const scene=new T.Scene(),paper=createWallpaper(scene,()=>{},{setRenderTarget(){},render(){}}),settings={...DEFAULT_SCENE_VFX,waves:false,distortion:0,glitching:0,pulseExponent:.1,pulseColorMode:'tint'};
+ try{
+  await audio.connectSceneAudioElement({pause(){},addEventListener(){},removeEventListener(){}});paper.configure(settings);await paper.setURL('disposable');
+  const material=scene.children.find(o=>o.material?.uniforms?.light).material,u=material.uniforms,values=[];let now=0;
+  for(const value of [20,80,160,240,255,0]){
+   ctx.nodes[1].value=value;ctx.nodes[2].value=value;const [key,fn]=pending.entries().next().value;pending.delete(key);fn(now+=20);values.push(u.light.value);
+  }
+  for(let i=1;i<5;i++)assert.ok(values[i]>values[i-1],'light must follow changing signal at 0.1 without retuning');assert.equal(values[5],0);assert.ok(u.bounce.value>1,'bounce can remain active while light returns to zero');
+  assert.equal(material.defines.PULSE_ALL_COLORS,0);assert.equal(material.defines.IMAGE_TINT,0);
+  paper.configure({...settings,pulseColorMode:'all',pulseTintLow:'#ff0000'});assert.equal(material.defines.PULSE_ALL_COLORS,1);assert.equal(material.defines.IMAGE_TINT,0);
+  paper.configure({...settings,imageTintEnabled:true,imageTint:'#c20000'});assert.equal(material.defines.PULSE_ALL_COLORS,0);assert.equal(material.defines.IMAGE_TINT,1);
+  assert.equal(settings.pulseExponent,.1);assert.equal(settings.maxFps,DEFAULT_SCENE_VFX.maxFps);
+ }finally{paper.dispose();T.TextureLoader.prototype.loadAsync=prior.load;globalThis.window=prior.window;globalThis.document=prior.document;globalThis.AudioContext=prior.AudioContext;globalThis.requestAnimationFrame=prior.raf;globalThis.cancelAnimationFrame=prior.cancel;}
+});
+
+test('optional Image tint is saved independently of audio colours and disabled by default',()=>{
+ assert.equal(DEFAULT_SCENE_VFX.imageTintEnabled,false);const channels=SETTINGS_PROPERTY_ADAPTERS['scene.vfx'].channels,base=defaultSettings();
+ const color=channels['scene.imageTint'].write(base,'#c20000'),enabled=channels['scene.imageTintEnabled'].write(color,true);
+ assert.equal(enabled.sceneVfx.pulseTintLow,base.sceneVfx.pulseTintLow);assert.equal(enabled.sceneVfx.pulseExponent,base.sceneVfx.pulseExponent);
+ assert.equal(normalizeSceneVfx(JSON.parse(serializeSceneVfx(enabled.sceneVfx))).imageTintEnabled,true);assert.equal(normalizeSceneVfx(JSON.parse(serializeSceneVfx(enabled.sceneVfx))).imageTint,'#c20000');assert.equal(normalizeSceneVfx({}).imageTintEnabled,false);
 });

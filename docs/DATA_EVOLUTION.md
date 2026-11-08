@@ -598,3 +598,25 @@ whitelists 33 fields, including 16 inactive archived approximation fields. Older
 clients may drop this brightness preference on resave and still render the earlier
 white-pulse semantics. No saved tint/palette is overwritten. GPU appearance remains
 unverified; source-response isolation/brightness migration have model coverage.
+
+
+### Selected-colour retirement and separate Image tint (2026-11-08)
+
+The user rejected Selected colours, requested its removal, and reported Single
+tint stopped responding at unchanged settings after the shared palette shader.
+Selected mode is normalized to tint; palette/range remain archived in JSON, with
+no current editor/action/shader loop. Single uses a direct compiled source path,
+All a separate variant. Audio processing/settings and exponent 0.1 are unchanged;
+no zero-exponent migration or retuning was made. All ignores Low/High tints and uses
+an untinted rest base; absent All brightness now uses a fixed default independent
+of tint. Existing explicit brightness remains. This corrects a dependency the
+user rejected; it changes rendering semantics, not authored tint identities.
+
+The user separately requested keeping whole-image tinting. imageTintEnabled
+(default false) and imageTint (default #c20000) are additive settings in the same
+property/history/export owner. Tint is an optional post-pulse wallpaper-only
+multiply, compiled out when disabled. Total serialization is 35 whitelisted
+fields: 17 active and 18 archived. Older clients may discard the two new fields and
+still expose Selected mode; retained palette values allow rollback inspection.
+No image bytes, atlas/schema/backend, capture ownership or frame pacing changes.
+Frame-model regression confirms live uniforms at 0.1, not actual GPU appearance.
