@@ -781,3 +781,19 @@ scale motion. Manual keeps its previous bass processing/smoothing. No new settin
 media source, capture permission, asset/identity/backend-format changes. Older
 previews retain old defaults and old Automatic bounce behavior; exported explicit
 settings still round-trip through the normal compatibility limits.
+
+
+### Restore continuous bass bounce while reducing delay (2026-11-08)
+
+The user rejected the per-hit Automatic bounce as rapid in/out and clarified that
+the earlier motion was preferred, with lower delay. Restore the original mono
+31–65 Hz continuous bass-level measurement and maximum-scale mapping. Automatic
+reduces analyser smoothing to 0.15 and uses 12 ms attack/45 ms release, retaining
+steady expansion on sustained bass and a gentle return. Manual keeps smoothing
+0.7 and its original response. Light Sensitivity/onset detection remains unchanged
+and no longer drives bounce. Remove the rejected bass-onset projection/getter.
+No saved fields, bounds, defaults, values, identifiers, conversion or format
+change: 42 fields, 21 active and 21 archived. User-selected tint/sensitivity/drop/
+flash defaults remain intact. Existing Audio Bounce continues to cap scale.
+Older previews render their previous motion semantics; no asset/backend/audio-
+source migration applies. Model timing constants are not end-to-end measurements.

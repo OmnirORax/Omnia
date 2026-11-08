@@ -1,7 +1,7 @@
 import {PULSE_CONTROLS,referencePulse,referencePulseRGB,pulsePalette,sourcePulseTint,RETIRED_OMNI_BRIGHTNESS_CONTROLS,omniHighTintRGB,createAutomaticPulse} from '../src/scene/pulse.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {RETIRED_LIGHT_CONTROLS,DEFAULT_SCENE_VFX,normalizeSceneVfx,serializeSceneVfx,smoothAudio,audioScale,normalizeAudioLevel,nextVfxDeadline,SCENE_VFX_FPS} from '../src/scene/vfx.ts';
+import {RETIRED_LIGHT_CONTROLS,DEFAULT_SCENE_VFX,normalizeSceneVfx,serializeSceneVfx,smoothAudio,followBass,audioScale,normalizeAudioLevel,nextVfxDeadline,SCENE_VFX_FPS} from '../src/scene/vfx.ts';
 import {defaultSettings,normalizeSettings} from '../src/workspaceActions.ts';
 import {SETTINGS_PROPERTY_ADAPTERS} from '../src/properties/settingsAdapter.ts';
 test('scene effects serialize base controls plus requested light tuning, excluding session internals',()=>{
@@ -229,7 +229,9 @@ test('Single tint ticks remain live at exponent 0.1 while bounce works; colour v
   paper.configure({...settings,imageTintEnabled:true,imageTint:'#c20000'});assert.equal(material.defines.PULSE_ALL_COLORS,0);assert.equal(material.defines.IMAGE_TINT,1);
   paper.configure({...settings,pulseRangeMode:'auto',pulseAmount:0});ctx.nodes[1].value=ctx.nodes[2].value=255;
   {const [key,fn]=pending.entries().next().value;pending.delete(key);fn(now+=20);}assert.ok(u.bounce.value>1);assert.equal(u.light.value,0);
-  ctx.nodes[1].value=ctx.nodes[2].value=0;{const [key,fn]=pending.entries().next().value;pending.delete(key);fn(now+=20);}assert.equal(u.bounce.value,1,'Automatic must return to baseline without the old bounce smoothing tail');
+  const expanded=u.bounce.value;ctx.nodes[0].value=0;ctx.nodes[1].value=ctx.nodes[2].value=0;
+  {const [key,fn]=pending.entries().next().value;pending.delete(key);fn(now+=20);}assert.ok(u.bounce.value>1&&u.bounce.value<expanded,'bass motion should return gently rather than snap in/out with each light pulse');
+  for(let i=0;i<20;i++){const [key,fn]=pending.entries().next().value;pending.delete(key);fn(now+=20);}assert.ok(u.bounce.value<1.001);
   assert.equal(settings.pulseExponent,.1);assert.equal(settings.maxFps,DEFAULT_SCENE_VFX.maxFps);
  }finally{paper.dispose();T.TextureLoader.prototype.loadAsync=prior.load;globalThis.window=prior.window;globalThis.document=prior.document;globalThis.AudioContext=prior.AudioContext;globalThis.requestAnimationFrame=prior.raf;globalThis.cancelAnimationFrame=prior.cancel;}
 });
@@ -324,18 +326,15 @@ test('automatic live sampler listens to bass and each transient with unsmoothed 
  try{
   await audio.connectSceneAudioElement({pause(){},addEventListener(){},removeEventListener(){}});
   const settings={...DEFAULT_SCENE_VFX,pulseRangeMode:'auto',pulseSensitivity:2,pulseDropContrast:2,pulseAmount:2};
-  const values=[];for(const value of [150,0,180,0,220,0,245,0]){ctx.nodes[1].value=value;values.push(audio.sampleScenePulse(settings,1/120));if(value===0)assert.equal(audio.sceneBounceResponse(),0);else assert.ok(audio.sceneBounceResponse()>0);}
+  const values=[];for(const value of [150,0,180,0,220,0,245,0]){ctx.nodes[1].value=value;values.push(audio.sampleScenePulse(settings,1/120));}
   assert.ok(values[0]>0&&values[0]<values[2]&&values[2]<values[4]&&values[4]<values[6],JSON.stringify(values));
   for(const i of [1,3,5,7])assert.equal(values[i],0);
-  assert.equal(ctx.nodes[1].fftSize,1024);assert.equal(ctx.nodes[1].smoothingTimeConstant,0);assert.equal(ctx.nodes[1].maxDecibels,0);
+  assert.equal(ctx.nodes[0].smoothingTimeConstant,.15);assert.equal(ctx.nodes[1].fftSize,1024);assert.equal(ctx.nodes[1].smoothingTimeConstant,0);assert.equal(ctx.nodes[1].maxDecibels,0);
   ctx.nodes[1].value=0;ctx.nodes[1].bed=230;for(let i=0;i<120;i++)audio.sampleScenePulse(settings,1/120);
   for(const hit of [170,195,220]){ctx.nodes[1].value=hit;assert.ok(audio.sampleScenePulse(settings,1/120)>.002);ctx.nodes[1].value=0;assert.ok(audio.sampleScenePulse(settings,1/120)<.0001);for(let i=0;i<12;i++)audio.sampleScenePulse(settings,1/120);}
   ctx.nodes[1].value=200;assert.equal(audio.sampleScenePulse({...settings,pulseRangeMode:'manual'}),0,'legacy high bands still exclude bass');
-  assert.equal(ctx.nodes[1].fftSize,2048);assert.equal(ctx.nodes[1].smoothingTimeConstant,.7);assert.equal(ctx.nodes[1].maxDecibels,-30);
-  audio.sampleScenePulse(settings);assert.ok(audio.scenePulseResponse()>0);ctx.nodes[1].value=0;audio.sampleScenePulse(settings);assert.equal(audio.sceneBounceResponse(),0);
-  ctx.nodes[1].value=150;audio.sampleScenePulse({...settings,pulseSensitivity:.25});assert.equal(audio.sceneBounceResponse(),0);
-  ctx.nodes[1].value=0;audio.sampleScenePulse(settings);ctx.nodes[1].value=220;assert.equal(audio.sampleScenePulse({...settings,pulseSensitivity:8,pulseAmount:0}),0);assert.ok(audio.sceneBounceResponse()>0,'Flash amount must not disable motion');
-  audio.disconnectSceneAudio();assert.equal(audio.scenePulseResponse(),0);assert.equal(audio.sceneBounceResponse(),0);
+  assert.equal(ctx.nodes[0].smoothingTimeConstant,.7);assert.equal(ctx.nodes[1].fftSize,2048);assert.equal(ctx.nodes[1].smoothingTimeConstant,.7);assert.equal(ctx.nodes[1].maxDecibels,-30);
+  audio.sampleScenePulse(settings);assert.ok(audio.scenePulseResponse()>0);audio.disconnectSceneAudio();assert.equal(audio.scenePulseResponse(),0);
  }finally{audio.disconnectSceneAudio();globalThis.AudioContext=prior;}
 });
 
@@ -409,4 +408,13 @@ test('both Omni endpoints use source hue and independent picker saturation/value
  const channels=SETTINGS_PROPERTY_ADAPTERS['scene.vfx'].channels,base=defaultSettings(),changed=channels['scene.pulseOmniTintLow'].write(base,'#000000');
  assert.equal(changed.sceneVfx.pulseTintLow,base.sceneVfx.pulseTintLow);assert.equal(changed.sceneVfx.pulseOmniTint,base.sceneVfx.pulseOmniTint);
  const saved=normalizeSceneVfx(JSON.parse(serializeSceneVfx(changed.sceneVfx)));assert.equal(saved.pulseOmniTintLow,'#000000');assert.equal(saved.pulseTintLow,base.sceneVfx.pulseTintLow);
+});
+
+
+test('restored continuous bass bounce attacks promptly and returns gently without following every light onset',()=>{
+ const attack=followBass(0,1,1/120);assert.ok(attack>.45,'attack must not retain the old long lag');
+ const release=followBass(1,0,1/120);assert.ok(release>.8&&release<1,'one quiet frame must not snap all the way back');
+ assert.equal(followBass(.5,.5,1/120),.5,'sustained bass should retain a steady expansion');
+ let settled=1;for(let i=0;i<60;i++)settled=followBass(settled,0,1/120);assert.ok(settled<.0001);
+ assert.equal(followBass(.4,1,0),.4);assert.ok(followBass(0,99,.1)<=1);
 });

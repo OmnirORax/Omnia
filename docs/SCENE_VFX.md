@@ -83,8 +83,8 @@ A slow 8-second calibration adjusts gain to changing music levels; it never hold
 light output. It starts at reference amplitude 0.03 and bottoms at 0.01; silence
 does not raise gain. Source reconnect or response-mode change resets calibration;
 colour edits and closing controls do not. All state is transient. No extra audio
-route, source permissions, or audible playback processing is added. Automatic bounce follows the refined bass path below; Manual retains its
-existing path. Automatic affects both Single and Omni light modes.
+route, source permissions, or audible playback processing is added. Automatic bounce follows the continuous low-bass path below; Manual retains
+its existing path. Automatic affects both Single and Omni light modes.
 
 **Light response** shows actual shader pulse input (0–2), sampled for display at
 10 Hz. It differs from the existing RMS Audio input meter. Switch to **Manual**
@@ -92,17 +92,23 @@ to restore selected frequency bands, lower/upper thresholds and exponent exactly
 Automatic ignores those values but retains them. Audio amount is shared across
 both modes. Shared settings/history/exports own mode, sensitivity and Drop contrast.
 
-## Refined Automatic bounce
+## Continuous bass bounce with less delay
 
-Automatic bounce reads bass-bin rises (through 180 Hz, subject to FFT resolution)
-from the same unsmoothed stereo sampling and local profiles as the light response.
-The shared **Sensitivity** admits/rejects its attacks. It returns directly to its
-baseline on zero bass input, bypassing the old additional bounce smoothing.
-**Audio Bounce** remains the maximum image scale, default 1.3. Flash amount and
-Drop contrast affect light only; they do not scale bounce. Gain calibration is
-advanced once per frame, with no second analyser read or playback processing.
-Manual retains its earlier bass band and smoothing. Actual motion feel needs
-user acceptance; renderer tests verify silence reset and light/motion independence.
+Automatic bounce restores the original 31–65 Hz mono bass-level measurement.
+Sustained bass retains a steady expansion; it no longer uses the light’s per-hit
+onset detector or responds across the broader 180 Hz bass/harmonic region.
+Light Sensitivity filters light only. **Audio Bounce** still sets maximum image
+scale (default 1.3); Flash amount and Drop contrast do not scale motion.
+
+To reduce lag while retaining smooth motion, Automatic lowers the bass analyser’s
+smoothing from 0.7 to 0.15, then follows the continuous level with a 12 ms attack
+and 45 ms release. The rise is quicker and the return remains gentle rather than
+snapping back on one quiet frame. These are filter time constants, not measured
+end-to-end latency; the original 2048-sample bass FFT window remains. Manual
+retains its previous analyser/response smoothing. No extra analyser/source,
+output peak hold, saved setting or permission is added. Actual motion feel remains
+user acceptance; model/renderer checks cover prompt rise, steady sustained bass,
+gentle return, convergence and independence from light pulses.
 
 ## Optional Image tint
 
@@ -213,8 +219,9 @@ quiet responses, and preserve the earlier cadence/settling checks.
 Latest regressions check actual admission counts across Sensitivity, rejection
 of continuous micro-fluctuations with strong drops retained, stronger amplitude
 response, Omni Low/High hue handling, preserved Single endpoints and renderer
-uniform wiring. Bounce checks additionally cover bass-only admission, zero-input baseline return,
-Flash amount independence and renderer selection of the direct Automatic path.
+uniform wiring. Bounce checks now cover the restored continuous low-bass path, reduced analyser
+smoothing, fast attack/gentle release, sustained-level stability and renderer
+return over time independently from light pulses.
 No fresh browser run was authorised for these changes. The numerical checks
 verify colour math and settings wiring, including normal-versus-Omni blend
 equality for pale gold/blue source hues; they do not verify GPU appearance. Test Omni

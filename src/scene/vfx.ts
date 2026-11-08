@@ -51,3 +51,10 @@ export function nextVfxDeadline(previous:number,now:number,maxFps=SCENE_VFX_FPS)
  const interval=1000/Math.max(MIN_SCENE_VFX_FPS,Math.min(MAX_SCENE_VFX_FPS,maxFps)),next=(previous||now)+interval;
  return next<now?now+interval:next;
 }
+
+/** Original continuous low-bass motion with a faster attack and a gentle return. */
+export function followBass(previous:number,next:number,seconds:number){
+ const target=Math.max(0,Math.min(1,next)),dt=Math.max(0,Math.min(.1,seconds));
+ const time=target>previous ? .012 : .045;
+ return previous+(target-previous)*(1-Math.exp(-dt/time));
+}
