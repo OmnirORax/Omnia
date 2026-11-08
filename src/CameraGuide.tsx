@@ -1,14 +1,16 @@
 import type { RefCallback } from "react";
 import { FunctionControl } from "./ui/UIWorkspace";
+import { EmbeddedGroup } from "./ui/EmbeddedGroup";
 import { UIField } from "./ui/UIField";
 
 export { DEFAULT_CAMERA_POSITION, DEFAULT_CAMERA_FOV, updateCameraGuide } from "./cameraGuideState";
 const axes = ["x", "y", "z"] as const;
 const colors = { x: "#f68b88", y: "#8cdb9b", z: "#89baff" };
 
-/** A normal movable UI field; it never changes graph coordinates. */
+/** Keep the legacy field identity while the complete panel inherits shared frame behavior. */
 export function CameraGuide({ attach }: { attach: RefCallback<HTMLDivElement> }) {
   return <UIField id="ui:cameraGuide" label="Zoom, camera and origin compass" category="View">
+    <EmbeddedGroup id="camera-guide" title="Camera & rotation">
     <div ref={attach} className="camera-guide" role="region" aria-label="Zoom and world origin compass">
       <div className="camera-guide-heading"><output data-camera="zoom" title="100% is the default camera distance and field of view, measured at the orbit target">Zoom 100%</output><FunctionControl id="zoom100" /></div>
       <div className="camera-guide-body">
@@ -24,5 +26,6 @@ export function CameraGuide({ attach }: { attach: RefCallback<HTMLDivElement> })
       <dl><dt>Looking</dt><dd data-camera="direction" /><dt>Camera</dt><dd data-camera="position" /><dt>Orbit target</dt><dd data-camera="target" /><dt>Node world XYZ</dt><dd data-camera="node">Select a node</dd></dl>
       <div className="camera-guide-actions"><FunctionControl id="world.navigate" /><FunctionControl id="cameraOrigin" /><FunctionControl id="rollLeft" /><FunctionControl id="rollRight" /></div>
     </div>
+    </EmbeddedGroup>
   </UIField>;
 }

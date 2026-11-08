@@ -1124,3 +1124,9 @@ mixed groups clears preview instead of writing the first member's baseline to al
 Existing appearance/Composer preview owners remain authoritative. Legacy controls
 that already apply while dragging keep their immediate behavior. Native picker
 change/blur acceptance varies by browser. No browser acceptance is inferred.
+
+The Camera & rotation compass uses EmbeddedGroup (`window:camera-guide`) inside
+its retained `ui:cameraGuide` field. Shared frame chrome, surface appearance,
+rigidity, docking and UI history own the complete panel; the readout payload has
+no separate background/border paint. Existing field placement/style IDs remain
+valid. No camera/graph data conversion or new UI schema is involved.

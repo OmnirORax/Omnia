@@ -1136,7 +1136,7 @@
       "id": "camera.navigation",
       "title": "Camera versus object rotation, trackball and axis lock",
       "where": "World canvas → configured navigation drag (MB2 by default); Shift opens its MC settings.",
-      "behavior": "Direct node drag turns the object. Empty space with a selection orbits the selected branch; without selection it turns the camera in place. Ctrl locks the initial rotation axis. Context choices persist for the session. Plain node/empty-slot clicks now mount or park the world navigator with the camera fixed. Preview motion stays in the fixed current view including mount/park clicks. Camera follow is retired: mounting, parking, empty clicks and Ctrl-click positioning change only navigator/node state, never camera position or target. Use explicit Frame selected front-on or navigation controls to move the camera. The world renderer occupies the full viewport behind the toolbar, sidebar and floating/docked UI. UI layout allocates UI residents without shrinking the world. Transparent UI paint reveals the same scene underneath. UI retains input ownership; transparency does not imply click-through. Existing ResizeObserver updates camera aspect and wallpaper size for the full world host. Native sidebar clearance now applies even when no explicit edge docks exist. The zoom/compass and default world UI homes use the same bounded allocation, keeping them beside the sidebar rather than over its contents.",
+      "behavior": "Direct node drag turns the object. Empty space with a selection orbits the selected branch; without selection it turns the camera in place. Ctrl locks the initial rotation axis. Context choices persist for the session. Plain node/empty-slot clicks now mount or park the world navigator with the camera fixed. Preview motion stays in the fixed current view including mount/park clicks. Camera follow is retired: mounting, parking, empty clicks and Ctrl-click positioning change only navigator/node state, never camera position or target. Use explicit Frame selected front-on or navigation controls to move the camera. The world renderer occupies the full viewport behind the toolbar, sidebar and floating/docked UI. UI layout allocates UI residents without shrinking the world. Transparent UI paint reveals the same scene underneath. UI retains input ownership; transparency does not imply click-through. Existing ResizeObserver updates camera aspect and wallpaper size for the full world host. Native sidebar clearance now applies even when no explicit edge docks exist. The zoom/compass and default world UI homes use the same bounded allocation, keeping them beside the sidebar rather than over its contents. The Camera & rotation compass panel uses a shared embedded UI frame, so its complete panel participates in UI selection, frame movement/docking, context actions, rigidity and window-surface appearance. The legacy ui:cameraGuide field identity and controls remain available; the payload no longer paints a separate hardcoded background.",
       "steps": [
         {
           "do": "Drag near a node center, then tangentially near its rim.",
@@ -1161,13 +1161,18 @@
         {
           "do": "Show the native left sidebar without creating edge docks, then open an edge dock and resize the browser.",
           "expect": "The zoom/compass and selection HUD remain outside the sidebar in both cases. Scene remains full-viewport; saved UI arrangement is not rewritten."
+        },
+        {
+          "do": "At the lower-left compass, use the Camera & rotation frame handle to move/dock the panel or open its context menu. Change UI window background in MS → Visuals.",
+          "expect": "The complete panel behaves and styles as a UI frame. Camera readings and rotation/navigation controls remain live. Existing field customizations are retained; no camera or node coordinates change from arranging the UI."
         }
       ],
       "reference": "docs/WORLD_NAVIGATION.md",
       "sources": [
         "src/SpatialWorkspace.tsx",
         "src/navigation/transforms.ts",
-        "src/workbench.css"
+        "src/workbench.css",
+        "src/CameraGuide.tsx"
       ],
       "actions": [
         "world.navigate"
@@ -1176,7 +1181,7 @@
       "status": "Implemented; browser verification pending",
       "verification": {
         "browser": "Full-viewport scene and UI overlay/input acceptance await user preview test; no browser suite run.",
-        "automated": "See subsystem tests and PR checks; not proof of usability Regression covers native-only and combined dock/sidebar clearance, absent sidebar and narrow bounds."
+        "automated": "See subsystem tests and PR checks; not proof of usability Regression covers native-only and combined dock/sidebar clearance, absent sidebar and narrow bounds. Camera panel now composes the existing EmbeddedGroup and retains the legacy UIField; required type/model/build gates apply. No new browser acceptance inferred."
       },
       "related": [
         "world.navigator"
