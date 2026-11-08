@@ -501,3 +501,28 @@ test('transient UI visibility participates in existing undo and redo without tou
  assert.equal(history.travel('undo'),1);assert.equal(hidden,false);assert.deepEqual(layout,{frames:[{id:'kept'}]});
  assert.equal(history.travel('redo'),1);assert.equal(hidden,true);
 });
+
+test('removing selected UI controls preserves placement and can be restored', async()=>{
+  const {removeUISelection,restoreUIFunction}=await import('../src/ui/removeSelection.ts');
+  const original=emptyUILayout(), hidden=removeUISelection(original,['native-control']);
+  assert.equal(hidden.items['native-control'].hidden,true);
+  assert.equal(hidden.items['native-control'].home,true);
+  assert.equal(original.items['native-control'],undefined);
+  const roundTrip=validateUILayout(JSON.parse(JSON.stringify(hidden)));
+  assert.equal(roundTrip.items['native-control'].hidden,true);
+  const restored=restoreUIFunction(roundTrip,'native-control');
+  assert.equal(restored.items['native-control'].hidden,false);
+  assert.equal(restored.items['native-control'].home,true);
+  assert.throws(()=>validateUILayout({...hidden,items:{'native-control':{...hidden.items['native-control'],hidden:'yes'}}}));
+});
+
+test('removing a docked UI control retains its container membership and styling', async()=>{
+  const {removeUISelection,restoreUIFunction}=await import('../src/ui/removeSelection.ts');
+  const layout=emptyUILayout();
+  layout.frames=[{id:'group',name:'Group',x:10,y:20,cellSize:40,collapsed:false,pinned:false,members:[{kind:'function',id:'control'}]}];
+  layout.items.control={x:23,y:41,home:false,style:{mode:'icon',geometry:'circle'}};
+  const hidden=removeUISelection(layout,['control']);
+  assert.deepEqual(hidden.frames,layout.frames);
+  assert.deepEqual(restoreUIFunction(hidden,'control').items.control,{...layout.items.control,hidden:false});
+  assert.equal(ownerOf(hidden,'function:control'),'frame:group');
+});
