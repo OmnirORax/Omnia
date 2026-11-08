@@ -161,7 +161,7 @@ class Capture:
 
 async def serve(capture, port=PORT, preview_token=None):
     from websockets.asyncio.server import serve as websocket_server
-    current_socket = None
+    clients = {}
 
     async def check(connection, request):
         url = urlsplit(request.path)
@@ -173,14 +173,13 @@ async def serve(capture, port=PORT, preview_token=None):
             return connection.respond(HTTPStatus.FORBIDDEN, "Preview pairing required\n")
 
     async def handler(socket):
-        nonlocal current_socket
-        previous_socket, current_socket = current_socket, socket
-        if previous_socket is not None:
-            await previous_socket.close(4001, "System audio moved to another Omnium tab")
-        if current_socket is not socket:
-            await socket.close(4001, "System audio moved to another Omnium tab")
+        if len(clients) >= 16:
+            await socket.close(1013, "Audio helper supports up to 16 connected tabs")
             return
-        capture.pull()
+        if not clients:
+            capture.pull()
+        queue = deque(maxlen=6)
+        clients[socket] = queue
         capture.active.set()
         previous, heartbeat = None, 0
         try:
@@ -189,7 +188,14 @@ async def serve(capture, port=PORT, preview_token=None):
                 if state != previous or time.monotonic() - heartbeat >= 1:
                     await asyncio.wait_for(socket.send(json.dumps({"type": "status", "state": state[0], "message": state[1]})), .5)
                     previous, heartbeat = state, time.monotonic()
-                packets = capture.pull()
+                # Pull each producer packet once, fan it out without awaiting,
+                # and give each tab its own bounded queue. Slow tabs cannot steal
+                # samples from or accumulate a backlog for other consumers.
+                for packet in capture.pull():
+                    for pending in clients.values():
+                        pending.append(packet)
+                packets = list(queue)
+                queue.clear()
                 for packet in packets:
                     await asyncio.wait_for(socket.send(packet), .25)
                 await asyncio.sleep(.005)
@@ -197,10 +203,10 @@ async def serve(capture, port=PORT, preview_token=None):
             # A disconnected/slow peer is dropped; capture never queues indefinitely.
             pass
         finally:
-            if current_socket is socket:
+            clients.pop(socket, None)
+            if not clients:
                 capture.active.clear()
                 capture.pull()
-                current_socket = None
             await socket.close()
 
     return await websocket_server(handler, HOST, port, process_request=check,

@@ -1007,5 +1007,5 @@ pauses auto-start. Helper identity corruption is reported and preserved rather t
 overwritten. Startup reconnects from this preference, with user-gesture resume
 when required. Clearing browser storage/profile change requires pairing again;
 older ephemeral helper builds require re-pairing after restart, so this delivery
-needs the new remembered-pairing build. One new client takes over from another;
-the old client's 4001 close does not auto-retry. No audio samples are persisted.
+needs the new remembered-pairing build. Up to 16 clients receive independent bounded copies of one capture stream;
+connecting or disconnecting one does not interrupt others. No audio samples are persisted.

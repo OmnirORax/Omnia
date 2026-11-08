@@ -37,8 +37,9 @@ the unmodified upstream bridge on port 8985 is not compatible.
 
 This first delivery is a console executable, not the final signed installer or
 automatic startup/update flow. The helper captures only while an allowed website
-tab is connected. One tab receives audio at a time; a new connection takes over. The old tab stops
-retrying until explicitly reconnected. It does not listen on the LAN,
+tab is connected. Up to 16 tabs receive the same audio independently from one capture stream.
+Connecting/closing/Stop in one tab does not disconnect other tabs. Capture stops
+when the last tab disconnects. Each tab has a bounded six-packet queue. It does not listen on the LAN,
 save audio, use a microphone, upload samples or request browser screen sharing.
 
 Windows/browser prompts may appear. ASIO/exclusive playback or audio on a different
@@ -115,5 +116,5 @@ not a browser or Windows-device acceptance check of preview pairing.
 
 Remembered pairing also has model/socket coverage for identity reuse, damaged-file
 preservation, auto-start and gesture resume, Stop/Forget, retry identity retention
-and new-tab takeover without the old disconnect stopping the new capture. No new
+and simultaneous identical PCM delivery and independent tab disconnect. No new
 browser or real Windows-device check was run for remembered connections.

@@ -2171,7 +2171,7 @@
       "id": "scene.systemAudio",
       "title": "Windows system audio through Omnium Audio Helper",
       "where": "Scene → Scene effects → Preview pairing code (one-time on GitHack), Connect system audio, Stop audio and Forget system audio. Run the Windows helper first.",
-      "behavior": "Windows WASAPI helper feeds bounded PCM to the existing muted analyser graph. The remembered-pairing build keeps a random per-install identity across restarts/EXE updates. Pair once; a successful handshake saves a versioned browser-local connection preference shared across GitHack preview URLs/PRs. Updated previews reconnect without opening settings; browser autoplay may require one click anywhere. Stop pauses automatic startup but retains pairing; Connect re-enables it; choosing a file pauses auto-start; Forget stops capture and removes browser pairing. A new connection takes over, and the old tab does not auto-retry. Live audio stays transient, local and inaudible. Existing light/bounce processing is unchanged.",
+      "behavior": "Windows WASAPI helper feeds bounded PCM to the existing muted analyser graph. The remembered-pairing build keeps a random per-install identity across restarts/EXE updates. Pair once; a successful handshake saves a versioned browser-local connection preference shared across GitHack preview URLs/PRs. Updated previews reconnect without opening settings; browser autoplay may require one click anywhere. Stop pauses automatic startup but retains pairing; Connect re-enables it; choosing a file pauses auto-start; Forget stops capture and removes browser pairing. Up to 16 tabs receive audio simultaneously from one capture stream, with independent bounded queues. Connecting or stopping one tab does not interrupt the others; capture stops when the last disconnects. Live audio stays transient, local and inaudible. Existing light/bounce processing is unchanged.",
       "steps": [
         {
           "do": "Close the old helper, extract/run the remembered-pairing build. Copy its code into Preview pairing code and Connect system audio once.",
@@ -2179,7 +2179,7 @@
         },
         {
           "do": "Leave helper running and open another updated GitHack preview/PR in the same browser profile. Click anywhere if needed. Restart the helper and play music again.",
-          "expect": "No code entry or Scene-panel opening is needed; the helper identity survives restart/update. The newest connection receives audio; older tab reports takeover and stops retrying."
+          "expect": "No code entry or Scene-panel opening is needed; the helper identity survives restart/update. All connected tabs receive the same audio without takeover; stopping/closing one leaves the others connected."
         },
         {
           "do": "Press Stop audio; reload. Then Connect again. Choose a file or use Forget system audio.",
@@ -2208,10 +2208,10 @@
         "scene.vfx"
       ],
       "status": "Implemented for first Windows validation; standalone build produced by CI; final installer deferred",
-      "limits": "Windows default-output WASAPI only; helper must run. Console prototype, no autostart/signed installer yet. Browser local-network permission and initial user activation may be needed. GitHack is a shared origin: remembered access is shared across that host, so use trusted previews only. Browser storage/profile clearing requires pairing again. Production/localhost stay direct and have separate preferences. One live consumer; new connection replaces old. Real Windows driver and browser activation behavior need user validation.",
+      "limits": "Windows default-output WASAPI only; helper must run. Console prototype, no autostart/signed installer yet. Browser local-network permission and initial user activation may be needed. GitHack is a shared origin: remembered access is shared across that host, so use trusted previews only. Browser storage/profile clearing requires pairing again. Production/localhost stay direct and have separate preferences. Up to 16 concurrent consumers, each with a bounded six-packet queue; extra connections are rejected without disconnecting existing tabs. Real Windows driver and browser activation behavior need user validation.",
       "verification": {
-        "automated": "Seven frontend tests cover PCM, bounded queues, muted graph, remembered credentials, startup/gesture resume, Stop/Forget, unknown preference preservation and retry/takeover. Nine Python tests cover real localhost transfer/origin pairing, persistent identity/corruption, latest-tab takeover and mocked output recovery. Required model/type/property/build/backend gates run before publication. No real audio devices are opened.",
-        "browser": "User-approved focused local compiled-browser check passed on 2026-11-08: synthetic stereo PCM over the real localhost helper socket reached the built AudioWorklet and existing analyser/light/bass paths; silence cleared input; Stop and reconnect succeeded. 180 samples included 58 zero-input samples. No real Windows capture/driver or packaged executable was tested on this Linux executor. Remembered setup/tab takeover/autoplay fallback have model/socket coverage only; no new browser run."
+        "automated": "Seven frontend tests cover PCM, bounded queues, muted graph, remembered credentials, startup/gesture resume, Stop/Forget, unknown preference preservation and retry. Nine Python tests cover real localhost transfer/origin pairing, persistent identity/corruption, simultaneous PCM fan-out and independent disconnect and mocked output recovery. Required model/type/property/build/backend gates run before publication. No real audio devices are opened.",
+        "browser": "User-approved focused local compiled-browser check passed on 2026-11-08: synthetic stereo PCM over the real localhost helper socket reached the built AudioWorklet and existing analyser/light/bass paths; silence cleared input; Stop and reconnect succeeded. 180 samples included 58 zero-input samples. No real Windows capture/driver or packaged executable was tested on this Linux executor. Remembered setup/multi-tab delivery/autoplay fallback have model/socket coverage only; no new browser run."
       }
     },
     {

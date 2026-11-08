@@ -128,15 +128,21 @@ class LocalConnectionTests(unittest.IsolatedAsyncioTestCase):
             self.capture.queue.append(packet)
             self.assertEqual(await asyncio.wait_for(client.recv(), 1), packet)
 
-    async def test_new_tab_takes_over_without_old_disconnect_stopping_new_capture(self):
+    async def test_tabs_receive_identical_pcm_and_disconnect_independently(self):
         from websockets.asyncio.client import connect
-        async with connect(self.url, origin='http://localhost:5173') as old:
-            await old.recv()
-            async with connect(self.url + '?pair=' + self.code, origin='https://raw.githack.com') as current:
-                await current.recv()
-                await asyncio.wait_for(old.wait_closed(), 1)
-                self.assertEqual(old.close_code, 4001)
-                self.assertTrue(self.capture.active.is_set())
+        async with connect(self.url, origin='http://localhost:5173') as first:
+            await first.recv()
+            async with connect(self.url + '?pair=' + self.code, origin='https://raw.githack.com') as second:
+                await second.recv()
                 packet = bridge.pcm_packet(struct.pack('<2f', .1, -.1), 48000, 2, 2)
                 self.capture.queue.append(packet)
-                self.assertEqual(await asyncio.wait_for(current.recv(), 1), packet)
+                self.assertEqual(await asyncio.wait_for(first.recv(), 1), packet)
+                self.assertEqual(await asyncio.wait_for(second.recv(), 1), packet)
+                self.assertIsNone(first.close_code)
+            await asyncio.sleep(.03)
+            self.assertTrue(self.capture.active.is_set())
+            packet = bridge.pcm_packet(struct.pack('<2f', .3, -.3), 48000, 2, 3)
+            self.capture.queue.append(packet)
+            self.assertEqual(await asyncio.wait_for(first.recv(), 1), packet)
+        await asyncio.sleep(.03)
+        self.assertFalse(self.capture.active.is_set())
