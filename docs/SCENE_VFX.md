@@ -306,3 +306,5 @@ Absent fields use the screenshot-selected defaults: Waves on, displacement
 .1% / .3%, counts 1.5 / 10, and speeds 3 / 3 rad/s. Existing explicit settings,
 including the earlier coefficients, Waves false and zeros remain authoritative. Appearance remains
 unverified by a browser check in this change.
+
+View/audio update (2026-11-08): Hide UI in View temporarily suppresses interface chrome while retaining the atlas and live/saved layout; Escape restores it. The Empty lattice cells button is removed from its atlas-view home only; its existing setting, renderer and other placements remain. Waves multiplies the existing displacement by a bounded gain from the existing audio input level, with silence gain 1 and explicit zero/off preserved. No new persisted wave or visibility setting, migration or audio loop. Older layouts and explicit stored values remain authoritative; browser/visual acceptance is pending.

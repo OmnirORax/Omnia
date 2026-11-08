@@ -12,6 +12,7 @@ import { normalizeFont, type FontId } from "./fonts.ts";
 import { FEATURE_ACTIONS, featureActionRuntime } from "./featureActions.ts";
 
 export const ACTIONS = [
+  { id: "ui:hideUI", category: "View", label: "Hide UI", defaultKey: "", description: "Hide interface controls while keeping the atlas visible. Press Escape to restore the interface." },
   { id: "searchUI", contextControl:true, category: "Workspace", label: "Global UI search", defaultKey: "Ctrl+Alt+S" },
   { id: "ui:devMode", category: "UI editing", label: "UI edit mode", defaultKey: "" },
   { id: "ui:arrange", category: "Workspace", label: "UI library", defaultKey: "Ctrl+Alt+U" },

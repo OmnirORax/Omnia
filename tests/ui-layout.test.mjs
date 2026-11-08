@@ -479,3 +479,16 @@ test('new native panels inherit their declared neighbor without rewriting saved 
  assert.deepEqual(saved,['file','view','workspace','custom']);
  assert.deepEqual(mergeNativeOrder(['infinity','workspace','view'],['view','infinity','workspace']),['infinity','workspace','view']);
 });
+
+test('hidden UI Escape restores it before other handlers, while normal and typing input keep their owner',async()=>{
+ const {restoreHiddenUI}=await import('../src/ui/interfaceVisibility.ts');
+ const target=new EventTarget();let hidden=true,typing=false,restored=0,other=0;
+ target.addEventListener('keydown',event=>restoreHiddenUI(event,hidden,typing,()=>{restored++;hidden=false;}));
+ target.addEventListener('keydown',()=>{other++;});
+ const key=(name,repeat=false)=>{const event=new Event('keydown',{cancelable:true});Object.defineProperties(event,{key:{value:name},repeat:{value:repeat}});target.dispatchEvent(event);return event;};
+ assert.equal(key('Escape').defaultPrevented,true);assert.equal(restored,1);assert.equal(other,0);
+ assert.equal(key('Escape').defaultPrevented,false);assert.equal(other,1);
+ hidden=true;typing=true;assert.equal(key('Escape').defaultPrevented,false);assert.equal(other,2);
+ typing=false;assert.equal(key('Escape',true).defaultPrevented,false);assert.equal(other,3);
+ assert.equal(key('x').defaultPrevented,false);assert.equal(other,4);
+});

@@ -4,6 +4,8 @@ Composer interaction update (2026-11-06, supersedes earlier Composer-only select
 
 # User operating rules (required)
 
+UI cleanup default: when the user asks to remove a button or UI instance, preserve its underlying function, shared owners and other placements unless the user explicitly requests functionality removal. Preserve authored layouts/data and ask only when the requested instance or impact is unclear.
+
 Explicitly opened MS remains aiming after each pick, including Ctrl/Shift picks; its selector cursor stays visible until Esc or editing, and parking anchors it. Completing a native modifier gesture begun while MS is off leaves MS off. Accepting a requested reference ends that temporary session. MS opening shortcuts route with selector priority even after exit, ahead of retained DOF/resident bindings, while explicit rebinding/clears, native text entry and blocked input remain authoritative.
 
 Before implementing or modifying behavior:

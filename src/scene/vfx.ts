@@ -86,3 +86,6 @@ export function createBassDynamics(){
   },
  };
 }
+
+/** Audio modulates existing wave displacement; silence retains authored waves. */
+export function waveAudioGain(level:number){return 1+2*Math.min(1,Math.max(0,Number.isFinite(level)?level:0));}

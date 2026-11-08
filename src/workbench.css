@@ -1301,3 +1301,18 @@ input,textarea,[contenteditable]:not([contenteditable="false"]){caret-color:auto
 .workbench .selection-status { top: calc(var(--world-ui-top, 0px) + 18px); left: calc(var(--world-ui-left, 0px) + 18px); }
 .workbench .spatial-help { left: calc(var(--world-ui-left, 0px) + 14px); bottom: calc(var(--world-ui-bottom, 0px) + 14px); }
 .workbench .spatial-feedback { left: calc(var(--world-ui-left, 0px) + 14px); bottom: calc(var(--world-ui-bottom, 0px) + 48px); }
+
+/* Transient presentation mode: preserve live frames, selections and saved layout. */
+:root[data-omnium-ui-hidden] .sidebar,
+:root[data-omnium-ui-hidden] .workbench > .error,
+:root[data-omnium-ui-hidden] .ui-anchor-prompt,
+:root[data-omnium-ui-hidden] .ui-selection-tools,
+:root[data-omnium-ui-hidden] .spatial-workspace > :not(canvas),
+:root[data-omnium-ui-hidden] .floating-window,
+:root[data-omnium-ui-hidden] .floating-backdrop,
+:root[data-omnium-ui-hidden] .ui-workspace-overlay,
+:root[data-omnium-ui-hidden] .ui-free-function,
+:root[data-omnium-ui-hidden] .visual-selector,
+:root[data-omnium-ui-hidden] .visual-selection-controller,
+:root[data-omnium-ui-hidden] .contextual-master-controller,
+:root[data-omnium-ui-hidden] .ui-background-menu { visibility:hidden !important; pointer-events:none !important; }

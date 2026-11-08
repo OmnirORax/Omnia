@@ -1,3 +1,4 @@
+import {restoreHiddenUI} from './ui/interfaceVisibility.ts';
 import {PATTERN_FUNCTION,patternSettings,resolvePattern} from './paint/pattern.ts';
 import {useScenePalette} from './paint/useScenePalette.ts';
 import {startRememberedSystemAudio} from './scene/audio.ts';
@@ -130,6 +131,20 @@ async function loadInitial(): Promise<InitialWorkspace> {
   }
 }
 function Workbench({initial}:{initial:InitialWorkspace}) {
+  const [uiHidden,setUiHidden]=useState(false),uiHiddenRef=useRef(false);
+  uiHiddenRef.current=uiHidden;
+  useLayoutEffect(()=>{
+    const restore=(event:KeyboardEvent)=>{
+      if(!uiHiddenRef.current)return;
+      restoreHiddenUI(event,true,isTypingTarget(event.target),()=>setUiHidden(false));
+    };
+    window.addEventListener('keydown',restore,true);
+    return()=>window.removeEventListener('keydown',restore,true);
+  },[]);
+  useEffect(()=>{
+    window.document.documentElement.toggleAttribute('data-omnium-ui-hidden',uiHidden);
+    return()=>window.document.documentElement.removeAttribute('data-omnium-ui-hidden');
+  },[uiHidden]);
   useEffect(startRememberedSystemAudio,[]);
   const [workspace, setWorkspace] = useState(initial.workspace);
   const workspaceRef = useRef(workspace); workspaceRef.current = workspace;
@@ -1078,6 +1093,10 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
       case "appearance": setThemeOpen(true); break;
       case "ui:redo": setAppearancePreview(null); actionHistory.travel("redo", { ...actionHistory.options, mode: "selective", categories: ["ui"], ...(steps ? { steps } : {}) }); break;
       case "ui:select": case "ui:compact": case "ui:align": setUICommand(old => ({ action: action === "ui:select" ? "select" : action === "ui:align" ? "align" : "compact", sequence: (old?.sequence ?? 0) + 1 })); break;
+      case "ui:hideUI": {
+        if(window.document.activeElement instanceof HTMLElement)window.document.activeElement.blur();
+        setUiHidden(value=>!value);break;
+      }
       case "ui:reset": setUICommand(old => ({ action: "reset", sequence: (old?.sequence ?? 0) + 1 })); break;
       case "ui:devMode": updateUI(layout => ({ ...layout, panels: { ...layout.panels, "@devMode": !layout.panels["@devMode"] } })); break;
       case "ui:arrange": updateUI((layout) => ({ ...layout, panels: { ...layout.panels, "@library": true } })); break;
@@ -1289,6 +1308,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
   replaceFunction("ui:saveTemplate", "Save UI template", <button onClick={exportTemplate}>Save UI template</button>);
   replaceFunction("ui:import", "Import JSON", <button onClick={() => fileInput.current?.click()}>Import JSON</button>);
   replaceFunction("ui:loadTemplate", "Load UI template", <button onClick={() => templateInput.current?.click()}>Load UI template</button>);
+  replaceFunction("ui:hideUI", "Hide UI", <button type="button" title="Press Escape to show the UI again" onClick={() => runAction("ui:hideUI")}>Hide UI</button>);
   replaceFunction("ui:view", "Layout view", <label className="toolbar-snap">View<select aria-label="Layout view" value={document.activeLayoutViewId ?? "authored-layout"} onChange={(e) => switchView(e.target.value)}>{!document.layoutViews?.some((v) => v.id === "authored-layout") && <option value="authored-layout">Authored layout</option>}{document.layoutViews?.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}</select></label>, true);
   replaceFunction("ui:viewRule", "New view rule", <label className="toolbar-snap">New view rule<select aria-label="New view rule" value={layoutRule} onChange={(e) => setLayoutRule(e.target.value as typeof layoutRule)}><option value="hierarchy">Hierarchy · top down</option><option value="flow">Directed flow · chosen roles</option><option value="compact">Compact · 3D</option><option value="manual">Manual · copy current</option></select></label>, true);
   replaceFunction("ui:snap", "Snap spacing", <label className="toolbar-snap">Snap<select aria-label="Snap spacing" value={settings.spatial.spacing} onChange={(e) => setSettings((old) => ({ ...old, spatial: { ...old.spatial, spacing: Number(e.target.value) as GridSpacing } }))}>{[0,.25,.5,1,2,5].map((v) => <option key={v} value={v}>{v || "Off"}</option>)}</select></label>, true);
@@ -1330,7 +1350,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
             {["omnic.library", "omnic.create", "omnic.open", "panel:reuse", "panel:frames", "ui:snap"].map(id => <FunctionControl id={id} key={id} />)}
           </UIPanel>
           <UIPanel id="menu:view" title="View" menu>
-            <FunctionControl id="appearance" />
+            <FunctionControl id="ui:hideUI" /><FunctionControl id="appearance" />
             <FunctionControl id="theme" />
             <FunctionControl id="ui:view" /><FunctionControl id="ui:viewRule" />
             {layoutRule === "flow" && flowType && <>

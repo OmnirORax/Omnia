@@ -1,7 +1,7 @@
 import {PULSE_CONTROLS,RETIRED_FLARE_CONTROLS,referencePulse,referencePulseRGB,pulsePalette,sourcePulseTint,RETIRED_OMNI_BRIGHTNESS_CONTROLS,omniHighTintRGB,createAutomaticPulse} from '../src/scene/pulse.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {WAVE_CONTROLS,RETIRED_LIGHT_CONTROLS,DEFAULT_SCENE_VFX,normalizeSceneVfx,serializeSceneVfx,smoothAudio,followBass,createBassDynamics,audioScale,normalizeAudioLevel,nextVfxDeadline,SCENE_VFX_FPS} from '../src/scene/vfx.ts';
+import {WAVE_CONTROLS,RETIRED_LIGHT_CONTROLS,DEFAULT_SCENE_VFX,normalizeSceneVfx,serializeSceneVfx,smoothAudio,followBass,createBassDynamics,audioScale,normalizeAudioLevel,nextVfxDeadline,SCENE_VFX_FPS,waveAudioGain} from '../src/scene/vfx.ts';
 import {defaultSettings,normalizeSettings} from '../src/workspaceActions.ts';
 import {SETTINGS_PROPERTY_ADAPTERS} from '../src/properties/settingsAdapter.ts';
 test('scene effects serialize base controls plus requested light tuning, excluding session internals',()=>{
@@ -214,21 +214,21 @@ test('Single tint ticks remain live at exponent 0.1 while bounce works; colour v
  globalThis.window={matchMedia:()=>({matches:false,addEventListener(){},removeEventListener(){}})};globalThis.document=Object.assign(new EventTarget(),{hidden:false});
  globalThis.requestAnimationFrame=fn=>{pending.set(++id,fn);return id;};globalThis.cancelAnimationFrame=i=>pending.delete(i);
  class Node{connect(n){return n;}disconnect(){}}
- class Context{state='running';sampleRate=48000;destination={};nodes=[];constructor(){ctx=this;}resume(){return Promise.resolve();}close(){return Promise.resolve();}createMediaElementSource(){return new Node();}createChannelSplitter(){return new Node();}createAnalyser(){const node=Object.assign(new Node(),{frequencyBinCount:1024,value:255,getByteFrequencyData(b){b.fill(this.value);},getByteTimeDomainData(b){b.fill(140);}});this.nodes.push(node);return node;}}
+ class Context{state='running';sampleRate=48000;destination={};nodes=[];constructor(){ctx=this;}resume(){return Promise.resolve();}close(){return Promise.resolve();}createMediaElementSource(){return new Node();}createChannelSplitter(){return new Node();}createAnalyser(){const node=Object.assign(new Node(),{frequencyBinCount:1024,value:255,getByteFrequencyData(b){b.fill(this.value);},getByteTimeDomainData(b){b.fill(128+Math.round(this.value*12/255));}});this.nodes.push(node);return node;}}
  globalThis.AudioContext=Context;T.TextureLoader.prototype.loadAsync=async()=>new T.Texture({width:8,height:8});
  const scene=new T.Scene(),paper=createWallpaper(scene,()=>{},{setRenderTarget(){},render(){}}),settings={...DEFAULT_SCENE_VFX,waves:false,distortion:0,glitching:0,pulseExponent:.1,pulseRangeMode:'manual',pulseColorMode:'tint'};
  try{
   await audio.connectSceneAudioElement({pause(){},addEventListener(){},removeEventListener(){}});paper.configure(settings);await paper.setURL('disposable');
-  const material=scene.children.find(o=>o.material?.uniforms?.light).material,u=material.uniforms,values=[];let now=0;
+  const material=scene.children.find(o=>o.material?.uniforms?.light).material,u=material.uniforms,values=[],waveValues=[];let now=0;
   assert.equal(u.distortion,undefined);assert.equal(u.glitching,undefined);assert.doesNotMatch(material.fragmentShader,/uniform float (distortion|glitching)/);
   for(const value of [20,80,160,240,255,0]){
-   ctx.nodes[1].value=value;ctx.nodes[2].value=value;const [key,fn]=pending.entries().next().value;pending.delete(key);fn(now+=20);values.push(u.light.value);
+   ctx.nodes[0].value=value;ctx.nodes[1].value=value;ctx.nodes[2].value=value;const [key,fn]=pending.entries().next().value;pending.delete(key);fn(now+=20);values.push(u.light.value);waveValues.push(u.waveAudio.value);
   }
-  for(let i=1;i<5;i++)assert.ok(values[i]>values[i-1],'light must follow changing signal at 0.1 without retuning');assert.equal(values[5],0);assert.ok(u.bounce.value>1,'bounce can remain active while light returns to zero');
+  for(let i=1;i<5;i++)assert.ok(values[i]>values[i-1],'light must follow changing signal at 0.1 without retuning');assert.equal(values[5],0);assert.equal(waveValues[5],1);assert.ok(waveValues[4]>1,'audio increases wave displacement');assert.match(material.fragmentShader,/waves\*waveAudio\*waveAmplitudeX/);assert.match(material.fragmentShader,/waves\*waveAudio\*waveAmplitudeY/);assert.ok(u.bounce.value>1,'bounce can remain active while light returns to zero');
   assert.equal(material.defines.PULSE_ALL_COLORS,0);assert.equal(material.defines.IMAGE_TINT,0);
   paper.configure({...settings,pulseColorMode:'all',pulseOmniTint:'#330f00',pulseOmniTintLow:'#003300'});assert.ok(Math.abs(u.pulseOmniTintLow.value.y-.2)<1e-5);assert.equal(u.pulseOmniTintLow.value.x,0);assert.ok(Math.abs(u.pulseOmniTint.value.x-.2)<1e-5);assert.ok(Math.abs(u.pulseOmniTint.value.y-15/255)<1e-5);assert.equal(material.defines.PULSE_ALL_COLORS,1);assert.equal(material.defines.IMAGE_TINT,0);
   paper.configure({...settings,imageTintEnabled:true,imageTint:'#c20000'});assert.equal(material.defines.PULSE_ALL_COLORS,0);assert.equal(material.defines.IMAGE_TINT,1);
-  paper.configure({...settings,pulseRangeMode:'auto',pulseAmount:0});ctx.nodes[1].value=ctx.nodes[2].value=255;
+  ctx.nodes[0].value=255;paper.configure({...settings,pulseRangeMode:'auto',pulseAmount:0});ctx.nodes[1].value=ctx.nodes[2].value=255;
   {const [key,fn]=pending.entries().next().value;pending.delete(key);fn(now+=20);}assert.ok(u.bounce.value>1);assert.equal(u.light.value,0);
   const expanded=u.bounce.value;ctx.nodes[0].value=120;ctx.nodes[1].value=ctx.nodes[2].value=0;
   {const [key,fn]=pending.entries().next().value;pending.delete(key);fn(now+=20);}assert.ok(u.bounce.value>1&&u.bounce.value<expanded,'bass motion should breathe out gently even with nonzero residual noise');
@@ -239,6 +239,9 @@ test('Single tint ticks remain live at exponent 0.1 while bounce works; colour v
   assert.equal(u.time.value,currentTime);assert.equal(u.bounce.value,currentBounce,'tuning waves must not reset audio/motion');
   paper.configure({...settings,waves:false});assert.equal(u.waves.value,0);assert.equal(u.time.value,currentTime);
   assert.equal(settings.pulseExponent,.1);assert.equal(settings.maxFps,DEFAULT_SCENE_VFX.maxFps);
+  paper.configure({...settings,pulseAmount:0});ctx.nodes[0].value=255;
+  {const [key,fn]=pending.entries().next().value;pending.delete(key);fn(now+=20);}
+  assert.equal(u.light.value,0,'light can be disabled');assert.ok(u.waveAudio.value>1,'waves still respond to input when light is disabled');ctx.nodes[0].value=0;
  }finally{paper.dispose();T.TextureLoader.prototype.loadAsync=prior.load;globalThis.window=prior.window;globalThis.document=prior.document;globalThis.AudioContext=prior.AudioContext;globalThis.requestAnimationFrame=prior.raf;globalThis.cancelAnimationFrame=prior.cancel;}
 });
 
@@ -471,4 +474,9 @@ test('default background covers no selection and unassigned nodes while explicit
  assert.equal(resolveBackgroundReference(nodes,fallback,'cleared'),null);
  assert.equal(resolveBackgroundReference(nodes,null,'new'),null);
  assert.deepEqual(nodes,{assigned:node,cleared:null});
+});
+
+test('audio wave gain is finite, bounded and leaves authored waves unchanged at silence',()=>{
+ assert.equal(waveAudioGain(0),1);assert.equal(waveAudioGain(.5),2);assert.equal(waveAudioGain(99),3);
+ assert.equal(waveAudioGain(-1),1);assert.equal(waveAudioGain(NaN),1);assert.equal(waveAudioGain(Infinity),1);
 });
