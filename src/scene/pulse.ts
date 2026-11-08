@@ -70,36 +70,50 @@ export function omniHighTintRGB(image:readonly number[],control:readonly number[
 
 /** Byte FFT decode for Automatic's -100..0 dB range. Reused across frames. */
 const AUTOMATIC_AMPLITUDES=Float32Array.from({length:256},(_,i)=>i?Math.pow(10,(-100+i/255*100)/20):0);
-/** Frequency-local rises drive flashes; sustained energy calibrates gain only. */
+/** Coherent spectral rises produce finite flares, not a continuously retriggered level. */
 export function createAutomaticPulse(){
- let range=.03;
- const profiles=new Float32Array(2048),measurement={level:0,change:0,changeLevel:0};
+ const profiles=new Float32Array(2048),histogram=new Float64Array(64);
+ const measurement={level:0,change:0};
+ const attack=.03,duration=.075;
+ let reference=.25,age=duration,height=0,magnitude=0,start=0,value=0,armed=true;
+ const smooth=(t:number)=>t*t*(3-2*t);
+ const envelope=()=>age>=duration?0:age<attack?start+(height-start)*smooth(age/attack):height*Math.pow((duration-age)/(duration-attack),2);
  return {
-  reset(){range=.03;profiles.fill(0);},
-  /** Reuses one result object. Consume it before reading the other channel. */
+  reset(){reference=.25;age=duration;height=magnitude=start=value=0;armed=true;profiles.fill(0);histogram.fill(0);},
+  /** Pool positive-change energy so one wandering frequency cannot dominate every frame. */
   spectrum(buffer:ArrayLike<number>,channel:number,first:number,last:number,seconds:number){
    const blend=1-Math.exp(-Math.max(1/1000,Math.min(.1,seconds))/.02);
-   measurement.level=measurement.change=measurement.changeLevel=0;
+   let energy=0,change=0;
    for(let i=first;i<last;i++){
-    const value=AUTOMATIC_AMPLITUDES[buffer[i]],index=channel*1024+i;
-    measurement.level=Math.max(measurement.level,value);
-    const rise=value-profiles[index];
-    if(rise>measurement.change){measurement.change=rise;measurement.changeLevel=value;}
-    profiles[index]+=(value-profiles[index])*blend;
+    const amplitude=AUTOMATIC_AMPLITUDES[buffer[i]],index=channel*1024+i;
+    const rise=Math.max(0,amplitude-profiles[index]);
+    energy+=amplitude*amplitude;change+=rise*rise;
+    profiles[index]+=(amplitude-profiles[index])*blend;
    }
+   measurement.level=Math.sqrt(energy);measurement.change=Math.sqrt(change);
    return measurement;
   },
-  sample(signal:number,seconds:number,sensitivity:number,amount:number,onset=signal,onsetLevel=signal,dropContrast=1){
-   const dt=Math.max(0,Math.min(.1,seconds));
-   const change=onset;
-   const level=onsetLevel;
-   // Sensitivity owns admission, independently of brightness and drop contrast.
-   const admitted=Math.max(0,change-range*.25/sensitivity);
-   const normalized=level/(level+range*.25);
-   const strength=Math.pow(normalized,dropContrast);
-   const output=level>0?strength*Math.min(1,admitted/level)*amount:0;
-   if(signal>0)range+=(Math.max(.01,Math.min(1,signal))-range)*(1-Math.exp(-dt/8));
-   return output;
+  sample(signal:number,seconds:number,sensitivity:number,amount:number,onset=signal,dropContrast=1){
+   const dt=Math.max(0,Math.min(.1,seconds));age+=dt;value=envelope();
+   reference=Math.max(.25,signal*.5,reference*Math.exp(-dt/8));
+   let total=0;for(const weight of histogram)total+=weight;
+   let sum=0,background=0;
+   if(total>0)for(let i=0;i<histogram.length;i++){sum+=histogram[i];if(sum>=total*.5){background=i===0?0:Math.pow(10,(-100+(i+.5)*2)/20);break;}}
+   const excess=Math.max(0,onset-background),floor=Math.max(.00005,reference*.04/sensitivity);
+   const threshold=background*(1.25+.5/Math.sqrt(sensitivity))+floor;
+   if(onset<=background*1.15+floor*.5)armed=true;
+   const strongerTail=age>=.04&&age<duration&&value<.35&&excess>magnitude*2.5;
+   if(onset>threshold&&((age>=duration&&armed)||strongerTail)){
+    start=value;age=0;magnitude=excess;reference=Math.max(reference,excess);
+    height=Math.pow(Math.min(1,excess/reference),dropContrast);armed=false;
+   }else if(age<attack&&excess>magnitude){
+    magnitude=excess;reference=Math.max(reference,excess);height=Math.max(height,Math.pow(Math.min(1,excess/reference),dropContrast));
+   }
+   value=envelope();
+   const decay=Math.exp(-dt/.6);for(let i=0;i<histogram.length;i++)histogram[i]*=decay;
+   const bin=onset>0?Math.max(1,Math.min(63,Math.floor((20*Math.log10(onset)+100)/2))):0;
+   histogram[bin]+=Math.max(dt,1/1000);
+   return value*amount;
   },
  };
 }

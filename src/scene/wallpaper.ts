@@ -94,7 +94,7 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
   };
   const visibility=()=>{cancel();schedule();};
   const motion=()=>{cancel();material.uniforms.waves.value=reduced.matches?0:Number(settings.waves);material.uniforms.distortion.value=reduced.matches?0:settings.distortion;material.uniforms.glitching.value=reduced.matches?0:settings.glitching;material.uniforms.bounce.value=1;material.uniforms.light.value=0;requestPaint();schedule();};
-  const stopAudio=subscribeSceneAudio(()=>{bassDynamics.reset();schedule();});
+  const stopAudio=subscribeSceneAudio(()=>{bassDynamics.reset();if(!isSceneAudioConnected()){material.uniforms.light.value=0;requestPaint();}schedule();});
   document.addEventListener('visibilitychange',visibility);reduced.addEventListener('change',motion);
   return {
     get visible(){return mesh.visible;},
@@ -117,7 +117,10 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
       material.uniforms.pulseOmniTintLow.value.copy(tint(settings.pulseOmniTintLow));
       const filter=Number(settings.imageTintEnabled);
       if(material.defines.IMAGE_TINT!==filter){material.defines.IMAGE_TINT=filter;material.needsUpdate=true;}
-      motion();
+      material.uniforms.waves.value=reduced.matches?0:Number(settings.waves);
+      material.uniforms.distortion.value=reduced.matches?0:settings.distortion;
+      material.uniforms.glitching.value=reduced.matches?0:settings.glitching;
+      requestPaint();schedule();
     },
     async setURL(url: string | null) {
       const mine = ++epoch;

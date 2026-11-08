@@ -224,8 +224,9 @@ test('Single tint ticks remain live at exponent 0.1 while bounce works; colour v
    ctx.nodes[1].value=value;ctx.nodes[2].value=value;const [key,fn]=pending.entries().next().value;pending.delete(key);fn(now+=20);values.push(u.light.value);
   }
   for(let i=1;i<5;i++)assert.ok(values[i]>values[i-1],'light must follow changing signal at 0.1 without retuning');assert.equal(values[5],0);assert.ok(u.bounce.value>1,'bounce can remain active while light returns to zero');
+  u.light.value=.6;
   assert.equal(material.defines.PULSE_ALL_COLORS,0);assert.equal(material.defines.IMAGE_TINT,0);
-  paper.configure({...settings,pulseColorMode:'all',pulseOmniTint:'#330f00',pulseOmniTintLow:'#003300'});assert.ok(Math.abs(u.pulseOmniTintLow.value.y-.2)<1e-5);assert.equal(u.pulseOmniTintLow.value.x,0);assert.ok(Math.abs(u.pulseOmniTint.value.x-.2)<1e-5);assert.ok(Math.abs(u.pulseOmniTint.value.y-15/255)<1e-5);assert.equal(material.defines.PULSE_ALL_COLORS,1);assert.equal(material.defines.IMAGE_TINT,0);
+  paper.configure({...settings,pulseColorMode:'all',pulseOmniTint:'#330f00',pulseOmniTintLow:'#003300'});assert.ok(Math.abs(u.pulseOmniTintLow.value.y-.2)<1e-5);assert.equal(u.pulseOmniTintLow.value.x,0);assert.equal(u.light.value,.6,'editing a colour must not reset the live pulse');assert.ok(Math.abs(u.pulseOmniTint.value.x-.2)<1e-5);assert.ok(Math.abs(u.pulseOmniTint.value.y-15/255)<1e-5);assert.equal(material.defines.PULSE_ALL_COLORS,1);assert.equal(material.defines.IMAGE_TINT,0);
   paper.configure({...settings,imageTintEnabled:true,imageTint:'#c20000'});assert.equal(material.defines.PULSE_ALL_COLORS,0);assert.equal(material.defines.IMAGE_TINT,1);
   paper.configure({...settings,pulseRangeMode:'auto',pulseAmount:0});ctx.nodes[1].value=ctx.nodes[2].value=255;
   {const [key,fn]=pending.entries().next().value;pending.delete(key);fn(now+=20);}assert.ok(u.bounce.value>1);assert.equal(u.light.value,0);
@@ -292,19 +293,15 @@ test('pale source hues receive the same fully saturated High tint as normal mode
 });
 
 
-test('automatic response follows every hit with no output hold, preserves quiet detail and stronger drops',()=>{
- const pulse=createAutomaticPulse();
- const quiet=pulse.sample(.00001,1/120,2,2);assert.equal(quiet,0,'tiny fluctuations should be rejected at ordinary sensitivity');
- assert.equal(pulse.sample(0,1/120,2,2),0);
- const hits=[];for(const signal of [.01,0,.01,0,.01,0])hits.push(pulse.sample(signal,1/120,2,2));
- for(const i of [0,2,4])assert.ok(hits[i]>quiet);for(const i of [1,3,5])assert.equal(hits[i],0);
- const small=pulse.sample(.02,0,2,2),big=pulse.sample(.2,0,2,2),drop=pulse.sample(.8,0,2,2);
- assert.ok(quiet<small&&small<big&&big<drop&&drop<2,'soft knee must retain headroom without clipping every louder hit to the same peak');
- assert.equal(pulse.sample(0,1/120,2,2),0,'the loudest previous hit cannot hold the next frame');
- assert.ok(pulse.sample(.02,0,4,2)>pulse.sample(.02,0,1,2));
- assert.equal(pulse.sample(.02,0,2,0),0);
- pulse.reset();assert.equal(pulse.sample(.00001,1/120,2,2),quiet);
+test('Automatic flares rise through mid levels then finish at zero within 100 ms',()=>{
+ for(const fps of [60,120,240]){
+  const p=createAutomaticPulse(),out=[];for(let i=0;i<Math.ceil(fps*.13);i++)out.push(p.sample(i===0?.4:0,1/fps,8,1,i===0?.4:0,1));
+  assert.equal(out[0],0,'an admitted attack must not jump instantly to full emission');
+  assert.ok(out.some(v=>v>.1&&v<.9));assert.ok(Math.max(...out)>.7);
+  for(let i=Math.ceil(fps*.1);i<out.length;i++)assert.equal(out[i],0);
+ }
 });
+
 
 test('automatic mode and sensitivity persist without rewriting legacy manual tuning',()=>{
  const old={pulseAudioLow:.07,pulseAudioHigh:.3,pulseExponent:.1,pulseAmount:1.8,pulseFrequencyMin:7,pulseFrequencyMax:10};
@@ -318,65 +315,65 @@ test('automatic mode and sensitivity persist without rewriting legacy manual tun
  const back=channels['scene.pulseRangeMode'].write(auto,'manual');assert.deepEqual(back.sceneVfx,{...legacy,pulseSensitivity:3});
 });
 
-test('automatic live sampler listens to bass and each transient with unsmoothed wide-range FFT; manual restores its source processing',async()=>{
+test('live Automatic sampler shapes graded flares, returns to base, restores Manual and clears paused pulses',async()=>{
  const audio=await import('../src/scene/audio.ts'),prior=globalThis.AudioContext;let ctx;
  class Node{connect(n){return n;}disconnect(){}}
- class Context{state='running';sampleRate=48000;destination={};nodes=[];constructor(){ctx=this;}resume(){return Promise.resolve();}close(){return Promise.resolve();}createMediaElementSource(){return new Node();}createChannelSplitter(){return new Node();}createAnalyser(){const node=Object.assign(new Node(),{frequencyBinCount:1024,value:0,getByteFrequencyData(b){b.fill(0);b[2]=this.value;b[30]=this.bed||0;},getByteTimeDomainData(b){b.fill(128);}});this.nodes.push(node);return node;}}
+ class Context{state='running';sampleRate=48000;destination={};nodes=[];constructor(){ctx=this;}resume(){return Promise.resolve();}close(){return Promise.resolve();}createMediaElementSource(){return new Node();}createChannelSplitter(){return new Node();}createAnalyser(){const node=Object.assign(new Node(),{frequencyBinCount:1024,value:0,getByteFrequencyData(b){b.fill(0);if(this.data)b.set(this.data);else{b[2]=this.value;b[30]=this.bed||0;}},getByteTimeDomainData(b){b.fill(128);}});this.nodes.push(node);return node;}}
  globalThis.AudioContext=Context;
+ const media={paused:false,pause(){this.paused=true;},addEventListener(){},removeEventListener(){}};
  try{
-  await audio.connectSceneAudioElement({pause(){},addEventListener(){},removeEventListener(){}});
-  const settings={...DEFAULT_SCENE_VFX,pulseRangeMode:'auto',pulseSensitivity:2,pulseDropContrast:2,pulseAmount:2};
-  const values=[];for(const value of [150,0,180,0,220,0,245,0]){ctx.nodes[1].value=value;values.push(audio.sampleScenePulse(settings,1/120));}
-  assert.ok(values[0]>0&&values[0]<values[2]&&values[2]<values[4]&&values[4]<values[6],JSON.stringify(values));
-  for(const i of [1,3,5,7])assert.equal(values[i],0);
-  assert.equal(ctx.nodes[0].smoothingTimeConstant,.15);assert.equal(ctx.nodes[0].maxDecibels,0);assert.equal(ctx.nodes[1].fftSize,1024);assert.equal(ctx.nodes[1].smoothingTimeConstant,0);assert.equal(ctx.nodes[1].maxDecibels,0);
-  ctx.nodes[1].value=0;ctx.nodes[1].bed=230;for(let i=0;i<120;i++)audio.sampleScenePulse(settings,1/120);
-  for(const hit of [170,195,220]){ctx.nodes[1].value=hit;assert.ok(audio.sampleScenePulse(settings,1/120)>.002);ctx.nodes[1].value=0;assert.ok(audio.sampleScenePulse(settings,1/120)<.0001);for(let i=0;i<12;i++)audio.sampleScenePulse(settings,1/120);}
-  ctx.nodes[1].value=200;assert.equal(audio.sampleScenePulse({...settings,pulseRangeMode:'manual'}),0,'legacy high bands still exclude bass');
-  assert.equal(ctx.nodes[0].smoothingTimeConstant,.7);assert.equal(ctx.nodes[0].maxDecibels,-30);assert.equal(ctx.nodes[1].fftSize,2048);assert.equal(ctx.nodes[1].smoothingTimeConstant,.7);assert.equal(ctx.nodes[1].maxDecibels,-30);
-  audio.sampleScenePulse(settings);assert.ok(audio.scenePulseResponse()>0);audio.disconnectSceneAudio();assert.equal(audio.scenePulseResponse(),0);
+  await audio.connectSceneAudioElement(media);const settings={...DEFAULT_SCENE_VFX,pulseRangeMode:'auto',pulseSensitivity:8,pulseDropContrast:1,pulseAmount:1};
+  const hit=(v)=>{const out=[];for(let i=0;i<24;i++){ctx.nodes[1].value=i<2?v:0;out.push(audio.sampleScenePulse(settings,1/120));}assert.equal(out[0],0);assert.ok(out.slice(14).every(v=>v===0));return Math.max(...out);};
+  const peaks=[150,180,220,245].map(hit);for(let i=1;i<peaks.length;i++)assert.ok(peaks[i]>peaks[i-1]);assert.ok(peaks[1]>.05&&peaks[1]<.5);
+  assert.equal(ctx.nodes[0].smoothingTimeConstant,.15);assert.equal(ctx.nodes[0].maxDecibels,0);assert.equal(ctx.nodes[1].fftSize,1024);assert.equal(ctx.nodes[1].smoothingTimeConstant,0);
+  ctx.nodes[1].bed=230;for(let i=0;i<120;i++)audio.sampleScenePulse(settings,1/120);assert.equal(audio.scenePulseResponse(),0);
+  assert.ok(hit(190)>0,'new quieter-frequency hits must still be represented over a steady bed');
+  ctx.nodes[1].value=200;assert.equal(audio.sampleScenePulse({...settings,pulseRangeMode:'manual'}),0);assert.equal(ctx.nodes[1].fftSize,2048);assert.equal(ctx.nodes[1].smoothingTimeConstant,.7);assert.equal(ctx.nodes[0].maxDecibels,-30);
+  ctx.nodes[1].bed=0;ctx.currentTime=0;audio.sampleScenePulse(settings,0);ctx.currentTime=1/120;assert.ok(audio.sampleScenePulse(settings,0)>0,'audio time must advance even when a setting edit resets render dt');ctx.currentTime=.1;ctx.nodes[1].value=0;assert.equal(audio.sampleScenePulse(settings,0),0,'a stale flare must expire by audio time');delete ctx.currentTime;ctx.nodes[1].value=200;audio.sampleScenePulse(settings,1/120);media.paused=true;assert.equal(audio.sampleScenePulse(settings,1/120),0);
+  media.paused=false;ctx.nodes[1].value=0;for(let i=0;i<20;i++)assert.equal(audio.sampleScenePulse(settings,1/120),0,'resume must not restore an old flare tail');
+  const dense=new Uint8Array(512);ctx.nodes[1].data=dense;let seed=123,total=0,count=0;
+  for(let t=0;t<360;t++){for(let i=4;i<100;i++){seed=(1664525*seed+1013904223)>>>0;dense[i]=150+Math.floor(seed/4294967296*65);}const v=audio.sampleScenePulse(settings,1/120);if(t>120){total+=v;count++;}}
+  assert.ok(total/count<.1,'actual sampler must not restore the old high hover under dense changing frequencies');
+  audio.disconnectSceneAudio();assert.equal(audio.scenePulseResponse(),0);
  }finally{audio.disconnectSceneAudio();globalThis.AudioContext=prior;}
 });
 
 
-test('automatic flashes separate DUN hits above a continuous louder tone instead of staying lit',()=>{
- const pulse=createAutomaticPulse(),buffer=new Uint8Array(512),dt=1/120;
- buffer[20]=230; // Sustained loud bed masks the hits when only the strongest bin is used.
- const sample=()=>{const m=pulse.spectrum(buffer,0,1,512,dt);return pulse.sample(m.level,dt,2,2,m.change,m.changeLevel);};
- for(let i=0;i<120;i++)sample();assert.ok(sample()<.0001,'a steady bed must stop holding the flash');
- for(const hit of [170,195,220]){
-  buffer[70]=hit;const attack=sample();assert.ok(attack>.002,'a quieter frequency attack must register below the louder sustained bed');
-  buffer[70]=0;assert.ok(sample()<.0001,'between hits the continuous tone cannot keep the flash lit');
-  for(let i=0;i<12;i++)sample();
+function spectralFrame(p,b,sensitivity=8,contrast=1){const dt=1/120,m=p.spectrum(b,0,1,b.length,dt);return p.sample(m.level,dt,sensitivity,1,m.change,contrast);}
+test('dense changing frequencies cannot hold the light high or keep firing micro-flares',()=>{
+ const p=createAutomaticPulse(),b=new Uint8Array(512),out=[];let seed=123;
+ for(let t=0;t<600;t++){
+  for(let i=4;i<100;i++){seed=(1664525*seed+1013904223)>>>0;b[i]=150+Math.floor(seed/4294967296*65);}
+  const v=spectralFrame(p,b);if(t>120)out.push(v);
  }
- buffer[70]=170;const small=sample();buffer[70]=0;for(let i=0;i<24;i++)sample();buffer[70]=220;assert.ok(sample()>small,'a harder attack must yield a stronger flash');
-});
-
-test('sensitivity changes which attacks are admitted across the full slider range',()=>{
- const attacks=[.001,.002,.005,.01,.02,.05];
- const counts=[.25,.5,1,2,4,8].map(s=>{const p=createAutomaticPulse();return attacks.filter(a=>p.sample(a,0,s,2)>0).length;});
- assert.deepEqual(counts,[1,2,3,4,5,6],'lower sensitivity must actually suppress events, not just shave their brightness');
-});
-
-test('maximum sensitivity does not turn the short onset window into a long flash tail',()=>{
- const pulse=createAutomaticPulse(),buffer=new Uint8Array(512),dt=1/120;buffer[10]=220;
- const sample=()=>{const m=pulse.spectrum(buffer,0,1,512,dt);return pulse.sample(m.level,dt,8,2,m.change,m.changeLevel);};
- const attack=sample();let after=0;for(let i=0;i<12;i++)after=sample();
- assert.ok(after<attack*.02,'even max sensitivity should settle within 100 ms instead of extending the flash');
+ assert.ok(out.filter(v=>v===0).length/out.length>.8,'dense nonzero background must not hover at emission');
+ assert.ok(out.reduce((a,b)=>a+b,0)/out.length<.1,'the old model averaged about 0.69 on this fixture');
 });
 
 
-test('quiet-detail sensitivity cannot make small hits nearly equivalent to big drops',()=>{
- const pulse=createAutomaticPulse();
- for(const sensitivity of [.25,.5,1,2,4,8]){
-  const small=pulse.sample(.003,0,sensitivity,2,.003,.003,2),drop=pulse.sample(.3,0,sensitivity,2,.3,.3,2);
-  assert.ok(small>=0);assert.ok(drop>small*10,`drop must remain much stronger at sensitivity ${sensitivity}`);
- }
- const smallBefore=pulse.sample(.003,0,8,2,.003,.003,1),bigBefore=pulse.sample(.3,0,8,2,.3,.3,1);
- const smallAfter=pulse.sample(.003,0,8,2,.003,.003,4),bigAfter=pulse.sample(.3,0,8,2,.3,.3,4);
- assert.ok(bigAfter/smallAfter>bigBefore/smallBefore,'Drop contrast must widen relative strength, independently of timing');
- assert.ok(bigAfter>1,'high contrast must retain a strong drop rather than just dim everything');
+function isolatedFlare(level,sensitivity=8,contrast=1){const p=createAutomaticPulse(),out=[];for(let i=0;i<24;i++)out.push(p.sample(i===0?level:0,1/120,sensitivity,1,i===0?level:0,contrast));return Math.max(...out);}
+test('Sensitivity changes event admission without turning admitted heights into binary peaks',()=>{
+ const levels=[.002,.004,.008,.016,.032,.064],counts=[.25,.5,1,2,4,8].map(s=>levels.filter(a=>isolatedFlare(a,s)>0).length);
+ assert.deepEqual(counts,[1,2,3,4,5,6]);
+ const peaks=[.01,.05,.1,.2,.4].map(v=>isolatedFlare(v));
+ for(let i=1;i<peaks.length;i++)assert.ok(peaks[i]>peaks[i-1]);
+ assert.ok(peaks[1]>.1&&peaks[1]<.4);assert.ok(peaks[2]>.3&&peaks[2]<.6);
 });
+
+
+test('maximum sensitivity still gives a finite return instead of a hovering tail',()=>{
+ const p=createAutomaticPulse(),out=[];
+ for(let i=0;i<80;i++)out.push(p.sample(.4,1/120,8,1,.4,1));
+ assert.ok(out.some(v=>v>.7));assert.ok(out.slice(14).every(v=>v===0),'an unreleased continuous trigger cannot hold a pulse open');
+});
+
+
+test('Drop contrast widens small/drop strength while preserving the shaped peak',()=>{
+ const small=isolatedFlare(.01),big=isolatedFlare(.4);assert.ok(small>0&&big>small*10);
+ const smallHighContrast=isolatedFlare(.01,8,4),bigHighContrast=isolatedFlare(.4,8,4);
+ assert.ok(bigHighContrast/smallHighContrast>big/small);assert.ok(bigHighContrast>.8);
+});
+
 
 test('Drop contrast inherits shared settings, bounds and persistence without editing other audio or colour parameters',()=>{
  const base=defaultSettings(),channels=SETTINGS_PROPERTY_ADAPTERS['scene.vfx'].channels;
@@ -387,15 +384,19 @@ test('Drop contrast inherits shared settings, bounds and persistence without edi
 });
 
 
-test('low sensitivity blocks ongoing micro-flicker, high sensitivity admits it, and strong drops stay powerful',()=>{
- const low=createAutomaticPulse(),high=createAutomaticPulse(),buffer=new Uint8Array(512),dt=1/120;
- const read=(p,s)=>{const m=p.spectrum(buffer,0,1,512,dt);return p.sample(m.level,dt,s,2,m.change,m.changeLevel);};
- buffer[20]=210;for(let i=0;i<240;i++){read(low,.25);read(high,8);}
- let lowCount=0,highCount=0;
- for(let i=0;i<60;i++){buffer[20]=210+i%2;if(read(low,.25)>0)lowCount++;if(read(high,8)>0)highCount++;}
- assert.equal(lowCount,0);assert.ok(highCount>20);
- buffer[20]=250;assert.ok(read(low,.25)>1,'rejecting details must not make a strong drop weak');assert.ok(read(high,8)>1.5);
+test('graded musical attacks over a nonzero background have distinct peaks and complete valleys',()=>{
+ const p=createAutomaticPulse(),b=new Uint8Array(512),peaks=[],tails=[];let seed=987;
+ for(let t=0;t<240;t++){
+  for(let i=2;i<90;i++){seed=(1664525*seed+1013904223)>>>0;b[i]=100+Math.floor(seed/4294967296*12);}
+  const hit=Math.floor((t-120)/12),phase=(t-120)%12;
+  if(t>=120&&hit<5&&phase<2)for(let i=10;i<26;i++)b[i]=[140,150,170,190,220][hit];
+  const v=spectralFrame(p,b);if(t>=120&&hit<5){peaks[hit]=Math.max(peaks[hit]||0,v);if(phase>=10)tails[hit]=Math.max(tails[hit]||0,v);}
+ }
+ assert.ok(peaks[0]>0&&peaks[0]<.1);assert.ok(peaks[2]>.2&&peaks[2]<.5);assert.ok(peaks[4]>.8);
+ for(let i=1;i<peaks.length;i++)assert.ok(peaks[i]>peaks[i-1]*1.2);
+ assert.ok(tails.every(v=>v===0),'nonzero residual frequencies must not fill the valleys');
 });
+
 
 test('both Omni endpoints use source hue and independent picker saturation/value; Single base survives',()=>{
  for(const image of [[.8,.3,.1],[.1,.3,.8],[.5,.5,.5]]){
@@ -427,4 +428,12 @@ test('residual bass after a drop cannot hold zoom while small details remain pro
  const small=dynamics.sample(.01,0),medium=dynamics.sample(.08,0),drop=dynamics.sample(.2,0);
  assert.ok(small>0&&small<.05);assert.ok(medium>small&&medium<.5);assert.equal(drop,1);
  assert.equal(dynamics.sample(0,.1),0);dynamics.reset();assert.ok(dynamics.sample(.01,0)>small*5,'reset must release the previous track peak reference');assert.equal(dynamics.sample(.0005,.1),0);
+});
+
+
+test('nearby spectral changes coalesce into one flare without extending its deadline',()=>{
+ const p=createAutomaticPulse(),out=[];
+ for(let i=0;i<24;i++){const flux=i===0?.02:i===2?.03:i===4?.025:i===6?.03:0;out.push(p.sample(.1,1/120,8,1,flux,1));}
+ let runs=0;for(let i=0;i<out.length;i++)if(out[i]>0&&!(out[i-1]>0))runs++;
+ assert.equal(runs,1);assert.ok(out.slice(12).every(v=>v===0));
 });

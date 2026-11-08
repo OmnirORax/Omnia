@@ -814,3 +814,24 @@ ceiling. Light processing and all requested defaults remain unchanged. No saved
 field/default/bounds/identity/conversion/format changes: 42 fields, 21 active and
 21 archived. Older previews retain the old bounce mapping; no asset/backend/source
 permission migration applies. Runtime raw bassAmplitude is ephemeral, not exported.
+
+
+### Finite graded flares replace continuously retriggered light (2026-11-08)
+
+The user reported micro-flicker, hovering near high emission and binary strength.
+Automatic now pools positive spectral-change energy, compares it with a transient
+64-bin recent-background median, and admits finite flare events. Thirty-ms smooth
+attack plus 45-ms return defines a 75-ms envelope. Nearby changes coalesce without
+extending it; substantially stronger attacks may replace faint late tails.
+Calibrated event amplitude (reference floor 0.25) replaces the old near-saturating
+per-frame curve, so Drop contrast 1 retains linear intermediate peak heights.
+Sensitivity controls event prominence above background rather than a binary
+frame-level flash gate. Existing numeric values/IDs/defaults/bounds remain; this
+is an intentional Automatic response correction, not an equivalent old rendering.
+AudioContext time owns phase, so config/render restarts cannot stretch it. Field
+edits preserve live uniforms/timing; pause/stop clears stale events. Learning and
+phase are transient and reset with the audio/mode lifecycle. No saved fields or
+migrations: 42 fields, 21 active and 21 archived. Manual, bass bounce, requested
+RGB/defaults and spatial tint blending remain. Older previews render the former
+curve; exports retain their normal compatibility limits. No assets, identities,
+backend formats, sources or permissions change.
