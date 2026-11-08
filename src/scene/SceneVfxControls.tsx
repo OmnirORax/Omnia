@@ -1,30 +1,27 @@
 import {WAVE_CONTROLS} from './vfx.ts';
 import {PROPERTY_REGISTRY} from '../appearance/registry';
 import {PULSE_CONTROLS} from './pulse';
-import {useEffect,useLayoutEffect,useRef,useState,useSyncExternalStore} from 'react';
+import {useEffect,useRef,useState,useSyncExternalStore} from 'react';
 import {CoupledField,type PropertyBindings} from '../properties/CoupledProperties';
 import {UISection} from '../ui/UISection';
+import {readSystemAudioPreference} from './systemAudioPreference';
 import {UIField} from '../ui/UIField';
 import {FunctionControl} from '../ui/UIWorkspace';
 import {useFeatureActions} from '../ui/useFeatureActions';
-import {connectSceneSystemAudio,playSceneAudio,loadSceneAudioFile,stopSceneAudio,sceneAudioSnapshot,subscribeSceneAudio,sampleSceneAudio,scenePulseResponse,parkSceneAudioPlayer} from './audio';
+import {systemAudioRequiresPairing} from './nativePcm';
+import {toggleSceneSystemAudio,forgetSceneSystemAudio,sceneAudioSnapshot,subscribeSceneAudio,sampleSceneAudio,scenePulseResponse} from './audio';
 export function SceneVfxControls({bindings}:{bindings:PropertyBindings}){
- const file=useRef<HTMLInputElement>(null),host=useRef<HTMLDivElement>(null),meter=useRef<HTMLMeterElement>(null),responseMeter=useRef<HTMLMeterElement>(null),[error,setError]=useState('');
+ const meter=useRef<HTMLMeterElement>(null),responseMeter=useRef<HTMLMeterElement>(null),[error,setError]=useState('');
  const mode=bindings.values['scene.vfx']?.[PROPERTY_REGISTRY.consumer('scene.vfx')!.channels['scene.pulseColorMode']];
  const automatic=bindings.values['scene.vfx']?.[PROPERTY_REGISTRY.consumer('scene.vfx')!.channels['scene.pulseRangeMode']]==='auto';
  const tintEnabled=bindings.values['scene.vfx']?.[PROPERTY_REGISTRY.consumer('scene.vfx')!.channels['scene.imageTintEnabled']];
  const audio=useSyncExternalStore(subscribeSceneAudio,sceneAudioSnapshot);
- useLayoutEffect(()=>{
-   const player=audio.player;if(!player||!host.current)return;
-   host.current.appendChild(player);return()=>{parkSceneAudioPlayer(player);};
- },[audio.player]);
+ const [pairingCode,setPairingCode]=useState(''),pairing=systemAudioRequiresPairing(window.location.origin);
  useEffect(()=>{let frame=0,last=0;const tick=(now:number)=>{if(now-last>=100){last=now;if(meter.current)meter.current.value=sampleSceneAudio().level;if(responseMeter.current)responseMeter.current.value=scenePulseResponse();}frame=requestAnimationFrame(tick);};frame=requestAnimationFrame(tick);return()=>cancelAnimationFrame(frame);},[]);
  const fail=(error:unknown)=>setError(error instanceof Error?error.message:'Audio connection failed');
- useFeatureActions('sceneAudio',{
- 'scene.audioSystem':{enabled:true,run:()=>{setError('');void connectSceneSystemAudio().catch(fail);}},
- 'scene.audioConnect':{enabled:true,run:()=>{setError('');void playSceneAudio().catch(fail);}},
- 'scene.audioDisconnect':{enabled:true,run:()=>{stopSceneAudio();setError('');}},
- 'scene.audioFile':{enabled:true,run:()=>file.current?.click()},
+ const actions=useFeatureActions('sceneAudio',{
+ 'scene.audioForget':{enabled:true,run:()=>{forgetSceneSystemAudio();setPairingCode('');setError('');}},
+ 'scene.audioSystem':{enabled:true,run:()=>{setError('');const code=pairingCode||readSystemAudioPreference()?.code||'';void toggleSceneSystemAudio(code).catch(fail);}},
  });
  return <UISection id="scene-vfx" title="Scene effects">
  <UISection id="scene-pulse" title="Wallpaper Engine pulse">
@@ -49,11 +46,14 @@ export function SceneVfxControls({bindings}:{bindings:PropertyBindings}){
  {WAVE_CONTROLS.map(({key,label})=><UIField key={key} id={`scene.vfx.${key}`} label={label} category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property={`scene.${key}`}/></UIField>)}
  <small>Displacement is a percentage of the view. Each wave count controls bands across the opposite axis. Speed 0 freezes that component; negative speed reverses it. Set both displacements to 0 for no wave deformation. Values preview live and save on release.</small>
  </UISection>
- <FunctionControl id="scene.audioSystem"/><FunctionControl id="scene.audioFile"/><FunctionControl id="scene.audioConnect"/><FunctionControl id="scene.audioDisconnect"/>
- <input ref={file} type="file" accept="audio/*" hidden onChange={event=>{const selected=event.target.files?.[0];event.target.value='';if(selected){setError('');loadSceneAudioFile(selected);}}}/>
- <div ref={host}/>
- <label>Audio input<meter ref={meter} aria-label="Audio input level" min={0} max={1} value={0}/></label>
- <small role="status">{error||audio.status}</small>
- <small>Connect system audio with Omnium Audio Helper running, or choose a file and press Play. The input meter shows what reaches the effects. Closing controls keeps the connection; Stop audio disconnects it.</small>
+ <UIField id="scene-system-audio-toggle" label="System audio" category="Scene"><label><input type="checkbox" checked={audio.kind==='system'} onChange={()=>actions.invoke('scene.audioSystem')}/>System audio</label></UIField>
+ {pairing&&!audio.remembered&&<UIField id="scene-audio-pairing" label="Preview pairing code" category="Scene"><label>Pairing code<input type="password" autoComplete="off" spellCheck={false} maxLength={32} value={pairingCode} onChange={event=>setPairingCode(event.target.value)} placeholder="Paste the helper code once"/></label></UIField>}
+ {audio.remembered&&<UISection id="scene-audio-settings" title="Audio connection settings" defaultExpanded={false}>
+ {pairing&&<UIField id="scene-audio-repair" label="Replace pairing code" category="Scene"><label>Replace pairing code<input type="password" autoComplete="off" spellCheck={false} maxLength={32} value={pairingCode} onChange={event=>setPairingCode(event.target.value)} placeholder="Saved — turn audio off/on to use a new code"/></label></UIField>}
+ <FunctionControl id="scene.audioForget"/>
+ </UISection>}
+ {error&&<p role="alert">{error}</p>}
+ <p role="status">{audio.status}</p>
+ <label>Audio input<meter ref={meter} aria-label="Audio input" min={0} max={1} value={0}/></label>
  </UISection>;
 }

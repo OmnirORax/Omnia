@@ -319,3 +319,10 @@ contextController windows do not activate on inspection-key refresh. See
 [the interaction lifecycle](OMNIC_INTERACTION_LIFECYCLE.md).
 
 Selection entry commands may declare `activationScope` for runtime arbitration. This is the scope their shortcut activates, so entry does not lose to a retained editor before that scope is open. Installation/default conflict checks still use `scope`; user bindings are not migrated or silently assigned. Native typing, blocked input and explicit clears retain the shared protections.
+
+MB4/MB5 browser-history protection covers press, pointerup/mouseup and auxclick
+at the application boundary, including UI and canvas. Release only cancels the
+browser default; the existing shortcut owner alone executes the bound action.
+Bindings/history/settings formats are unchanged. This does not intercept browser
+chrome or separate OS/driver Back/Forward commands. Physical acceptance remains
+user testing; no browser run is inferred from static/model checks.

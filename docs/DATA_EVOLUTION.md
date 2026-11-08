@@ -1,5 +1,22 @@
 # Data evolution and compatibility contract
 
+Selective workspace transfer (2026-11-08): `workspaceTransfer.ts` owns the additive
+`omnium-workspace-transfer` version 1 envelope. Optional validated workspace,
+layout and settings parts plus atlas IDs/library/complete markers express presence;
+absence never synthesizes a replacement. Workspace snapshots retain format/version.
+Atlas slices retain transitive canonical dependencies; shared definitions/library
+includes the canonical pool and organization. Partial import adds fresh identities
+using one map across atlases, remapping recipes, pinned role addresses, glyph text,
+binder visuals and library membership. Unselected current data remains intact.
+Complete selected content offers explicit full replacement. Layout and settings
+are independently overlaid through the existing font/guard/paired-recovery owner.
+Historical workspace, combined-backup v1, atlas and UI-template v3 files are read
+into the same chooser; old clients reject the new envelope without migration.
+Export never modifies originals. Unknown/newer or malformed parts reject before
+replacement, even when a user would leave that part unchecked. Byte/budget and
+normal data validation remain authoritative. No cloud/backend format change,
+credential transfer, complete environment archive or browser acceptance is implied.
+
 Adopted 2026-11-04. This is a project-wide development requirement. It applies to
 browser saves, recovery slots, drafts, exports/imports, cloud snapshots, database
 schemas, assets and saved settings. Developers own compatibility as part of each
@@ -995,7 +1012,20 @@ keep website-file playback and do not connect to the helper. No capture permissi
 is inferred from saved settings; connection is explicit. Native packaging is a
 standalone Windows CI artifact with retained upstream/dependency licensing; final
 signed installer, auto-start and updates remain deferred. Native input only accepts
-omnium.nexus/localhost origins; shared public preview origins are excluded.
+omnium.nexus/localhost origins directly; raw.githack.com and single-label previews of omnia-web-bae.pages.dev require a
+32-character per-install pairing code copied from the helper console once. The new helper
+persists its random per-install identity under LocalAppData, independently of EXE
+updates. Browser-local `omnium.system-audio.connection.v1` stores a strict version-1
+record {version:1, code, enabled} after successful handshake; older clients ignore
+it. It never enters workspace settings, exports, UI history or public artifacts.
+Unknown/unreadable versions remain untouched; explicit Forget removes the local
+record. System audio off retains the identity and disables auto-start. The file
+player and its separate Play/Stop commands are now retired (see below). Helper identity corruption is reported and preserved rather than
+overwritten. Startup reconnects from this preference, with user-gesture resume
+when required. Clearing browser storage/profile change requires pairing again;
+older ephemeral helper builds require re-pairing after restart, so this delivery
+needs the new remembered-pairing build. Up to 16 clients receive independent bounded copies of one capture stream;
+connecting or disconnecting one does not interrupt others. No audio samples are persisted.
 
 ### Shared scene pattern paint (2026-11-08)
 
@@ -1017,3 +1047,17 @@ Normalization clamps finite values to declared ranges; invalid fields fall back
 without changing originals or graph/image/backend formats. No version migration
 is required. Older clients can drop the additional fields on rewrite. See
 [wave tuning](SCENE_VFX.md#live-waves-tuning).
+
+### System audio toggle and file-player retirement (2026-11-08)
+
+The System audio toggle reuses the existing device-local pairing preference v1.
+On connects/reconnects; off disconnects, cancels retries and pauses automatic startup
+without deleting pairing. First pairing appears when needed; replacement pairing
+and explicit Forget live under Audio connection settings. Forget remains deliberate
+removal of this browser-local credential. There is no new saved field or migration.
+Choose audio file, Play audio and the separate Stop action are retired UI commands;
+System audio off replaces Stop. Historical layout/shortcut references to retired
+commands remain unavailable-ID records and are not reassigned to another action.
+Chosen files/playback positions were transient and never entered workspace exports.
+The internal media analyser remains a regression fixture, not a user file-player
+entry point. Workspace/image/backend formats and original bytes are unchanged.

@@ -192,12 +192,13 @@ change. Missing Image tint fields retain disabled/red defaults.
 
 ## Audio and rendering
 
-**Choose audio file → Play audio** uses direct website playback and analysis of
-the same media element. Stop audio ends playback/analysis and keeps the file ready;
-closing controls keeps playback running. The file input requests no browser capture. Optional Windows system input now uses
-Omnium Audio Helper; see [System audio](SYSTEM_AUDIO.md). It does not use browser
-tab/screen sharing or microphone input. Any captures
-still active in older preview pages must be stopped there/by closing those pages.
+**System audio** is a single on/off toggle for Omnium Audio Helper. On connects
+or retries; off cancels retries and disables automatic reconnection while retaining
+pairing. Closing controls leaves the app-owned connection running. First preview
+pairing appears only when needed; replacement pairing and Forget are under Audio
+connection settings. The file picker/player and separate Play/Stop controls are
+retired. See [System audio](SYSTEM_AUDIO.md). No browser tab/screen sharing or
+microphone input is requested. Older preview pages must be disconnected separately.
 
 The RMS Audio input meter and both bounce modes retain the app-owned audio session.
 Two stereo analyser taps supply Manual’s 16 log bands/channel or Automatic’s

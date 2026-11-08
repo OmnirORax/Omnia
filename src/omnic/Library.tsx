@@ -18,7 +18,7 @@ import {referenceComponents,type Recipe} from './model';
 import {WORKSPACE_BACKUP_BYTES} from './workspaceBackup';
 import './composer.css';
 
-type Props={onExport:()=>Promise<string>;onImport:(text:string)=>Promise<boolean>;onRecover:()=>Promise<boolean>;workspace:OmnicWorkspace;onChange:(next:OmnicWorkspace)=>void;onSwitch:(id:string)=>void;onOpen:(id:string)=>void;onPlace:(id:string)=>void;onCopy:(recipe:Recipe,label:string,source:string)=>void};
+type Props={onExport:()=>void;onImport:(text:string)=>void;onRecover:()=>Promise<boolean>;workspace:OmnicWorkspace;onChange:(next:OmnicWorkspace)=>void;onSwitch:(id:string)=>void;onOpen:(id:string)=>void;onPlace:(id:string)=>void;onCopy:(recipe:Recipe,label:string,source:string)=>void};
 const PAGE=32;
 const tags=(text:string)=>[...new Set(text.split(',').map(tag=>tag.trim()).filter(Boolean))];
 export function OmnicLibrary({workspace,onChange,onSwitch,onOpen,onPlace,onCopy,onExport,onImport,onRecover}:Props){
@@ -56,12 +56,11 @@ export function OmnicLibrary({workspace,onChange,onSwitch,onOpen,onPlace,onCopy,
   },[selected,revision,resolver]);
   const attempt=(run:()=>void)=>{try{run();setError('');}catch(error){setError(error instanceof Error?error.message:String(error));}};
   const set=(patch:Partial<StructuralFilter>)=>setFilter(previous=>{const next={...previous,...patch};for(const key of Object.keys(next))if(next[key as keyof StructuralFilter]===undefined||next[key as keyof StructuralFilter]==='')delete next[key as keyof StructuralFilter];return next;});
-  const download=async()=>{const data=await onExport();const url=URL.createObjectURL(new Blob([data],{type:'application/json'})),link=document.createElement('a');link.href=url;link.download='omnium-workspace-backup.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
   useFeatureActions('omnicLibrary',{
     'omnic.library.open':{enabled:!!selected,run:()=>selected&&onOpen(selected.id)},
     'omnic.library.place':{enabled:!!selected,run:()=>attempt(()=>selected&&onPlace(selected.id))},
     'omnic.library.copy':{enabled:!!selected,run:()=>attempt(()=>selected&&onCopy(selected.omnic!,`${selected.label} copy`,selected.id))},
-    'omnic.workspace.export':{enabled:true,run:()=>void download().then(()=>{setError('');setNotice('Workspace and UI exported.');}).catch(error=>setError(error instanceof Error?error.message:String(error)))},
+    'omnic.workspace.export':{enabled:true,run:onExport},
     'omnic.workspace.import':{enabled:true,run:()=>input.current?.click()},
     'omnic.workspace.recover':{enabled:true,run:()=>void onRecover().then(ui=>{setNotice(ui?'Workspace and UI backup restored.':'Workspace backup restored; UI unchanged.');setError('');}).catch(error=>setError(error instanceof Error?error.message:String(error)))},
   });
@@ -71,7 +70,7 @@ export function OmnicLibrary({workspace,onChange,onSwitch,onOpen,onPlace,onCopy,
       <div className="omnic-row"><UIField id="omnic:active-atlas" label="Active atlas" category="Omnic"><select aria-label="Active atlas" value={workspace.activeAtlasId} onChange={event=>onSwitch(event.target.value)}>{workspace.atlases.map(atlas=><option key={atlas.id} value={atlas.id}>{atlas.name}</option>)}</select></UIField>
         <FunctionControl id="omnic.workspace.export"/><FunctionControl id="omnic.workspace.import"/><FunctionControl id="omnic.workspace.recover"/>
       </div>
-      <input ref={input} type="file" accept="application/json,.json" hidden onChange={event=>{const file=event.target.files?.[0];event.target.value='';if(!file)return;void (async()=>{try{if(file.size>WORKSPACE_BACKUP_BYTES)throw Error('Workspace backup exceeds its size limit.');const restoredUI=await onImport(await file.text());setSelectedId('');setNotice(restoredUI?'Workspace and UI imported. Recover previous workspace restores both.':'Legacy workspace imported; UI unchanged.');setError('');}catch(error){setError(error instanceof Error?error.message:String(error));}})();}}/>
+      <input ref={input} type="file" accept="application/json,.json" hidden onChange={event=>{const file=event.target.files?.[0];event.target.value='';if(!file)return;void (async()=>{try{if(file.size>WORKSPACE_BACKUP_BYTES)throw Error('Workspace backup exceeds its size limit.');onImport(await file.text());setNotice('Choose parts in the import window.');setError('');}catch(error){setError(error instanceof Error?error.message:String(error));}})();}}/>
     </UISection>
     <UISection id="omnic-library-browse" title={`Objects · ${results.length}`}>
       <div className="omnic-row">
