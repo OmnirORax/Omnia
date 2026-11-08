@@ -79,6 +79,7 @@ type Props = {
   onTransformNodes: (ids: string[], rotation: Rotation, pivot: XYZ, layout: boolean) => void;
   wallpaperURL?: string | null;
   wallpaperIdentity?:string;
+  wallpaperPreview?:HTMLCanvasElement|null;
   colorPreview?: ColorPreview | null;
   atlas: Atlas;
   document: Document;
@@ -912,7 +913,7 @@ export default function SpatialWorkspace(props: Props) {
   }, []);
 
   const wallpaperIdentity=useRef<string|undefined>(undefined);
-  useEffect(() => { if (ready){void stateRef.current?.wallpaper.setURL(props.wallpaperURL ?? null,wallpaperIdentity.current===props.wallpaperIdentity);wallpaperIdentity.current=props.wallpaperIdentity;} }, [ready, props.wallpaperURL,props.wallpaperIdentity]);
+  useEffect(() => { if (ready){void stateRef.current?.wallpaper.setSource(props.wallpaperPreview??props.wallpaperURL ?? null,wallpaperIdentity.current===props.wallpaperIdentity);wallpaperIdentity.current=props.wallpaperIdentity;} }, [ready, props.wallpaperURL,props.wallpaperIdentity,props.wallpaperPreview]);
 
   useEffect(() => {
     const state = stateRef.current; if (!state || !ready) return;

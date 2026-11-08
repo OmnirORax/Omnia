@@ -69,3 +69,21 @@ test('active context bindings preserve preview ownership for settings and borrow
  const base={values:{settings:{value:0}},commit:changes=>events.push(['base commit',changes]),preview:changes=>events.push(['base preview',changes])},borrowed={values:{object:{value:0}},commit:changes=>events.push(['object commit',changes]),preview:changes=>events.push(['object preview',changes])};
  const active=installContextBindings(borrowed);try{const binding=contextPropertyBindings(base),changes=[{consumer:'settings',property:'value',value:1},{consumer:'object',property:'value',value:2}];binding.preview(changes);binding.commit(changes);assert.deepEqual(events.map(e=>e[0]),['base preview','object preview','base commit','object commit']);assert.equal(events[0][1][0],changes[0]);assert.equal(events[1][1][0],changes[1]);}finally{active.dispose();}
 });
+
+test('allocation-free pixel processing retains frozen pre-optimization byte output',async()=>{
+ const {createHash}=await import('node:crypto');
+ const source=Uint8ClampedArray.from({length:4096},(_,i)=>i%4===3?(i%28===3?0:255):(i*37+13)%256);
+ const fixtures=[
+  [{exposure:.75,contrast:1.25,saturation:.75,balance:[1.06,.94,1]},'9af7e021fec5a518b042733edcae2582de9bdde1aca5a546c29acef7543be508'],
+  [{exposure:-.75,contrast:.75,saturation:1.25,balance:[.94,1.06,1]},'79f5aedcead9ad8fe5d2d6352cf1d0424d4227d40ed0450578f64953e2e69798'],
+  [{exposure:0,contrast:1,saturation:1,balance:[1,1,1]},'a3c5d7eec743503bb1ed923d0142c7bdac57d531c356038ba8490930ee58e6fd'],
+ ];
+ for(const [corrections,hash] of fixtures)assert.equal(createHash('sha256').update(transformScenePixels(source,corrections)).digest('hex'),hash);
+});
+test('canvas previews reach the existing wallpaper sampler synchronously without image encoding/loading',async()=>{
+ const THREE=await import('three');const {createWallpaper}=await import('../src/scene/wallpaper.ts');const {createSphereBackground}=await import('../src/scene/sphereBlend.ts');
+ const scene=new THREE.Scene(),background=createSphereBackground();let paints=0;const wallpaper=createWallpaper(scene,()=>paints++,background),canvas={width:384,height:216};
+ const first=wallpaper.setSource(canvas);assert.ok(background.image.value instanceof THREE.CanvasTexture);assert.equal(background.image.value.image,canvas);assert.equal(background.image.value.colorSpace,THREE.SRGBColorSpace);assert.equal(background.hasImage.value,1);assert.ok(paints>0,'no async load barrier before repaint request');await first;
+ const previous=background.image.value;let disposed=false;previous.addEventListener('dispose',()=>{disposed=true;});const replacement={width:384,height:216};await wallpaper.setSource(replacement,true);assert.equal(background.image.value.image,replacement);assert.equal(disposed,true);
+ await wallpaper.setSource(null);assert.equal(background.image.value,null);assert.equal(background.hasImage.value,0);wallpaper.dispose();assert.equal(scene.children.length,0);
+});

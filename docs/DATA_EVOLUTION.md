@@ -437,3 +437,10 @@ are memory-only; full-size derivatives retain the existing SHA/version/constrain
 cache and authored formats. Source/account guards still clear previous imagery;
 only same-source updates retain the last visible texture until replacement loads.
 No migration or change to saved image bytes, constraints or graph fields.
+
+Direct-canvas normalization previews are transient renderer inputs, never saved or
+cached as derivatives. Full PNG output, algorithm/cache keys, authored constraints,
+image bytes and graph settings retain their formats. Scalar kernel optimization
+is checked against frozen historical pixel-byte hashes. The shared wallpaper owner
+now accepts URL or canvas sources; source/account clear and resource disposal are
+preserved. No data migration/version bump or cloud deployment is required.

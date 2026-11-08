@@ -870,3 +870,12 @@ source samples. Release runs full resolution without needing collapse/blur. Reta
 last same-source imagery through processing and texture load, but clear it on
 source/account changes or explicit null. User authorized only a focused local
 normalization drag/release/image-refresh check; no broad suites/profile inference.
+
+Normalization latency correction: the heading refresh theory was disproved by the
+user; metrics and imagery were delayed together. Keep drag frames as direct canvas
+uploads in the existing wallpaper owner, never PNG encode/reload per input sample.
+Use an event-driven serial latest-value queue with an owned reusable worker, not
+polling or full-resolution processing during dragging. Full PNG/cache work remains
+on commit. Preserve scalar-kernel byte parity, source/account guards and transient
+settings/history boundaries. The user owns post-fix latency acceptance; do not
+extend delivery into repeated profiling/benchmarks or claim sufficiency from tests.

@@ -33,15 +33,14 @@ const clamp=(n:number,a=0,b=1)=>Math.max(a,Math.min(b,n));
 const linear=(v:number)=>v<=.04045?v/12.92:Math.pow((v+.055)/1.055,2.4);
 const encoded=(v:number)=>v<=.0031308?v*12.92:1.055*Math.pow(v,1/2.4)-.055;
 const LINEAR=Float64Array.from({length:256},(_,i)=>linear(i/255));
-const weights=[.2126,.7152,.0722];
-const luma=(rgb:readonly number[])=>rgb.reduce((s,v,i)=>s+v*weights[i],0);
 export function sampleScenePixels(bytes:Uint8ClampedArray,max=16384){const count=bytes.length/4,step=Math.max(1,Math.ceil(count/max)),out=new Uint8ClampedArray(Math.ceil(count/step)*4);for(let i=0,j=0;i<count;i+=step,j+=4)out.set(bytes.subarray(i*4,i*4+4),j);return out;}
 function summarize(bytes:Uint8ClampedArray){
  const histogram=new Float64Array(256),neutrals=[0,0,0];let total=0,mean=0,saturation=0,neutralWeight=0,shadow=0,highlight=0;
- for(let i=0;i<bytes.length;i+=4){const w=bytes[i+3]/255;if(w<.05)continue;const rgb=[bytes[i]/255,bytes[i+1]/255,bytes[i+2]/255],y=luma(rgb),max=Math.max(...rgb),min=Math.min(...rgb),sat=max?(max-min)/max:0;
+ for(let i=0;i<bytes.length;i+=4){const w=bytes[i+3]/255;if(w<.05)continue;
+  const r=bytes[i]/255,g=bytes[i+1]/255,b=bytes[i+2]/255,y=r*.2126+g*.7152+b*.0722,max=Math.max(r,g,b),min=Math.min(r,g,b),sat=max?(max-min)/max:0;
   total+=w;mean+=y*w;saturation+=sat*w;histogram[Math.round(y*255)]+=w;
-  shadow+=rgb.filter(c=>c===0).length*w/3;highlight+=rgb.filter(c=>c===1).length*w/3;
-  if(sat<.18&&y>.12&&y<.85){neutralWeight+=w;for(let c=0;c<3;c++)neutrals[c]+=rgb[c]*w;}
+  shadow+=((r===0?1:0)+(g===0?1:0)+(b===0?1:0))*w/3;highlight+=((r===1?1:0)+(g===1?1:0)+(b===1?1:0))*w/3;
+  if(sat<.18&&y>.12&&y<.85){neutralWeight+=w;neutrals[0]+=r*w;neutrals[1]+=g*w;neutrals[2]+=b*w;}
  }
  const percentile=(q:number)=>{let sum=0;for(let i=0;i<256;i++){sum+=histogram[i];if(sum>=total*q)return i/255;}return 0;};
  const neutralMean=neutrals.reduce((a,b)=>a+b,0)/3,offsets=neutrals.map(n=>neutralMean?(n-neutralMean)/neutralMean:0);
@@ -51,17 +50,20 @@ export const analyzeScenePixels=(bytes:Uint8ClampedArray)=>summarize(bytes).metr
 const identity=():Corrections=>({exposure:0,contrast:1,saturation:1,balance:[1,1,1]});
 export function transformScenePixels(source:Uint8ClampedArray,p:Corrections,out:Uint8ClampedArray=new Uint8ClampedArray(source.length),start=0,end=source.length){
  if(p.exposure===0&&p.contrast===1&&p.saturation===1&&p.balance.every(v=>v===1)){out.set(source.subarray(start,end),start);return out;}
- const exposure=p.exposure*Math.LN2;
- for(let i=start;i<end;i+=4){if(source[i+3]===0){out.set(source.subarray(i,i+4),i);continue;}
-  const originalRGB=[0,1,2].map(c=>LINEAR[source[i+c]]),y=luma(originalRGB),balanced=originalRGB.map((v,c)=>v*p.balance[c]),balancedLuma=luma(balanced);
-  const rgb=balanced.map(v=>v*(balancedLuma>0?y/balancedLuma:0)),safe=clamp(y,1e-8,1-1e-8);
-  const mapped=y<=0?0:y>=1?1:1/(1+Math.exp(-(Math.log(safe/(1-safe))*p.contrast+exposure)));
-  const chroma=rgb.map(c=>(c-y)*(y>0?mapped/y:0)*p.saturation);let gamut=1;
-  for(const c of chroma)if(c>0)gamut=Math.min(gamut,(1-mapped)/c);else if(c<0)gamut=Math.min(gamut,-mapped/c);
-  for(let c=0;c<3;c++){
-   // Preserve headroom per channel: never introduce new endpoint clipping when quantizing.
-   const value=Math.round(encoded(clamp(mapped+chroma[c]*gamut))*255),original=source[i+c];out[i+c]=clamp(value,original===0?0:1,original===255?255:254);
-  }out[i+3]=source[i+3];
+ const exposure=p.exposure*Math.LN2,br=p.balance[0],bg=p.balance[1],bb=p.balance[2];
+ for(let i=start;i<end;i+=4){const r8=source[i],g8=source[i+1],b8=source[i+2],alpha=source[i+3];
+  if(alpha===0){out[i]=r8;out[i+1]=g8;out[i+2]=b8;out[i+3]=alpha;continue;}
+  const r=LINEAR[r8],g=LINEAR[g8],b=LINEAR[b8],y=r*.2126+g*.7152+b*.0722,balancedR=r*br,balancedG=g*bg,balancedB=b*bb;
+  const balancedLuma=balancedR*.2126+balancedG*.7152+balancedB*.0722,ratio=balancedLuma>0?y/balancedLuma:0,safe=clamp(y,1e-8,1-1e-8);
+  const mapped=y<=0?0:y>=1?1:1/(1+Math.exp(-(Math.log(safe/(1-safe))*p.contrast+exposure))),gain=y>0?mapped/y:0;
+  const cr=(balancedR*ratio-y)*gain*p.saturation,cg=(balancedG*ratio-y)*gain*p.saturation,cb=(balancedB*ratio-y)*gain*p.saturation;let gamut=1;
+  if(cr>0)gamut=Math.min(gamut,(1-mapped)/cr);else if(cr<0)gamut=Math.min(gamut,-mapped/cr);
+  if(cg>0)gamut=Math.min(gamut,(1-mapped)/cg);else if(cg<0)gamut=Math.min(gamut,-mapped/cg);
+  if(cb>0)gamut=Math.min(gamut,(1-mapped)/cb);else if(cb<0)gamut=Math.min(gamut,-mapped/cb);
+  // Keep the established byte output and endpoint protection without per-pixel arrays.
+  out[i]=clamp(Math.round(encoded(clamp(mapped+cr*gamut))*255),r8===0?0:1,r8===255?255:254);
+  out[i+1]=clamp(Math.round(encoded(clamp(mapped+cg*gamut))*255),g8===0?0:1,g8===255?255:254);
+  out[i+2]=clamp(Math.round(encoded(clamp(mapped+cb*gamut))*255),b8===0?0:1,b8===255?255:254);out[i+3]=alpha;
  }return out;
 }
 const gap=(v:number,min:number,max:number)=>v<min?min-v:v>max?v-max:0;

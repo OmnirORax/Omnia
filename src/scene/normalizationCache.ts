@@ -8,7 +8,28 @@ async function database(){return new Promise<IDBDatabase>((resolve,reject)=>{con
 async function cacheRead(key:string){const db=await database();try{return await new Promise<Cached|undefined>((resolve,reject)=>{const transaction=db.transaction('results','readwrite'),store=transaction.objectStore('results'),request=store.get(key);let value:Cached|undefined;request.onsuccess=()=>{value=request.result;if(value)store.put({...value,touched:Date.now()});};transaction.oncomplete=()=>resolve(value);transaction.onerror=transaction.onabort=()=>reject(transaction.error);});}finally{db.close();}}
 async function cacheWrite(value:Cached){if(value.blob.size>MAX_CACHE_BYTES)return;const db=await database();try{await new Promise<void>((resolve,reject)=>{const transaction=db.transaction('results','readwrite'),store=transaction.objectStore('results'),request=store.getAll();request.onsuccess=()=>{const entries=(request.result as Cached[]).filter(e=>e.key!==value.key).sort((a,b)=>b.touched-a.touched);let size=value.blob.size,count=1;for(const entry of entries){size+=entry.blob.size;count++;if(size>MAX_CACHE_BYTES||count>MAX_CACHE_IMAGES)store.delete(entry.key);}store.put(value);};transaction.oncomplete=()=>resolve();transaction.onerror=transaction.onabort=()=>reject(transaction.error);});}finally{db.close();}}
 const aborted=(signal?:AbortSignal)=>{if(signal?.aborted)throw new DOMException('Normalization cancelled.','AbortError');};
-export async function normalizeSceneBlob(original:Blob,preferences:NormalizationPreferences,signal?:AbortSignal,persistent=true,maxEdge?:number):Promise<{blob:Blob;report:NormalizationReport;cached:boolean}>{
+type WorkerResult={pixels:Uint8ClampedArray;report:NormalizationReport};
+/** One serial processor per display session; ownership/cancellation stays with its caller. */
+export function createNormalizationProcessor(){
+ let worker:Worker|null=null,closed=false,pending:(()=>void)|null=null;
+ return {
+  process(pixels:Uint8ClampedArray,preferences:NormalizationPreferences,sample:Uint8ClampedArray,signal?:AbortSignal){
+   return new Promise<WorkerResult>((resolve,reject)=>{
+    if(closed||signal?.aborted){reject(new DOMException('Normalization cancelled.','AbortError'));return;}
+    if(pending){reject(new Error('Normalization processor is already in use.'));return;}
+    worker??=new NormalizationWorker();
+    const cleanup=()=>{pending=null;signal?.removeEventListener('abort',cancel);};
+    const cancel=()=>{cleanup();worker?.terminate();worker=null;reject(new DOMException('Normalization cancelled.','AbortError'));};pending=cancel;
+    worker.onmessage=event=>{cleanup();if(event.data.error)reject(new Error(event.data.error));else resolve(event.data);};
+    worker.onerror=()=>{cleanup();worker?.terminate();worker=null;reject(new Error('Image normalization could not run. The original remains available.'));};
+    signal?.addEventListener('abort',cancel,{once:true});worker.postMessage({pixels,preferences,sample},[pixels.buffer]);
+   });
+  },
+  dispose(){closed=true;pending?.();worker?.terminate();worker=null;},
+ };
+}
+type NormalizationOptions={signal?:AbortSignal;persistent?:boolean;maxEdge?:number;processor?:ReturnType<typeof createNormalizationProcessor>};
+export async function normalizeSceneBlob(original:Blob,preferences:NormalizationPreferences,{signal,persistent=true,maxEdge,processor}:NormalizationOptions={}):Promise<{blob:Blob;report:NormalizationReport;cached:boolean;canvas?:HTMLCanvasElement}>{
  persistent=persistent&&!maxEdge;
  aborted(signal);
  const digest=await crypto.subtle.digest('SHA-256',await original.arrayBuffer());
@@ -27,17 +48,13 @@ export async function normalizeSceneBlob(original:Blob,preferences:Normalization
   }
   samples.delete(hash);samples.set(hash,sample);if(samples.size>8)samples.delete(samples.keys().next().value!);
 
-  const result=await new Promise<{pixels:Uint8ClampedArray;report:NormalizationReport}>((resolve,reject)=>{
-   const worker=new NormalizationWorker();
-   const cleanup=()=>{worker.terminate();signal?.removeEventListener('abort',cancel);};
-   const cancel=()=>{cleanup();reject(new DOMException('Normalization cancelled.','AbortError'));};
-   worker.onmessage=event=>{cleanup();if(event.data.error)reject(new Error(event.data.error));else resolve(event.data);};
-   worker.onerror=()=>{cleanup();reject(new Error('Image normalization could not run. The original remains available.'));};
-   signal?.addEventListener('abort',cancel,{once:true});if(signal?.aborted){cancel();return;}
-   worker.postMessage({pixels:input.data,preferences,sample},[input.data.buffer]);
-  });aborted(signal);
+  const owned=processor?null:createNormalizationProcessor();let result:WorkerResult;
+  try{result=await (processor??owned!).process(input.data,preferences,sample,signal);}finally{owned?.dispose();}aborted(signal);
+  if(result.report.changed)context.putImageData(new ImageData(new Uint8ClampedArray(result.pixels),canvas.width,canvas.height),0,0);
+  // Drag previews upload directly to the existing wallpaper texture; no PNG encode/decode.
+  if(maxEdge)return {blob:original,report:result.report,cached:false,canvas};
   let blob=original;
-  if(result.report.changed){context.putImageData(new ImageData(new Uint8ClampedArray(result.pixels),canvas.width,canvas.height),0,0);blob=await new Promise<Blob>((resolve,reject)=>canvas.toBlob(value=>value?resolve(value):reject(new Error('Corrected image could not be encoded.')),'image/png'));}
+  if(result.report.changed)blob=await new Promise<Blob>((resolve,reject)=>canvas.toBlob(value=>value?resolve(value):reject(new Error('Corrected image could not be encoded.')),'image/png'));
   aborted(signal);if(persistent)await cacheWrite({key,blob:result.report.changed?blob:new Blob(),report:result.report,touched:Date.now()}).catch(()=>{});aborted(signal);
   return {blob,report:result.report,cached:false};
  }finally{image.close();}

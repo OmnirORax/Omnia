@@ -276,3 +276,22 @@ last same-source result stays on screen while processing/loading its replacement
 Scene/account identity changes and explicit clear still clear immediately. Keeping
 or collapsing the settings section does not control scene refresh. No saved format
 changes or new global input listeners are introduced.
+
+Responsiveness follow-up: the user confirmed that the header click was incidental;
+both metrics and image were delayed by processing. The focused built-app trace
+showed worker processing followed by PNG encoding and image loading on the drag
+path. Dragging now passes reduced canvases directly to the existing wallpaper
+sampler (CanvasTexture, sRGB, matching orientation) and requests paint immediately.
+Only committed full-size results use PNG encoding/persistent caching. Candidate
+changes kick the serial latest-value queue directly; there is no polling interval.
+A processor/worker is reused within the display editing session and disposed on
+cancellation/source changes. Pixel metrics/transforms use scalar inner loops to
+remove repeated arrays/callbacks; frozen fixtures retain pre-optimization byte
+output. Existing source samples, correction equations, clipping guards, saved
+settings and cache keys are unchanged. Source/account changes still clear prior
+imagery; same-source updates retain it until a replacement is ready. These remove
+concrete overhead, but user interactive latency acceptance and hardware performance
+remain unverified after this change; model/build checks do not establish them.
+Short drags also catch up with a small final frame before starting full-size PNG
+work if no preview of the committed value arrived yet. This is still a transient
+frame; settings commit normally and only the full result enters the saved cache.

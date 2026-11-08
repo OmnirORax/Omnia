@@ -2293,6 +2293,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
               bindings={propertyBindings}
               history={actionHistory}
               onTransformNodes={(ids, rotation, pivot, layout) => {const scale=latticeScale(settings.spatial.latticeScale);commitDocument(transformPlacements(layout?latticeDocument(document,settings.spatial.nodeCellSize):document, ids, rotation, layout?{x:pivot.x/scale,y:pivot.y/scale,z:pivot.z/scale}:pivot, layout));}}
+              wallpaperPreview={showOriginalScene||safeView?null:normalizedScene.canvas}
               wallpaperIdentity={sceneReferenceKey(sceneBackground.reference)}
               wallpaperURL={safeView ? null : showOriginalScene?sceneBackground.url:normalizedScene.url??sceneBackground.url}
               atlas={atlas}

@@ -8,7 +8,7 @@ window.probeAdaptiveTexture=async()=>{
  const renderer=new THREE.WebGLRenderer({antialias:false});document.body.appendChild(renderer.domElement);const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(55,1,.05,100),background=createSphereBackground();camera.position.z=3;
  const wallpaper=createWallpaper(scene,()=>{},background),fixture=document.createElement('canvas');fixture.width=256;fixture.height=64;const ctx=fixture.getContext('2d');
  for(let x=0;x<256;x++){ctx.fillStyle=`rgb(${x},${255-x},${(x*7)%256})`;ctx.fillRect(x,0,1,32);ctx.fillStyle=`rgb(${255-x},${x},${(x*11)%256})`;ctx.fillRect(x,32,1,32);}
- await wallpaper.setURL(fixture.toDataURL());
+ await wallpaper.setSource(fixture.toDataURL());
  scene.add(new THREE.AmbientLight('white',2.1));const light=new THREE.DirectionalLight('white',2.2);light.position.set(5,12,9);scene.add(light);
  const original=atomicCarrierMaterial('#0044ff',1,.82,1),adaptive=atomicCarrierMaterial('#0044ff',1,.82,1,background),sphere=new THREE.Mesh(atomicCarrierGeometry(1.6),original);scene.add(sphere);
  const quadScene=new THREE.Scene(),quadMaterial=new THREE.ShaderMaterial({uniforms:sphereBackgroundUniforms(background),depthTest:false,depthWrite:false,vertexShader:'void main(){gl_Position=vec4(position.xy,1.0,1.0);}',fragmentShader:sphereBackgroundGLSL+'\nuniform vec2 sphereBlendResolution;\nvoid main(){gl_FragColor=vec4(sphereBackground(gl_FragCoord.xy/sphereBlendResolution,0.0),1.0);\n#include <colorspace_fragment>\n}'}),quad=new THREE.Mesh(new THREE.PlaneGeometry(2,2),quadMaterial);quad.frustumCulled=false;quadScene.add(quad);
