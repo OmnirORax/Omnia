@@ -554,3 +554,29 @@ output budget. Older clients render the same image/preferences through their pri
 lower-resolution path. Offscreen-composite failure falls back to direct rendering
 at output density, with potentially increased graph cost. No browser appearance or
 performance acceptance is inferred from resolution-model/build checks.
+
+
+### Pulse palette, new defaults and approximation retirement (2026-11-08)
+
+The user explicitly requested screenshot defaults and removal of Earlier
+approximation. Its renderer, model selector, properties and halo cache are removed.
+The 16 historical approximation/model values remain normalized/serialized only
+for settings round trips and older-client rollback; no current render/editor uses
+them. Old lightModel=legacy cannot activate that renderer. This is deliberate
+retirement, not reinterpretation or silent loss of prior preferences.
+
+Three additive active fields are introduced: pulseColorMode (tint/selected/all,
+absent tint), pulseColors (bounded normalized comma-separated palette, absent blue
+and orange) and pulseColorWidth (absent 30 degrees). Total 32 whitelisted fields
+include 16 active and 16 archived. Existing settings/history/templates/exports
+remain the owners. Empty palette remains empty, matching zero pixels in Selected
+mode. Invalid tokens are ignored; duplicates are case-folded; at most eight colours
+are retained. Earlier 29-field clients can discard the three new fields on resave.
+
+Numeric defaults change to bands 14–15, bounds 0.01–1, exponent 0.1, amount 2 and
+Bounce 1.3. Screenshot swatches are approximated #ffe5e5 / #001438 pending exact
+hex values. Existing explicit values survive; absence adopts the requested new
+defaults. Assets/image bytes, assignments, atlas/backend schemas and audio-source
+ownership do not change. Palette/All modes extend the pulse by selecting source
+hue families and using untinted image-channel contributions, not by remapping the
+archived legacy colour settings. Browser acceptance remains unverified.

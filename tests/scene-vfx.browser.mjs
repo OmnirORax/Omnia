@@ -10,7 +10,7 @@ try{
  await page.addInitScript(value=>{window.testTone=value;},tone().toString('base64'));
  await page.goto(origin);await page.getByRole('button',{name:'Scene effects',exact:true}).waitFor();
  const defaults=await page.evaluate(async()=>{const {defaultSettings}=await import('/src/workspaceActions.ts');return defaultSettings().sceneVfx;});
- assert.deepEqual(Object.fromEntries(Object.entries(defaults).filter(([k])=>['audioLight','audioBounce','waves','distortion','glitching','maxFps'].includes(k))),{audioLight:'#aa3300',audioBounce:1.12,waves:true,distortion:.4,glitching:.3,maxFps:120});
+ assert.deepEqual(Object.fromEntries(Object.entries(defaults).filter(([k])=>['audioLight','audioBounce','waves','distortion','glitching','maxFps'].includes(k))),{audioLight:'#aa3300',audioBounce:1.3,waves:true,distortion:.4,glitching:.3,maxFps:120});
  assert.ok((await page.locator('body').innerText()).includes('Audio Light'));
  const chooser=page.waitForEvent('filechooser');await page.getByRole('button',{name:'Choose audio file',exact:true}).click();await(await chooser).setFiles({name:'disposable-55hz.wav',mimeType:'audio/wav',buffer:tone()});
  await page.getByRole('button',{name:'Play audio',exact:true}).click();await page.getByText('Audio file connected',{exact:true}).waitFor();

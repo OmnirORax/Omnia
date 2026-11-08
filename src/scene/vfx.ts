@@ -1,10 +1,10 @@
-import {PULSE_CONTROLS,type PulseKey} from './pulse.ts';
+import {PULSE_CONTROLS,pulsePalette,type PulseKey} from './pulse.ts';
 /** Scene effects and user-adjustable light tuning; no capture/session data. */
 export const SCENE_VFX_FPS = 120;
 export const MIN_SCENE_VFX_FPS = 60;
 export const MAX_SCENE_VFX_FPS = 1000;
-/** One definition supplies saved defaults, validation and shared numeric editors. */
-export const SCENE_LIGHT_CONTROLS = [
+/** Retained only to round-trip retired preferences. No UI or renderer consumes these. */
+export const RETIRED_LIGHT_CONTROLS = [
  {key:'lightCoreStrength',label:'Core strength',initial:8,min:0,max:8,step:.05},
  {key:'lightNearStrength',label:'Near glow strength',initial:8,min:0,max:8,step:.05},
  {key:'lightFarStrength',label:'Far glow strength',initial:1,min:0,max:8,step:.05},
@@ -19,18 +19,18 @@ export const SCENE_LIGHT_CONTROLS = [
  {key:'lightAudioGain',label:'Audio sensitivity',initial:8,min:0,max:8,step:.1},
  {key:'lightAudioPower',label:'Audio response curve',initial:8,min:.25,max:8,step:.1},
 ] as const;
-export type SceneLightKey = typeof SCENE_LIGHT_CONTROLS[number]['key'];
-export type SceneVfx = { audioLight: string; audioBounce: number; waves: boolean; distortion: number; glitching: number; maxFps: number; lightAllColors: boolean; lightModel:"pulse"|"legacy"; pulseTintLow:string; pulseTintHigh:string } & Record<PulseKey,number> & Record<SceneLightKey,number>;
-const LIGHT_DEFAULTS=Object.fromEntries(SCENE_LIGHT_CONTROLS.map(({key,initial})=>[key,initial])) as Record<SceneLightKey,number>;
-export const DEFAULT_SCENE_VFX: Readonly<SceneVfx> = Object.freeze({audioLight:'#aa3300',audioBounce:1.12,waves:true,distortion:.4,glitching:.3,maxFps:SCENE_VFX_FPS,lightAllColors:false,lightModel:'pulse',pulseTintLow:'#a8a8a8',pulseTintHigh:'#ffffff',...Object.fromEntries(PULSE_CONTROLS.map(c=>[c.key,c.initial])) as Record<PulseKey,number>,...LIGHT_DEFAULTS});
+export type SceneLightKey = typeof RETIRED_LIGHT_CONTROLS[number]['key'];
+export type SceneVfx = { audioLight: string; audioBounce: number; waves: boolean; distortion: number; glitching: number; maxFps: number; lightAllColors: boolean; lightModel:"pulse"|"legacy"; pulseTintLow:string; pulseTintHigh:string; pulseColorMode:"tint"|"selected"|"all";pulseColors:string } & Record<PulseKey,number> & Record<SceneLightKey,number>;
+const LIGHT_DEFAULTS=Object.fromEntries(RETIRED_LIGHT_CONTROLS.map(({key,initial})=>[key,initial])) as Record<SceneLightKey,number>;
+export const DEFAULT_SCENE_VFX: Readonly<SceneVfx> = Object.freeze({audioLight:'#aa3300',audioBounce:1.3,waves:true,distortion:.4,glitching:.3,maxFps:SCENE_VFX_FPS,lightAllColors:false,lightModel:'pulse',pulseTintLow:'#ffe5e5',pulseTintHigh:'#001438',pulseColorMode:'tint',pulseColors:'#0044ff,#ff8800',...Object.fromEntries(PULSE_CONTROLS.map(c=>[c.key,c.initial])) as Record<PulseKey,number>,...LIGHT_DEFAULTS});
 export function normalizeSceneVfx(raw: unknown): SceneVfx {
  const r=(raw&&typeof raw==='object'?raw:{}) as Partial<SceneVfx>;
  const number=(v:unknown,f:number,min:number,max:number)=>typeof v==='number'&&Number.isFinite(v)?Math.max(min,Math.min(max,v)):f;
- const light=Object.fromEntries(SCENE_LIGHT_CONTROLS.map(({key,initial,min,max})=>[key,number(r[key],initial,min,max)])) as Record<SceneLightKey,number>;
+ const light=Object.fromEntries(RETIRED_LIGHT_CONTROLS.map(({key,initial,min,max})=>[key,number(r[key],initial,min,max)])) as Record<SceneLightKey,number>;
  const pulse=Object.fromEntries(PULSE_CONTROLS.map(c=>[c.key,c.integer?Math.round(number(r[c.key],c.initial,c.min,c.max)):number(r[c.key],c.initial,c.min,c.max)])) as Record<PulseKey,number>;
  const color=(value:unknown,fallback:string)=>typeof value==='string'&&/^#[a-f\d]{6}$/i.test(value)?value:fallback;
- return {...light,...pulse,lightModel:r.lightModel==='legacy'?'legacy':'pulse',pulseTintLow:color(r.pulseTintLow,'#a8a8a8'),pulseTintHigh:color(r.pulseTintHigh,'#ffffff'),lightAllColors:typeof r.lightAllColors==='boolean'?r.lightAllColors:false,audioLight:typeof r.audioLight==='string'&&/^#[a-f\d]{6}$/i.test(r.audioLight)?r.audioLight:DEFAULT_SCENE_VFX.audioLight,
- audioBounce:number(r.audioBounce,1.12,1,1.5),waves:typeof r.waves==='boolean'?r.waves:true,
+ return {...light,...pulse,lightModel:r.lightModel==='legacy'?'legacy':'pulse',pulseTintLow:color(r.pulseTintLow,DEFAULT_SCENE_VFX.pulseTintLow),pulseTintHigh:color(r.pulseTintHigh,DEFAULT_SCENE_VFX.pulseTintHigh),pulseColorMode:r.pulseColorMode==='all'?'all':r.pulseColorMode==='selected'?'selected':'tint',pulseColors:typeof r.pulseColors==='string'?pulsePalette(r.pulseColors).join(','):DEFAULT_SCENE_VFX.pulseColors,lightAllColors:typeof r.lightAllColors==='boolean'?r.lightAllColors:false,audioLight:typeof r.audioLight==='string'&&/^#[a-f\d]{6}$/i.test(r.audioLight)?r.audioLight:DEFAULT_SCENE_VFX.audioLight,
+ audioBounce:number(r.audioBounce,DEFAULT_SCENE_VFX.audioBounce,1,1.5),waves:typeof r.waves==='boolean'?r.waves:true,
  distortion:number(r.distortion,.4,0,1),glitching:number(r.glitching,.3,0,1),maxFps:Math.round(number(r.maxFps,SCENE_VFX_FPS,MIN_SCENE_VFX_FPS,MAX_SCENE_VFX_FPS))};
 }
 export function serializeSceneVfx(value:unknown) { return JSON.stringify(normalizeSceneVfx(value),null,2); }

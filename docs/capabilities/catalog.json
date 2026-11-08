@@ -2079,27 +2079,27 @@
       "id": "scene.vfx",
       "title": "Source-based Wallpaper Engine pulse and scene audio effects",
       "where": "Scene → Scene effects. Import/apply an image through the existing Scene image workflow.",
-      "behavior": "Light model defaults to Wallpaper Engine pulse, ported from the supplied pulse.vert/pulse.frag/common_blending.h (mode 9). It averages selected stereo spectrum bands, smoothsteps thresholds, applies exponent/amount and blends image×low tint toward min(image×low tint + image×high tint,1), retaining pulse above 1. Defaults are bands 0–15, bounds 0.01–1, exponent 4, amount 1.2, low #a8a8a8 and high white. Low tint intentionally dims at rest. No invented hue/saturation/halo layer is added. Earlier approximation remains selectable with all prior saved controls. Direct website playback, bounce, waves/VHS, FPS cap, shared editing/history and capture-free input remain. Applied wallpaper now renders at an independent output density after graph-only AA/glow: native 2560×1440/1600 at DPR 1, capped at 8,294,400 pixels / DPR 2. Graph targets retain their 1.5-million-pixel budget. Import bytes, crop, effects, selection feedback and saved settings remain unchanged.",
+      "behavior": "Wallpaper Engine pulse is now the only light renderer; Earlier approximation and its controls/cache are removed. Defaults follow the user screenshot: bands 14–15, bounds 0.01–1, exponent 0.1, amount 2, Bounce 1.3; low/high tint swatches are approximated #ffe5e5/#001438 pending exact hex values. Colour activation offers Single tint (original high-tint multiplication), Selected colours (up to eight source hue families, such as blue plus orange), and All colours (all original image channels). Palette matches form a union, never doubled intensity. Low tint stays the shared rest tint. Existing explicit settings survive; archived approximation values remain only in serialization for rollback. Shared editing/history/exports, capture-free playback and native wallpaper output remain.",
       "steps": [
         {
-          "do": "Open Scene → Scene effects; select Light model → Wallpaper Engine pulse. Choose audio file → Play audio.",
-          "expect": "The source-based pulse is active. Low/high tint and six source audio controls appear. No browser sharing is requested."
+          "do": "Open Scene → Scene effects → Wallpaper Engine pulse. Inspect numeric controls in a fresh/default settings context.",
+          "expect": "Bands 14–15, thresholds 0.01–1, exponent 0.1, amount 2 and Bounce 1.3 are defaults. Existing saved overrides stay unchanged. No Earlier approximation option or controls remain."
         },
         {
-          "do": "Set Audio Bounce to 1. Inspect quiet/peak music and change Low tint, High tint, frequency bands, bounds, exponent and amount.",
-          "expect": "Low tint supplies the resting image; the pulse adds an image-shaped high-tint contribution using supplied blend mode 9. Default amount allows pulse 1.2; it is not clamped to 1. Lower upper threshold/exponent can calibrate a weaker browser spectrum."
+          "do": "Choose Colour activation → Selected colours. Use blue and orange in Selected colours (#hex), or choose Colour to add and press Add tint colour. Play music.",
+          "expect": "Both source hue families participate in their own image-channel response; unrelated hues remain at their Low tint rest appearance. Matching overlap never doubles the pulse. At most eight unique colours are retained."
         },
         {
-          "do": "Stop playback, then change Low tint to white.",
-          "expect": "At zero pulse the image follows Low tint, including when no audio is connected. White low tint restores source brightness at rest."
+          "do": "Adjust Colour range; edit/remove hex entries, then press Clear selected colours and Undo.",
+          "expect": "Range controls soft hue neighbourhoods. An empty palette activates no colours in Selected mode. Undo restores the edit. Text accepts six-digit hex separated by commas/space; invalid entries are ignored."
         },
         {
-          "do": "Choose Light model → Earlier approximation. Inspect your previous colour, All colours and numerical tuning, then return to Wallpaper Engine pulse.",
-          "expect": "Earlier saved values remain intact and operate only in the earlier mode. Reference mode processes all channels without the earlier hue gates or cached halos."
+          "do": "Choose All colours, then Single tint.",
+          "expect": "All colours activates every original image channel without applying a shared High tint. Single tint restores the saved High tint and the original source-blend behavior. Palette and tints remain saved when switching modes."
         },
         {
-          "do": "Edit source pulse settings, Undo/Redo, reload and export settings.",
-          "expect": "Shared history/persistence carries all 29 whitelisted fields. Earlier 20-field saves acquire the nine source-pulse defaults without rewriting their existing values. Older clients may drop the new fields on resave; preserve an export."
+          "do": "Change palette/mode/tints, Undo/Redo, reload and export settings.",
+          "expect": "Shared settings/history restores the active fields. Serializer contains 32 whitelisted fields, including 16 inactive archived preferences retained for older-client round trips. Loading a retired model choice cannot activate old rendering."
         },
         {
           "do": "Turn Waves off and set Distortion/Glitching to zero with no audio connected. Restore their defaults.",
@@ -2136,8 +2136,6 @@
         "src/scene/ScenePanel.tsx",
         "src/workspaceActions.ts",
         "src/sceneGlow.ts",
-        "tests/scene-light-emission.browser.mjs",
-        "src/scene/wallpaperLight.ts",
         "src/scene/pulse.ts",
         "tests/scene-pulse.browser.mjs",
         "src/renderBudget.ts",
@@ -2147,18 +2145,20 @@
       "actions": [
         "scene.audioConnect",
         "scene.audioDisconnect",
-        "scene.audioFile"
+        "scene.audioFile",
+        "scene.pulseColorAdd",
+        "scene.pulseColorClear"
       ],
       "gestures": [],
       "related": [
         "scene.manual",
         "scene.api"
       ],
-      "status": "Source pulse port implemented; GPU/visual acceptance pending",
-      "limits": "The pulse/blend calculation comes from supplied source, but Wallpaper Engine FFT boundaries, spectrum scaling/smoothing, target colour space and active user tint overrides were not supplied. Browser stereo spectrum uses 16 log bands per channel over 20 Hz–20 kHz/Nyquist and may need threshold calibration. Low tint defaults intentionally darken at rest. Tints use existing 8-bit colour controls. No synthetic bloom is added in reference mode; full-scene equivalence is unverified. Earlier approximation is retained, with its All colours and tuning controls applying only there. Direct playback remains file-based; no external-app/system audio detection or browser capture. No new browser run; visual/performance acceptance remains user testing. Native wallpaper output is bounded at 8,294,400 pixels and DPR 2. Larger displays can still downscale; source resolution, cover crop and enabled UV effects also affect detail. Offscreen-composite failure uses direct rendering at output density and may raise graph cost. No image rewrite or new saved field. Actual sharpness/compositing/performance remain user-tested.",
+      "status": "New defaults, pulse colour palette and approximation removal implemented; interactive acceptance pending",
+      "limits": "Exact screenshot tint hex values are unconfirmed, so the two swatches are approximated. Existing explicit settings are preserved rather than overwritten by new defaults. Selected palette is bounded at eight unique six-digit hex colours; hue range is 1–180 degrees. Low tint is global at rest in every mode. Selected/All are extensions to the source pulse; Single tint retains its equation. Retired preferences remain in JSON only, with no old renderer/editor. Browser FFT normalization/bands and original render-space details remain approximate. Capture-free playback is local-file only; native system audio bridge is deferred. Native output cap remains 8,294,400 pixels / DPR 2; graph targets stay budgeted. No fresh browser run; actual appearance and GPU performance await user testing.",
       "verification": {
-        "browser": "No browser run authorised for this port. Prepared opt-in tests/scene-pulse.browser.mjs compares shader pixels against the supplied source equation through the normal bloom/output pipeline. Earlier visual passes do not validate the new port or actual music calibration. No fresh browser run for native-detail composition; prepared opt-in scene-native-wallpaper.browser.mjs checks one-pixel detail through glow/no-glow and image clearing.",
-        "automated": "Model regressions cover the supplied stereo averaging/threshold/exponent/amount and mode-9 equation, pulse above one, zero/equal/reversed inputs, stereo analyser routing without doubled playback, shared new setters/serialization and preservation of all earlier tuning. Existing playback/settings/cache checks remain. Full local delivery gate runs before push; model/build success does not establish GPU or visual fidelity. Resolution regression covers native 2560, high-DPI scaling, 4K-equivalent output cap, unchanged graph/bloom budgets and restoration without wallpaper."
+        "browser": "No browser run authorised for this revision. Prepared opt-in source-pulse/native-wallpaper checks are unrun. Picker/Add/Clear interactions, selected/all colour appearance and interactive performance remain user acceptance.",
+        "automated": "Regressions cover screenshot numeric defaults, palette parsing/deduplication/bounds, blue+orange union, exclusion of green/neutral pixels, red wrap, feathering, empty palette and no overlap amplification. Shared setters/round trips and archived preference preservation/absence of old editors are checked. Source equation/stereo/no-capture and native output/lifecycle regressions remain. Full local gate runs before delivery."
       }
     },
     {

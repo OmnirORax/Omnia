@@ -10,7 +10,7 @@ try{
  const image=document.createElement('canvas');image.width=256;image.height=64;const ctx=image.getContext('2d');
  const colours=['#304080','#aa7744','#fafafa','#000000'];colours.forEach((c,i)=>{ctx.fillStyle=c;ctx.fillRect(i*64,0,64,64);});
  const renderer=new T.WebGLRenderer({preserveDrawingBuffer:true});renderer.setSize(256,64);const scene=new T.Scene(),camera=new T.PerspectiveCamera(),wallpaper=createWallpaper(scene,()=>{},renderer),appearance=createSceneAppearance(renderer,scene,camera);
- const settings={...defaultSettings().sceneVfx,lightModel:'pulse',waves:false,distortion:0,glitching:0};wallpaper.configure(settings);wallpaper.resize(256,64);await wallpaper.setURL(image.toDataURL());appearance.configure({...defaultSettings().appearance,theme:'neon',motion:0,effectIntensity:0,glow:.22});appearance.resize(256,64);
+ const settings={...defaultSettings().sceneVfx,pulseColorMode:'tint',pulseTintLow:'#a8a8a8',pulseTintHigh:'#ffffff',waves:false,distortion:0,glitching:0};wallpaper.configure(settings);wallpaper.resize(256,64);await wallpaper.setURL(image.toDataURL());appearance.configure({...defaultSettings().appearance,theme:'neon',motion:0,effectIntensity:0,glow:.22});appearance.resize(256,64);
  const u=scene.children.find(o=>o.material?.uniforms?.light).material.uniforms;
  const samples=[];for(const pulse of [0,.5,1.2]){u.light.value=pulse;appearance.render();const gl=renderer.getContext();samples.push(colours.map((_,i)=>{const p=new Uint8Array(4);gl.readPixels(i*64+32,32,1,1,gl.RGBA,gl.UNSIGNED_BYTE,p);return [...p].slice(0,3);}));}
  wallpaper.dispose();appearance.dispose();renderer.dispose();return {colours,samples};
