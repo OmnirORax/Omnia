@@ -25,7 +25,7 @@ export function useSceneBackground(history: ActionHistory, nodeId: string | null
   const [backgrounds, setBackgrounds] = useState<Backgrounds>(load);
   const current = useRef(backgrounds); current.current = backgrounds;
   const reference = nodeId ? Object.hasOwn(backgrounds.nodes, nodeId) ? backgrounds.nodes[nodeId] : null : backgrounds.fallback;
-  const [loaded, setLoaded] = useState<{ reference: SceneReference; userId: string | null; url: string } | null>(null), [error, setError] = useState('');
+  const [loaded, setLoaded] = useState<{ reference: SceneReference; userId: string | null; url: string; blob:Blob } | null>(null), [error, setError] = useState('');
   const config = backendConfiguration(), client = config.kind === 'cloud' ? config.client : null;
   const [userId, setUserId] = useState<string | null>(null);
   useEffect(() => {
@@ -63,11 +63,12 @@ export function useSceneBackground(history: ActionHistory, nodeId: string | null
     if (!local && (!client || reference.userId !== userId)) return;
     void (local ? localSceneBlob(reference.localId) : cloud.download(client!, reference.asset)).then(blob => {
       if (!live) return;
-      objectURL = URL.createObjectURL(blob); setLoaded({ reference, userId, url: objectURL });
+      objectURL = URL.createObjectURL(blob); setLoaded({ reference, userId, url: objectURL,blob });
     }).catch(failure => { if (live) setError(failure instanceof Error ? failure.message : 'Saved scene is unavailable.'); });
     return () => { live = false; if (objectURL) URL.revokeObjectURL(objectURL); };
   }, [client, reference, userId]);
   const authorized = reference && ('localId' in reference || reference.userId === userId);
   // Check identity during render so a previous node/account's URL cannot flash on navigation.
-  return { reference, apply, forgetLocal, url: authorized && loaded?.reference === reference && ('localId' in reference || loaded.userId === userId) ? loaded.url : null, error };
+  const currentLoaded=authorized&&loaded?.reference===reference&&reference&&('localId' in reference||loaded.userId===userId)?loaded:null;
+  return { reference,apply,forgetLocal,blob:currentLoaded?.blob??null,url:currentLoaded?.url??null,error };
 }

@@ -1,3 +1,5 @@
+import {normalizeSceneBlob,forgetNormalizedScene} from './normalizationCache.ts';
+import type {NormalizationPreferences} from './normalization.ts';
 import { imageSignatureMatches, isImageType, MAX_ASSET_BYTES, type SceneNode, type SceneSource } from '../../supabase/functions/_shared/contracts.ts';
 
 export type ScenePromptSnapshot = { prompt: string; variable: string; source: SceneSource; node: SceneNode; resolved: string; copiedAt: string };
@@ -34,10 +36,13 @@ export async function localSceneBlob(id: string): Promise<Blob> {
   if (!item) throw new Error('This scene image is missing from this browser. Import it again.');
   return item.blob;
 }
-export const deleteLocalScene = (id: string) => store('readwrite', transaction => {
+export const deleteLocalScene = async (id: string) => {
+  await forgetNormalizedScene(await localSceneBlob(id));
+  return store('readwrite', transaction => {
   transaction.objectStore('metadata').delete(id);
   return transaction.objectStore('images').delete(id);
 });
+};
 
 /** Inspect encoded dimensions before asking the browser/GPU to decode an image. */
 function dimensions(bytes: Uint8Array, type: string): [number, number] {
@@ -77,7 +82,7 @@ function dimensions(bytes: Uint8Array, type: string): [number, number] {
   }
   throw new Error('Image dimensions could not be read. Export a standard PNG, JPEG or WebP.');
 }
-export async function importLocalScene(file: File, input: ScenePromptSnapshot | null): Promise<LocalScene> {
+export async function importLocalScene(file: File, input: ScenePromptSnapshot | null,normalization?:NormalizationPreferences): Promise<LocalScene> {
   if (!file.size || file.size > MAX_ASSET_BYTES) throw new Error('Choose a PNG, JPEG or WebP up to 10 MiB.');
   const bytes = new Uint8Array(await file.arrayBuffer());
   const type = ['image/png', 'image/jpeg', 'image/webp'].find(type => isImageType(type) && imageSignatureMatches(bytes, type));
@@ -107,6 +112,8 @@ export async function importLocalScene(file: File, input: ScenePromptSnapshot | 
       transaction.onerror = transaction.onabort = () => reject(new Error(full ? 'Scene library is full (100 images / 100 MiB). Download and delete images you no longer need.' : 'Scene could not be saved. Browser storage may be full or unavailable.'));
     });
   } finally { db.close(); }
+  // Derived pixels are disposable; a failed correction never rolls back the saved original.
+  if(normalization?.enabled)await normalizeSceneBlob(blob,normalization).catch(()=>{});
   return item;
 }
 const promptKey = 'omnia.scene.copied-prompt.v1';

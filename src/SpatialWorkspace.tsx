@@ -1,3 +1,4 @@
+import type {Corrections} from './scene/normalization.ts';
 import {SPHERE_VISUAL_DEFAULTS} from './properties/sphereVisualDefaults.ts';
 import {createSphereBackground,configureSphereBlend} from './scene/sphereBlend.ts';
 import {atomicCarrierGeometry,atomicCarrierMaterial} from './atomicCarrier.ts';
@@ -78,6 +79,8 @@ type Props = {
   history: ActionHistory;
   onTransformNodes: (ids: string[], rotation: Rotation, pivot: XYZ, layout: boolean) => void;
   wallpaperURL?: string | null;
+  wallpaperIdentity?:string;
+  wallpaperCorrection?:Corrections|null;
   colorPreview?: ColorPreview | null;
   atlas: Atlas;
   document: Document;
@@ -910,7 +913,9 @@ export default function SpatialWorkspace(props: Props) {
     window.addEventListener("keydown", key, true); return () => window.removeEventListener("keydown", key, true);
   }, []);
 
-  useEffect(() => { if (ready) void stateRef.current?.wallpaper.setURL(props.wallpaperURL ?? null); }, [ready, props.wallpaperURL]);
+  const wallpaperIdentity=useRef<string|undefined>(undefined);
+  useEffect(() => { if (ready){void stateRef.current?.wallpaper.setSource(props.wallpaperURL ?? null,wallpaperIdentity.current===props.wallpaperIdentity);wallpaperIdentity.current=props.wallpaperIdentity;} }, [ready, props.wallpaperURL,props.wallpaperIdentity]);
+  useEffect(()=>{if(ready)stateRef.current?.wallpaper.setCorrection(props.wallpaperCorrection??null);},[ready,props.wallpaperIdentity,props.wallpaperCorrection]);
 
   useEffect(() => {
     const state = stateRef.current; if (!state || !ready) return;

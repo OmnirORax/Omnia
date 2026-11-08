@@ -1,3 +1,5 @@
+import {normalizationPreferences,NORMALIZATION_FUNCTION} from './scene/normalization.ts';
+import {useNormalizedScene} from './scene/useNormalizedScene.ts';
 import {paintNodes} from './graph/paintNodes.ts';
 import { UIAction } from "./ui/UIAction";
 import { editBinderConnection } from "./graph/binderActions";
@@ -171,7 +173,8 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
   const backupUI=useRef({layout:savedUILayout,settings:savedSettings,appearance:previewAppearance});backupUI.current={layout:savedUILayout,settings:savedSettings,appearance:previewAppearance};
   const appearancePending = ui.pendingAppearance || !sameAppearance(previewAppearance, savedSettings.appearance);
   const settings = useMemo(() => ({ ...ui.settings, appearance: safeView ? safeAppearance() : previewAppearance }), [ui.settings, safeView, previewAppearance]);
-  const propertyBindings = settingsPropertyBindings(settings, setSettings);
+  const [settingsPreview,setSettingsPreview]=useState<WorkspaceSettings|null>(null);
+  const propertyBindings = settingsPropertyBindings(settings, setSettings,setSettingsPreview);
   const renderSource = useMemo(() => safeView ? settings.appearance : activityPreview(settings.appearance, activityRequests), [settings.appearance, safeView, activityRequests]);
   const renderedAppearance = useMemo(() => resolveControllerAppearance(renderSource), [renderSource]);
   const renderSettings = useMemo(() => ({ ...settings, appearance: renderedAppearance }), [settings, renderedAppearance]);
@@ -597,6 +600,9 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
     : undefined;
   const selectedEntity = document.entities.find((e) => e.id === selectedPlacement?.entityId);
   const sceneBackground = useSceneBackground(actionHistory, selectedNode?.id ?? null);
+  const imagePreferences=normalizationPreferences((settingsPreview??settings).functionValues[NORMALIZATION_FUNCTION]);
+  const imagePreview=!!settingsPreview&&settingsPreview.functionValues[NORMALIZATION_FUNCTION]!==settings.functionValues[NORMALIZATION_FUNCTION];
+  const normalizedScene=useNormalizedScene(sceneBackground.blob,imagePreferences,!!sceneBackground.reference&&'localId' in sceneBackground.reference,imagePreview);
   const sceneNodeIds = useMemo(() => new Set(document.placements.map(item => item.id)), [document.placements]);
   const sceneNodeIdsRef = useRef(sceneNodeIds); sceneNodeIdsRef.current = sceneNodeIds;
   const selectedRelationData = document.relationships.find(
@@ -2260,7 +2266,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
             </UIPanel>
           }
           <UIPanel id="scene" title="Scene">
-            <ScenePanel node={selectedNode && selectedEntity ? { id: selectedNode.id, label: selectedEntity.label, notes: selectedEntity.notes } : null}
+            <ScenePanel normalization={imagePreferences} normalizationState={normalizedScene} node={selectedNode && selectedEntity ? { id: selectedNode.id, label: selectedEntity.label, notes: selectedEntity.notes } : null}
               revision={document.revision} bindings={propertyBindings} onApply={sceneBackground.apply}
               hasBackground={!!sceneBackground.reference} backgroundError={sceneBackground.error} backgroundKey={sceneReferenceKey(sceneBackground.reference)}
               onForgetLocal={sceneBackground.forgetLocal} nodeExists={id => sceneNodeIdsRef.current.has(id)} />
@@ -2286,6 +2292,8 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
               bindings={propertyBindings}
               history={actionHistory}
               onTransformNodes={(ids, rotation, pivot, layout) => {const scale=latticeScale(settings.spatial.latticeScale);commitDocument(transformPlacements(layout?latticeDocument(document,settings.spatial.nodeCellSize):document, ids, rotation, layout?{x:pivot.x/scale,y:pivot.y/scale,z:pivot.z/scale}:pivot, layout));}}
+              wallpaperCorrection={safeView||!normalizedScene.report?.changed?null:normalizedScene.report.corrections}
+              wallpaperIdentity={sceneReferenceKey(sceneBackground.reference)}
               wallpaperURL={safeView ? null : sceneBackground.url}
               atlas={atlas}
               creationPointRef={creationPointRef}

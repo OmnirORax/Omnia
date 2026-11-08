@@ -1,3 +1,4 @@
+import {createSceneCorrection,sceneCorrectionGLSL,sceneCorrectionUniforms} from './normalizationShader.ts';
 import {sphereBlendModeIndex} from '../properties/sphereBlendModes.ts';
 import * as THREE from 'three';
 export type SphereBackground=ReturnType<typeof createSphereBackground>;
@@ -5,6 +6,7 @@ export type SphereBackground=ReturnType<typeof createSphereBackground>;
 export function createSphereBackground(){return {
  image:{value:null as THREE.Texture|null}, imageAspect:{value:1},viewportAspect:{value:1},hasImage:{value:0},
  plain:{value:new THREE.Color('#030c15')},resolution:{value:new THREE.Vector2(1,1)},
+ correction:createSceneCorrection(),
  enabled:{value:0},strength:{value:.65},mode:{value:0},coverage:{value:1},
 };}
 export function configureSphereBlend(background:SphereBackground,values?:Record<string,unknown>){
@@ -13,7 +15,7 @@ export function configureSphereBlend(background:SphereBackground,values?:Record<
  background.mode.value=sphereBlendModeIndex(values?.adaptiveBlendMode);
  background.coverage.value=Number(values?.adaptiveBlendCoverage??1);
 }
-export const sphereBackgroundGLSL=`
+export const sphereBackgroundGLSL=sceneCorrectionGLSL+`
 uniform sampler2D sphereBgImage; uniform float sphereBgImageAspect; uniform float sphereBgViewportAspect;
 uniform float sphereBgHasImage; uniform vec3 sphereBgPlain;
 vec3 sphereBackground(vec2 uv,float bias){
@@ -21,9 +23,9 @@ vec3 sphereBackground(vec2 uv,float bias){
  vec2 coverUV=uv-0.5;
  if(sphereBgViewportAspect>sphereBgImageAspect)coverUV.y*=sphereBgImageAspect/sphereBgViewportAspect;
  else coverUV.x*=sphereBgViewportAspect/sphereBgImageAspect;
- return texture2D(sphereBgImage,coverUV+0.5,bias).rgb;
+ return correctSceneImage(texture2D(sphereBgImage,coverUV+0.5,bias).rgb);
 }`;
-export function sphereBackgroundUniforms(state:SphereBackground){return {
+export function sphereBackgroundUniforms(state:SphereBackground){return {...sceneCorrectionUniforms(state.correction),
  sphereBgImage:state.image,sphereBgImageAspect:state.imageAspect,sphereBgViewportAspect:state.viewportAspect,
  sphereBgHasImage:state.hasImage,sphereBgPlain:state.plain,
  sphereBlendResolution:state.resolution,sphereBlendEnabled:state.enabled,sphereBlendStrength:state.strength,sphereBlendMode:state.mode,sphereBlendCoverage:state.coverage,
