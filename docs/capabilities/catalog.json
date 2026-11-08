@@ -1999,24 +1999,28 @@
     {
       "id": "library.persistence",
       "title": "Local workspace autosave, portability and recovery",
-      "where": "File → Export JSON / Import JSON; Library → Export workspace / Import workspace / Recover previous workspace.",
-      "behavior": "IndexedDB autosaves the workspace locally. Export workspace now downloads one versioned workspace-backup file containing all atlases, saved glyph definitions/lexicon/library plus the current UI layout, shortcuts, settings, appearance, embedded UI icons and referenced custom fonts. Import validates both parts before replacement and preserves the previous workspace/UI pair in one local recovery record. Recover previous workspace restores both when that record includes UI. Historical workspace-only exports leave current UI unchanged. File → Export JSON uses this same combined backup. File → Import JSON restores combined backups and accepts historical atlas-only files as independent atlases without changing UI. Standalone Save UI template remains available. Cloud snapshots remain workspace-only. Workspace and UI retain separate existing undo owners; use Recover previous workspace to restore the pair together.",
+      "where": "File → Export JSON / Import JSON; Library → Export workspace / Import workspace opens the same parts chooser. Recover previous workspace remains in Library.",
+      "behavior": "One shared chooser defaults to Entire workspace. Export individual/all atlases, the shared definitions/Omnic library, UI layout, and settings/shortcuts/appearance independently. Required canonical dependencies accompany chosen atlases, including archived Omnic references and glyph text. Import lists only parts present in the file. Complete content can explicitly Replace entire workspace; otherwise content adds independent copies and preserves existing atlases. Multiple imported atlases share one remapped definition pool. Only checked UI/settings parts apply. All restoration uses the existing validated font preparation, current-work guards and paired local recovery owner. No saved workspace is changed while choosing or cancelling. Cloud snapshots remain workspace-only.",
       "steps": [
         {
-          "do": "Customize a shortcut and UI layout; create two atlases and saved glyphs/lexicon mappings. Choose File → Export JSON (or Omnic library → Export workspace).",
-          "expect": "One omnium-workspace-backup.json file contains both workspace and UI; current custom fonts referenced by the appearance are embedded."
+          "do": "File → Export JSON; leave Entire workspace checked and Export selected.",
+          "expect": "One omnium-workspace-transfer.json contains all atlases, definitions/library, UI layout, settings/shortcuts/appearance and referenced custom fonts."
         },
         {
-          "do": "Change the UI and workspace, then File → Import JSON using that combined file and confirm the restore.",
-          "expect": "Both saved workspace and UI return. Referenced custom fonts are prepared before replacement; changes during asynchronous preparation abort the restore."
+          "do": "Uncheck Entire workspace; choose one atlas without the library or UI/settings.",
+          "expect": "Only that atlas and required canonical dependencies are included, not unrelated atlas content or UI settings."
         },
         {
-          "do": "Choose Recover previous workspace.",
-          "expect": "The pre-import workspace and UI return together. An ordinary workspace-only/cloud replacement creates a workspace-only recovery record and cannot revive stale UI from an earlier import."
+          "do": "Export only UI layout, only settings, or only the definitions/library.",
+          "expect": "Unselected parts are absent; referenced custom fonts accompany settings. Library-only exports have no user atlas selected."
         },
         {
-          "do": "Import an old omnium-workspace v1 file, or try a damaged/unsupported newer combined file.",
-          "expect": "A valid old workspace replaces workspace only. A damaged or unsupported component rejects the combined import before replacing either domain."
+          "do": "File → Import JSON, inspect the parts present, and uncheck UI/settings before importing content.",
+          "expect": "Only chosen content is added as independent copies. Existing atlases/UI/settings stay in place; imported atlases retain shared definitions. Full content permits explicit Replace entire workspace instead."
+        },
+        {
+          "do": "Import a historical workspace-only, combined v1 backup, atlas-only JSON or v3 UI template; try an unsupported newer transfer.",
+          "expect": "Supported old files open the same chooser without inventing absent parts. Unknown/newer or malformed files reject before replacement; cancellation changes nothing. Recover previous workspace restores the pre-import workspace/UI pair."
         }
       ],
       "reference": "docs/OMNIC_LIBRARY.md",
@@ -2027,18 +2031,20 @@
         "src/omnic/Library.tsx",
         "src/App.tsx",
         "tests/fixtures/workspace-v1.json",
-        "tests/fixtures/workspace-backup-v1.json"
+        "tests/fixtures/workspace-backup-v1.json",
+        "src/omnic/workspaceTransfer.ts",
+        "src/omnic/WorkspaceTransferDialog.tsx"
       ],
       "actions": [
         "omnic.workspace.recover",
         "omnic.workspace.export",
         "omnic.workspace.import"
       ],
-      "limits": "Workspace and cloud snapshots retain the 8 MB budget; UI uses the existing 15 MiB font allowance plus 5 MB template allowance. The combined envelope has their summed byte budget plus 1 KB overhead. Individual atlases retain 5 MB limits. This is workspace plus current UI, not a complete environment archive: unsaved Composer drafts, all saved theme presets, unreferenced fonts, authentication/session data, undo history and private cloud media bytes are not included. Save shared before exporting Composer work. Browser profile/origin recovery slots are not independent backups. New combined files require a current importer; older apps reject their format. UI persistence and workspace persistence retain their existing owners and failure messages.",
-      "status": "Implemented; browser verification pending",
+      "limits": "Workspace content retains the 8 MB bound; UI/font allowance remains unchanged. Maximum 32 atlases and existing library budgets apply; exceeding them rejects unchanged. Full replacement is available only when complete content is present and selected. The shared definitions/library option includes the canonical entity pool and organization; necessary definitions are included with atlas-only exports. Unsaved Composer drafts, all saved theme presets, unreferenced fonts, device pairing/authentication, undo history and private media bytes are excluded. New transfer format/version requires this importer; old clients reject it safely. Cloud snapshots are unchanged.",
+      "status": "Implemented for preview; selective UI/browser acceptance pending",
       "verification": {
-        "browser": "Combined cross-profile restore, custom font decoding and storage-denied usability are pending user/browser acceptance; no browser success inferred from model/build checks.",
-        "automated": "Model checks cover combined round trip, explicit cleared/rebound shortcuts, frozen workspace-v1 compatibility, unsupported/damaged components, size limits, source preservation and paired recovery in IndexedDB/local fallback. Required model/build/backend gates run before publication."
+        "browser": "No browser suite run for this chooser. Selective restore, physical checkbox/action interaction and font decoding remain user acceptance.",
+        "automated": "Model tests cover selective dependency closure, independent shared-ID remapping across multiple atlases, library/layout/settings-only exports, legacy combined/workspace compatibility and damaged/unsupported envelopes. Existing import/remapping, recovery and backup tests remain. Required type/property/build/backend gates run before publication."
       },
       "related": [],
       "gestures": []

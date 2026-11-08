@@ -10,6 +10,68 @@ import {createLibraryIndex,matchesLibrary} from '../src/omnic/libraryIndex.ts';
 import {omnicAsset} from '../src/omnic/presentation.ts';
 import {createActionHistory} from '../src/ui/actionHistory.ts';
 import {parseBackendRequest} from '../supabase/functions/_shared/contracts.ts';
+import {readFileSync} from 'node:fs';
+import {validateWorkspaceUI} from '../src/omnic/workspaceBackup.ts';
+import {createWorkspaceTransfer,parseWorkspaceTransfer,mergeWorkspaceTransfer,fullTransferChoice,prepareWorkspaceTransfer} from '../src/omnic/workspaceTransfer.ts';
+
+const transferUI=validateWorkspaceUI(JSON.parse(readFileSync(new URL('./fixtures/workspace-backup-v1.json',import.meta.url),'utf8')).ui);
+test('import overlays only selected UI/settings and rejects invalid replacement choices',()=>{
+ const workspace=createWorkspace(),source=createWorkspaceTransfer(workspace,transferUI,fullTransferChoice(workspace));
+ const currentUI={...transferUI,layout:{...transferUI.layout,hideNames:!transferUI.layout.hideNames},settings:{...transferUI.settings,bindings:{...transferUI.settings.bindings,undo:''}}};
+ const layoutOnly=prepareWorkspaceTransfer(workspace,currentUI,source,{atlasIds:[],library:false,layout:true,settings:false},false);
+ assert.equal(layoutOnly.workspace,workspace);assert.deepEqual(layoutOnly.ui.settings,currentUI.settings);assert.deepEqual(layoutOnly.ui.layout,source.layout);
+ const settingsOnly=prepareWorkspaceTransfer(workspace,currentUI,source,{atlasIds:[],library:false,layout:false,settings:true},false);
+ assert.deepEqual(settingsOnly.ui.layout,currentUI.layout);assert.deepEqual(settingsOnly.ui.settings,source.settings);
+ const full=prepareWorkspaceTransfer(workspace,currentUI,source,fullTransferChoice(workspace),true);assert.equal(full.workspace,source.workspace);
+ assert.throws(()=>prepareWorkspaceTransfer(workspace,currentUI,source,{atlasIds:[],library:false,layout:true,settings:false},true));
+ const noUI=createWorkspaceTransfer(workspace,transferUI,{atlasIds:source.atlasIds,library:true,layout:false,settings:false});
+ assert.throws(()=>prepareWorkspaceTransfer(workspace,currentUI,noUI,{atlasIds:[],library:false,layout:true,settings:false},false));
+});
+test('selective transfer excludes unrelated content and retains transitive archived Omnic dependencies',()=>{
+ const doc={...shared(),entities:[...shared().entities,entity('unrelated')],placements:[placement('p','whole')]};
+ const workspace=addWorkspaceAtlas(createWorkspace(doc,'source','chosen'),'Other','other');
+ const selected=createWorkspaceTransfer(workspace,transferUI,{atlasIds:['chosen'],library:false,layout:false,settings:false});
+ assert.deepEqual(selected.workspace.entities.map(e=>e.id).sort(),['part','whole']);
+ assert.equal(selected.workspace.atlases.length,1);assert.equal(selected.layout,undefined);assert.equal(selected.settings,undefined);
+ assert.equal(selected.complete,false);assert.deepEqual(parseWorkspaceTransfer(JSON.stringify(selected)),selected);
+ assert.deepEqual(workspace.entities.map(e=>e.id),['part','whole','unrelated']);
+});
+test('partial multi-atlas imports share remapped definitions and preserve unrelated current work',()=>{
+ const original=createWorkspace({...shared(),placements:[placement('p','whole')]},'source','a');
+ let workspace=addWorkspaceAtlas(original,'Second','b');workspace=withActiveDocument(workspace,{...activeDocument(workspace),placements:[placement('q','whole')]});
+ const source=createWorkspaceTransfer(workspace,transferUI,fullTransferChoice(workspace));
+ const current=createWorkspace({...emptyDocument(),entities:[entity('whole')]},'target','existing');
+ let id=0;const next=mergeWorkspaceTransfer(current,source,fullTransferChoice(workspace),()=>`fresh-${++id}`);
+ assert.equal(next.atlases.length,3);assert.equal(next.atlases[0],current.atlases[0]);assert.equal(next.entities[0],current.entities[0]);
+ assert.equal(next.atlases[1].document.placements[0].entityId,next.atlases[2].document.placements[0].entityId);
+ assert.notEqual(next.atlases[1].document.placements[0].entityId,'whole');assert.equal(next.entities.length,3);validateWorkspace(next);
+});
+test('UI layout, settings and library can each transfer without exporting unrelated parts',()=>{
+ const workspace=createWorkspace(shared(),'source','a');
+ const onlyLayout=createWorkspaceTransfer(workspace,transferUI,{atlasIds:[],library:false,layout:true,settings:false});
+ assert.equal(onlyLayout.workspace,undefined);assert.equal(onlyLayout.settings,undefined);assert.deepEqual(onlyLayout.layout,transferUI.layout);assert.deepEqual(onlyLayout.fonts,[]);
+ const onlySettings=createWorkspaceTransfer(workspace,transferUI,{atlasIds:[],library:false,layout:false,settings:true});
+ assert.equal(onlySettings.workspace,undefined);assert.equal(onlySettings.layout,undefined);assert.ok(onlySettings.settings);
+ const onlyLibrary=createWorkspaceTransfer(workspace,transferUI,{atlasIds:[],library:true,layout:false,settings:false});
+ const target=createWorkspace();const imported=mergeWorkspaceTransfer(target,onlyLibrary,{atlasIds:[],library:true,layout:false,settings:false});
+ assert.equal(imported.atlases.length,1);assert.equal(imported.entities.length,2);assert.equal(imported.atlases[0],target.atlases[0]);
+});
+test('library-only transfer remaps membership, nested collections and saved family filters together',()=>{
+ const workspace={...createWorkspace(shared()),library:{items:[{entityId:'whole',tags:['saved'],collections:['child'],preset:true,derivedFrom:'part'}],collections:[{id:'parent',name:'Parent',parentId:null},{id:'child',name:'Child',parentId:'parent'}],families:[{id:'family',name:'Family',filter:{collection:'child'}}]}};
+ const choice={atlasIds:[],library:true,layout:false,settings:false},source=createWorkspaceTransfer(workspace,transferUI,choice);
+ let i=0;const next=mergeWorkspaceTransfer(createWorkspace(),source,choice,()=>`copy-${++i}`);
+ const [parent,child]=next.library.collections,item=next.library.items[0];
+ assert.equal(child.parentId,parent.id);assert.deepEqual(item.collections,[child.id]);assert.equal(next.library.families[0].filter.collection,child.id);
+ assert.ok(next.entities.some(e=>e.id===item.entityId&&e.label==='whole'));assert.ok(next.entities.some(e=>e.id===item.derivedFrom&&e.label==='part'));
+ assert.equal(next.atlases.length,1);validateWorkspace(next);
+});
+test('transfer parser preserves historical backup parts and rejects unsupported or damaged envelopes',()=>{
+ const old=readFileSync(new URL('./fixtures/workspace-backup-v1.json',import.meta.url),'utf8');
+ const parsed=parseWorkspaceTransfer(old);assert.equal(parsed.complete,true);assert.ok(parsed.settings);assert.ok(parsed.layout);
+ const bare=parseWorkspaceTransfer(JSON.stringify(parsed.workspace));assert.equal(bare.layout,undefined);assert.equal(bare.settings,undefined);
+ for(const change of [{version:2},{atlasIds:['missing']},{workspace:undefined},{settings:42},{complete:'yes'}])assert.throws(()=>parseWorkspaceTransfer(JSON.stringify({...parsed,...change})));
+ const workspace=createWorkspace();assert.throws(()=>createWorkspaceTransfer(workspace,transferUI,{atlasIds:[],library:false,layout:false,settings:false}));
+});
 
 const entity=(id,omnic)=>({id,label:id,aliases:[],notes:'',...(omnic?{omnic}:{})});
 const placement=(id,entityId)=>({id,entityId,parentId:null,position:{x:0,y:0},collapsed:false,hidden:false});

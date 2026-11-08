@@ -94,7 +94,12 @@ export function addWorkspaceAtlas(workspace:OmnicWorkspace,nameValue:string,atla
 /** Import creates independent canonical identities. Equal legacy IDs or pixels
  * never establish equivalence with objects already in this workspace. */
 export function importWorkspaceAtlas(workspace:OmnicWorkspace,source:Document,label='Imported atlas',newId:()=>string=()=>crypto.randomUUID()):OmnicWorkspace {
-  validateDocument(source);const ids=new Map(source.entities.map(e=>[e.id,newId()]));
+  const doc=remapImportedDocument(source,workspace.entities,newId);
+  const next=addWorkspaceAtlas(workspace,label,newId());return validateWorkspace(withActiveDocument(next,doc));
+}
+/** Share one canonical ID map across every atlas in a selective transfer. */
+export function remapImportedDocument(source:Document,existing:Entity[],newId:()=>string=()=>crypto.randomUUID(),ids=new Map(source.entities.map(e=>[e.id,newId()]))):Document {
+  validateDocument(source);
   const entity=(id:string)=>ids.get(id)??id;
   const resolve=objectResolver(source.entities);
   const address=(r:Recipe,value:string,depth=0):string=>{
@@ -111,8 +116,9 @@ export function importWorkspaceAtlas(workspace:OmnicWorkspace,source:Document,la
   const scope=(s:Document['frames'][number]['scope'])=>({...s,anchorIds:s.anchorIds.map(entity),entityIds:s.entityIds.map(entity),excludedEntityIds:s.excludedEntityIds.map(entity)});
   const entities=source.entities.map(e=>({...e,id:entity(e.id),...(e.text?{text:{...e.text,content:e.text.content.map(part=>typeof part==='string'?part:{...part,glyph:entity(part.glyph)})}}:{}),...(e.omnic?{omnic:recipe(e.omnic)}:{}),...(e.omnicHistory?{omnicHistory:e.omnicHistory.map(recipe)}:{})}));
   const visual=(value:import("../graph/assets.ts").Visual|undefined)=>remapVisualEntities(value,entity);
-  const doc:Document={...source,entities:[...workspace.entities,...entities],placements:source.placements.map(p=>({...p,entityId:entity(p.entityId),visual:visual(p.visual),...(p.nestingBinder?{nestingBinder:{...p.nestingBinder,visual:visual(p.nestingBinder.visual)}}:{})})),compositions:source.compositions.map(c=>({...c,parentId:entity(c.parentId),childId:entity(c.childId),visual:visual(c.visual)})),relationships:source.relationships.map(r=>({...r,visual:visual(r.visual),participants:r.participants.map(p=>({...p,entityId:entity(p.entityId)})),qualifierIds:r.qualifierIds.map(entity)})),variants:source.variants?.map(v=>({...v,ownerId:entity(v.ownerId),entityId:entity(v.entityId),visual:visual(v.visual)})),frames:source.frames.map(f=>({...f,scope:scope(f.scope),history:f.history.map(h=>({...h,scope:scope(h.scope)}))}))};
-  const next=addWorkspaceAtlas(workspace,label,newId());return validateWorkspace(withActiveDocument(next,validateDocument(doc)));
+  const present=new Set(existing.map(e=>e.id));
+  const doc:Document={...source,entities:[...existing,...entities.filter(e=>!present.has(e.id))],placements:source.placements.map(p=>({...p,entityId:entity(p.entityId),visual:visual(p.visual),...(p.nestingBinder?{nestingBinder:{...p.nestingBinder,visual:visual(p.nestingBinder.visual)}}:{})})),compositions:source.compositions.map(c=>({...c,parentId:entity(c.parentId),childId:entity(c.childId),visual:visual(c.visual)})),relationships:source.relationships.map(r=>({...r,visual:visual(r.visual),participants:r.participants.map(p=>({...p,entityId:entity(p.entityId)})),qualifierIds:r.qualifierIds.map(entity)})),variants:source.variants?.map(v=>({...v,ownerId:entity(v.ownerId),entityId:entity(v.entityId),visual:visual(v.visual)})),frames:source.frames.map(f=>({...f,scope:scope(f.scope),history:f.history.map(h=>({...h,scope:scope(h.scope)}))}))};
+  return validateDocument(doc);
 }
 export function organizeObject(workspace:OmnicWorkspace,entityId:string,patch:Partial<Omit<LibraryItem,'entityId'>>):OmnicWorkspace {
   const current=workspace.library.items.find(item=>item.entityId===entityId)??{entityId,tags:[],collections:[],preset:false};

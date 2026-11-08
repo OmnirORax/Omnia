@@ -1,5 +1,22 @@
 # Data evolution and compatibility contract
 
+Selective workspace transfer (2026-11-08): `workspaceTransfer.ts` owns the additive
+`omnium-workspace-transfer` version 1 envelope. Optional validated workspace,
+layout and settings parts plus atlas IDs/library/complete markers express presence;
+absence never synthesizes a replacement. Workspace snapshots retain format/version.
+Atlas slices retain transitive canonical dependencies; shared definitions/library
+includes the canonical pool and organization. Partial import adds fresh identities
+using one map across atlases, remapping recipes, pinned role addresses, glyph text,
+binder visuals and library membership. Unselected current data remains intact.
+Complete selected content offers explicit full replacement. Layout and settings
+are independently overlaid through the existing font/guard/paired-recovery owner.
+Historical workspace, combined-backup v1, atlas and UI-template v3 files are read
+into the same chooser; old clients reject the new envelope without migration.
+Export never modifies originals. Unknown/newer or malformed parts reject before
+replacement, even when a user would leave that part unchecked. Byte/budget and
+normal data validation remain authoritative. No cloud/backend format change,
+credential transfer, complete environment archive or browser acceptance is implied.
+
 Adopted 2026-11-04. This is a project-wide development requirement. It applies to
 browser saves, recovery slots, drafts, exports/imports, cloud snapshots, database
 schemas, assets and saved settings. Developers own compatibility as part of each

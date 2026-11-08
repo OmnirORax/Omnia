@@ -7,7 +7,9 @@ import { editBinderConnection } from "./graph/binderActions";
 import { uiContextEnabled } from "./ui/contextMenuOwnership";
 import { reconnectBinder, binderReconnectReason } from "./graph/reconnectBinder";
 import { localLatticePoint, latticeDocument, latticeWorld, latticeScale, latticeMove, resolveLatticePoint, reconcileLattice } from "./graph/lattice";
-import {createWorkspaceBackup,parseWorkspaceBackup,validateWorkspaceUI,WORKSPACE_BACKUP_BYTES,type WorkspaceUI} from './omnic/workspaceBackup';
+import {validateWorkspaceUI,WORKSPACE_BACKUP_BYTES,type WorkspaceUI} from './omnic/workspaceBackup';
+import {WorkspaceTransferDialog} from './omnic/WorkspaceTransferDialog';
+import {createWorkspaceTransfer,parseWorkspaceTransfer,prepareWorkspaceTransfer,type WorkspaceTransfer,type TransferChoice} from './omnic/workspaceTransfer';
 import { ScoreTracker } from './metrics/ScoreTracker';
 import {readWorkspaceSlot,readWorkspaceReplacement,saveWorkspaceSlot} from "./omnic/workspaceStorage";
 import { activeDocument, createWorkspace, validateWorkspace, withActiveDocument, importWorkspaceAtlas, workspaceHistory, restoreWorkspaceHistory, advanceWorkspaceRevisions, type OmnicWorkspace as WorkspaceSnapshot } from "./omnic/workspace";
@@ -309,6 +311,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
   const structuralGraph = useMemo(() => isolateSpatialContext(projectSpatial(atlas), settings.isolateFocus ? focusContextIds : null), [atlas, settings.isolateFocus, focusContextIds]);
   const variantDisplay = useMemo(() => projectVariants(document, structuralGraph.nodes), [document, structuralGraph, expandedVariants]);
   const fileInput = useRef<HTMLInputElement>(null);
+  const [transfer,setTransfer]=useState<{source?:WorkspaceTransfer}|null>(null);
   const templateInput = useRef<HTMLInputElement>(null);
   const themeTemplateInput = useRef<HTMLInputElement>(null);
   const fontInput = useRef<HTMLInputElement>(null);
@@ -476,28 +479,30 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
     setAppearancePreview(null);
     actionHistory.travel("redo", { ...actionHistory.options, ...(steps === undefined ? {} : { steps }) });
   }
-  async function exportJSON() {
-    try {
-    const data=await exportWorkspaceBackup();
+  function exportJSON() { setTransfer({}); }
+  async function applyTransfer(choice:TransferChoice,replace:boolean){
+    const captured=workspaceRef.current,uiSnapshot=backupUI.current;
+    const template=await captureWorkspaceUI(uiSnapshot,choice.settings||!!transfer?.source&&choice.layout);
+    if(workspaceRef.current!==captured||!unchangedBackupUI(uiSnapshot))throw Error('Work changed while preparing transfer. Retry.');
+    if(transfer?.source){
+      const source=transfer.source;
+      await restoreWorkspaceBackup(prepareWorkspaceTransfer(captured,template,source,choice,replace));
+      setSelection(null);setOptionNodeId(null);setExpandedVariants(new Set());return;
+    }
+    const data=JSON.stringify(createWorkspaceTransfer(captured,template,choice));
     const url = URL.createObjectURL(
       new Blob([data], { type: "application/json" }),
     );
     const link = window.document.createElement("a");
     link.href = url;
-    link.download = "omnium-workspace-backup.json";
+    link.download = "omnium-workspace-transfer.json";
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-    } catch(e) { setError(`Workspace export failed. ${message(e)}`); }
   }
-  async function captureWorkspaceUI(snapshot=backupUI.current):Promise<WorkspaceUI>{
-    return validateWorkspaceUI({format:'omnium-ui-template',version:3,layout:snapshot.layout,settings:{...snapshot.settings,appearance:snapshot.appearance},fonts:(await Promise.all(appearanceFonts(snapshot.appearance).map(embeddedFont))).flat()});
+  async function captureWorkspaceUI(snapshot=backupUI.current,includeFonts=true):Promise<WorkspaceUI>{
+    return validateWorkspaceUI({format:'omnium-ui-template',version:3,layout:snapshot.layout,settings:{...snapshot.settings,appearance:snapshot.appearance},fonts:includeFonts?(await Promise.all(appearanceFonts(snapshot.appearance).map(embeddedFont))).flat():[]});
   }
   const unchangedBackupUI=(snapshot:typeof backupUI.current)=>backupUI.current.layout===snapshot.layout&&backupUI.current.settings===snapshot.settings&&backupUI.current.appearance===snapshot.appearance;
-  async function exportWorkspaceBackup(){
-    const captured=workspaceRef.current,uiSnapshot=backupUI.current,template=await captureWorkspaceUI(uiSnapshot);
-    if(workspaceRef.current!==captured||!unchangedBackupUI(uiSnapshot))throw Error('Work changed while preparing the export. Retry after editing.');
-    return JSON.stringify(createWorkspaceBackup(captured,template));
-  }
   async function restoreWorkspaceBackup(source:{workspace:WorkspaceSnapshot;ui?:WorkspaceUI},preserve=true){
     const captured=workspaceRef.current,uiSnapshot=backupUI.current;
     // Validate both domains before any replacement; retain one original pair.
@@ -511,7 +516,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
     commitWorkspace(next);
     return !!template;
   }
-  async function importWorkspaceBackup(text:string){return restoreWorkspaceBackup(parseWorkspaceBackup(text));}
+  function importWorkspaceBackup(text:string){setTransfer({source:parseWorkspaceTransfer(text)});}
   async function recoverWorkspaceBackup(){
     const captured=workspaceRef.current,uiSnapshot=backupUI.current,previous=await readWorkspaceReplacement();
     if(!previous)throw Error('No local replacement backup exists.');
@@ -574,27 +579,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
     if (!file) return;
     try {
       if (file.size > WORKSPACE_BACKUP_BYTES) throw new Error("Workspace backup exceeds its import limit.");
-      const text=await file.text(),value:unknown=JSON.parse(text);
-      const format=value&&typeof value==='object'?(value as {format?:unknown}).format:undefined;
-      if(format==='omnium-workspace-backup'||format==='omnium-workspace'){
-        const source=parseWorkspaceBackup(text);
-        if(!window.confirm(source.ui?'Restore the entire workspace and its UI/settings? A recovery copy of your current workspace and UI will be kept.':'Restore this workspace? This older file has no UI; your current UI/settings will be kept.'))return;
-        await restoreWorkspaceBackup(source);
-        setSelection(null);setOptionNodeId(null);setExpandedVariants(new Set());
-        return;
-      }
-      if(file.size>5_000_000)throw new Error('Atlas exceeds the 5 MB import limit.');
-      const next = parseDocument(text);
-      if (
-        atlas.nodes.length &&
-        !window.confirm(
-          "Import this file as an independent atlas? Your current atlas is kept.",
-        )
-      )
-        return;
-      commitWorkspace(importWorkspaceAtlas(workspaceRef.current,next,"Imported atlas"));
-      setSelection(null);
-      setOptionNodeId(null); setExpandedVariants(new Set());
+      importWorkspaceBackup(await file.text());
     } catch (e) {
       setError(`Import failed. Your atlas was not changed. ${message(e)}`);
     } finally {
@@ -1419,6 +1404,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
             {["ui:newView", "newNode", "compactAll", "ui:snap", "settings", "shortcuts", "undo", "redo", "ui:export", "ui:saveTemplate", "ui:import", "ui:loadTemplate"].map(id => <FunctionControl id={id} key={id} />)}
             <UIArrangeButtons /><FunctionControl id="ui:reset" />
           </>}
+          {transfer&&<WorkspaceTransferDialog workspace={workspace} source={transfer.source} onApply={applyTransfer} onClose={()=>setTransfer(null)}/>}
           <input
             ref={fileInput}
             type="file"
@@ -2378,7 +2364,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
       {(shortcutsPinned || shortcutsHovered) && <div onMouseLeave={() => setShortcutsHovered(false)}><ShortcutDisplay onInteract={() => setShortcutsPinned(true)} settings={renderSettings} onChange={setSettings} capturing={capturing} onCapture={setCapturing} onAction={runAction} onClose={() => { setShortcutsPinned(false); setShortcutsHovered(false); }} /></div>}
       {binderPopup && selectedBinder && <FloatingWindow id="binder-editor" openingKey={`${selection?.kind}:${selection?.id}:${binderPopup.x}:${binderPopup.y}`} title="Binder editor" className="binder-editor" x={binderPopup.x} y={binderPopup.y} width={370} height={560} onClose={() => setBinderPopup(null)} closeLabel="Close binder editor">{selectedBinderEdge&&<UISection id="binder-connection-actions" title="Binder actions"><UIAction id="binder:reverse" label="Reverse direction / hierarchy" category="Relationships" onClick={()=>binderConnectionAction('reverse')}/><UIAction id="binder:focus-endpoints" label="Focus both endpoints" category="Relationships" onClick={()=>{selectMany([selectedBinderEdge.source,selectedBinderEdge.target]);navigate('selection');setBinderPopup(null);}}/><UIAction id="binder:delete" label="Delete binder" category="Relationships" onClick={()=>binderConnectionAction('delete')}/></UISection>}<BinderControls {...binderThemeProps} value={selectedBinder} defaultText={selectedBinderText} onChange={editBinder} composition={selection?.kind === "composition"} /><VisualControls key={selection?.id} label="Binder" glyphs={binderGlyphs} value={selectedBinder.visual} assets={document.assets ?? []} onChange={(visual) => editBinder({ visual })} onAsset={(asset, visual) => editBinder({ visual }, asset)} /></FloatingWindow>}
       {omnicLibraryOpen && <FloatingWindow id="omnic-library" title="Omnic library" width={560} height={590} onClose={()=>setOmnicLibraryOpen(false)}>
-        <Suspense fallback={<p>Opening library…</p>}><OmnicLibrary onExport={exportWorkspaceBackup} onImport={importWorkspaceBackup} onRecover={recoverWorkspaceBackup} workspace={workspace} onChange={commitWorkspace} onSwitch={switchAtlas} onOpen={setOmnicEditorId} onPlace={placeLibraryObject} onCopy={(recipe,label,source)=>createOmnicObject(recipe,label,source)} /></Suspense>
+        <Suspense fallback={<p>Opening library…</p>}><OmnicLibrary onExport={exportJSON} onImport={importWorkspaceBackup} onRecover={recoverWorkspaceBackup} workspace={workspace} onChange={commitWorkspace} onSwitch={switchAtlas} onOpen={setOmnicEditorId} onPlace={placeLibraryObject} onCopy={(recipe,label,source)=>createOmnicObject(recipe,label,source)} /></Suspense>
       </FloatingWindow>}
       {omnicObject && <FloatingWindow id="omnic-composer" shape="circle" title={`Omnic · ${omnicObject.label || "object"}`} width={360} height={360} onClose={() => setOmnicEditorId(null)}>
         <Suspense fallback={null}><OmnicComposer radar key={`${workspace.id}:${omnicObject.id}`} workspaceId={workspace.id} presetIds={workspace.library.items.filter(item=>item.preset).map(item=>item.entityId)} entity={omnicObject} objects={document.entities} history={actionHistory} onSave={saveOmnic}

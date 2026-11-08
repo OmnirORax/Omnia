@@ -202,7 +202,27 @@ and hosted rollout must be distinguished from model/local backend evidence.
 - No browser suite or new performance trace was run; user acceptance remains pending.
 - Hosted migration/function deployment was not performed.
 
-## Combined workspace and UI export (2026-11-04)
+## Selective workspace transfer (2026-11-08)
+
+File → Export JSON and Library → Export workspace open one shared chooser,
+defaulting to Entire workspace. Choose individual/all atlases, the shared
+definitions/Omnic library, UI layout and settings/shortcuts/appearance. Export
+downloads `omnium-workspace-transfer.json`, format `omnium-workspace-transfer`
+version 1. Required canonical dependencies accompany selected atlases, including
+archived references, glyph text and visuals. The library option includes the shared
+canonical pool and organization. Referenced custom fonts accompany settings.
+
+Both import entries show only the parts present. Partial content adds independent
+copies with one shared identity map across imported atlases; unselected content
+and UI/settings remain current. When complete content is present and selected,
+Replace entire workspace defaults on and can be turned off. Import preserves a
+paired recovery copy via the existing owner. Cancelling does nothing. Old combined,
+workspace-only, atlas-only and v3 UI-template files open this same chooser.
+Unknown/newer/malformed files reject before replacement. Existing byte and atlas/
+library budgets apply. No private media, unsaved drafts, device pairing or auth is
+exported. Physical interaction/font restore acceptance remains user-owned.
+
+## Historical combined workspace and UI export (2026-11-04)
 
 File → Export JSON and Omnic library → Export workspace download `omnium-workspace-backup.json`:
 `omnium-workspace-backup` version 1 wraps the unchanged version-1 workspace and a
