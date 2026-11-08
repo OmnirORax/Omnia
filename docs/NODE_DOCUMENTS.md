@@ -11,7 +11,7 @@ is the intended scope. Basic Markdown is rendered directly in the editable docum
 
 1. Save a glyph in Composer, open the existing Omnic library and select it.
 2. Enter comma-separated **English variants**, then **Save name / tags / words**.
-3. Click a node name → **Document**. Type or paste English; recognized words receive
+3. Right-click a node → **Document**. Type or paste English; recognized words receive
    their glyph automatically. Opening old content or saving new variants refreshes it.
 4. Delete English independently of its preceding glyph; type, cut, copy and paste
    normally. Wait for **Saved locally** before leaving. **Lexicon** opens the library;
@@ -152,3 +152,5 @@ and a following unlisted paragraph. No page errors were reported. The initial
 locked-layout resize attempt correctly did nothing; the unlocked category uses
 normal shared resize behavior. This is bounded evidence, not full editor or
 docking/IME/Undo acceptance.
+
+Right-click node actions include Document, Variants and Add variant (2026-11-08). They route through the existing document/variant owners; plain left-click still mounts the navigator. Delayed Document commands validate the target still exists. Context-menu registrations use the existing configurable EntityMenu; saved document, variant and workspace formats are unchanged. Browser acceptance remains pending.

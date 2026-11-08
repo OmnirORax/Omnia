@@ -912,3 +912,7 @@ Waves toggle, reduced-motion bypass and explicit zero/negative persistence.
 User-selected missing defaults are displacement .1%/.3%, counts 1.5/10 and
 speeds 3/3 rad/s (Waves on); explicit saved values retain precedence;
 never claim a faithful waterwaves port without its missing shaders/layer setup.
+
+Correction (2026-11-08): Empty lattice cells is fully retired: control/property/display renderer removed, archived showVacantCells values preserved without effect; shared lattice snapping/creation/navigation remain. Waves uses the existing Audio response Sensitivity together with system audio level; no new sensitivity control. Hide UI participates in shared UI undo/redo; Escape or the assigned Undo shortcut restores it. Visibility remains transient and does not change saved layout. Browser interaction and wave acceptance remain pending.
+
+Node menu correction (2026-11-08): plain node left-click continues navigator mounting. The existing node right-click menu offers Document, Variants and Add variant via shared context dispatch; validate stale document targets. Hide UI participates in shared UI history; Escape restores directly and the assigned Undo follows configured history mode/categories. Empty-cell display/setting is retired; legacy values are archive-only. Waves reuses the existing Audio response Sensitivity, with no new control.

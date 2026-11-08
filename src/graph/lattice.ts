@@ -115,13 +115,6 @@ export function reconcileLattice(previous:Document,next:Document,size?:number):D
  return result;
 
 }
-/** Bounded XY creation slice; empty slots are display data, never entities. */
-export function vacantCells(doc:Document,center:XYZ,size?:number,radius=12):Cell[]{
- const index=prepareLattice(doc,size),base=cellAt(center,index.unit),result:Cell[]=[];
- for(let x=-radius;x<=radius;x++)for(let y=-radius;y<=radius;y++){const cell={x:base.x+x,y:base.y+y,z:base.z};if(!index.occupied.has(key(cell)))result.push(cell);}
- return result;
-}
-
 /** Prepare fixed occupancy once for a layout-rotation gesture. Motion only
  * quantizes its already-captured targets and checks the sparse occupancy map. */
 export function prepareLatticeTransform(doc:Document,ids:readonly string[],size?:number,scale?:number){

@@ -848,3 +848,5 @@ existing scene.vfx settings/preview/history owner. [Live wave tuning](SCENE_VFX.
 documents units and preserved defaults; source-effect fidelity remains unresolved.
 
 Obsolete UI retirement (2026-11-08): docked Workspace help, External AI proposal, Relationship types and Connect nodes instances are removed. Shared connection/compact/transfer/model infrastructure remains. Scene Distortion/Glitching renderers and controls are retired with legacy numbers archived. See DATA_EVOLUTION.md.
+
+Correction (2026-11-08): Empty lattice cells is fully retired: control/property/display renderer removed, archived showVacantCells values preserved without effect; shared lattice snapping/creation/navigation remain. Waves uses the existing Audio response Sensitivity together with system audio level; no new sensitivity control. Hide UI participates in shared UI undo/redo; Escape or the assigned Undo shortcut restores it. Visibility remains transient and does not change saved layout. Browser interaction and wave acceptance remain pending.

@@ -3,7 +3,7 @@ import { defineFunction } from "../properties/function.ts";
 import type { WorkspaceSettings } from "../workspaceActions";
 /** These input bindings drive placement settings, local controls and the master setter. */
 export default defineFunction<WorkspaceSettings>({
-  id: "spatial.placement", label: "Placement clearance", owner: "settings", controls: ["ui:nodeNames", "ui:nodeCellSize", "ui:vacantCells", "ui:radius", "ui:clearance"],
+  id: "spatial.placement", label: "Placement clearance", owner: "settings", controls: ["ui:nodeNames", "ui:nodeCellSize", "ui:radius", "ui:clearance"],
   group: [{ id: "spatial", label: "Spatial" }], inputs: {
     "placement.names": {
       definition: { id: "placement.names", label: "Node names", kind: "select", options: [{id:"expanded",label:"Expanded"},{id:"all",label:"All"},{id:"selection",label:"Selection"}], initial: "expanded", category: { id: "spatial", label: "Spatial" } },
@@ -15,11 +15,6 @@ export default defineFunction<WorkspaceSettings>({
         initial: 1, category: { id: "spatial", label: "Spatial" } },
       read: settings => settings.spatial.latticeScale ?? 1,
       write: (settings, value) => ({ ...settings, spatial: { ...settings.spatial, latticeScale: Number(value) } }),
-    },
-    "placement.vacantCells": {
-      definition: { id: "placement.vacantCells", label: "Empty lattice cells", kind: "toggle", initial: false, category: { id: "spatial", label: "Spatial" } },
-      read: settings => settings.spatial.showVacantCells ?? false,
-      write: (settings,value) => ({...settings,spatial:{...settings.spatial,showVacantCells:!!value}}),
     },
     "placement.cellSize": {
       definition: { id: "placement.cellSize", label: "Node cell size", kind: "number", min: .1, max: 5, step: .05,

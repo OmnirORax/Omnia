@@ -1,3 +1,4 @@
+import {NODE_ACCESS_ACTIONS} from './nodeContextActions.ts';
 import {restoreHiddenUI} from './ui/interfaceVisibility.ts';
 import {PATTERN_FUNCTION,patternSettings,resolvePattern} from './paint/pattern.ts';
 import {useScenePalette} from './paint/useScenePalette.ts';
@@ -131,12 +132,17 @@ async function loadInitial(): Promise<InitialWorkspace> {
   }
 }
 function Workbench({initial}:{initial:InitialWorkspace}) {
-  const [uiHidden,setUiHidden]=useState(false),uiHiddenRef=useRef(false);
+  const [uiHidden,setUiHidden]=useState(false),uiHiddenRef=useRef(false),uiVisibilityBindings=useRef<WorkspaceSettings["bindings"]>({});
   uiHiddenRef.current=uiHidden;
   useLayoutEffect(()=>{
     const restore=(event:KeyboardEvent)=>{
       if(!uiHiddenRef.current)return;
-      restoreHiddenUI(event,true,isTypingTarget(event.target),()=>setUiHidden(false));
+      const action=actionForKey(uiVisibilityBindings.current,normalizeKey(event));
+      if(!event.repeat&&!isTypingTarget(event.target)&&(action==='undo'||action==='ui:undo')){
+        event.preventDefault();event.stopImmediatePropagation();
+        actionHistory.travel('undo',{...actionHistory.options,steps:1});return;
+      }
+      restoreHiddenUI(event,true,isTypingTarget(event.target),()=>changeUiHidden(false));
     };
     window.addEventListener('keydown',restore,true);
     return()=>window.removeEventListener('keydown',restore,true);
@@ -153,6 +159,15 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
     try { return createActionHistory(JSON.parse(localStorage.getItem("omnium-history-options-v1") ?? "null") ?? undefined); }
     catch { return createActionHistory(); }
   });
+  useEffect(()=>actionHistory.register('ui.visibility',{
+    read:()=>uiHiddenRef.current,
+    write:(value:boolean)=>{uiHiddenRef.current=value;setUiHidden(value);},
+  }),[actionHistory]);
+  function changeUiHidden(next:boolean){
+    const before=uiHiddenRef.current;if(before===next)return;
+    uiHiddenRef.current=next;setUiHidden(next);
+    actionHistory.record('ui.visibility',before,next,['ui'],[...new Set(['omnium','window:panel:menu:view',actionHistory.activeContext,...actionHistory.contextPath])]);
+  }
   useEffect(() => {
     let previous = JSON.stringify(actionHistory.options);
     return actionHistory.subscribe(() => {
@@ -193,6 +208,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
   const backupUI=useRef({layout:savedUILayout,settings:savedSettings,appearance:previewAppearance});backupUI.current={layout:savedUILayout,settings:savedSettings,appearance:previewAppearance};
   const appearancePending = ui.pendingAppearance || !sameAppearance(previewAppearance, savedSettings.appearance);
   const settings = useMemo(() => ({ ...ui.settings, appearance: safeView ? safeAppearance() : previewAppearance }), [ui.settings, safeView, previewAppearance]);
+  uiVisibilityBindings.current=settings.bindings;
   const propertyBindings = settingsPropertyBindings(settings, setSettings, candidate=>ui.previewSettings(candidate?()=>candidate:null));
   const renderSource = useMemo(() => safeView ? settings.appearance : activityPreview(settings.appearance, activityRequests), [settings.appearance, safeView, activityRequests]);
   const renderedAppearance = useMemo(() => resolveControllerAppearance(renderSource), [renderSource]);
@@ -1032,7 +1048,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
   }
   function invokeContextShortcut(id: string): boolean {
     if (invokeCatalogAction(id, action => runAction(action))) return true;
-    const nodeAction = ["createChild", "insertExisting", "connect", "detach", "toggle", "focus", "edit", "removePlacement", "deleteIdentity"].find(action => id === `context:node:${action}`);
+    const nodeAction = [...NODE_ACCESS_ACTIONS.map(([id])=>id), "createChild", "insertExisting", "connect", "detach", "toggle", "focus", "edit", "removePlacement", "deleteIdentity"].find(action => id === `context:node:${action}`);
     if (nodeAction && selectedNode) {
       contextAction(nodeAction as ContextAction, { kind: "node", id: selectedNode.id });
       return true;
@@ -1060,6 +1076,9 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
     }
     const id = target.kind === "node" ? target.id : null;
     switch (action) {
+      case "document": if(id){selectNodeImmediately(id);navigate("document",id);} break;
+      case "variants": if(id){selectNodeImmediately(id);toggleVariants(id);} break;
+      case "addVariant": if(id){selectNodeImmediately(id);createVariant(id);} break;
       case "createUIFrame": { const point = target.kind === "space" ? target.screen : undefined; updateUI((layout) => uiContextEnabled(layout)?({ ...layout, frames: [...layout.frames, { id: crypto.randomUUID(), name: "New frame", x: point?.x ?? 120, y: point?.y ?? 180, cellSize: 96, collapsed: false, pinned: false }] }):layout); break; }
       case "createChild": if (id) addNode(id); break;
       case "createAt": if (target.kind === "space") addNode(null, target.world); break;
@@ -1095,7 +1114,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
       case "ui:select": case "ui:compact": case "ui:align": setUICommand(old => ({ action: action === "ui:select" ? "select" : action === "ui:align" ? "align" : "compact", sequence: (old?.sequence ?? 0) + 1 })); break;
       case "ui:hideUI": {
         if(window.document.activeElement instanceof HTMLElement)window.document.activeElement.blur();
-        setUiHidden(value=>!value);break;
+        changeUiHidden(!uiHiddenRef.current);break;
       }
       case "ui:reset": setUICommand(old => ({ action: "reset", sequence: (old?.sequence ?? 0) + 1 })); break;
       case "ui:devMode": updateUI(layout => ({ ...layout, panels: { ...layout.panels, "@devMode": !layout.panels["@devMode"] } })); break;
@@ -1315,7 +1334,6 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
   replaceFunction("ui:settingsSnap", "Settings snap spacing", <label>Snap spacing<select aria-label="Settings snap spacing" value={settings.spatial.spacing} onChange={(event) => setSettings((old) => ({ ...old, spatial: { ...old.spatial, spacing: Number(event.target.value) as GridSpacing } }))}>{[0, 0.25, 0.5, 1, 2, 5].map((step) => <option key={step} value={step}>{step || "Off"}</option>)}</select></label>, true);
   replaceFunction("ui:nodeNames", "Node names", <label>Names<select aria-label="Node names" value={settings.spatial.nodeNames ?? "expanded"} onChange={event => setSettings(old => ({ ...old, spatial: { ...old.spatial, nodeNames: event.target.value as "expanded" | "all" | "selection" } }))}><option value="expanded">Expanded</option><option value="all">All</option><option value="selection">Selection</option></select></label>, true);
   replaceFunction("ui:nodeCellSize", "Lattice scale", <label>Lattice scale<input key={settings.spatial.latticeScale??1} aria-label="Lattice scale" type="number" step="any" defaultValue={settings.spatial.latticeScale ?? 1} onBlur={event=>{const value=event.target.valueAsNumber;if(Number.isFinite(value)&&value>0)setSettings(old=>({...old,spatial:{...old.spatial,latticeScale:value}}));else event.target.value=String(settings.spatial.latticeScale??1);}} onKeyDown={event=>{if(event.key==='Enter'){event.preventDefault();event.currentTarget.blur();}if(event.key==='Escape'){event.preventDefault();event.stopPropagation();event.currentTarget.value=String(settings.spatial.latticeScale??1);event.currentTarget.blur();}}} title="Positive scale, including scientific notation. Enter applies. Scales cells and O carriers together; content keeps its size." /></label>, true);
-  replaceFunction("ui:vacantCells", "Show empty lattice cells", <label><input type="checkbox" checked={!!settings.spatial.showVacantCells} onChange={event=>setSettings(old=>({...old,spatial:{...old.spatial,showVacantCells:event.target.checked}}))}/>Empty lattice cells</label>, true);
   replaceFunction("ui:radius", "Minimum placement clearance radius", <CoupledField bindings={propertyBindings} consumer="spatial.placement" property="placement.radius" />, true);
   replaceFunction("ui:clearance", "Collision clearance", <CoupledField bindings={propertyBindings} consumer="spatial.placement" property="placement.clearance" />, true);
   replaceFunction("ui:subtreeModifier", "Subtree click modifier", <label>Expand/collapse subtree click modifier<select aria-label="Subtree click modifier" value={settings.mouse.subtreeModifier} onChange={(event) => setSettings((old) => ({ ...old, mouse: { ...old.mouse, subtreeModifier: event.target.value as WorkspaceSettings["mouse"]["subtreeModifier"] } }))}><option value="shift">Shift</option><option value="alt">Alt</option><option value="ctrl">Ctrl / Cmd</option><option value="none">Off</option></select></label>, true);
@@ -2203,7 +2221,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
         <CloudPanel />
         <FunctionControl id="appearance" palette />
         <UISection id="spatial-settings" title="Spatial settings">
-          {["ui:nodeNames", "ui:nodeCellSize", "ui:vacantCells", "isolateFocus"].map(id => <FunctionControl key={id} id={id} />)}
+          {["ui:nodeNames", "ui:nodeCellSize", "isolateFocus"].map(id => <FunctionControl key={id} id={id} />)}
         </UISection>
         <UISection id="mouse-settings" title="Mouse & gestures">
           <FunctionControl id="ui:subtreeModifier" />

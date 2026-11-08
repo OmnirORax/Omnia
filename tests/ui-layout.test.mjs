@@ -492,3 +492,12 @@ test('hidden UI Escape restores it before other handlers, while normal and typin
  typing=false;assert.equal(key('Escape',true).defaultPrevented,false);assert.equal(other,3);
  assert.equal(key('x').defaultPrevented,false);assert.equal(other,4);
 });
+
+test('transient UI visibility participates in existing undo and redo without touching layout',async()=>{
+ const {createActionHistory}=await import('../src/ui/actionHistory.ts');
+ const history=createActionHistory(),layout={frames:[{id:'kept'}]};let hidden=false;
+ history.register('ui.visibility',{read:()=>hidden,write:value=>{hidden=value;}});
+ history.record('ui.visibility',false,true,['ui'],['omnium']);hidden=true;
+ assert.equal(history.travel('undo'),1);assert.equal(hidden,false);assert.deepEqual(layout,{frames:[{id:'kept'}]});
+ assert.equal(history.travel('redo'),1);assert.equal(hidden,true);
+});

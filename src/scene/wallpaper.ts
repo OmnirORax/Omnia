@@ -87,7 +87,7 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
     bass=settings.pulseRangeMode==='auto'?followBass(bass,bassDynamics.sample(audio.bassAmplitude,dt),dt):smoothAudio(bass,audio.bass,dt);level=smoothAudio(level,audio.level,dt);
     material.uniforms.time.value=elapsed;
     material.uniforms.light.value=pulse;
-    material.uniforms.waveAudio.value=waveAudioGain(audio.active?audio.level:0);
+    material.uniforms.waveAudio.value=waveAudioGain(audio.active?audio.level:0,settings.pulseSensitivity);
     material.uniforms.bounce.value=audioScale(bass,settings.audioBounce);
     requestPaint();schedule();
   };

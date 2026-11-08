@@ -197,3 +197,13 @@ test("rapid different-node clicks leave the latest node selected immediately", t
   clicks.click("a");clicks.click("b");assert.equal(selection,"b");
   t.mock.timers.tick(400);assert.equal(selection,"b");
 });
+
+test('node context exposes document and variant actions and refuses stale document targets',async()=>{
+ const {NODE_ACCESS_ACTIONS,nodeDocumentTarget}=await import('../src/nodeContextActions.ts');
+ assert.deepEqual(NODE_ACCESS_ACTIONS.map(([id])=>id),['document','variants','addVariant']);
+ const placements=[{id:'first'},{id:'second'}];
+ assert.equal(nodeDocumentTarget('second',placements),'second');
+ assert.equal(nodeDocumentTarget('missing',placements),undefined);
+ assert.equal(nodeDocumentTarget(undefined,placements),undefined);
+ assert.deepEqual(placements,[{id:'first'},{id:'second'}]);
+});

@@ -241,7 +241,10 @@ test('Single tint ticks remain live at exponent 0.1 while bounce works; colour v
   assert.equal(settings.pulseExponent,.1);assert.equal(settings.maxFps,DEFAULT_SCENE_VFX.maxFps);
   paper.configure({...settings,pulseAmount:0});ctx.nodes[0].value=255;
   {const [key,fn]=pending.entries().next().value;pending.delete(key);fn(now+=20);}
-  assert.equal(u.light.value,0,'light can be disabled');assert.ok(u.waveAudio.value>1,'waves still respond to input when light is disabled');ctx.nodes[0].value=0;
+  assert.equal(u.light.value,0,'light can be disabled');assert.ok(u.waveAudio.value>1,'waves still respond to input when light is disabled');
+  const high=u.waveAudio.value;paper.configure({...settings,pulseAmount:0,pulseSensitivity:4});
+  {const [key,fn]=pending.entries().next().value;pending.delete(key);fn(now+=20);}
+  assert.ok(u.waveAudio.value>1&&u.waveAudio.value<high,'existing sensitivity changes wave response');ctx.nodes[0].value=0;
  }finally{paper.dispose();T.TextureLoader.prototype.loadAsync=prior.load;globalThis.window=prior.window;globalThis.document=prior.document;globalThis.AudioContext=prior.AudioContext;globalThis.requestAnimationFrame=prior.raf;globalThis.cancelAnimationFrame=prior.cancel;}
 });
 
@@ -477,6 +480,6 @@ test('default background covers no selection and unassigned nodes while explicit
 });
 
 test('audio wave gain is finite, bounded and leaves authored waves unchanged at silence',()=>{
- assert.equal(waveAudioGain(0),1);assert.equal(waveAudioGain(.5),2);assert.equal(waveAudioGain(99),3);
+ assert.equal(waveAudioGain(0),1);assert.equal(waveAudioGain(.5),2);assert.equal(waveAudioGain(99),3);assert.equal(waveAudioGain(1,0),1);assert.equal(waveAudioGain(1,4),2);assert.equal(waveAudioGain(1,8),3);
  assert.equal(waveAudioGain(-1),1);assert.equal(waveAudioGain(NaN),1);assert.equal(waveAudioGain(Infinity),1);
 });

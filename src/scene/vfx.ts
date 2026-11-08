@@ -88,4 +88,4 @@ export function createBassDynamics(){
 }
 
 /** Audio modulates existing wave displacement; silence retains authored waves. */
-export function waveAudioGain(level:number){return 1+2*Math.min(1,Math.max(0,Number.isFinite(level)?level:0));}
+export function waveAudioGain(level:number,sensitivity=8){const input=Math.min(1,Math.max(0,Number.isFinite(level)?level:0));const scale=Math.min(8,Math.max(0,Number.isFinite(sensitivity)?sensitivity:0));return 1+2*input*scale/8;}
