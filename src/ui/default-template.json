@@ -17,10 +17,7 @@
         "x": 320, "y": 100, "width": 300, "height": 440, "collapsed": true, "pinned": false,
         "members": [
           { "kind": "function", "id": "panel:reuse" },
-          { "kind": "function", "id": "panel:connections" },
-          { "kind": "function", "id": "panel:types" },
           { "kind": "function", "id": "panel:frames" },
-          { "kind": "function", "id": "panel:ai" },
           { "kind": "function", "id": "ui:snap" }
         ]
       },
@@ -35,8 +32,7 @@
           { "kind": "function", "id": "fitAll" },
           { "kind": "function", "id": "panel:hierarchy" },
           { "kind": "function", "id": "panel:inspector" },
-          { "kind": "function", "id": "panel:relationships" },
-          { "kind": "function", "id": "panel:help" }
+          { "kind": "function", "id": "panel:relationships" }
         ]
       },
       "panel:menu:workspace": {
@@ -58,12 +54,8 @@
       "panel:hierarchy": { "x": 320, "y": 140, "width": 400, "height": 560, "collapsed": false, "pinned": false },
       "panel:inspector": { "x": 740, "y": 140, "width": 400, "height": 560, "collapsed": false, "pinned": false },
       "panel:reuse": { "x": 320, "y": 140, "width": 400, "height": 480, "collapsed": true, "pinned": false },
-      "panel:connections": { "x": 320, "y": 140, "width": 400, "height": 480, "collapsed": true, "pinned": false },
       "panel:frames": { "x": 320, "y": 140, "width": 440, "height": 560, "collapsed": true, "pinned": false },
-      "panel:types": { "x": 320, "y": 140, "width": 440, "height": 560, "collapsed": true, "pinned": false },
-      "panel:relationships": { "x": 320, "y": 140, "width": 400, "height": 480, "collapsed": true, "pinned": false },
-      "panel:ai": { "x": 320, "y": 140, "width": 480, "height": 560, "collapsed": true, "pinned": false },
-      "panel:help": { "x": 320, "y": 140, "width": 400, "height": 480, "collapsed": true, "pinned": false }
+      "panel:relationships": { "x": 320, "y": 140, "width": 400, "height": 480, "collapsed": true, "pinned": false }
     },
     "items": {},
     "frames": [],

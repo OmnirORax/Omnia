@@ -67,7 +67,6 @@ import {
   type Frame,
   type FrameScope,
 } from "./graph/structural";
-import { parseChangeSet, validateChangeSet, type Preview } from "./graph/changeset";
 import { ensureBinderSpacing, compactLayout, createPlacement, movePlacement, reparentStructure, reparentVisual, detachPlacement, detachNodeConnection, type ReflowScope, type GridSpacing } from "./graph/layout3d";
 import { ACTIONS, SETTINGS_KEY, allowsShiftShortcut, actionForKey, defaultSettings, isFeatureAction, isNudgeAction, isTypingTarget, keyConflict, loadSettings, normalizeSettings, normalizeKey, normalizePointer, preferredFeatureKey, type ActionId, type NudgeActionId, type WorkspaceSettings } from "./workspaceActions";
 import { clearRecordedShortcutPress, FEATURE_ACTIONS, featureActionRuntime, recordedShortcutTail, recordShortcutPress } from "./featureActions";
@@ -257,16 +256,12 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
   actionHistory.register("omnium", { read: () => workspaceHistory(workspaceRef.current), write: value => {
     const checked = restoreWorkspaceHistory(workspaceRef.current, value);
     const changedContext=checked.id!==workspaceRef.current.id||checked.activeAtlasId!==workspaceRef.current.activeAtlasId;
-    workspaceRef.current=checked; documentRef.current=activeDocument(checked); setWorkspace(checked); setSelection(null); setBinderPopup(null); setProposalPreview(null); setRevision(r => r + 1);
+    workspaceRef.current=checked; documentRef.current=activeDocument(checked); setWorkspace(checked); setSelection(null); setBinderPopup(null); setRevision(r => r + 1);
     if(changedContext)clearAtlasContext();
   } });
-  const [proposalText, setProposalText] = useState("");
-  const [proposalPreview, setProposalPreview] = useState<Preview | null>(null);
   const [frameQuestion, setFrameQuestion] = useState("");
   const [entityLookup, setEntityLookup] = useState("");
   const [frameLookup, setFrameLookup] = useState("");
-  const [source, setSource] = useState("");
-  const [target, setTarget] = useState("");
   const settingsOpen = uiLayout.panels["@settings"] ?? false;
   const setSettingsOpen = (value: boolean) => updateUI(layout => value ? reopenContainer(layout, "window:settings") : { ...layout, panels: { ...layout.panels, "@settings": false } });
   const themeOpen = (uiLayout.panels["@theme"] ?? true) || (!!masterInspection && masterInspection !== dismissedInspection);
@@ -317,7 +312,6 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
   const templateInput = useRef<HTMLInputElement>(null);
   const themeTemplateInput = useRef<HTMLInputElement>(null);
   const fontInput = useRef<HTMLInputElement>(null);
-  const proposalInput = useRef<HTMLInputElement>(null);
   function navigate(kind: NavigationCommand["kind"], id?: string) {
     setNavCommand((old) => ({ sequence: (old?.sequence ?? 0) + 1, kind, id }));
   }
@@ -329,10 +323,10 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
     const changedContext=next.id!==workspaceRef.current.id||next.activeAtlasId!==workspaceRef.current.activeAtlasId;
     const checked=validateWorkspace(advanceWorkspaceRevisions(workspaceRef.current,next));
     actionHistory.record("omnium",workspaceHistory(workspaceRef.current),workspaceHistory(checked),["omnium"],["omnium","window:omnic-library"]);
-    workspaceRef.current=checked; documentRef.current=activeDocument(checked); setWorkspace(checked); setRevision(r=>r+1); setProposalPreview(null); setError("");
+    workspaceRef.current=checked; documentRef.current=activeDocument(checked); setWorkspace(checked); setRevision(r=>r+1); setError("");
     if(changedContext)clearAtlasContext();
   }
-  function clearAtlasContext(){setSelection(null);setSelectedIds(new Set());setOptionNodeId(null);setOmnicEditorId(null);setOmnicNewDraft(null);omnicPreview.set(null);setExpandedVariants(new Set());setFocusContextIds(null);setBinderPopup(null);setInsertContext(null);setConnectionSource(null);setProposalPreview(null);}
+  function clearAtlasContext(){setSelection(null);setSelectedIds(new Set());setOptionNodeId(null);setOmnicEditorId(null);setOmnicNewDraft(null);omnicPreview.set(null);setExpandedVariants(new Set());setFocusContextIds(null);setBinderPopup(null);setInsertContext(null);setConnectionSource(null);}
   function switchAtlas(id: string) {
     if (!workspaceRef.current.atlases.some(a=>a.id===id)) return;
     const next={...workspaceRef.current,activeAtlasId:id}; workspaceRef.current=next; documentRef.current=activeDocument(next); setWorkspace(next);
@@ -354,7 +348,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
       actionHistory.record("omnium", workspaceHistory(workspaceRef.current), workspaceHistory(nextWorkspace), ["omnium"], ["omnium", "window:omnic-library"]);
       workspaceRef.current=nextWorkspace; documentRef.current = validated;
       setWorkspace(nextWorkspace);
-      setProposalPreview(null);
+
       setRevision((r) => r + 1);
       setError("");
       return true;
@@ -768,38 +762,6 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
   function editNodeVisual(visual: Visual, asset?: VisualAsset) {
     commitDocument({ ...document, ...(asset ? { assets: [...(document.assets ?? []), asset] } : {}), placements: document.placements.map((p) => selectedIds.has(p.id) ? { ...p, visual } : p) });
   }
-  function createType() {
-    const name = window.prompt("New relationship type name (provisional)");
-    if (!name?.trim()) return;
-    const id = newId();
-    commitDocument({
-      ...document,
-      relationshipTypes: [
-        ...document.relationshipTypes,
-        {
-          id,
-          name: name.trim(),
-          symbol: "",
-          definition: "",
-          roles: [
-            { id: "source", name: "From" },
-            { id: "target", name: "To" },
-          ],
-        },
-      ],
-    });
-  }
-  function patchType(
-    typeId: string,
-    changes: Partial<(typeof document.relationshipTypes)[number]>,
-  ) {
-    commitDocument({
-      ...document,
-      relationshipTypes: document.relationshipTypes.map((t) =>
-        t.id === typeId ? { ...t, ...changes } : t,
-      ),
-    });
-  }
   function makeScope(entityIds: string[]): FrameScope {
     return {
       anchorIds: entityIds.slice(0, 1),
@@ -848,15 +810,6 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
     frame.history.push({ revision: document.revision, scope: structuredClone(frame.scope) });
     frame.scope = scope;
     commitDocument(next);
-  }
-  function reviewProposal() {
-    try {
-      setProposalPreview(validateChangeSet(document, parseChangeSet(proposalText)));
-      setError("");
-    } catch (e) {
-      setProposalPreview(null);
-      setError(`Proposal rejected. ${message(e)}`);
-    }
   }
   function toggleNode(id: string) {
     const placement = document.placements.find((p) => p.id === id);
@@ -1347,12 +1300,10 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
   replaceFunction("ui:clearance", "Collision clearance", <CoupledField bindings={propertyBindings} consumer="spatial.placement" property="placement.clearance" />, true);
   replaceFunction("ui:subtreeModifier", "Subtree click modifier", <label>Expand/collapse subtree click modifier<select aria-label="Subtree click modifier" value={settings.mouse.subtreeModifier} onChange={(event) => setSettings((old) => ({ ...old, mouse: { ...old.mouse, subtreeModifier: event.target.value as WorkspaceSettings["mouse"]["subtreeModifier"] } }))}><option value="shift">Shift</option><option value="alt">Alt</option><option value="ctrl">Ctrl / Cmd</option><option value="none">Off</option></select></label>, true);
   replaceFunction("ui:startInvestigation", "Start frame", <button onClick={createFrame}>Start frame</button>);
-  replaceFunction("ui:defineType", "Define relationship type", <button onClick={createType}>+ Define type</button>);
-  replaceFunction("ui:reviewProposal", "Validate and preview", <button onClick={reviewProposal}>Validate and preview</button>);
   replaceFunction("ui:flowType", "View relationship type", flowType ? <label className="toolbar-snap">Order type<select aria-label="View relationship type" value={flowType.id} onChange={(event) => setFlowOrder({ typeId: event.target.value, fromRoleId: "", toRoleId: "" })}>{document.relationshipTypes.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select></label> : <span>Define a relationship type first</span>, true);
   replaceFunction("ui:flowFrom", "View upstream role", flowType ? <label className="toolbar-snap">Upstream role<select aria-label="View upstream role" value={resolvedOrder.fromRoleId} onChange={(event) => setFlowOrder({ ...resolvedOrder, fromRoleId: event.target.value })}>{flowType.roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</select></label> : <span>Define a relationship type first</span>, true);
   replaceFunction("ui:flowTo", "View downstream role", flowType ? <label className="toolbar-snap">Downstream role<select aria-label="View downstream role" value={resolvedOrder.toRoleId} onChange={(event) => setFlowOrder({ ...resolvedOrder, toRoleId: event.target.value })}>{flowType.roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</select></label> : <span>Define a relationship type first</span>, true);
-  for (const [id, title] of [["reuse", "Reuse identity"], ["hierarchy", "Hierarchy"], ["frames", "Investigative frames"], ["inspector", "Inspector"], ["connections", "Connect nodes"], ["types", "Relationship types"], ["ai", "External AI proposal"], ["relationships", "Relationships"], ["help", "Workspace help"]]) replaceFunction(`panel:${id}`, title, <button onClick={() => revealPanel(id)}>{title}</button>);
+  for (const [id, title] of [["reuse", "Reuse identity"], ["hierarchy", "Hierarchy"], ["frames", "Investigative frames"], ["inspector", "Inspector"], ["relationships", "Relationships"]]) replaceFunction(`panel:${id}`, title, <button onClick={() => revealPanel(id)}>{title}</button>);
   for (const fn of uiFunctions) {
     const metadata = ACTIONS.find(action => action.id === fn.id);
     if (metadata && "configuration" in metadata && metadata.configuration === "history") fn.configuration = <HistoryControls history={actionHistory} />;
@@ -1380,7 +1331,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
             {["ui:import", "ui:export", "ui:saveTemplate", "ui:loadTemplate"].map(id => <FunctionControl id={id} key={id} />)}
           </UIPanel>
           <UIPanel id="menu:create" title="Create" menu>
-            {["omnic.library", "omnic.create", "omnic.open", "panel:reuse", "panel:connections", "panel:types", "panel:frames", "panel:ai", "ui:snap"].map(id => <FunctionControl id={id} key={id} />)}
+            {["omnic.library", "omnic.create", "omnic.open", "panel:reuse", "panel:frames", "ui:snap"].map(id => <FunctionControl id={id} key={id} />)}
           </UIPanel>
           <UIPanel id="menu:view" title="View" menu>
             <FunctionControl id="appearance" />
@@ -1391,7 +1342,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
             <FunctionControl id="ui:flowFrom" />
             <FunctionControl id="ui:flowTo" />
             </>}
-            {["ui:newView", "fitAll", "panel:hierarchy", "panel:inspector", "panel:relationships", "panel:help"].map(id => <FunctionControl id={id} key={id} />)}
+            {["ui:newView", "fitAll", "panel:hierarchy", "panel:inspector", "panel:relationships"].map(id => <FunctionControl id={id} key={id} />)}
           </UIPanel>
           <UIPanel id="menu:infinity" title="♾️" menu>
             {["metrics.open", "quests.open", "leaderboard.open"].map(id => <FunctionControl id={id} key={id} />)}
@@ -2108,149 +2059,6 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
               <p>Select a node or relationship to edit it.</p>
             )}
           </UIPanel>
-          <UIPanel id="connections" title="Connect nodes">
-            <p>Choose endpoints below to add a directed relationship.</p>
-            {field("field:new-relationship-source", "New relationship source", <label>
-              From
-              <select
-                aria-label="New relationship source"
-                value={source}
-                onChange={(e) => setSource(e.target.value)}
-              >
-                <option value="">Choose node</option>
-                {options()}
-              </select>
-            </label>)}
-            {field("field:new-relationship-target", "New relationship target", <label>
-              To
-              <select
-                aria-label="New relationship target"
-                value={target}
-                onChange={(e) => setTarget(e.target.value)}
-              >
-                <option value="">Choose node</option>
-                {options()}
-              </select>
-            </label>)}
-            <button
-              disabled={
-                !atlas.nodes.some((n) => n.id === source) ||
-                !atlas.nodes.some((n) => n.id === target)
-              }
-              onClick={() => connect({ source, target })}
-            >
-              Add relationship
-            </button>
-          </UIPanel>
-          <UIPanel id="types" title="Relationship types">
-            <FunctionControl id="ui:defineType" />
-            {document.relationshipTypes.map((type) => (
-              <div key={type.id}>
-                {field("field:" + (`Type name ${type.id}`), `Type name ${type.id}`, <label>
-                  Type name{" "}
-                  <input
-                    aria-label={`Type name ${type.id}`}
-                    value={type.name}
-                    onChange={(e) => patchType(type.id, { name: e.target.value })}
-                  />
-                </label>)}
-                {field("field:" + (`Type symbol ${type.id}`), `Type symbol ${type.id}`, <label>
-                  Display symbol{" "}
-                  <input
-                    aria-label={`Type symbol ${type.id}`}
-                    value={type.symbol}
-                    maxLength={50}
-                    onChange={(e) => patchType(type.id, { symbol: e.target.value })}
-                  />
-                </label>)}
-                {field("field:" + (`Type definition ${type.id}`), `Type definition ${type.id}`, <label>
-                  Definition{" "}
-                  <textarea
-                    aria-label={`Type definition ${type.id}`}
-                    value={type.definition}
-                    onChange={(e) => patchType(type.id, { definition: e.target.value })}
-                  />
-                </label>)}
-                {type.roles.slice(0, 2).map((role, i) => (
-                  field("field:" + (`Role ${i + 1} ${type.id}`), `Role ${i + 1} ${type.id}`, <label key={role.id}>
-                    Role {i + 1}
-                    <input
-                      aria-label={`Role ${i + 1} ${type.id}`}
-                      value={role.name}
-                      onChange={(e) =>
-                        patchType(type.id, {
-                          roles: type.roles.map((r) =>
-                            r.id === role.id ? { ...r, name: e.target.value } : r,
-                          ),
-                        })
-                      }
-                    />
-                  </label>)
-                ))}
-              </div>
-            ))}
-          </UIPanel>
-          <UIPanel id="ai" title="External AI proposal">
-            <p>
-              Export the atlas JSON for an external AI. Ask it for an <code>omnium-changeset</code>{" "}
-              with this document revision ({document.revision}) and stable IDs. Valid structure
-              still needs your factual review.
-            </p>
-            {field("field:change-set-json", "Change set JSON", <textarea
-              aria-label="Change set JSON"
-              rows={7}
-              value={proposalText}
-              onChange={(e) => {
-                setProposalText(e.target.value);
-                setProposalPreview(null);
-              }}
-              placeholder="Paste change-set JSON"
-            />)}
-            <button onClick={() => proposalInput.current?.click()}>
-              Load change-set JSON file
-            </button>
-            <input
-              ref={proposalInput}
-              type="file"
-              accept=".json,application/json"
-              hidden
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file && file.size > 5_000_000)
-                  setError("Change set exceeds the 5 MB import limit.");
-                else if (file)
-                  void file
-                    .text()
-                    .then((value) => {
-                      setProposalText(value);
-                      setProposalPreview(null);
-                    })
-                    .catch((error) => setError(message(error)));
-                event.target.value = "";
-              }}
-            />
-            <FunctionControl id="ui:reviewProposal" />
-            {proposalPreview && (
-              <div className="proposal-preview">
-                <p>Proposed changes at revision {document.revision}:</p>
-                <ul>
-                  {proposalPreview.lines.map((line, i) => (
-                    <li key={i}>{line}</li>
-                  ))}
-                </ul>
-                <button
-                  onClick={() => {
-                    if (window.confirm("Apply these reviewed structural changes?")) {
-                      commitDocument(proposalPreview.next);
-                      setProposalText("");
-                    }
-                  }}
-                >
-                  Approve and apply atomically
-                </button>
-              </div>
-            )}
-          </UIPanel>
           {
             <UIPanel id="relationships" title="Relationships">
                 <p>
@@ -2278,17 +2086,6 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
               revision={document.revision} bindings={propertyBindings} onApply={sceneBackground.apply}
               hasBackground={!!sceneBackground.reference} backgroundError={sceneBackground.error} backgroundKey={sceneReferenceKey(sceneBackground.reference)}
               onForgetLocal={sceneBackground.forgetLocal} nodeExists={id => sceneNodeIdsRef.current.has(id)} />
-          </UIPanel>
-          <UIPanel id="help" title="Workspace help" className="help">
-            <p>
-              Click a node to drive it with the mouse and Up/Down depth steps; click an empty slot to park, or Esc to cancel. Right-click for node actions. Drag empty space to pan; right-drag to navigate; scroll to zoom. Click a binder for connection and glyph actions.
-            </p>
-            <FunctionControl id="compactSelected" />
-            <FunctionControl id="compactFrame" />
-            <p>
-              Autosave is specific to this browser and origin. Export JSON for a portable backup.
-              This is a private local atlas.
-            </p>
           </UIPanel>
           </UIFrameStrip>
         </aside>

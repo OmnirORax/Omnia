@@ -846,3 +846,5 @@ remain authoritative. Current adapters cover registered DOM text/surfaces/contou
 Scene Waves now exposes its six coefficients through WAVE_CONTROLS and the
 existing scene.vfx settings/preview/history owner. [Live wave tuning](SCENE_VFX.md#live-waves-tuning)
 documents units and preserved defaults; source-effect fidelity remains unresolved.
+
+Obsolete UI retirement (2026-11-08): docked Workspace help, External AI proposal, Relationship types and Connect nodes instances are removed. Shared connection/compact/transfer/model infrastructure remains. Scene Distortion/Glitching renderers and controls are retired with legacy numbers archived. See DATA_EVOLUTION.md.

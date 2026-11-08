@@ -1070,3 +1070,7 @@ or migration. Renderer initial uniforms and discovered setters share WAVE_CONTRO
 ### MS lock retirement (2026-11-08)
 
 MS phase, accepted membership and selection history remain transient. No saved format changes. Historical layout references to selector.lock remain unavailable IDs. Its obsolete shortcut binding is deliberately dropped by existing settings normalization and no longer reserves Ctrl+MB3; original exported backup bytes remain untouched. Opening-shortcut exit retains accepted membership; active-only Esc/clear and borrowed-reference restoration keep their existing owner. No authored workspace or appearance data is removed.
+
+### Obsolete dock panels and VHS effects retired (2026-11-08)
+
+Workspace help, External AI proposal, Relationship types and Connect nodes panel instances, launchers and exclusive editing state/handlers are retired. Shared atlas connection, compact actions, relationship types/models, generic docking and File/Library import-export remain. Existing workspace data is untouched; old layout/shortcut references remain unavailable-ID records. New default layouts omit these panels. No relationship types, roles, links or authored definitions are deleted. Distortion/glitching numeric fields remain normalized/serialized archive-only for older settings exports; their control IDs/setters and shader uniforms/code are retired. Values no longer affect output or scheduling. No saved version change, eager migration or backend change.

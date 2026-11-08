@@ -15,9 +15,7 @@ const titles: Record<string, string> = {
   "window:panel:menu:create": "Create", "window:panel:menu:view": "View",
   "window:panel:menu:workspace": "Workspace", "window:panel:reuse": "Reuse identity",
   "window:panel:hierarchy": "Hierarchy", "window:panel:frames": "Investigative frames",
-  "window:panel:inspector": "Inspector", "window:panel:connections": "Connect nodes",
-  "window:panel:types": "Relationship types", "window:panel:relationships": "Relationships",
-  "window:panel:ai": "External AI proposal", "window:panel:help": "Workspace help",
+  "window:panel:inspector": "Inspector", "window:panel:relationships": "Relationships",
 };
 export const searchTitle = (ui: UIContextValue, key: string) => ui.layout.labels?.[key] ?? ui.frameActions.get(key)?.title ?? titles[key] ?? nameFor(ui, key);
 function nativeHome(fn: UIFunction): string {
@@ -30,9 +28,6 @@ function nativeHome(fn: UIFunction): string {
   if (/^ui:(view|newView|flow)/.test(id)) return "window:panel:menu:view";
   if (/^field:(frame|reopen-frame|lock-frame|find-frame|exploration-depth)/.test(id)) return "window:panel:frames";
   if (id === "field:find-existing-identity") return "window:panel:reuse";
-  if (/^field:new-relationship/.test(id)) return "window:panel:connections";
-  if (id === "ui:defineType") return "window:panel:types";
-  if (id === "ui:reviewProposal") return "window:panel:ai";
   if (id === "ui:startInvestigation") return "window:panel:frames";
   if (/^(appearance:|visual:|binder:|field:(node-|entity-|structural-|hide-this|3D |relationship-))/.test(id)) return "window:panel:inspector";
   if (id.startsWith("context:node:")) return "window:context:node";

@@ -40,7 +40,7 @@ export function SceneVfxControls({bindings}:{bindings:PropertyBindings}){
  <UIField id="scene.vfx.imageTintEnabled" label="Enable image tint" category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property="scene.imageTintEnabled" label="Enable image tint"/></UIField>
  {tintEnabled&&<UIField id="scene.vfx.imageTint" label="Image tint colour" category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property="scene.imageTint" label="Image tint colour"/></UIField>}
  </UISection>
- {([['scene.audioBounce','Audio Bounce','bounce'],['scene.distortion','Distortion','distortion'],['scene.glitching','Glitching','glitching'],['scene.maxFps','Max FPS','maxFps']] as const).map(([property,label,key])=><UIField key={key} id={`scene.vfx.${key}`} label={label} category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property={property} label={label}/></UIField>)}
+ {([['scene.audioBounce','Audio Bounce','bounce'],['scene.maxFps','Max FPS','maxFps']] as const).map(([property,label,key])=><UIField key={key} id={`scene.vfx.${key}`} label={label} category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property={property} label={label}/></UIField>)}
  <UISection id="scene-waves" title="Waves" defaultExpanded={false}>
  <UIField id="scene.vfx.waves" label="Waves enabled" category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property="scene.waves" label="On"/></UIField>
  {WAVE_CONTROLS.map(({key,label})=><UIField key={key} id={`scene.vfx.${key}`} label={label} category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property={`scene.${key}`}/></UIField>)}

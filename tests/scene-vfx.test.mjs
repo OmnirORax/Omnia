@@ -220,6 +220,7 @@ test('Single tint ticks remain live at exponent 0.1 while bounce works; colour v
  try{
   await audio.connectSceneAudioElement({pause(){},addEventListener(){},removeEventListener(){}});paper.configure(settings);await paper.setURL('disposable');
   const material=scene.children.find(o=>o.material?.uniforms?.light).material,u=material.uniforms,values=[];let now=0;
+  assert.equal(u.distortion,undefined);assert.equal(u.glitching,undefined);assert.doesNotMatch(material.fragmentShader,/uniform float (distortion|glitching)/);
   for(const value of [20,80,160,240,255,0]){
    ctx.nodes[1].value=value;ctx.nodes[2].value=value;const [key,fn]=pending.entries().next().value;pending.delete(key);fn(now+=20);values.push(u.light.value);
   }

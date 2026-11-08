@@ -18,8 +18,6 @@ export const UI_FIELD_CATALOG = [
   ["field:relationship-label", "Relationship label", "Relationships"],
   ["field:relationship-source", "Relationship source", "Relationships"],
   ["field:relationship-target", "Relationship target", "Relationships"],
-  ["field:new-relationship-source", "New relationship source", "Relationships"],
-  ["field:new-relationship-target", "New relationship target", "Relationships"],
   ["binder:text", "Binder text", "Relationships"],
   ...["Node", "Binder"].flatMap((label) => [
     [`appearance:${label}:color`, `${label} color`, label === "Node" ? "Nodes" : "Relationships"],
@@ -71,8 +69,6 @@ export function libraryCategory(fn: { id: string; category?: string }) {
   if (fn.id.startsWith("shortcut:")) return "Shortcuts";
   if (/^ui:(view|newView|flow)/.test(fn.id)) return "View";
   if (fn.id === "ui:startInvestigation") return "Investigations";
-  if (fn.id === "ui:defineType") return "Relationships";
-  if (fn.id === "ui:reviewProposal") return "AI";
   if (fn.id.startsWith("panel:") || ["Navigation", "Expansion", "View"].includes(fn.category ?? ""))
     return "View";
   if (fn.category === "Structure creation") return "Create";
