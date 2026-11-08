@@ -78,6 +78,10 @@ test('system input feeds the existing analysers through a muted graph and releas
 
 test('preview requires explicit pairing while unrelated origins remain unsupported',()=>{
  assert.equal(systemAudioRequiresPairing('https://raw.githack.com'),true);
+ for(const origin of ['https://pr-61.omnia-web-bae.pages.dev','https://a1234567.omnia-web-bae.pages.dev']){
+  assert.equal(systemAudioRequiresPairing(origin),true);assert.equal(systemAudioOriginSupported(origin),true);
+ }
+ for(const origin of ['https://pr-61.omnia-web-bae.pages.dev.evil.test','https://other.pages.dev','https://omnia-web-bae.pages.dev','http://pr-61.omnia-web-bae.pages.dev','https://pr-61.omnia-web-bae.pages.dev:443','https://a.b.omnia-web-bae.pages.dev'])assert.equal(systemAudioOriginSupported(origin),false);
  for(const origin of ['https://raw.githack.com','https://omnium.nexus','http://localhost:5173'])assert.equal(systemAudioOriginSupported(origin),true);
  for(const origin of ['https://unrelated.example','https://raw.githack.com.evil.test','null'])assert.equal(systemAudioOriginSupported(origin),false);
  assert.equal(systemAudioRequiresPairing('https://omnium.nexus'),false);

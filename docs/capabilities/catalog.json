@@ -2176,8 +2176,8 @@
     {
       "id": "scene.systemAudio",
       "title": "Windows system audio through Omnium Audio Helper",
-      "where": "Scene → Scene effects → Preview pairing code (one-time on GitHack), Connect system audio, Stop audio and Forget system audio. Run the Windows helper first.",
-      "behavior": "Windows WASAPI helper feeds bounded PCM to the existing muted analyser graph. The remembered-pairing build keeps a random per-install identity across restarts/EXE updates. Pair once; a successful handshake saves a versioned browser-local connection preference shared across GitHack preview URLs/PRs. Updated previews reconnect without opening settings; browser autoplay may require one click anywhere. Stop pauses automatic startup but retains pairing; Connect re-enables it; choosing a file pauses auto-start; Forget stops capture and removes browser pairing. Up to 16 tabs receive audio simultaneously from one capture stream, with independent bounded queues. Connecting or stopping one tab does not interrupt the others; capture stops when the last disconnects. Live audio stays transient, local and inaudible. Existing light/bounce processing is unchanged.",
+      "where": "Scene → Scene effects → Preview pairing code (once per preview origin), Connect system audio, Stop audio and Forget system audio. Run the Windows helper first.",
+      "behavior": "Windows WASAPI helper feeds bounded PCM to the existing muted analyser graph. The remembered-pairing build keeps a random per-install identity across restarts/EXE updates. Pair once; a successful handshake saves a versioned browser-local connection preference shared across GitHack preview URLs/PRs. Updated previews reconnect without opening settings; browser autoplay may require one click anywhere. Stop pauses automatic startup but retains pairing; Connect re-enables it; choosing a file pauses auto-start; Forget stops capture and removes browser pairing. Up to 16 tabs receive audio simultaneously from one capture stream, with independent bounded queues. Connecting or stopping one tab does not interrupt the others; capture stops when the last disconnects. Live audio stays transient, local and inaudible. Existing light/bounce processing is unchanged. Private Pages previews under a single-label omnia-web-bae.pages.dev alias also require pairing. Update the helper and enter its existing code once per preview origin; use the stable PR alias to retain the remembered connection between uploads. Access login and local audio pairing are separate. Other Pages projects and suffix lookalikes remain rejected.",
       "steps": [
         {
           "do": "Close the old helper, extract/run the remembered-pairing build. Copy its code into Preview pairing code and Connect system audio once.",
@@ -2190,6 +2190,10 @@
         {
           "do": "Press Stop audio; reload. Then Connect again. Choose a file or use Forget system audio.",
           "expect": "Stop and file selection disable automatic startup; Connect re-enables it using saved pairing. Forget removes browser pairing and stops capture. New pairing is required after Forget/storage clearing/profile changes."
+        },
+        {
+          "do": "Update the helper, open the private PR alias through Access, then enter its existing code in Scene → Scene effects → Preview pairing code and Connect. Reload after another upload to the same PR alias.",
+          "expect": "Audio connects after pairing and the stable PR origin remembers it. A different deployment hostname needs pairing again; workspace content must be transferred separately with export/import."
         }
       ],
       "reference": "docs/SYSTEM_AUDIO.md",
@@ -2216,7 +2220,7 @@
       "status": "Implemented for first Windows validation; standalone build produced by CI; final installer deferred",
       "limits": "Windows default-output WASAPI only; helper must run. Console prototype, no autostart/signed installer yet. Browser local-network permission and initial user activation may be needed. GitHack is a shared origin: remembered access is shared across that host, so use trusted previews only. Browser storage/profile clearing requires pairing again. Production/localhost stay direct and have separate preferences. Up to 16 concurrent consumers, each with a bounded six-packet queue; extra connections are rejected without disconnecting existing tabs. Real Windows driver and browser activation behavior need user validation.",
       "verification": {
-        "automated": "Seven frontend tests cover PCM, bounded queues, muted graph, remembered credentials, startup/gesture resume, Stop/Forget, unknown preference preservation and retry. Nine Python tests cover real localhost transfer/origin pairing, persistent identity/corruption, simultaneous PCM fan-out and independent disconnect and mocked output recovery. Required model/type/property/build/backend gates run before publication. No real audio devices are opened.",
+        "automated": "Seven frontend tests cover PCM, bounded queues, muted graph, remembered credentials, startup/gesture resume, Stop/Forget, unknown preference preservation and retry. Ten Python tests cover real localhost transfer/origin pairing, persistent identity/corruption, simultaneous PCM fan-out and independent disconnect and mocked output recovery. Required model/type/property/build/backend gates run before publication. No real audio devices are opened. Pages origin regressions pass in the seven frontend and ten Python tests; arbitrary Pages projects and suffix/port/HTTP lookalikes are rejected. Private Pages Windows/browser acceptance remains pending.",
         "browser": "User-approved focused local compiled-browser check passed on 2026-11-08: synthetic stereo PCM over the real localhost helper socket reached the built AudioWorklet and existing analyser/light/bass paths; silence cleared input; Stop and reconnect succeeded. 180 samples included 58 zero-input samples. No real Windows capture/driver or packaged executable was tested on this Linux executor. Remembered setup/multi-tab delivery/autoplay fallback have model/socket coverage only; no new browser run."
       }
     },

@@ -28,7 +28,10 @@ def allowed_origin(origin, token=None, preview_token=None):
     )
     # Shared preview hosting requires an explicitly paired installation capability.
     # The website can remember it locally after a successful connection.
-    paired = (origin == "https://raw.githack.com" and isinstance(token, str)
+    preview = origin == "https://raw.githack.com" or bool(
+        isinstance(origin, str) and re.fullmatch(
+            r"https://[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.omnia-web-bae\.pages\.dev", origin))
+    paired = (preview and isinstance(token, str)
               and re.fullmatch(r"[A-Za-z0-9_-]{32}", token) is not None
               and isinstance(preview_token, str) and len(preview_token) == 32
               and secrets.compare_digest(token, preview_token))

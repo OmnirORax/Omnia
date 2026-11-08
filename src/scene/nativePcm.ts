@@ -1,6 +1,6 @@
 /** Versioned local-helper PCM protocol. These samples never enter saved settings. */
 export const SYSTEM_AUDIO_URL='ws://127.0.0.1:8986/omnium/audio-v1';
-export const systemAudioRequiresPairing=(origin:string)=>origin==='https://raw.githack.com';
+export const systemAudioRequiresPairing=(origin:string)=>origin==='https://raw.githack.com'||/^https:\/\/[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.omnia-web-bae\.pages\.dev$/.test(origin);
 export const systemAudioOriginSupported=(origin:string)=>systemAudioRequiresPairing(origin)||origin==='https://omnium.nexus'||/^http:\/\/(?:localhost|127\.0\.0\.1):[0-9]{1,5}$/.test(origin);
 export function decodePcmPacket(buffer:ArrayBuffer){
  if(buffer.byteLength<16)return;

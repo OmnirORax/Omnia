@@ -68,8 +68,8 @@ feeds the same analyser/response path as website file playback.
 
 WebSocket: `ws://127.0.0.1:8986/omnium/audio-v1`. Host/path/origin are fixed by
 the helper and client. Origin is mandatory; only the canonical site and explicit
-localhost development origins are accepted directly. The shared raw.githack.com
-origin requires the per-install pairing code in the `pair` query parameter. Missing,
+localhost development origins are accepted directly. The shared raw.githack.com origin and exact single-label
+`https://<alias>.omnia-web-bae.pages.dev` preview origins require the per-install pairing code in the `pair` query parameter. Missing,
 wrong or duplicate codes and unrelated origins are rejected before capture starts.
 JSON status messages accompany
 binary PCM packets. OMA1 packets are little-endian:
@@ -101,3 +101,16 @@ Remembered pairing also has model/socket coverage for identity reuse, damaged-fi
 preservation, auto-start and gesture resume, Stop/Forget, retry identity retention
 and simultaneous identical PCM delivery and independent tab disconnect. No new
 browser or real Windows-device check was run for remembered connections.
+
+### Switching to private Pages previews
+
+Rebuild/update the helper for Pages preview support. Open the Access-protected
+PR alias (for example `https://pr-61.omnia-web-bae.pages.dev`), then Scene →
+Scene effects → Preview pairing code. Paste the same helper code once and Connect
+system audio. Access login does not authorize local audio capture: pairing is still
+required. Use the stable PR alias to retain the remembered connection between
+uploads. Each deployment hash hostname is a separate browser origin and needs its
+own pairing. Stop and Forget retain their existing behavior. Existing GitHack
+connections remain supported. Local workspaces and preferences do not move between
+origins; export/import workspace content through the existing chooser. Pairing
+codes stay device-local and never enter exports or source provenance.

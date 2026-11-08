@@ -44,6 +44,17 @@ class PacketTests(unittest.TestCase):
         for origin in [None, 'null', 'https://raw.githack.com', 'https://omnium.nexus.evil.test', 'http://192.168.1.2:5173', 'http://localhost.evil.test:1234']:
             self.assertFalse(bridge.allowed_origin(origin))
 
+    def test_pages_previews_require_pairing_and_exact_project_suffix(self):
+        code = 'a' * 32
+        for origin in ['https://pr-61.omnia-web-bae.pages.dev', 'https://a1234567.omnia-web-bae.pages.dev']:
+            self.assertFalse(bridge.allowed_origin(origin))
+            self.assertFalse(bridge.allowed_origin(origin, 'b' * 32, code))
+            self.assertTrue(bridge.allowed_origin(origin, code, code))
+        for origin in ['https://other.pages.dev', 'https://pr-61.omnia-web-bae.pages.dev.evil.test',
+                       'http://pr-61.omnia-web-bae.pages.dev', 'https://a.b.omnia-web-bae.pages.dev',
+                       'https://pr-61.omnia-web-bae.pages.dev:443', 'https://omnia-web-bae.pages.dev']:
+            self.assertFalse(bridge.allowed_origin(origin, code, code))
+
     def test_wasapi_reopens_on_default_change_without_restarting_sequence(self):
         capture = bridge.Capture()
         capture.active.set()
