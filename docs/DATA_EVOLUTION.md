@@ -874,3 +874,17 @@ asset, atlas, backend or media-source migration applies. Retain an export for
 rollback as usual. Regression covers validated transient settings/Omnic previews,
 owner routing, exact cancellation and a single saved commit; visual acceptance
 of localization and live control behavior remains user-owned.
+
+
+### Restore pre-flare Automatic and retire spatial optics (2026-11-08)
+
+User-rejected finite events, peak gain and spatial Gaussian emission are removed.
+Automatic returns to the per-frequency onset calculation from 6ca2edbe. This is
+an intentional rendering rollback without modifying authored audio/tint numbers.
+The serializer retains 46 fields: 21 active and 25 archived. The four recent
+pulsePeakGain/pulseGlowStrength/pulseGlowReach/pulseGlowTravel values remain bounded
+and exportable for rollback, without active controls/setters/renderers. Other
+settings keep their current defaults and shared owner. Global live previews and
+continuous bass bounce stay. No asset bytes, atlas identities, source permissions
+or backend formats change. Tests retain historical audio-response fixtures and
+verify archived optics values survive save/export without active setters.

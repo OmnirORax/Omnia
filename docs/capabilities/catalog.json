@@ -2122,19 +2122,11 @@
       "id": "scene.vfx",
       "title": "Source-based Wallpaper Engine pulse and scene audio effects",
       "where": "Scene → Scene effects. Import/apply an image through the existing Scene image workflow.",
-      "behavior": "Automatic light now produces finite graded flares: pooled spectral rises are compared with a recent background median, related changes coalesce, and each event rises smoothly over 30 ms and retracts over 45 ms to Low tint baseline. Continuous texture cannot keep extending the event deadline. Sensitivity controls event prominence; Drop contrast 1 retains linear calibrated peak heights; Flash amount scales the envelope. Audio time owns phase and setting edits preserve the process. Manual, proportional continuous bass bounce, source-hue Omni Low/High pickers, RGB/defaults and Image tint remain. Automatic now adds spatial emission sourced from existing bright local image features: its Gaussian field expands outward and contracts back. Flare light exposes soft peak gain, emission strength, reach and travel independently of detection; core 30/45 ms timing and bass bounce remain. Live colour/slider samples now reach the renderer before confirmation. Spatial glow subtracts its broad diffuse component, uses tighter radius mapping and no radius-squared amplification to reduce the reported coloured veil.",
+      "behavior": "Restores the earlier per-frequency Automatic onset response before the rejected finite-event/gain/spatial-glow rewrite. No added Gaussian emission or gain runs. Global live colour/slider previews remain. Tint mode → Single colour retains normal Low/High pickers. Omni has independent source-hue Low tint (Omni) and High tint (Omni) pickers; both use saturation/value and ignore selected hue. Automatic detects per-frequency rises; Sensitivity now admits or rejects attacks relative to recent levels, so low values stop tiny-detail blinking instead of only dimming it. Admitted strong attacks map more powerfully toward full flash. Drop contrast and Flash amount retain separate strength roles; short onset timing/FFT/calibration remain. Automatic bounce follows continuous mono low bass (31–65 Hz), decoding log FFT to linear amplitude. Recent-peak normalization and a residual-noise floor keep small details small and let strong drops reach maximum. Analyser smoothing 0.15 and 12 ms attack/45 ms release remain. Sustained bass stays expanded; one quiet frame returns gently. Light Sensitivity does not drive bounce. Audio Bounce still limits scale; Flash amount/Drop contrast do not scale motion. Manual, playback and Image tint are unchanged. New defaults: base RGB 250/240/240, high 61/0/0, Sensitivity 8, Drop contrast 1, Flash amount 1.7; explicit saved choices are retained.",
       "steps": [
         {
-          "do": "Use Audio response → Automatic · detailed with your saved settings. Compare dense ongoing texture, then small/medium/big attacks and a DUN chain. Adjust Sensitivity while it plays and release the slider to apply.",
-          "expect": "Background texture is not a continuous high flash. Related changes form one shaped flare with intermediate rise/fall values, then return to Low tint baseline. Attack peaks retain distinct strengths; settings edits do not freeze or restart the envelope. Event grouping and perceived timing still need user acceptance. Shared sliders preview during dragging and commit on release; committed values preserve the current flare phase."
-        },
-        {
-          "do": "In Automatic · detailed, open Flare light. Compare gain 1 and 4; adjust Glow strength, Glow reach (%) and Glow travel (ms), releasing each control. Play isolated hits, then Undo/Redo and reload.",
-          "expect": "Gain raises admitted peak heights without changing event admission; the glow grows from bright image features and contracts back. Strength/reach zero disables the added field. Travel controls spatial duration independently of core tint. Defaults are gain 4, strength 6, reach 4%, travel 100 ms. Values use shared history/persistence. Base image detail stays sharp."
-        },
-        {
-          "do": "Keep the same wallpaper/tints/audio settings and compare the dark figure and gaps between bright edges during a drop. Drag Glow reach/strength before releasing.",
-          "expect": "The changed optics aim to keep emission close to bright details rather than washing the whole image; broad glow is subtracted. Changes preview during dragging. Visual match remains user acceptance; the earlier synthetic GPU result predates these localized optics."
+          "do": "Use the same saved wallpaper, tints and audio settings as before the expansion/contraction rewrite. Play the same music and drag the High tint/Flash amount controls.",
+          "expect": "The earlier onset/tint baseline is restored without the extra glow layer or gain. Controls preview while dragging. Flare light controls are absent; saved optics preferences remain archived. This rollback does not claim to solve the original midrange/expansion request."
         },
         {
           "do": "Use new settings or inspect defaults: Low/base 250/240/240, High 61/0/0, Sensitivity 8, Drop contrast 1, Flash amount 1.7. Reload an existing saved preset.",
@@ -2154,7 +2146,7 @@
         },
         {
           "do": "Play music; choose Scene effects → Wallpaper Engine pulse → Audio response → Automatic · detailed. Adjust Sensitivity for quiet details, Drop contrast for the little-hit/big-drop gap and Flash amount for overall strength. Test repeated DUN hits over a continuous tone; move Sensitivity through 0.25, 0.5, 1, 2, 4 and 8.",
-          "expect": "Coherent attacks form graded finite flares over the background; related changes inside one event are coalesced rather than flickering independently. Lower Sensitivity requires attacks more prominent above the recent background; higher settings admit quieter events without extending their envelope. Drop contrast widens the strength gap so small details do not nearly equal big drops; Flash amount scales output. A Light response meter shows shader pulse separately from RMS input. Automatic retains but ignores manual thresholds/exponent/bands. A 1024-sample FFT and 20 ms baseline still limit rapid detail."
+          "expect": "Each rising attack drives its own pulse even over a louder continuous background tone; the steady bed settles instead of staying flashed. Lower Sensitivity rejects small fluctuations with zero pulse; higher Sensitivity admits quiet attacks. Drop contrast widens the strength gap so small details do not nearly equal big drops; Flash amount scales output. A Light response meter shows shader pulse separately from RMS input. Automatic retains but ignores manual thresholds/exponent/bands. A 1024-sample FFT and 20 ms baseline still limit rapid detail."
         },
         {
           "do": "Retain Sensitivity 2 and Drop contrast 2. Compare little percussive details with a big drop; raise Drop contrast toward 3–4 while leaving Flash amount unchanged. Undo/Redo and reload.",
@@ -2182,7 +2174,7 @@
         },
         {
           "do": "Load prior Selected colours settings and inspect/export settings.",
-          "expect": "Selected falls back to Single. Palette/range and superseded Omni sliders remain archived in JSON. Missing Omni picker uses the old strength as its value; repeated normalization retains the result. Serializer preserves 46 fields, including 21 archived preferences."
+          "expect": "Selected falls back to Single. Palette/range and superseded Omni sliders remain archived in JSON. Missing Omni picker uses the old strength as its value; repeated normalization retains the result. Serializer preserves 46 fields, including 25 archived preferences."
         },
         {
           "do": "Turn Waves off and set Distortion/Glitching to zero with no audio connected. Restore their defaults.",
@@ -2223,9 +2215,7 @@
         "tests/scene-pulse.browser.mjs",
         "src/renderBudget.ts",
         "src/sceneAppearance.ts",
-        "tests/scene-native-wallpaper.browser.mjs",
-        "src/scene/wallpaperGlow.ts",
-        "tests/scene-spatial-flare.browser.mjs"
+        "tests/scene-native-wallpaper.browser.mjs"
       ],
       "actions": [
         "scene.audioConnect",
@@ -2237,11 +2227,11 @@
         "scene.manual",
         "scene.api"
       ],
-      "status": "Detailed Automatic audio response and Omni picker implemented; listening/visual acceptance pending",
-      "limits": "Spatial light sources are existing bright local image details; no chosen-point source. Cached emission has a 512-pixel maximum edge, eight transient fields and max overlap blending; base image remains native. HDR support is required, otherwise core tint remains. Manual/reduced motion omit the spatial layer. Very bright/high-gain settings may clip. Selected colours is retired; Waves remains guessed pending actual shaders. Browser FFT mapping is approximate; real-music quality and hardware performance remain user acceptance. Existing capture-free website playback and native output budgets remain.",
+      "status": "Earlier light baseline restored; user visual comparison pending",
+      "limits": "Selected colours is deliberately retired; old palette/range data stays archived only. Single/All and optional Image tint compile separately. Omni uses the adjustable shared Low tint and a source-coloured High tint with numeric strength; existing explicit brightness survives. Image tint is disabled by default and can intentionally recolour the full wallpaper. The reported Single freeze/slowdown is not visually verified repaired; local frame tests only prove changing uniforms at 0.1. Source FFT mapping remains approximate. Waves remains the rejected guessed deformation pending its actual shaders. No audio-input, exponent, smoothing or frame-pacing change was made. Existing native-resolution caps/capture-free file playback remain. Finite event shaping, extra peak gain and spatial glow are withdrawn. Expansion/contraction and richer midrange response remain unresolved. Four recent optics fields stay archived only.",
       "verification": {
-        "automated": "Models reproduce the prior dense-frequency hover (~0.69 average, no valley below 0.5), then verify sparse background emission, graded peaks over nonzero texture, zero valleys at 100 ms attack spacing, 60/120/240 Hz shape, event coalescing, live sampler behavior, pause/resume, audio-clock ownership and preserved live uniforms during edits. Existing Manual/colour/default/bass/native-output regressions remain. Full local gate required before delivery. Added soft gain, radius progression, serialized Flare light controls and cache/recovery coverage.",
-        "browser": "User-approved bounded synthetic bright-point GPU check passed on 2026-11-08: Single/Omni compile; Gaussian radius expands/contracts; native one-pixel detail survives; final frame exactly equals base. Kernel RMS 3.9 → 38.8 → 3.9 pixels at constant energy. Real music, full wallpaper appearance and performance remain user acceptance. That check predates the tighter/localized optics; no fresh browser run for this follow-up. User wallpaper/music comparison is pending."
+        "automated": "Historical per-frequency response, bass release, source tint, serialization and native-image regressions retained. New archived-optics test checks roundtrip with no active setters. Required model/build/backend gate runs before publication.",
+        "browser": "No fresh browser run. The prior synthetic spatial-flare check covered the withdrawn implementation; this rollback needs the user’s wallpaper/music comparison."
       }
     },
     {

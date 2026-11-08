@@ -11,7 +11,7 @@ high = image * tintHigh;
 result = max(vec3(0), mix(low, min(low + high, vec3(1)), pulse));
 ```
 
-The source core blend is retained; Automatic adds a separate spatial glow described below. Manual audio averages selected
+There is no invented saturation/halo operator. Manual audio averages selected
 bands from both stereo channels, smoothsteps bounds, applies exponent and amount.
 Amount is not clamped to one after multiplying. Browser spectrum mapping remains
 an approximation of Wallpaper Engine's undocumented FFT bands/scaling/smoothing.
@@ -50,87 +50,47 @@ Selected colours remains removed. Image tint stays separate and off by default.
 Open **Audio response → Automatic · detailed**. Existing saved settings keep
 Manual until you select Automatic; new settings default to Automatic. Use just:
 
-- **Sensitivity** (default 8, 0.25–8): admits attacks above learned background texture.
-- **Drop contrast** (default 1, 1–4): shapes the strength gap; 1 retains linear intermediate peaks.
+- **Sensitivity** (default 8, 0.25–8): sets which attacks trigger. Lower it to reject tiny fluctuations; raise it to admit quiet details.
+- **Drop contrast** (default 1, 1–4): widens the strength gap between little hits and big drops. Higher values favour stronger drops.
 - **Flash amount** (the existing Audio amount, default 1.7, 0–2): scales light output.
 
-Automatic now models finite flare events rather than letting every changing
-frequency keep the light on. Positive spectral-change energy is pooled across
-bins, and a short recent-background median distinguishes an attack from dense
-ongoing texture. Related changes are grouped instead of making separate sparks.
+Automatic listens across both channels and detects upward changes separately in
+each frequency bin. A loud continuous tone cannot hide an admitted quieter hit in a
+different bin or keep the flash open. A 20 ms running local baseline distinguishes
+an attack from sustained volume; there is no added output hold. Zero input gives
+zero pulse immediately. Its FFT smoothing is zero and dB range is −100 to 0 instead
+of Manual’s −100 to −30.
 
-An admitted flare rises through a smooth 30 ms attack, then retracts over 45 ms to
-zero added pulse: about 75 ms total. Changes within that interval do not keep
-extending its deadline. A substantially stronger real attack can replace a faint
-late tail. Zero pulse means the chosen Low tint baseline, not a black wallpaper.
+Sensitivity now controls a soft admission threshold relative to the recent audio
+range: low settings produce fewer pulses instead of merely dimming the same events.
+Changes below that threshold produce exactly zero pulse. The remainder still
+follows the short frequency-local onset profile, without a hold. Higher settings
+admit smaller changes. Drop contrast shapes admitted attack amplitudes, and Flash
+amount scales output. The amplitude mapping now gives stronger attacks more room
+toward full flash; it no longer relies on the weak bounded detail-lift control.
 
-- **Sensitivity** controls attack prominence above the learned background. It
-  changes admission, not the duration or brightness of every accepted event.
-- **Drop contrast** shapes the height of the event. At 1, its calibrated amplitude
-  follows the calibrated, gain-adjusted amplitude. Higher settings favour stronger drops.
-- **Flash amount** scales the resulting envelope as before.
+A steady unchanging tone settles rather than glowing constantly.
+This is an onset response, deliberately replacing Automatic’s former sustained
+loudness response. Manual remains available for the old volume/threshold behavior.
 
-Peak calibration has a 0.25 reference floor, an eight-second reference decay and
-current spectral-energy headroom. It learns accepted attack peaks without
-amplifying tiny texture into full flashes. The background histogram is a fixed
-64-bin transient log-energy distribution with 0.6-second decay. No frame-time
-array allocation or persisted calibration is added. Source/mode changes reset
-learning; pause/stop clears an in-flight flare. Colour and numeric setting edits
-preserve the live process rather than resetting it. AudioContext time governs
-pulse progress so rendering/config restarts cannot stretch the tail.
+Automatic uses 1024 FFT samples (about 21 ms at 48 kHz), restored to 2048 in Manual.
+Frequency resolution is consequently coarser (first non-DC bin about 47 Hz at
+48 kHz); transient separation is limited by FFT windowing, the 20 ms analysis
+baseline, frame rate and display. Arbitrarily rapid/sub-window sounds cannot be
+promised separate flashes. The FFT floor also limits the quietest detectable sound.
 
-Automatic retains its unsmoothed 1024-sample stereo FFT (about 21 ms at 48 kHz)
-and −100..0 dB range. Manual retains its original 2048-sample band/threshold/
-exponent path. Core tint uses that temporal envelope; the added spatial field has
-its own travel time. Frame/display rate, FFT windowing and coalescing limit very
-rapid event separation; new events within one flare can be grouped deliberately.
+A slow 8-second calibration adjusts gain to changing music levels; it never holds
+light output. It starts at reference amplitude 0.03 and bottoms at 0.01; silence
+does not raise gain. Source reconnect or response-mode change resets calibration;
+colour edits and closing controls do not. All state is transient. No extra audio
+route, source permissions, or audible playback processing is added. Automatic bounce follows the continuous low-bass path below; Manual retains
+its existing path. Automatic affects both Single and Omni light modes.
 
 **Light response** shows actual shader pulse input (0–2), sampled for display at
-10 Hz, separately from the RMS Audio input meter. Automatic ignores but retains
-Manual-only parameters. Audio amount remains shared across modes. Shared settings,
-history and exports own the existing mode/sensitivity/contrast/amount fields.
-Requested RGB/default values and the current bass-bounce behavior are unchanged.
-Shared sliders and colour pickers preview while dragging; release/accept commits.
-Cancel restores the prior rendering without saving samples. Committing an edit
-does not restart the flare.
-
-## Expanding and contracting flare light
-
-In **Automatic · detailed → Flare light**, adjust:
-
-- **Flare gain** (4; 0.25–16): raises admitted peaks with a soft shoulder before
-  Drop contrast. Gain 4 takes a 20% peak to 50%; gain 1 restores previous heights.
-  It does not change attack admission or core timing.
-- **Glow strength** (6; 0–16): scales the added emission; zero disables it.
-- **Glow reach (%)** (4; 0–12): maximum spatial reach relative to image width/height's
-  longer dimension. Stronger events spread farther; zero disables it.
-- **Glow travel (ms)** (100; 75–500): outward and inward travel independent of the
-  unchanged 75 ms core tint envelope. Longer travel can intentionally overlap hits.
-
-Existing bright local features in the image source the light automatically; there
-is no single-point picker. The field grows through intermediate radii, then shrinks
-back toward those features while its energy falls. It uses the selected Single
-High tint or source-hue Omni High endpoint. Low tint remains the resting baseline.
-The requested RGB, Sensitivity 8, Drop contrast 1 and Flash amount 1.7 remain.
-
-To keep dense image details from producing a screen-wide coloured veil, each
-projected blur subtracts its broader low-frequency field. Spatial radius mapping
-is tighter, and the previous radius-squared energy amplification is removed.
-This intentionally narrows/localizes existing saved reach/strength settings; no
-user tint/audio/default values are rewritten. These optics need fresh user
-comparison; the earlier isolated bright-point check predates this correction.
-
-A cached, separable Gaussian emission pyramid has a maximum edge of 512 pixels.
-Only the emission is blurred; the base image stays native and sharp. Tint/image
-changes rebuild the cache; each active frame projects at most eight transient
-flare fields, combining overlaps by maximum rather than accumulating persistent
-haze. Native wallpaper composition adds the field before graph/UI compositing.
-Half-float rendering requires EXT_color_buffer_float; unsupported/failed targets
-fall back to core tint. Context restoration retries the cache. Manual and reduced
-motion do not use spatial glow. Actual performance and music appearance need user
-acceptance; this is not a claim of Wallpaper Engine parity or guaranteed 120 FPS.
-Shared controls preview while dragging, commit on release/accept, and inherit
-history, persistence and exports.
+10 Hz. It differs from the existing RMS Audio input meter. Switch to **Manual**
+to restore selected frequency bands, lower/upper thresholds and exponent exactly;
+Automatic ignores those values but retains them. Audio amount is shared across
+both modes. Shared settings/history/exports own mode, sensitivity and Drop contrast.
 
 ## Continuous bass bounce with less delay
 
@@ -181,10 +141,6 @@ ignored, as above. Existing explicit saved values are retained.
 | pulseRangeMode | Audio response | auto for new settings; manual for existing settings lacking mode |
 | pulseSensitivity | Sensitivity (Automatic) | 8; 0.25–8 |
 | pulseDropContrast | Drop contrast (Automatic) | 1; 1–4 |
-| pulsePeakGain | Flare gain | 4; 0.25–16 |
-| pulseGlowStrength | Glow strength | 6; 0–16 |
-| pulseGlowReach | Glow reach (%) | 4; 0–12 |
-| pulseGlowTravel | Glow travel (ms) | 100; 75–500 |
 | pulseTintLow | Low tint | #faf0f0 |
 | pulseTintHigh | High tint / Colour to add | #3d0000 |
 | pulseFrequencyMin | First frequency band | 14; integer 0–15 |
@@ -212,7 +168,7 @@ tint white, Bounce 1 and Waves/Distortion/Glitching off for original-file compar
 
 ## Compatibility and retirement
 
-The current serializer whitelists 46 fields: 25 active and 21 archived.
+The current serializer whitelists 46 fields: 21 active and 25 archived.
 Selected mode maps to Single; its palette/range remain archived. The earlier
 approximation fields and three superseded Omni sliders remain exportable without
 active controls/render paths. Existing Low/High tint choices are preserved.
@@ -228,10 +184,6 @@ low/high values remain untouched. The former exposure multipliers are retained b
 requested the High tint blend instead. This is an intentional rendering change,
 not a claim of equivalent output to the abandoned exposure model. Normalization
 is idempotent; no eager storage writes are added.
-
-Missing Flare light fields use the new defaults; explicit values are preserved and
-bounded through the shared normalizer. Older clients discard these four fields
-and render their previous response; export before rollback.
 
 Older clients can drop the new picker field and render their old Omni semantics
 when resaving. Retain a current export before rollback. No image bytes,
@@ -255,32 +207,36 @@ is not a claim of bit-identical Wallpaper Engine audio processing.
 
 The native wallpaper composition remains: 2560×1440/1600 at DPR 1 gets native
 output, bounded at 8,294,400 pixels / DPR 2. Graph targets stay at 1.5 million pixels;
-graph AA/glow does not filter the wallpaper. The new wallpaper-only Gaussian emission cache does not filter the base image. Single/All and optional
+graph AA/glow does not filter the wallpaper. There is no palette detection or synthetic halo work. Single/All and optional
 Image tint are separate compiled shader variants; changing ordinary colour/response
 values does not recompile their variant. Hidden/reduced-motion suspension and saved FPS cap
 remain; actual rate depends on hardware. Waves/VHS are still approximate.
 
 ## Verification
 
-Local models reproduce the old dense-frequency failure: after warmup that fixture
-never dropped below half emission and averaged about 0.69. The replacement tests
-require mostly-zero background output, independent graded peaks over nonzero
-texture, completed valleys between attacks 100 ms apart, smooth rise/fall at
-60/120/240 Hz, and coalesced changes without deadline extension. A graded fixture
-produces approximately 6%, 11%, 30%, 76% and 93% peaks. These are synthetic model
-measurements, not a claim about the user’s music or GPU output.
-
-Live sampler checks cover the same dense-background case, Manual restoration,
-pause/resume and audio-clock progress even when render dt is reset. Renderer
-checks ensure colour edits preserve a live pulse. Existing colour/serialization,
-source blend, defaults, bass-bounce/noise release and native-output cases remain.
-Before the localization correction, an explicitly approved synthetic bright-point GPU check passed: Single/Omni shader
-compilation, default spatial expansion/contraction, unchanged one-pixel base detail
-and exact rest-frame return. Kernel RMS radius grew 3.9 → 38.8 pixels and shrank
-back to 3.9 at constant energy; the integrated tail contracted to 8.9 pixels before
-returning to baseline. See tests/scene-spatial-flare.browser.mjs. These are isolated
-synthetic measurements, not real-music acceptance. Real flare appearance, musical event grouping,
-midrange richness, perceived timing and clipping need user acceptance.
+Local regressions cover the direct source pulse and stereo analysis, changing
+light uniforms at exponent 0.1 with independent bounce, compile-variant switching,
+Selected retirement and preservation of inactive palette fields, Omni saturation/value hue independence and legacy preference conversion, Image tint opt-in/serialization, and existing native output/lifecycle.
+Automatic regressions cover repeated hits/silence with no output hold, quiet
+detail, increasing hit strength, bass coverage, FFT mode restoration and retained
+Manual settings. New regressions exercise repeated hits over a louder constant background (the
+previous silence-separated test missed this), a useful slider progression from
+0.25 through 8, short settling at maximum sensitivity and the live sampler.
+Strength regressions compare small attacks with drops across every tested
+sensitivity, verify that Drop contrast widens their ratio without eliminating
+quiet responses, and preserve the earlier cadence/settling checks.
+Latest regressions check actual admission counts across Sensitivity, rejection
+of continuous micro-fluctuations with strong drops retained, stronger amplitude
+response, Omni Low/High hue handling, preserved Single endpoints and renderer
+uniform wiring. Bounce checks cover the continuous low-bass path, linear amplitude decoding,
+post-drop nonzero noise, proportional small/medium/drop strengths, unchanged
+fast attack/gentle release, Manual mapping and renderer return independently
+from light pulses.
+No fresh browser run was authorised for these changes. The numerical checks
+verify colour math and settings wiring, including normal-versus-Omni blend
+equality for pale gold/blue source hues; they do not verify GPU appearance. Test Omni
+with different saturation/brightness positions, then compare Single colour; actual brightness,
+highlight clipping and response on the user’s display remain user acceptance.
 
 ## Waves fidelity limit
 
@@ -292,3 +248,25 @@ those numbers does not reproduce their original meaning or layer composition.
 The supplied pulse shader/header do not define Waves. Turn Waves off for an
 undistorted image; a faithful port needs the actual waterwaves effect/shaders and
 relevant project-layer setup. No wave behavior/default was changed in this repair.
+
+
+## Restore the earlier light baseline
+
+The finite-event rewrite, added peak gain and blurred spatial glow have been
+removed after the user rejected their appearance. Automatic returns to the
+per-frequency onset curve from 6ca2edbe, before those changes. This restores an
+earlier baseline, not a claim that midrange richness or expansion/contraction is
+solved. Manual, original source Low/High blend, Omni endpoints, bass bounce and
+requested RGB/Sensitivity/Drop contrast/Flash settings stay intact.
+
+The four rejected Flare light controls are removed. Their saved pulsePeakGain,
+pulseGlowStrength, pulseGlowReach and pulseGlowTravel preferences remain archived
+and exportable, but have no renderer or active property setters. No hidden gain
+or spatial emission runs. Global live colour/slider previews remain: drag to
+preview, release/accept to commit, Escape to cancel; samples stay outside saved
+settings/history. Configuration edits retain live uniforms rather than resetting
+motion. Source pixels still use the native wallpaper output path.
+
+Model/build/backend checks validate restoration and compatibility; visual quality
+and music feel still require user comparison. The prior isolated spatial-GPU
+check applies to the rejected implementation, not this restoration.

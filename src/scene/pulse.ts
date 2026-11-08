@@ -27,15 +27,6 @@ export function referencePulseRGB(image:readonly number[],low:readonly number[],
 }
 
 
-export const FLARE_CONTROLS=[
- {key:'pulsePeakGain',label:'Flare gain',initial:4,min:.25,max:16,step:.05},
- {key:'pulseGlowStrength',label:'Glow strength',initial:6,min:0,max:16,step:.05},
- {key:'pulseGlowReach',label:'Glow reach (%)',initial:4,min:0,max:12,step:.1},
- {key:'pulseGlowTravel',label:'Glow travel (ms)',initial:100,min:75,max:500,step:5},
-] as const;
-export type FlareKey=typeof FLARE_CONTROLS[number]['key'];
-export type FlareField={reach:number;energy:number};
-
 export const MAX_PULSE_COLORS=8;
 export function pulsePalette(value:unknown):string[]{
  if(typeof value!=='string')return [];
@@ -79,63 +70,45 @@ export function omniHighTintRGB(image:readonly number[],control:readonly number[
 
 /** Byte FFT decode for Automatic's -100..0 dB range. Reused across frames. */
 const AUTOMATIC_AMPLITUDES=Float32Array.from({length:256},(_,i)=>i?Math.pow(10,(-100+i/255*100)/20):0);
-/** Coherent spectral rises produce finite flares, not a continuously retriggered level. */
+/** Frequency-local rises drive flashes; sustained energy calibrates gain only. */
 export function createAutomaticPulse(){
- const profiles=new Float32Array(2048),histogram=new Float64Array(64);
- const measurement={level:0,change:0};
- const attack=.03,duration=.075;
- const trails=Array.from({length:8},()=>({age:1,peak:0})),fields=Array.from({length:8},()=>({reach:0,energy:0}));let trail=0;
- const gainPeak=(x:number,gain:number)=>gain*x/(1+(gain-1)*x);
- let reference=.25,age=duration,height=0,magnitude=0,start=0,value=0,armed=true;
- const smooth=(t:number)=>t*t*(3-2*t);
- const envelope=()=>age>=duration?0:age<attack?start+(height-start)*smooth(age/attack):height*Math.pow((duration-age)/(duration-attack),2);
+ let range=.03;
+ const profiles=new Float32Array(2048),measurement={level:0,change:0,changeLevel:0};
  return {
-  reset(){reference=.25;age=duration;height=magnitude=start=value=0;armed=true;profiles.fill(0);histogram.fill(0);for(const t of trails){t.age=1;t.peak=0;}},
-  /** Pool positive-change energy so one wandering frequency cannot dominate every frame. */
+  reset(){range=.03;profiles.fill(0);},
+  /** Reuses one result object. Consume it before reading the other channel. */
   spectrum(buffer:ArrayLike<number>,channel:number,first:number,last:number,seconds:number){
    const blend=1-Math.exp(-Math.max(1/1000,Math.min(.1,seconds))/.02);
-   let energy=0,change=0;
+   measurement.level=measurement.change=measurement.changeLevel=0;
    for(let i=first;i<last;i++){
-    const amplitude=AUTOMATIC_AMPLITUDES[buffer[i]],index=channel*1024+i;
-    const rise=Math.max(0,amplitude-profiles[index]);
-    energy+=amplitude*amplitude;change+=rise*rise;
-    profiles[index]+=(amplitude-profiles[index])*blend;
+    const value=AUTOMATIC_AMPLITUDES[buffer[i]],index=channel*1024+i;
+    measurement.level=Math.max(measurement.level,value);
+    const rise=value-profiles[index];
+    if(rise>measurement.change){measurement.change=rise;measurement.changeLevel=value;}
+    profiles[index]+=(value-profiles[index])*blend;
    }
-   measurement.level=Math.sqrt(energy);measurement.change=Math.sqrt(change);
    return measurement;
   },
-  sample(signal:number,seconds:number,sensitivity:number,amount:number,onset=signal,dropContrast=1,peakGain=4){
-   const elapsed=Math.max(0,seconds),dt=Math.min(.1,elapsed);age+=elapsed;for(const t of trails)t.age+=elapsed;value=envelope();
-   reference=Math.max(.25,signal*.5,reference*Math.exp(-dt/8));
-   let total=0;for(const weight of histogram)total+=weight;
-   let sum=0,background=0;
-   if(total>0)for(let i=0;i<histogram.length;i++){sum+=histogram[i];if(sum>=total*.5){background=i===0?0:Math.pow(10,(-100+(i+.5)*2)/20);break;}}
-   const excess=Math.max(0,onset-background),floor=Math.max(.00005,reference*.04/sensitivity);
-   const threshold=background*(1.25+.5/Math.sqrt(sensitivity))+floor;
-   if(onset<=background*1.15+floor*.5)armed=true;
-   const strongerTail=age>=.04&&age<duration&&value<.35&&excess>magnitude*2.5;
-   if(onset>threshold&&((age>=duration&&armed)||strongerTail)){
-    start=value;age=0;magnitude=excess;reference=Math.max(reference,excess);
-    height=Math.pow(gainPeak(Math.min(1,excess/reference),peakGain),dropContrast);armed=false;
-    trail=trails.reduce((oldest,t,i)=>t.age>trails[oldest].age?i:oldest,0);trails[trail].age=0;trails[trail].peak=height;
-   }else if(age<attack&&excess>magnitude){
-    magnitude=excess;reference=Math.max(reference,excess);height=Math.max(height,Math.pow(gainPeak(Math.min(1,excess/reference),peakGain),dropContrast));trails[trail].peak=height;
-   }
-   value=envelope();
-   const decay=Math.exp(-dt/.6);for(let i=0;i<histogram.length;i++)histogram[i]*=decay;
-   const bin=onset>0?Math.max(1,Math.min(63,Math.floor((20*Math.log10(onset)+100)/2))):0;
-   histogram[bin]+=Math.max(dt,1/1000);
-   return value*amount;
-  },
-  fields(seconds=.1,amount=1):readonly FlareField[]{
-   const rise=Math.min(.04,seconds*.3);
-   for(let i=0;i<trails.length;i++){
-    const t=trails[i],f=fields[i];
-    if(!t.peak||t.age>=seconds){f.reach=f.energy=0;continue;}
-    const q=t.age<rise?smooth(t.age/rise):1-smooth((t.age-rise)/(seconds-rise));
-    f.reach=q*Math.sqrt(t.peak);f.energy=t.peak*amount*q;
-   }
-   return fields;
+  sample(signal:number,seconds:number,sensitivity:number,amount:number,onset=signal,onsetLevel=signal,dropContrast=1){
+   const dt=Math.max(0,Math.min(.1,seconds));
+   const change=onset;
+   const level=onsetLevel;
+   // Sensitivity owns admission, independently of brightness and drop contrast.
+   const admitted=Math.max(0,change-range*.25/sensitivity);
+   const normalized=level/(level+range*.25);
+   const strength=Math.pow(normalized,dropContrast);
+   const output=level>0?strength*Math.min(1,admitted/level)*amount:0;
+   if(signal>0)range+=(Math.max(.01,Math.min(1,signal))-range)*(1-Math.exp(-dt/8));
+   return output;
   },
  };
 }
+
+/** Archived rollback preferences; no active UI, gain or glow renderer. */
+export const RETIRED_FLARE_CONTROLS=[
+ {key:'pulsePeakGain',label:'Flare gain',initial:4,min:.25,max:16,step:.05},
+ {key:'pulseGlowStrength',label:'Glow strength',initial:6,min:0,max:16,step:.05},
+ {key:'pulseGlowReach',label:'Glow reach (%)',initial:4,min:0,max:12,step:.1},
+ {key:'pulseGlowTravel',label:'Glow travel (ms)',initial:100,min:75,max:500,step:5},
+] as const;
+export type RetiredFlareKey=typeof RETIRED_FLARE_CONTROLS[number]['key'];
