@@ -1,10 +1,21 @@
+import {SPHERE_VISUAL_DEFAULTS} from './sphereVisualDefaults.ts';
+import {SPHERE_BLEND_MODES} from './sphereBlendModes.ts';
 import { EFFECT_KINDS } from "../graph/effects.ts";
 import { FONT_OPTIONS, normalizeFont } from "../fonts.ts";
 import { createPropertyRegistry, validateValue, type PropertyDefinition, type PropertyValue as Value } from "./registry.ts";
 export type Property = PropertyDefinition;
 /** Existing shared definitions. New feature inputs define unique properties at
  * their source; discovery adds them to this same pool automatically. */
+/** Saved preferences only: retired wallpaper-to-sphere blending has no consumers. */
+const retiredSphereProperties:Property[]=[
+  {id:"adaptiveBlendMode",label:"Blend mode",kind:"select",initial:"contrast",neutral:"normal",options:SPHERE_BLEND_MODES},
+  {id:"adaptiveBlendCoverage",label:"Body coverage",kind:"number",min:0,max:1,step:.01,initial:1,neutral:0},
+  {id:"adaptiveBlend",label:"Adaptive blending",kind:"toggle",initial:false,neutral:false},
+  {id:"adaptiveBlendStrength",label:"Blend strength",kind:"number",min:0,max:1,step:.01,initial:.65,neutral:0},
+];
 const builtins: Property[] = [
+  {id:"translucencyRadius",label:"Translucency radius",kind:"number",min:0,max:1,step:.01,initial:SPHERE_VISUAL_DEFAULTS.translucencyRadius,neutral:1},
+  {id:"translucency",label:"Translucency",kind:"number",min:0,max:1,step:.01,initial:0,neutral:0},
   { id: "color", label: "Color", kind: "color", initial: "#60ddec" },
   {
     id: "brightness",
@@ -168,7 +179,7 @@ builtins.forEach(property => PROPERTY_REGISTRY.define({ ...property, category: {
 export const PROPERTIES = PROPERTY_REGISTRY.definitions;
 export const propertyFor = PROPERTY_REGISTRY.property;
 export function validateProperty(id: string, value: unknown): Value | undefined {
-  const property = propertyFor(id);
+  const property = propertyFor(id) ?? retiredSphereProperties.find(property=>property.id===id);
   if (!property) return;
   if (id === "font") return typeof value === "string" ? normalizeFont(value) : undefined;
   return validateValue(property, value);

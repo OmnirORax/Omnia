@@ -1,3 +1,4 @@
+import {translucentOpacity} from '../properties/translucency.ts';
 import { useMemo } from "react";
 import { fontFamily } from "../fonts";
 import { connected } from "./model";
@@ -38,7 +39,7 @@ export function AppearanceStyles() {
       if (!active && !legacyText && !icon) continue;
       const color = read(target, "color") as string,
         brightness = read(target, "brightness") as number,
-        opacity = read(target, "opacity") as number,
+        opacity = translucentOpacity(Number(read(target, "opacity")),Number(read(target,"translucency"))),
         glow = read(target, "glow") as number;
       const owner = target.instance?.owner;
       const scope = owner
@@ -68,13 +69,13 @@ export function AppearanceStyles() {
       const get = (p: string) => read(target, p);
       const custom = (p: string) =>
         values[p] !== undefined || !connected(state, targets, target.id, p, index);
-      if (!binding.text || ["color", "brightness", "opacity"].some(custom) || legacyText)
+      if (!binding.text || ["color", "brightness", "opacity", "translucency"].some(custom) || legacyText)
         declarations.push(`${binding.css}:${tint(color, brightness, opacity)} !important`);
       if (icon) {
         declarations.push("text-shadow:none !important", "font-family:system-ui !important", "letter-spacing:normal !important",
           `filter:saturate(${Number(get("saturation"))})${glow > 0 ? ` drop-shadow(0 0 ${glow * 8}px ${color})` : ""} !important`);
       } else if (binding.text) {
-        if (["glow", "color", "brightness", "opacity"].some(custom) || legacyText)
+        if (["glow", "color", "brightness", "opacity", "translucency"].some(custom) || legacyText)
           declarations.push(`text-shadow:${glow > 0 ? `0 0 ${glow * 10}px ${color}` : "none"} !important`);
         if (custom("font"))
           declarations.push(
@@ -125,7 +126,7 @@ export function AppearanceStyles() {
         tint(
           read(t, "color") as string,
           Number(read(t, "brightness")),
-          Number(read(t, "opacity")),
+          translucentOpacity(Number(read(t, "opacity")),Number(read(t,"translucency"))),
         );
       rules.push(`:root[data-omnium-theme] *{scrollbar-color:${ink(thumb)} ${ink(track)}}`);
     }

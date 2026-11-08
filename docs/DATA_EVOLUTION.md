@@ -888,3 +888,38 @@ settings keep their current defaults and shared owner. Global live previews and
 continuous bass bounce stay. No asset bytes, atlas identities, source permissions
 or backend formats change. Tests retain historical audio-response fixtures and
 verify archived optics values survive save/export without active setters.
+
+Atlas paint strokes use existing entity/placement/composition formats and document validation/history/autosave; no new saved schema. Copies get new entity/placement identities; existing text and Omnic references retain their original canonical targets. No descendants or relations are copied. Stroke preview is transient and discarded on cancellation/stale document.
+
+Sphere translucency adds an optional property value to the existing version-1 appearance controller settings; no graph/backend schema change. Absence resolves .82, preserving the prior bubble appearance approximately. Explicit 0/1 survive shared validation/serialization. Older clients do not know this property and may discard it when rewriting settings; cross-version retention is not guaranteed. Existing appearance undo/persistence remain authoritative.
+
+UI translucency applicability follow-up: existing controller translucency values are preserved. Missing UI values resolve 0 to preserve historical UI alpha; missing sphere-body values still resolve .82 explicitly. No graph/schema migration. Existing unknown-property rewrite limits on older clients remain.
+
+Full-viewport world composition changes CSS layout only. No saved graph coordinates, camera values, UI arrangement, settings or schemas are rewritten. The visible camera aspect changes with its full viewport host; existing resize/render-budget owners apply.
+
+Carrier wallpaper isolation is transient render composition only: no graph, camera, settings or saved schema changes. The existing sphere material/translucency values remain authoritative; backing geometry is derived from current visible carrier transforms and never participates in picking or exports.
+
+Opaque carrier wallpaper isolation was removed after user rejection. Configured soft edge glow is derived rendering using existing colour/glow/opacity/translucency values, without saved-schema changes. Existing settings and placement data remain unchanged.
+
+Adaptive sphere comparison introduces no authored graph/settings schema. Enable, strength, sample background, count and timing rows are transient component state and never update the live atlas. Window placement alone uses existing UI layout persistence/unknown-ID retention. Optional shader sampling uniforms are per comparison view; absent experimental input preserves the existing sphere shader path. Existing wallpapers share a cover-UV sampling helper without changing stored image references or assets.
+
+Live adaptive controls are additive version-1 appearance-controller values: adaptiveBlend defaults false when absent; adaptiveBlendStrength defaults .65 with explicit 0 preserved. Shared validators/readers and existing appearance Apply/Discard/history/autosave own them. No graph/backend migration. Older clients can drop unknown properties on rewrite. Retiring ui:blendComparison/window:sphere-blend-comparison removes runtime availability only; existing saved UI records are retained by unknown-ID compatibility, not erased. Existing images and graph coordinates are unchanged.
+
+Whole-node blending adds version-1 controller properties adaptiveBlendMode (absent contrast) and adaptiveBlendCoverage (absent 1, explicit 0 retained). Existing enabled sessions intentionally gain interior coverage; set coverage 0 for their earlier bubble profile or disable blending for original rendering. Coverage is bounded by existing authored Opacity/Translucency and scales with strength. Mode/coverage persist through the same shared controller reader/validator, targeting and Apply/Discard/history as enabled/strength. No graph, image, backend or format migration; older clients may discard these unknown fields on rewrite. Preserve a current export before older-client edits.
+
+Sphere translucency radius adds the version-1 controller property translucencyRadius (absent/neutral 1, explicit 0 retained), applicable only to omnium.nodes.body. Radius 1 preserves historical alpha semantics, including fully clear Translucency 1. Explicitly reducing radius changes Translucency to centre transmission with a smooth stronger shell; Opacity remains authoritative over the entire sphere. Existing shared validation/settings Apply/Discard/history owns serialization. No graph/image/backend format migration or destructive data conversion. Older clients may ignore/drop the radius and render the historical profile; preserve a current export before older-client editing.
+
+User-selected sphere defaults supersede previous absent/default values: shared sphereVisualDefaults defines orange #ffb000 (approximate screenshot match), Glow .35, Opacity 1, Translucency .70 and Translucency radius .76. Fresh workspace node style, MS base resolution and actual/preview carrier fallbacks inherit this definition. Saved explicit styles/controller values, including zeros and radius 1, remain authoritative; missing transmission fields intentionally pick up the new defaults. Radius 1 still selects historical all-surface transmission. UI translucency and adaptive blending defaults are unchanged. No graph/schema migration or browser acceptance is inferred.
+
+
+PR #58 merge/retirement (2026-11-08): preserve master's newer sphere defaults and
+all explicit user styles, translucency/radius, atlas painting and viewport changes.
+The user explicitly retired wallpaper-to-sphere blending. Its four adaptiveBlend*
+preferences remain validated by the existing appearance compatibility reader but
+are absent from the active property pool/targets and renderer. Locks/refinements
+and validated saved values survive normalization/export for rollback; no runtime
+wallpaper sampling or comparator remains. Wallpaper/audio/native output and live
+shared value previews retain their existing owners. No graph schema, image bytes,
+scene-effect defaults or backend migration. Regression covers archive roundtrip
+and absent renderer applicability. No browser acceptance is inferred from merge
+checks; ordinary sphere/wallpaper appearance remains user-owned verification.

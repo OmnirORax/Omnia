@@ -16,7 +16,3 @@ export function createWorldNavigator(){
   rescale(ratio:number){if(Number.isFinite(ratio)&&ratio>0)position.multiplyScalar(ratio);},
  };
 }
-/** Translate the camera with its target; do not fit, rotate or change zoom. */
-export function followNavigator(camera:THREE.PerspectiveCamera,target:THREE.Vector3,position:THREE.Vector3){
- const delta=position.clone().sub(target);camera.position.add(delta);target.copy(position);camera.updateMatrixWorld();
-}

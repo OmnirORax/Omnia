@@ -2,6 +2,10 @@ import { canDock, dockResident, getContainer, ownerOf, pruneEmptyDockGroups, rea
 import { dockKeys, dockTabs, insertDockKey, type DockSide, type DockNode } from "./dockTree.ts";
 
 export type DockRect = { x: number; y: number; width: number; height: number };
+/** Native sidebar remains an overlay even when no explicit edge docks exist. */
+export function clearNativeSidebar(area:DockRect,width:number):DockRect {
+ const inset=Math.min(Math.max(0,width),Math.max(0,area.width-1));return {...area,x:area.x+inset,width:Math.max(1,area.width-inset)};
+}
 export type FrameDock = { target?: string; side: DockSide; rect: DockRect; bounds?: DockRect; edge?: Exclude<DockSide, "tab">;
   tabOwner?: string;
   host?: { container: string; order: string; keys: string[] } };

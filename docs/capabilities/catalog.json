@@ -965,7 +965,7 @@
       "id": "graph.lattice",
       "title": "Shared atlas lattice, scale experiment and empty-cell field",
       "where": "Upper-right atlas controls below Focus context only/Names → Lattice scale / Empty lattice cells. Also Spatial settings and shared UI discovery. N or Create node here creates at the requested point’s nearest free cell.",
-      "behavior": "One sparse fixed XYZ field assigns safe-integer cell addresses to every placement, including hidden/filtered nodes and all parent scopes. Empty cells are implicit. Nearest-free creation uses actual point distance; a hidden occupant still blocks its cell. O diameter, pitch, picking boxes, outlines and arrow steps share the rendered scale, while text and expanded visuals remain independently sized. Lattice scale accepts positive finite scientific notation and applies on Enter/blur, without changing logical addresses or stored coordinates. Camera target follows the same logical area; zoom remains independent, with pitch-aware near clipping/minimum dolly and wheel redraw. Empty lattice cells covers the visible screen horizontally and vertically at current zoom. A bounded grid of screen samples intersects the actual creation slice and deduplicates real cell addresses. Camera/projection/viewport changes update coverage; unchanged state reuses instance data. At most 16,384 markers are drawn; screen sample spacing is at least eight CSS pixels, larger for budgeted large viewports. Fine overview cells are sampled without changing true cell diameter. N/Create node here uses that same slice when shown. Reads project old off-grid/overlapping coordinates without overwriting them. First geometry alignment saves original local XYZ in a protected Before lattice alignment manual view; normal view switching and active autosnapshot preserve it. Geometry commits freeze stationary projected cells so deleting/moving an old overlap does not shuffle unrelated carriers. Existing validation/autosave/history/export owners remain; no second knowledge store. Drag landing feedback is a circular cell outline at the rendered lattice diameter, independent of label size, using the shared analytic ring coverage. Cyan/red validity, snapping, nesting and cancellation are retained.",
+      "behavior": "One sparse fixed XYZ field assigns safe-integer cell addresses to every placement, including hidden/filtered nodes and all parent scopes. Empty cells are implicit. Nearest-free creation uses actual point distance; a hidden occupant still blocks its cell. O diameter, pitch, picking boxes, outlines and arrow steps share the rendered scale, while text and expanded visuals remain independently sized. Lattice scale accepts positive finite scientific notation and applies on Enter/blur, without changing logical addresses or stored coordinates. Camera target follows the same logical area; zoom remains independent, with pitch-aware near clipping/minimum dolly and wheel redraw. Empty lattice cells covers the visible screen horizontally and vertically at current zoom. A bounded grid of screen samples intersects the actual creation slice and deduplicates real cell addresses. Camera/projection/viewport changes update coverage; unchanged state reuses instance data. At most 16,384 markers are drawn; screen sample spacing is at least eight CSS pixels, larger for budgeted large viewports. Fine overview cells are sampled without changing true cell diameter. N/Create node here uses that same slice when shown. Reads project old off-grid/overlapping coordinates without overwriting them. First geometry alignment saves original local XYZ in a protected Before lattice alignment manual view; normal view switching and active autosnapshot preserve it. Geometry commits freeze stationary projected cells so deleting/moving an old overlap does not shuffle unrelated carriers. Existing validation/autosave/history/export owners remain; no second knowledge store. Drag landing feedback is a circular cell outline at the rendered lattice diameter, independent of label size, using the shared analytic ring coverage. Cyan/red validity, snapping, nesting and cancellation are retained. Atomic carriers now render as translucent lit sphere meshes rather than camera-facing rings, with the same diameter and positions. Surface opacity varies from 0.45% at the centre to 18% at the rim, multiplied by authored node opacity. Selection still replaces the carrier with content and retains its pulsing ring. Picking, occupancy, navigator and paint outlines are unchanged. This first visual pass uses existing scene lighting and standard transparent depth testing without depth writes; dense transparency artifacts may remain. Paint previews and saved carriers now share atomicCarrier geometry/material: nearly clear centres and translucent rims based on sphere surface normals. Paint commit converts desired world cells against the stored parent world position, preventing off-grid parent shifts; existing reconciliation/recovery remains authoritative. MS → Visuals exposes Translucency for Omnium → Nodes → Sphere / geometric body through the shared property registry and targeting sets. Range 0–1: 0 opaque surface, 1 clear, default .70 when absent. It is independent of overall Opacity and affects both saved carrier meshes and painting previews. Values use existing controller settings/history; no graph mutation. Translucency now belongs to shared UI paint roles, not just sphere bodies. Selecting UI backgrounds, contours, text or icons retains the applicable Translucency DOF in MS → Visuals. UI defaults to 0 (unchanged); sphere bodies now default .70. CSS paint, scoped text, scrollbar paint and native render defaults use the shared opacity × (1 − translucency) adapter. Existing targeting sets/locks/history remain the owners. Sphere edges now strengthen smoothly using their configured colour and Glow, with overall Opacity and Translucency retained. The shared material coverage also applies to the bloom mask, concentrating glow at the edge instead of across a filled disc. Wallpaper remains visible through spheres; there are no opaque backing masks or neutral outlines. Painting previews share the same material and authored settings. Translucency → Translucency radius now restricts the highly transparent region to the sphere centre: 1 retains historical all-surface transmission; smaller values fade to a stronger outer shell. Full Translucency is wholly clear only at radius 1; zero Opacity always clears the entire sphere. See the radial translucency walkthrough. Shared sphere defaults now use orange #ffb000, Glow .35, Opacity 1, Translucency .70 and radius .76. Explicit saved overrides are retained; adaptive-mode defaults are unchanged.",
       "steps": [
         {
           "do": "Enable Empty lattice cells, zoom out and back in, then resize and rotate the atlas.",
@@ -990,6 +990,22 @@
         {
           "do": "Open an older overlapping/off-grid atlas, inspect it without editing, then make one geometry edit. Open the Layout view list.",
           "expect": "Loading alone does not rewrite coordinates. The edit saves original local positions as Before lattice alignment before persisting the cell organization. The snapshot stays stored on reload/view switching."
+        },
+        {
+          "do": "View several unselected nodes, orbit the camera, then select one.",
+          "expect": "Carriers are translucent spheres at their original size/positions. Selecting replaces its sphere with content while keeping the pulsing selection ring."
+        },
+        {
+          "do": "In MS/Master controller → Visuals, target Omnium → Nodes → Sphere / geometric body and adjust Translucency from 0 to 1. Paint a preview, then undo/reset the appearance adjustment.",
+          "expect": "Spheres become opaque at 0 and clear at 1, subject to overall Opacity. Painting previews use the same value. Existing controller undo/reset restores the prior appearance; absent values retain the bubble default .82."
+        },
+        {
+          "do": "Select a UI button or window with MS. In Visuals adjust Translucency; repeat for selected text or an icon. Clear the adjustment and reload.",
+          "expect": "Translucency remains visible as an applicable DOF and changes the selected paint role. Unselected UI retains its appearance. Unsaved/missing UI values resolve to 0; sphere bodies retain .82."
+        },
+        {
+          "do": "View spheres over wallpaper, change their Colour and Glow in MS → Visuals, then paint a preview. Set Glow to 0, and test Opacity 0 / Translucency 1.",
+          "expect": "Soft coloured edges strengthen with Glow, previews match, and wallpaper remains visible through interiors. No dark backing discs remain. Zero Glow removes extra edge emphasis; zero Opacity/full Translucency still hide the carrier."
         }
       ],
       "reference": "docs/ATLAS_LATTICE.md",
@@ -1002,7 +1018,17 @@
         "src/graph/structural.ts",
         "src/graph/presentation.ts",
         "src/workspaceActions.ts",
-        "tests/lattice.test.mjs"
+        "tests/lattice.test.mjs",
+        "src/atomicCarrier.ts",
+        "src/properties/catalog.ts",
+        "src/appearance/registry.ts",
+        "tests/appearance.test.mjs",
+        "src/appearance/Styles.tsx",
+        "src/appearance/ScopedTextAppearance.tsx",
+        "src/properties/translucency.ts",
+        "src/sceneAppearance.ts",
+        "src/scene/wallpaper.ts",
+        "tests/presentation.test.mjs"
       ],
       "actions": [],
       "gestures": [],
@@ -1015,8 +1041,8 @@
       "limits": "One real lattice slice, not the full 3D volume. A screen sample grid uses at least eight CSS pixels spacing and at most 16,384 samples/markers. Fine overview cells may not get markers; they remain available for creation. Extreme unsafe addresses hide the field safely. Carrier occupancy is per active atlas document; other atlases are not merged. Same-atlas parent/filter scopes share occupancy. Layout previews snap to cells and reject occupied/duplicate targets. Safe-integer addresses, bounded nearest-free search, GPU/depth precision and numerical underflow/overflow still limit use. No floating-origin/arbitrary-precision renderer or universal minimum scale is claimed. At extreme scales rendering/interaction can fail; this is a user-run experiment. The recovery view preserves original source positions but the current renderer still projects them onto cells. Older clients can ignore/drop added settings or overwrite recovery snapshots. No new filter system, relationship-node authoring, cloud sync or backend deployment.",
       "status": "Implemented for review; production deployment and browser acceptance pending",
       "verification": {
-        "browser": "Screen-based field coverage and circular drag preview await user visual/interaction/performance acceptance. No additional browser check run.",
-        "automated": "Oblique-camera regression reproduces far-plane budget starvation; screen sampling retains local and both-axis viewport coverage. All 575 model/architecture tests, preview/type/property/capability build and backend checks pass. User visual/performance acceptance pending."
+        "browser": "User rejected opaque backing discs and requested stronger glowing edges based on current visual configuration. Implementation awaits user preview acceptance; no new browser run.",
+        "automated": "Oblique-camera regression reproduces far-plane budget starvation; screen sampling retains local and both-axis viewport coverage. All 575 model/architecture tests, preview/type/property/capability build and backend checks pass. User visual/performance acceptance pending. Model regression verifies property discovery, controller round-trip resolution independent of opacity, and material endpoints/live updates. Regression checks UI surface applicability, scoped glyph support, controller resolution, preserved UI/sphere absence defaults and shared alpha endpoints. Shared coverage regression verifies base/glow-mask uniforms stay linked to authored Glow and Translucency, instanced coverage support, preserved colour, and invisible endpoints."
       }
     },
     {
@@ -1110,7 +1136,7 @@
       "id": "camera.navigation",
       "title": "Camera versus object rotation, trackball and axis lock",
       "where": "World canvas → configured navigation drag (MB2 by default); Shift opens its MC settings.",
-      "behavior": "Direct node drag turns the object. Empty space with a selection orbits the selected branch; without selection it turns the camera in place. Ctrl locks the initial rotation axis. Context choices persist for the session. Plain node/empty-slot clicks now mount or park the world navigator and translate camera plus target together without fitting, rotating or changing zoom. Preview motion stays in the fixed current view until the next mount/park click.",
+      "behavior": "Direct node drag turns the object. Empty space with a selection orbits the selected branch; without selection it turns the camera in place. Ctrl locks the initial rotation axis. Context choices persist for the session. Plain node/empty-slot clicks now mount or park the world navigator with the camera fixed. Preview motion stays in the fixed current view including mount/park clicks. Camera follow is retired: mounting, parking, empty clicks and Ctrl-click positioning change only navigator/node state, never camera position or target. Use explicit Frame selected front-on or navigation controls to move the camera. The world renderer occupies the full viewport behind the toolbar, sidebar and floating/docked UI. UI layout allocates UI residents without shrinking the world. Transparent UI paint reveals the same scene underneath. UI retains input ownership; transparency does not imply click-through. Existing ResizeObserver updates camera aspect and wallpaper size for the full world host. Native sidebar clearance now applies even when no explicit edge docks exist. The zoom/compass and default world UI homes use the same bounded allocation, keeping them beside the sidebar rather than over its contents.",
       "steps": [
         {
           "do": "Drag near a node center, then tangentially near its rim.",
@@ -1123,12 +1149,25 @@
         {
           "do": "Hold Ctrl and begin horizontal motion, adding vertical jitter.",
           "expect": "The initial axis stays locked until Ctrl is released."
+        },
+        {
+          "do": "Click a node, park it, click empty space and Ctrl-click another node. Then use Frame selected front-on.",
+          "expect": "Clicks leave camera position and target unchanged. Only the explicit framing action moves the camera."
+        },
+        {
+          "do": "Make toolbar/sidebar backgrounds translucent in MS → Visuals. Resize the browser and open or close a docked panel; then use a UI control and navigate in exposed world space.",
+          "expect": "The same world scene continues behind UI across the full viewport. UI controls still receive input; world navigation uses the full viewport camera. Docks do not resize or crop the world into a smaller column."
+        },
+        {
+          "do": "Show the native left sidebar without creating edge docks, then open an edge dock and resize the browser.",
+          "expect": "The zoom/compass and selection HUD remain outside the sidebar in both cases. Scene remains full-viewport; saved UI arrangement is not rewritten."
         }
       ],
       "reference": "docs/WORLD_NAVIGATION.md",
       "sources": [
         "src/SpatialWorkspace.tsx",
-        "src/navigation/transforms.ts"
+        "src/navigation/transforms.ts",
+        "src/workbench.css"
       ],
       "actions": [
         "world.navigate"
@@ -1136,8 +1175,8 @@
       "limits": "Camera context choices are session-only. Check the current shortcut binding rather than assuming MB2 when MS is active.",
       "status": "Implemented; browser verification pending",
       "verification": {
-        "browser": "Not recorded",
-        "automated": "See subsystem tests and PR checks; not proof of usability"
+        "browser": "Full-viewport scene and UI overlay/input acceptance await user preview test; no browser suite run.",
+        "automated": "See subsystem tests and PR checks; not proof of usability Regression covers native-only and combined dock/sidebar clearance, absent sidebar and narrow bounds."
       },
       "related": [
         "world.navigator"
@@ -3969,7 +4008,7 @@
       "id": "world.navigator",
       "title": "World navigator, compass, positioning and click-to-drive nodes",
       "where": "Omnium world canvas → move mouse → left-click a node to drive it → mouse and Up/Down → click an empty slot to park; Esc cancels. Ctrl/Meta-click a node to position the navigator without mounting.",
-      "behavior": "A transient cyan navigator ring with centre/diameter and single end-to-end cyan orientation line resolves mouse XY on its own oriented local plane. Its movement frame matches camera orientation, initializing at the camera target. Mouse controls camera-facing local XY; positive Z is toward the camera and negative Z away. The outer ring faces the camera; a single cyan diameter projects world X through the inverse camera rotation. It remains full-length, retaining the last direction when exactly end-on; no XYZ triad is shown. Independent orientation controls are deferred. Up moves forward/away (negative Z); Down moves backward/toward (positive Z). Both step local Z by one lattice pitch using the existing bounded held scheduler. Left-click selects and mounts a node, translating camera/target without changing viewing angle or zoom and rebasing the grab offset. Mouse/depth preview the branch; click empty space parks/unmounts through one normal document transaction. Clicking another node parks the old one at its last valid preview and switches control. The driven root does not mask parking targets; descendants and other nodes retain normal detection. Ordinary projected node detection remains; no depth-only selection rule is added. Invalid destinations keep last valid geometry and mark the navigator red; invalid empty parking rejects. Esc/capture/document-context replacement cancels. Creation uses navigator position with existing nearest-free placement. The line, ring and centre inherit the existing Omnium selection/focus appearance. Its camera-local grab offset is retained after following and rotates with the camera; selected-node appearance/orientation is not rewritten. Creation controls can use its last world position while the pointer is over UI; plain creation, existing-object insertion, Omnic drafts/copies and library placement share parent-local lattice conversion. Before first world interaction they retain contextual defaults. Ctrl/Meta-click positions the navigator and camera target at a node without mounting or moving it, selecting the node as context. Any unparked drive is canceled without saving. Its pointer offset is rebased after camera follow. Ctrl-drag retains marquee; Shift-click retains range; other surfaces keep their membership behavior. This uses the shared surface modifier-click owner and captured press target.",
+      "behavior": "A transient cyan navigator ring with centre/diameter and single end-to-end cyan orientation line resolves mouse XY on its own oriented local plane. Its movement frame matches camera orientation, initializing at the camera target. Mouse controls camera-facing local XY; positive Z is toward the camera and negative Z away. The outer ring faces the camera; a single cyan diameter projects world X through the inverse camera rotation. It remains full-length, retaining the last direction when exactly end-on; no XYZ triad is shown. Independent orientation controls are deferred. Up moves forward/away (negative Z); Down moves backward/toward (positive Z). Both step local Z by one lattice pitch using the existing bounded held scheduler. Left-click selects and mounts a node, keeping the camera fixed and rebasing the grab offset. Mouse/depth preview the branch; click empty space parks/unmounts through one normal document transaction. Clicking another node parks the old one at its last valid preview and switches control. The driven root does not mask parking targets; descendants and other nodes retain normal detection. Ordinary projected node detection remains; no depth-only selection rule is added. Invalid destinations keep last valid geometry and mark the navigator red; invalid empty parking rejects. Esc/capture/document-context replacement cancels. Creation uses navigator position with existing nearest-free placement. The line, ring and centre inherit the existing Omnium selection/focus appearance. Its camera-local grab offset is retained during positioning and rotates with the camera; selected-node appearance/orientation is not rewritten. Creation controls can use its last world position while the pointer is over UI; plain creation, existing-object insertion, Omnic drafts/copies and library placement share parent-local lattice conversion. Before first world interaction they retain contextual defaults. Ctrl/Meta-click positions the navigator at a node without mounting or moving it, selecting the node as context. Any unparked drive is canceled without saving. Its pointer offset is rebased without moving the camera. Ctrl-drag retains marquee; Shift-click retains range; other surfaces keep their membership behavior. This uses the shared surface modifier-click owner and captured press target. Camera follow is retired: mounting, parking, empty clicks and Ctrl-click positioning change only navigator/node state, never camera position or target. Use explicit Frame selected front-on or navigation controls to move the camera. Alt-left-drag paints fresh nodes when started in empty space, or independent copies of the starting node content/visuals when started on a node. Its parent scope is reused; descendants and relations are not duplicated. Shared Composer stroke sampling interpolates bounded packets. Occupied/hidden cells and repeated cells are skipped. Up to 256 new nodes preview as matching translucent spheres; release saves one normal undoable batch, Esc/capture/document replacement cancels without saving. Camera stays fixed. Paint previews and saved carriers now share atomicCarrier geometry/material: nearly clear centres and translucent rims based on sphere surface normals. Paint commit converts desired world cells against the stored parent world position, preventing off-grid parent shifts; existing reconciliation/recovery remains authoritative.",
       "steps": [
         {
           "do": "Move the pointer over the world and press Up/Down, then hold briefly. Rotate the camera and move the pointer again.",
@@ -3977,11 +4016,11 @@
         },
         {
           "do": "Ctrl/Meta-click an existing node, then move the mouse and press Up/Down. Ctrl-drag across multiple nodes.",
-          "expect": "The navigator and camera target move to the clicked node without mounting or changing its saved position. Subsequent movement affects only the navigator. Ctrl-drag still selects a marquee. An unparked drive is canceled rather than saved."
+          "expect": "The navigator moves to the clicked node without mounting or changing its saved position. Subsequent movement affects only the navigator. Ctrl-drag still selects a marquee. An unparked drive is canceled rather than saved."
         },
         {
           "do": "Left-click a node, move the pointer and step depth, then click an empty slot. Undo once.",
-          "expect": "The node becomes the driven object and camera follows without fitting/rotating. Its branch previews without saving. Parking commits once; Undo restores the node/branch through document history."
+          "expect": "The node becomes the driven object and camera stays fixed. Its branch previews without saving. Parking commits once; Undo restores the node/branch through document history."
         },
         {
           "do": "Drive toward an occupied or hidden-reserved slot, try parking, then press Esc.",
@@ -3994,6 +4033,14 @@
         {
           "do": "Type arrows in a text field, use another UI surface, blur the tab, and return to the world.",
           "expect": "Navigator depth does not take text/UI input. Held motion stops on lost ownership and never catches up queued steps. The transient navigator is not a saved entity."
+        },
+        {
+          "do": "Click a node, park it, click empty space and Ctrl-click another node. Then use Frame selected front-on.",
+          "expect": "Clicks leave camera position and target unchanged. Only the explicit framing action moves the camera."
+        },
+        {
+          "do": "Alt-left-drag from empty space, release and Undo. Repeat starting on a named node, crossing occupied cells. Press Esc during another stroke.",
+          "expect": "Empty-start creates blanks; node-start copies its content and presentation independently. Occupied/repeated cells are skipped, camera stays fixed, release saves once and Undo removes the whole stroke. Esc discards preview."
         }
       ],
       "reference": "docs/WORLD_NAVIGATION.md",
@@ -4010,7 +4057,10 @@
         "tests/navigation.test.mjs",
         "tests/world-navigator.browser.mjs",
         "src/appearance/selectionSurfaces.ts",
-        "tests/visuals-selection.test.mjs"
+        "tests/visuals-selection.test.mjs",
+        "src/omnic/paintStroke.ts",
+        "src/graph/paintNodes.ts",
+        "src/atomicCarrier.ts"
       ],
       "actions": [
         "world.navigatorDepthUp",
@@ -4018,7 +4068,8 @@
         "world.navigatorCancel"
       ],
       "gestures": [
-        "world.navigatorLocate"
+        "world.navigatorLocate",
+        "world.paintNodes"
       ],
       "related": [
         "camera.navigation",
@@ -4029,8 +4080,88 @@
       "limits": "Camera-aligned navigator orientation; independent navigator rotation controls are deferred. No depth-filtered picking, arbitrary floating-origin precision, persistent navigator identity, camera follow on every preview frame or full 3D lattice-volume renderer. Plain left-click is now drive/park; inspect/expand via domain actions. At most 256 visible driven hosts. Existing lattice occupancy, legacy recovery and document validation limits apply. Camera movement and document placement have separate existing history owners. Other high-priority selection/editing gestures retain input ownership.",
       "status": "Implemented for review; production and user browser acceptance pending",
       "verification": {
-        "automated": "Model regressions cover single-line compass changes during orbit/roll and full-diameter geometry, unchanged compass during pointer/scale changes, forward negative-Z semantics and preserved saved key assignments; shared modifier-click captures the press target, dispatches once, rejects replaced contexts and preserves marquee. Existing tests cover driving, immutable preview/cancel, parking and camera follow. All 596 model/architecture tests, preview/type/property/capability build and backend type checks pass.",
-        "browser": "2026-11-07 earlier user-authorized local Chromium check passed mount/camera follow, mouse preview, depth, parking and Esc cancellation before the compass/arrow/Ctrl-click corrections. No page errors then. User chose preview testing for the current corrections; they have not received a new browser check. Opt-in script updated for forward Up semantics but not rerun."
+        "automated": "Model tests cover shared 2D/3D stroke sampling, bounded packets, copied content, occupancy including hidden cells, duplicate visits, source immutability and document validation. All 607 model/architecture tests, preview/type/property/capability build and backend checks pass. Regression reproduces off-grid-parent confirmation shift and verifies exact world positions after reconciliation.",
+        "browser": "Shared bubble material and paint confirmation correction await user preview acceptance; no browser check run for this change."
+      }
+    },
+    {
+      "id": "render.adaptiveComparison",
+      "title": "Wallpaper-to-sphere blending (retired)",
+      "where": "No active control; removed at the user’s request.",
+      "behavior": "Wallpaper sampling/adaptive sphere blending and its experimental comparator are removed. Ordinary sphere colour, opacity, glow, translucency and transmission radius remain. Existing four adaptive-blend preferences are preserved as validated archived controller values, without applicable targets, controls or shader use.",
+      "steps": [
+        {
+          "do": "Open MS → Visuals and target Sphere / geometric body.",
+          "expect": "Normal sphere appearance and Translucency radius remain; Adaptive blending/Blend mode/Blend strength/Body coverage are absent."
+        },
+        {
+          "do": "Load and export settings that previously enabled wallpaper/sphere blending.",
+          "expect": "Archived values survive but do not enable rendering or alter the wallpaper. Saved colour/translucency/radius remain authoritative."
+        }
+      ],
+      "reference": "docs/ATLAS_LATTICE.md",
+      "sources": [
+        "src/properties/catalog.ts",
+        "src/appearance/registry.ts",
+        "src/appearance/propertyTree.ts",
+        "src/atomicCarrier.ts",
+        "tests/appearance.test.mjs"
+      ],
+      "actions": [],
+      "gestures": [],
+      "related": [
+        "graph.lattice",
+        "camera.navigation",
+        "render.radialTranslucency"
+      ],
+      "limits": "No wallpaper-dependent sphere recolouring, automatic contrast modes or comparator. Ordinary sphere appearance is independent of wallpaper. Older versions can still render their previous feature from archived settings.",
+      "status": "Retired at user request; archived preferences retained",
+      "verification": {
+        "automated": "Regression checks archived blend values survive reload/export without active definitions, applicability or resolved render values; ordinary sphere/transmission tests remain. Merge checks required before publication.",
+        "browser": "No browser suite requested or run for this merge/retirement."
+      }
+    },
+    {
+      "id": "render.radialTranslucency",
+      "title": "Adjust the transparent centre of sphere nodes",
+      "where": "MS / Master controller → Visuals → Omnium → Nodes → Sphere / geometric body → Translucency → Translucency radius.",
+      "behavior": "Translucency sets centre transmission; Translucency radius (0–1) sets how far that centre extends toward the edge. At radius 1 the existing bubble appearance is unchanged. Below 1, transmission stays at the chosen amount inside that radial fraction, then smoothly decreases to zero at the sphere silhouette, producing a stronger outer shell. The radius follows sphere surface normals and view direction, independent of zoom. Shared settings, applicability, locks, targeting and Apply/Discard/history own the property; saved carriers, paint previews and bloom masks share the same shader/uniforms. Current shared sphere defaults are orange #ffb000, Glow .35, Opacity 1, Translucency .70 and radius .76. Fresh settings and absent transmission fields use these values; saved explicit values remain authoritative. Radius 1 remains the whole-surface option, but is no longer the absent default.",
+      "steps": [
+        {
+          "do": "Target Sphere / geometric body in MS → Visuals. Fresh defaults are orange #ffb000, Glow .35, Opacity 1, Translucency .70 and Translucency radius .76. Expand Translucency to see its radius. For an isolated comparison, turn Adaptive blending off or set Body coverage 0.",
+          "expect": "A nearly clear centre remains. The radius field is applicable to sphere bodies, not unrelated UI paint."
+        },
+        {
+          "do": "Lower Translucency radius from 1 toward .8, then .6.",
+          "expect": "A smooth stronger shell grows inward as the clear central region shrinks. Raising radius extends the clear area back outward. The effect works at different zoom levels and during painting."
+        },
+        {
+          "do": "Try Translucency 1 with radius below 1, then set Opacity 0. Apply and reload.",
+          "expect": "Full centre transmission leaves an outer shell at a smaller radius; Opacity 0 clears everything. Radius 1 restores the original whole-sphere transmission. Applied values persist; Discard/history use the normal controller."
+        }
+      ],
+      "reference": "docs/ATLAS_LATTICE.md",
+      "sources": [
+        "src/properties/catalog.ts",
+        "src/appearance/propertyTree.ts",
+        "src/appearance/registry.ts",
+        "src/atomicCarrier.ts",
+        "src/textScene.ts",
+        "src/SpatialWorkspace.tsx",
+        "tests/appearance.test.mjs",
+        "src/properties/sphereVisualDefaults.ts"
+      ],
+      "actions": [],
+      "gestures": [],
+      "related": [
+        "graph.lattice",
+        "render.adaptiveComparison"
+      ],
+      "limits": "Sphere bodies only; this is a view-relative smooth transmission profile, not physical refraction or a hollow geometry simulation. Lower radius may create a thick shell; tune it with Translucency and Glow. Adaptive Body coverage can still fill partially transparent centres, so use coverage 0 for an isolated bubble profile. No opaque wallpaper backing or separate render pass. Unknown properties may be dropped by older clients. Browser visual acceptance remains user-owned. Defaults do not overwrite saved explicit custom values. Orange is an approximate screenshot match, since no source hex was provided.",
+      "status": "Implemented for preview review; visual acceptance pending",
+      "verification": {
+        "automated": "All 611 model/architecture tests, preview/type/property/capability build and backend checks pass. Models cover shared applicability, current defaults (including colour/glow/opacity), missing radius .76, explicit zero, settings round trips, shared base/bloom live uniforms and preserved authored opacity at full centre transmission.",
+        "browser": "No new browser run; user-owned preview testing for appearance, control response, zoom/paint parity and Apply/reload."
       }
     }
   ]

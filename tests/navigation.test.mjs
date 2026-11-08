@@ -384,14 +384,12 @@ test('simultaneous atlas arrows advance a whole cell on each active camera axis'
 });
 
 test('world navigator projects its own oriented XY plane and local Z independently of camera selection',async()=>{
- const {createWorldNavigator,followNavigator}=await import('../src/navigation/worldNavigator.ts');
+ const {createWorldNavigator}=await import('../src/navigation/worldNavigator.ts');
  const navigator=createWorldNavigator();navigator.initialize(new THREE.Vector3(0,0,2));
  const ray=new THREE.Ray(new THREE.Vector3(3,4,10),new THREE.Vector3(0,0,-1));assert.equal(navigator.aim(ray),true);assert.deepEqual(navigator.position.toArray(),[3,4,2]);
  navigator.depth(1);assert.deepEqual(navigator.position.toArray(),[3,4,3]);
  navigator.orientation.setFromAxisAngle(new THREE.Vector3(0,1,0),Math.PI/2);navigator.depth(2);assert.ok(Math.abs(navigator.position.x-5)<1e-9);
  const before=navigator.position.clone();assert.equal(navigator.aim(new THREE.Ray(new THREE.Vector3(),new THREE.Vector3(0,1,0))),false);assert.ok(navigator.position.equals(before));
- const camera=new THREE.PerspectiveCamera(55,2,.1,1000),target=new THREE.Vector3(1,2,3);camera.position.set(7,5,9);camera.lookAt(target);const offset=camera.position.clone().sub(target),q=camera.quaternion.clone(),zoom=camera.zoom;
- followNavigator(camera,target,new THREE.Vector3(20,30,40));assert.deepEqual(target.toArray(),[20,30,40]);assert.ok(camera.position.clone().sub(target).equals(offset));assert.ok(camera.quaternion.equals(q));assert.equal(camera.zoom,zoom);
  navigator.rescale(.5);assert.ok(navigator.position.distanceTo(before.multiplyScalar(.5))<1e-9);navigator.reset();assert.equal(navigator.initialized,false);
 });
 

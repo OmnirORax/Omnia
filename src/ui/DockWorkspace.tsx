@@ -2,7 +2,7 @@ import {sameValue} from '../valueEquality';
 import { createContext, useCallback, useContext, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useUI } from "./context";
 import { getContainer, ownerOf } from "./layout";
-import { fitDockRect, fitDockResidents, workspaceDockRects, type DockRect } from "./docking";
+import { fitDockRect, fitDockResidents, workspaceDockRects, clearNativeSidebar, type DockRect } from "./docking";
 
 export function dockWorkspaceArea(): DockRect {
   const workspace = document.querySelector(".workspace")?.getBoundingClientRect();
@@ -40,7 +40,7 @@ export function DockWorkspace({ children, projection }: { children: ReactNode; p
   const proposedGeometry = useMemo(() => workspaceDockRects(layout, area), [layout, area]);
   const lastGeometry=useRef(proposedGeometry);if(!sameValue(lastGeometry.current,proposedGeometry))lastGeometry.current=proposedGeometry;
   const geometry=lastGeometry.current;
-  const floating = useMemo(() => geometry.active ? { ...geometry.center, x: geometry.center.x + sidebarWidth, width: Math.max(1, geometry.center.width-sidebarWidth) } : geometry.center, [geometry, sidebarWidth]);
+  const floating = useMemo(() => clearNativeSidebar(geometry.center, sidebarWidth), [geometry, sidebarWidth]);
   const visibleResidents = useMemo(() => {
     if (!allocation) return residents;
     const remaining = Object.fromEntries(Object.entries(residents).filter(([key]) =>
@@ -83,6 +83,13 @@ export function DockWorkspace({ children, projection }: { children: ReactNode; p
       delete workspace.dataset.uiDocks;
     };
   }, [geometry]);
+  // UI homes use the existing dock allocation; the world keeps its full viewport.
+  useLayoutEffect(()=>{
+    const workspace=document.querySelector<HTMLElement>('.workspace');if(!workspace)return;
+    const insets={left:floating.x,top:floating.y,right:Math.max(0,innerWidth-floating.x-floating.width),bottom:Math.max(0,innerHeight-floating.y-floating.height)};
+    for(const [edge,value] of Object.entries(insets))workspace.style.setProperty(`--world-ui-${edge}`,`${value}px`);
+    return()=>{for(const edge of Object.keys(insets))workspace.style.removeProperty(`--world-ui-${edge}`);};
+  },[floating]);
   const value=useMemo(()=>({ ...geometry, source: allocation?.source, floating, placements, register }),[geometry,allocation?.source,floating,placements,register]);
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }

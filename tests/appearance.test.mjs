@@ -1665,3 +1665,77 @@ test('shared colour and number settings preview without persistence, validate th
  bindings.preview(null);assert.equal(shown,saved);assert.equal(writes,0);
  bindings.preview([...color,...amount]);bindings.commit([...color,...amount]);assert.equal(writes,1);assert.equal(saved.sceneVfx.pulseTintHigh,'#ff8800');assert.equal(saved.sceneVfx.pulseAmount,.5);
 });
+
+test('sphere translucency participates in shared appearance targeting and persists independently of opacity',async()=>{
+ const {propertyFor,controllerTargets,loadController}=await import('../src/appearance/registry.ts');
+ const {defaultSettings}=await import('../src/workspaceActions.ts');const {resolveControllerAppearance}=await import('../src/appearance/resolve.ts');
+ const {atomicCarrierMaterial,updateAtomicCarrier}=await import('../src/atomicCarrier.ts');
+ assert.equal(propertyFor('translucency').initial,0);const state=loadController({ ...emptyController(),values:{'omnium.nodes.body':{translucency:.4,opacity:.7}}});
+ assert.ok(controllerTargets(state).find(t=>t.id==='omnium.nodes.body').properties.includes('translucency'));
+ const theme=resolveControllerAppearance({...defaultSettings().appearance,controller:state});
+ assert.equal(theme.renderDefaults['omnium.nodes.body'].translucency,.4);assert.equal(theme.nodes.opacity,.7);
+ const material=atomicCarrierMaterial('#ffffff',.7,.4);assert.ok(Math.abs(material.opacity-.42)<1e-9);updateAtomicCarrier(material,.7,0);assert.equal(material.opacity,.7);updateAtomicCarrier(material,.7,1);assert.equal(material.opacity,0);assert.equal(material.userData.translucency.value,1);material.dispose();
+});
+
+
+test('UI surfaces and scoped glyphs expose applicable translucency without changing historical defaults',async()=>{
+ const {controllerTargets,loadController}=await import('../src/appearance/registry.ts');const {GLYPH_PROPERTIES}=await import('../src/appearance/partScope.ts');
+ const {defaultSettings}=await import('../src/workspaceActions.ts');const {createValueResolver}=await import('../src/appearance/resolve.ts');const {translucentOpacity}=await import('../src/properties/translucency.ts');
+ const state=loadController({...emptyController(),values:{'ui.buttons.background':{translucency:.6}}}),targets=controllerTargets(state),read=createValueResolver(defaultSettings().appearance,state,targets);
+ for(const target of targets.filter(t=>t.id.startsWith('ui.')&&(t.binding?.selector||t.id.startsWith('ui.scrollbars.'))&&!t.couplings?.opacity&&t.properties?.includes('opacity')))assert.ok(target.properties.includes('translucency'),target.id);
+ assert.ok(GLYPH_PROPERTIES.includes('translucency'));assert.equal(read(targets.find(t=>t.id==='ui.buttons.background'),'translucency'),.6);
+ assert.equal(read(targets.find(t=>t.id==='ui.windows.background'),'translucency'),0);assert.equal(read(targets.find(t=>t.id==='omnium.nodes.body'),'translucency'),.7);
+ assert.equal(translucentOpacity(.5,.6),.2);assert.equal(translucentOpacity(.5,0),.5);assert.equal(translucentOpacity(.5,1),0);
+});
+
+test('sphere glow masks inherit soft edge coverage and live authored glow/translucency',async()=>{
+ const THREE=await import('three');const {atomicCarrierMaterial,updateAtomicCarrier}=await import('../src/atomicCarrier.ts');const {inheritMaterialCoverage}=await import('../src/materialCoverage.ts');
+ const source=atomicCarrierMaterial('#0044ff',.7,.82,.35),mask=new THREE.MeshBasicMaterial();inheritMaterialCoverage(source,mask);
+ const compile=material=>{const shader={uniforms:{},vertexShader:'#include <begin_vertex>\n#include <project_vertex>',fragmentShader:'#include <opaque_fragment>'};material.onBeforeCompile(shader,{});return shader;};
+ const base=compile(source),glow=compile(mask);assert.equal(base.uniforms.carrierGlow,glow.uniforms.carrierGlow);assert.equal(base.uniforms.carrierTranslucency,glow.uniforms.carrierTranslucency);assert.ok(glow.fragmentShader.includes('carrierProfile * carrierGain'));assert.ok(glow.vertexShader.includes('USE_INSTANCING'));
+ updateAtomicCarrier(source,.7,.5,1.2);assert.equal(glow.uniforms.carrierGlow.value,1.2);assert.equal(glow.uniforms.carrierTranslucency.value,.5);assert.equal(source.opacity,.35);assert.equal(source.color.getHexString(),'0044ff');
+ updateAtomicCarrier(source,0,.5,2);assert.equal(source.opacity,0);updateAtomicCarrier(source,.7,1,2);assert.equal(source.opacity,0);source.dispose();mask.dispose();
+});
+
+
+
+
+
+
+
+
+
+
+test('sphere translucency radius is a serialized sphere-only property with current default and explicit zero',async()=>{
+ const {loadController,controllerTargets}=await import('../src/appearance/registry.ts');const {defaultSettings}=await import('../src/workspaceActions.ts');const {resolveControllerAppearance}=await import('../src/appearance/resolve.ts');
+ const base=defaultSettings().appearance;const targets=controllerTargets(emptyController());
+ assert.ok(targets.find(t=>t.id==='omnium.nodes.body').properties.includes('translucencyRadius'));
+ assert.ok(!targets.find(t=>t.id==='ui.buttons.background').properties.includes('translucencyRadius'));
+ const defaults=resolveControllerAppearance(base).renderDefaults['omnium.nodes.body'];assert.equal(defaults.translucencyRadius,.76);assert.equal(defaults.translucency,.7);assert.equal(defaults.glow,.35);assert.equal(defaults.opacity,1);assert.equal(defaults.color,'#ffb000');
+ for(const radius of [0,.65,1]){
+  const controller=loadController(JSON.parse(JSON.stringify({...emptyController(),values:{'omnium.nodes.body':{translucency:.95,translucencyRadius:radius}}})));
+  const values=resolveControllerAppearance({...base,controller}).renderDefaults['omnium.nodes.body'];assert.equal(values.translucencyRadius,radius);assert.equal(values.translucency,.95);
+ }
+});
+test('radial transmission updates base and bloom uniforms without losing authored opacity at full centre translucency',async()=>{
+ const THREE=await import('three');const {atomicCarrierMaterial,updateAtomicCarrier}=await import('../src/atomicCarrier.ts');const {inheritMaterialCoverage}=await import('../src/materialCoverage.ts');
+ const material=atomicCarrierMaterial('#4488ff',.6,1,.5,.7),mask=new THREE.MeshBasicMaterial();inheritMaterialCoverage(material,mask);
+ const compile=m=>{const shader={uniforms:{},vertexShader:THREE.ShaderLib.phong.vertexShader,fragmentShader:THREE.ShaderLib.phong.fragmentShader};m.onBeforeCompile(shader,{});return shader;};
+ const base=compile(material),bloom=compile(mask);
+ assert.equal(base.uniforms.carrierTranslucencyRadius.value,.7);assert.equal(base.uniforms.carrierAuthoredOpacity.value,.6,'fully clear centre does not erase shell opacity');
+ assert.equal(base.uniforms.carrierTranslucencyRadius,bloom.uniforms.carrierTranslucencyRadius);assert.equal(base.uniforms.carrierAuthoredOpacity,bloom.uniforms.carrierAuthoredOpacity);
+ updateAtomicCarrier(material,.4,.9,.8,0);assert.equal(base.uniforms.carrierTranslucencyRadius.value,0);assert.equal(bloom.uniforms.carrierAuthoredOpacity.value,.4);
+ updateAtomicCarrier(material,0);assert.equal(base.uniforms.carrierAuthoredOpacity.value,0);assert.equal(base.uniforms.carrierTranslucencyRadius.value,.76,'omitted argument uses the shared default radius');material.dispose();mask.dispose();
+});
+
+
+test('retired wallpaper sphere blending stays archived without controls or renderer applicability',()=>{
+ const values={adaptiveBlend:true,adaptiveBlendStrength:.37,adaptiveBlendMode:'screen',adaptiveBlendCoverage:.4};
+ const state=loadController({...emptyController(),values:{'omnium.nodes.body':values}});
+ assert.deepEqual(state.values['omnium.nodes.body'],values);
+ assert.deepEqual(loadController(JSON.parse(JSON.stringify(state))).values['omnium.nodes.body'],values);
+ const body=controllerTargets(state).find(t=>t.id==='omnium.nodes.body');
+ for(const key of Object.keys(values)){assert.ok(!body.properties.includes(key));assert.equal(PROPERTY_REGISTRY.property(key),undefined);}
+ const resolved=resolveControllerAppearance({...defaultSettings().appearance,controller:state});
+ for(const key of Object.keys(values))assert.equal(resolved.renderDefaults?.['omnium.nodes.body']?.[key],undefined);
+});

@@ -1,3 +1,4 @@
+import {paintSamples} from './paintStroke.ts';
 import { contextEditTargets } from "./componentTargets";
 import {componentAttachments,detachComponentAttachment} from './componentAttachments';
 import {surfaceOwnsInput} from '../ui/inputOwnership';
@@ -334,8 +335,7 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
         let next=active.next;
         if(active.kind==='erase'){next=eraseAtomsAlong(active.next,active.last,point,settings.scope==='macro');}
         else if(active.kind==='draw') {
-          const count=Math.min(64,Math.max(1,Math.ceil(distance(point,active.last)/Math.max(.25,Number(settings.mode==='constrained'?Number(settings.size)*2:settings.step)/2))));
-          for(let i=1;i<=count;i++)next=addAtom(next,{x:active.last.x+(point.x-active.last.x)*i/count,y:active.last.y+(point.y-active.last.y)*i/count},uid());
+          for(const sample of paintSamples(active.last,point,Number(settings.mode==='constrained'?Number(settings.size)*2:settings.step)))next=addAtom(next,sample,uid());
         } else if(pivot) {
           const direction=directionTurn(point.x-pivot.x,point.y-pivot.y);
           active.turn=(active.turn??0)+turnDelta(active.angle,direction);active.angle=direction;

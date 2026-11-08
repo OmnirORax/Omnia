@@ -802,3 +802,5 @@ surface/context at release and dispatches once. Declined clicks and modifier dra
 use normal selection with fresh release geometry; preview still reuses its prepared
 snapshot. Atlas Ctrl/Meta-click opts in to navigator positioning without mounting.
 Composer and other surfaces retain their existing membership behavior.
+
+Translucency is applicable to shared UI surface/text/icon roles, including scoped glyphs, through the normal property registry. Any paint role declaring overall opacity also declares translucency; effect-only opacity couplings remain their independent effect channel. UI absent default is 0; sphere body absent default remains .82 via renderer base resolution. CSS/scoped text and native render defaults apply the shared translucentOpacity adapter. Do not expose sphere-only controls as universal DOFs without implementing each applicable renderer.
