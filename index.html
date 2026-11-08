@@ -27,8 +27,8 @@ Error generating stack: `+e.message+`
  #if PULSE_ALL_COLORS
  vec3 pulseSourceTint(vec3 image){
   float hi=max(image.r,max(image.g,image.b)),lo=min(image.r,min(image.g,image.b));
-  vec3 chroma=(image-vec3(lo))/max(hi-lo,.000001);
-  return mix(vec3(1.0),chroma,smoothstep(.03,.2,(hi-lo)/max(hi,.000001)));
+  float delta=hi-lo;
+  return delta>.000001?(image-vec3(lo))/delta:vec3(1.0);
  }
  uniform vec3 pulseOmniTint;
  vec3 omniHighTint(vec3 image,vec3 control){
