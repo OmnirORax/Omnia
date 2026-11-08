@@ -316,7 +316,7 @@ test('automatic mode and sensitivity persist without rewriting legacy manual tun
 test('automatic live sampler listens to bass and each transient with unsmoothed wide-range FFT; manual restores its source processing',async()=>{
  const audio=await import('../src/scene/audio.ts'),prior=globalThis.AudioContext;let ctx;
  class Node{connect(n){return n;}disconnect(){}}
- class Context{state='running';sampleRate=48000;destination={};nodes=[];constructor(){ctx=this;}resume(){return Promise.resolve();}close(){return Promise.resolve();}createMediaElementSource(){return new Node();}createChannelSplitter(){return new Node();}createAnalyser(){const node=Object.assign(new Node(),{frequencyBinCount:1024,value:0,getByteFrequencyData(b){b.fill(0);b[2]=this.value;},getByteTimeDomainData(b){b.fill(128);}});this.nodes.push(node);return node;}}
+ class Context{state='running';sampleRate=48000;destination={};nodes=[];constructor(){ctx=this;}resume(){return Promise.resolve();}close(){return Promise.resolve();}createMediaElementSource(){return new Node();}createChannelSplitter(){return new Node();}createAnalyser(){const node=Object.assign(new Node(),{frequencyBinCount:1024,value:0,getByteFrequencyData(b){b.fill(0);b[2]=this.value;b[30]=this.bed||0;},getByteTimeDomainData(b){b.fill(128);}});this.nodes.push(node);return node;}}
  globalThis.AudioContext=Context;
  try{
   await audio.connectSceneAudioElement({pause(){},addEventListener(){},removeEventListener(){}});
@@ -324,9 +324,39 @@ test('automatic live sampler listens to bass and each transient with unsmoothed 
   const values=[];for(const value of [80,0,100,0,180,0,240,0]){ctx.nodes[1].value=value;values.push(audio.sampleScenePulse(settings,1/120));}
   assert.ok(values[0]>0&&values[0]<values[2]&&values[2]<values[4]&&values[4]<values[6]);
   for(const i of [1,3,5,7])assert.equal(values[i],0);
-  assert.equal(ctx.nodes[1].smoothingTimeConstant,0);assert.equal(ctx.nodes[1].maxDecibels,0);
+  assert.equal(ctx.nodes[1].fftSize,1024);assert.equal(ctx.nodes[1].smoothingTimeConstant,0);assert.equal(ctx.nodes[1].maxDecibels,0);
+  ctx.nodes[1].value=0;ctx.nodes[1].bed=230;for(let i=0;i<120;i++)audio.sampleScenePulse(settings,1/120);
+  for(const hit of [170,195,220]){ctx.nodes[1].value=hit;assert.ok(audio.sampleScenePulse(settings,1/120)>.05);ctx.nodes[1].value=0;assert.ok(audio.sampleScenePulse(settings,1/120)<.0001);for(let i=0;i<12;i++)audio.sampleScenePulse(settings,1/120);}
   ctx.nodes[1].value=200;assert.equal(audio.sampleScenePulse({...settings,pulseRangeMode:'manual'}),0,'legacy high bands still exclude bass');
-  assert.equal(ctx.nodes[1].smoothingTimeConstant,.7);assert.equal(ctx.nodes[1].maxDecibels,-30);
+  assert.equal(ctx.nodes[1].fftSize,2048);assert.equal(ctx.nodes[1].smoothingTimeConstant,.7);assert.equal(ctx.nodes[1].maxDecibels,-30);
   audio.sampleScenePulse(settings);assert.ok(audio.scenePulseResponse()>0);audio.disconnectSceneAudio();assert.equal(audio.scenePulseResponse(),0);
  }finally{audio.disconnectSceneAudio();globalThis.AudioContext=prior;}
+});
+
+
+test('automatic flashes separate DUN hits above a continuous louder tone instead of staying lit',()=>{
+ const pulse=createAutomaticPulse(),buffer=new Uint8Array(512),dt=1/120;
+ buffer[20]=230; // Sustained loud bed masks the hits when only the strongest bin is used.
+ const sample=()=>{const m=pulse.spectrum(buffer,0,1,512,dt);return pulse.sample(m.level,dt,2,2,m.change,m.changeLevel);};
+ for(let i=0;i<120;i++)sample();assert.ok(sample()<.0001,'a steady bed must stop holding the flash');
+ for(const hit of [170,195,220]){
+  buffer[70]=hit;const attack=sample();assert.ok(attack>.05,'a quieter frequency attack must register below the louder sustained bed');
+  buffer[70]=0;assert.ok(sample()<.0001,'between hits the continuous tone cannot keep the flash lit');
+  for(let i=0;i<12;i++)sample();
+ }
+ buffer[70]=170;const small=sample();buffer[70]=0;for(let i=0;i<24;i++)sample();buffer[70]=220;assert.ok(sample()>small,'a harder attack must yield a stronger flash');
+});
+
+test('sensitivity has a useful graded effect across the whole slider, not only its bottom end',()=>{
+ const outputs=[.25,.5,1,2,4,8].map(s=>createAutomaticPulse().sample(.002,0,s,2));
+ for(let i=1;i<outputs.length;i++)assert.ok(outputs[i]>outputs[i-1]*1.8,'each octave should visibly increase quiet detail');
+ assert.ok(outputs.at(-1)<1,'even the highest sensitivity need not pin quiet input to full flash');
+});
+
+
+test('maximum sensitivity does not turn the short onset window into a long flash tail',()=>{
+ const pulse=createAutomaticPulse(),buffer=new Uint8Array(512),dt=1/120;buffer[10]=220;
+ const sample=()=>{const m=pulse.spectrum(buffer,0,1,512,dt);return pulse.sample(m.level,dt,8,2,m.change,m.changeLevel);};
+ const attack=sample();let after=0;for(let i=0;i<12;i++)after=sample();
+ assert.ok(after<attack*.02,'even max sensitivity should settle within 100 ms instead of extending the flash');
 });

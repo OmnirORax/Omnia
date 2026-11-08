@@ -708,3 +708,19 @@ colour settings, assets/identities/backend formats remain unchanged. Forty field
 are serialized: 19 active, 21 archived. Older clients discard the two new fields
 and render Manual; retain a current export before using older previews. No eager
 save rewrite, capture permission, new media source or audio processing on playback.
+
+
+### Automatic responds to attacks without sustained-volume pinning (2026-11-08)
+
+Correct Automatic analysis after the user reported a flat extended flash and an
+ineffective sensitivity range. Per-frequency 20 ms baselines now extract positive
+rises, so sustained strong bins cannot mask new quieter bins. Sensitivity controls
+quiet-attack contrast rather than gain on the old saturating volume curve; the
+change fraction governs settling separately from contrast. Automatic uses 1024 FFT
+samples for a shorter window, while Manual restores 2048 and prior smoothing/dB
+range. Manual, tint rendering, bounce and playback are unaffected. Existing mode,
+amount and sensitivity values/IDs/bounds/defaults round-trip unchanged; no fields
+are added and the whitelist remains 40 (19 active, 21 archived). Automatic output
+intentionally changes as a bug correction; no numerical preference conversion or
+asset/backend migration applies. Profiles are transient, reset with source/mode,
+and never saved. Older previews still render the prior sustained-volume response.

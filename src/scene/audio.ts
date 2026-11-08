@@ -49,22 +49,24 @@ export function sampleSceneAudio(){
 }
 
 
-/** Manual retains 16 log bands/channel; Automatic follows the current strongest
- * bin across both channels without temporal smoothing or an output hold. */
+/** Manual retains 16 log bands/channel; Automatic follows frequency-local rises
+ * across both channels, retaining a short analysis window rather than sustained loudness. */
 export function sampleScenePulse(settings:SceneVfx,seconds=1/60){
  if(!connected||!context||context.state!=='running'||stereo.length!==2||activeMedia?.paused===true){pulseResponse=0;return 0;}
  const auto=settings.pulseRangeMode==='auto';
  if(fftMode!==settings.pulseRangeMode){
   fftMode=settings.pulseRangeMode;automaticPulse.reset();
-  for(const node of stereo){node.smoothingTimeConstant=auto?0:.7;node.minDecibels=-100;node.maxDecibels=auto?0:-30;}
+  for(const node of stereo){node.fftSize=auto?1024:2048;node.smoothingTimeConstant=auto?0:.7;node.minDecibels=-100;node.maxDecibels=auto?0:-30;}
  }
- let peakByte=0;
- const hz=context.sampleRate/2048,upper=Math.min(20000,context.sampleRate/2);
+ let peak=0,onset=0,onsetLevel=0;
+ const hz=context.sampleRate/(auto?1024:2048),upper=Math.min(20000,context.sampleRate/2);
  for(let channel=0;channel<2;channel++){
   const buffer=spectrumBytes[channel];stereo[channel].getByteFrequencyData(buffer);
   if(auto){
-   const first=Math.max(1,Math.floor(20/hz)),last=Math.min(buffer.length,Math.ceil(upper/hz));
-   for(let i=first;i<last;i++)peakByte=Math.max(peakByte,buffer[i]);
+   const first=Math.max(1,Math.floor(20/hz)),last=Math.min(buffer.length,stereo[channel].frequencyBinCount,Math.ceil(upper/hz));
+   const measure=automaticPulse.spectrum(buffer,channel,first,last,seconds);
+   peak=Math.max(peak,measure.level);
+   if(measure.change>onset){onset=measure.change;onsetLevel=measure.changeLevel;}
    continue;
   }
   for(let band=0;band<16;band++){
@@ -73,7 +75,7 @@ export function sampleScenePulse(settings:SceneVfx,seconds=1/60){
    let value=0;for(let i=low;i<high;i++)value+=buffer[i]/255;bands[channel*16+band]=value/(high-low);
   }
  }
- pulseResponse=auto?automaticPulse.sample(peakByte?Math.pow(10,(-100+peakByte/255*100)/20):0,seconds,settings.pulseSensitivity,settings.pulseAmount):referencePulse(bands,settings.pulseFrequencyMin,settings.pulseFrequencyMax,settings.pulseAudioLow,settings.pulseAudioHigh,settings.pulseExponent,settings.pulseAmount);
+ pulseResponse=auto?automaticPulse.sample(peak,seconds,settings.pulseSensitivity,settings.pulseAmount,onset,onsetLevel):referencePulse(bands,settings.pulseFrequencyMin,settings.pulseFrequencyMax,settings.pulseAudioLow,settings.pulseAudioHigh,settings.pulseExponent,settings.pulseAmount);
  return pulseResponse;
 }
 

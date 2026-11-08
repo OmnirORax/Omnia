@@ -68,18 +68,35 @@ export function omniHighTintRGB(image:readonly number[],control:readonly number[
 }
 
 
-/** Calibration controls gain only; emitted light has no envelope, hold or release tail. */
+/** Byte FFT decode for Automatic's -100..0 dB range. Reused across frames. */
+const AUTOMATIC_AMPLITUDES=Float32Array.from({length:256},(_,i)=>i?Math.pow(10,(-100+i/255*100)/20):0);
+/** Frequency-local rises drive flashes; sustained energy calibrates gain only. */
 export function createAutomaticPulse(){
  let range=.03;
+ const profiles=new Float32Array(2048),measurement={level:0,change:0,changeLevel:0};
  return {
-  reset(){range=.03;},
-  sample(signal:number,seconds:number,sensitivity:number,amount:number){
-   if(!(signal>0))return 0;
-   const input=Math.min(1,signal)*sensitivity;
-   // Soft knee preserves tiny details and headroom instead of flattening peaks at a threshold.
-   const output=Math.sqrt(input/(input+range))*amount;
+  reset(){range=.03;profiles.fill(0);},
+  /** Reuses one result object. Consume it before reading the other channel. */
+  spectrum(buffer:ArrayLike<number>,channel:number,first:number,last:number,seconds:number){
+   const blend=1-Math.exp(-Math.max(1/1000,Math.min(.1,seconds))/.02);
+   measurement.level=measurement.change=measurement.changeLevel=0;
+   for(let i=first;i<last;i++){
+    const value=AUTOMATIC_AMPLITUDES[buffer[i]],index=channel*1024+i;
+    measurement.level=Math.max(measurement.level,value);
+    const rise=value-profiles[index];
+    if(rise>measurement.change){measurement.change=rise;measurement.changeLevel=value;}
+    profiles[index]+=(value-profiles[index])*blend;
+   }
+   return measurement;
+  },
+  sample(signal:number,seconds:number,sensitivity:number,amount:number,onset=signal,onsetLevel=signal){
    const dt=Math.max(0,Math.min(.1,seconds));
-   range+=(Math.max(.01,Math.min(1,signal))-range)*(1-Math.exp(-dt/8));
+   const change=onset;
+   // Log sensitivity changes quiet-detail contrast across its full range, not a near-saturated gain.
+   const contrast=.8-.25*Math.log2(sensitivity/2);
+   const level=onsetLevel;
+   const output=level>0&&change>0?Math.pow(level/(level+range),contrast)*Math.min(1,change/level)*amount:0;
+   if(signal>0)range+=(Math.max(.01,Math.min(1,signal))-range)*(1-Math.exp(-dt/8));
    return output;
   },
  };

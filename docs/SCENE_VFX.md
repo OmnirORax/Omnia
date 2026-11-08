@@ -48,18 +48,29 @@ Selected colours remains removed. Image tint stays separate and off by default.
 Open **Audio response → Automatic · detailed**. Existing saved settings keep
 Manual until you select Automatic; new settings default to Automatic. Use just:
 
-- **Sensitivity** (default 2, 0.25–8): makes quiet details register more strongly.
+- **Sensitivity** (default 2, 0.25–8): sets quiet-attack contrast across the full range.
 - **Flash amount** (the existing Audio amount, default 2, 0–2): scales light output.
 
-Automatic listens across both channels, roughly 20 Hz–20 kHz/Nyquist. The strongest
-current FFT bin drives light; no averaged selected-band threshold puzzle. Its FFT
-smoothing is zero and dB range is −100 to 0 instead of Manual’s −100 to −30.
-A square-root soft knee lifts tiny signals and keeps louder hits distinguishable
-without hard-clamping them to one common maximum. True zero bins produce zero
-light immediately; every following hit is sampled independently. There is no added
-output envelope, peak hold or slow release. Browser FFT windowing still applies:
-2048 samples is about 43 ms at 48 kHz, so arbitrarily fast/sub-window sounds cannot
-be promised separate flashes. FFT floor, frame rate and display also limit detail.
+Automatic listens across both channels and detects upward changes separately in
+each frequency bin. A loud continuous tone cannot hide a quieter new hit in a
+different bin or keep the flash open. A 20 ms running local baseline distinguishes
+an attack from sustained volume; there is no added output hold. Zero input gives
+zero pulse immediately. Its FFT smoothing is zero and dB range is −100 to 0 instead
+of Manual’s −100 to −30.
+
+Sensitivity now controls quiet-detail contrast logarithmically, rather than gain
+on a nearly saturated square-root volume curve. Higher values make small attacks
+more prominent; Flash amount scales output independently. The local change ratio
+sets the brief pulse decay separately, so high sensitivity does not stretch a hit
+into a long tail. A steady unchanging tone settles rather than glowing constantly.
+This is an onset response, deliberately replacing Automatic’s former sustained
+loudness response. Manual remains available for the old volume/threshold behavior.
+
+Automatic uses 1024 FFT samples (about 21 ms at 48 kHz), restored to 2048 in Manual.
+Frequency resolution is consequently coarser (first non-DC bin about 47 Hz at
+48 kHz); transient separation is limited by FFT windowing, the 20 ms analysis
+baseline, frame rate and display. Arbitrarily rapid/sub-window sounds cannot be
+promised separate flashes. The FFT floor also limits the quietest detectable sound.
 
 A slow 8-second calibration adjusts gain to changing music levels; it never holds
 light output. It starts at reference amplitude 0.03 and bottoms at 0.01; silence
@@ -168,7 +179,10 @@ light uniforms at exponent 0.1 with independent bounce, compile-variant switchin
 Selected retirement and preservation of inactive palette fields, Omni saturation/value hue independence and legacy preference conversion, Image tint opt-in/serialization, and existing native output/lifecycle.
 Automatic regressions cover repeated hits/silence with no output hold, quiet
 detail, increasing hit strength, bass coverage, FFT mode restoration and retained
-Manual settings. No fresh browser run was authorised for these changes. The numerical checks
+Manual settings. New regressions exercise repeated hits over a louder constant background (the
+previous silence-separated test missed this), a useful slider progression from
+0.25 through 8, short settling at maximum sensitivity and the live sampler.
+No fresh browser run was authorised for these changes. The numerical checks
 verify colour math and settings wiring, including normal-versus-Omni blend
 equality for pale gold/blue source hues; they do not verify GPU appearance. Test Omni
 with different saturation/brightness positions, then compare Single colour; actual brightness,
