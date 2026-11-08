@@ -1,7 +1,7 @@
 import {createSceneCorrection,configureSceneCorrection,sceneCorrectionGLSL,sceneCorrectionUniforms} from './normalizationShader.ts';
 import type {Corrections} from './normalization.ts';
 import {REFERENCE_PULSE_GLSL,PULSE_COLOUR_GLSL} from './pulse.ts';
-import {normalizeSceneVfx,smoothAudio,followBass,createBassDynamics,WAVE_CONTROLS,audioScale,nextVfxDeadline,waveAudioGain,type SceneVfx} from './vfx.ts';
+import {normalizeSceneVfx,smoothAudio,followBass,createBassDynamics,WAVE_CONTROLS,audioScale,nextVfxDeadline,type SceneVfx} from './vfx.ts';
 import {sampleSceneAudio,sampleScenePulse,isSceneAudioConnected,subscribeSceneAudio,disposeSceneAudio} from './audio.ts';
 import * as THREE from 'three';
 import {FullScreenQuad} from 'three/addons/postprocessing/Pass.js';
@@ -87,7 +87,7 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
     bass=settings.pulseRangeMode==='auto'?followBass(bass,bassDynamics.sample(audio.bassAmplitude,dt),dt):smoothAudio(bass,audio.bass,dt);level=smoothAudio(level,audio.level,dt);
     material.uniforms.time.value=elapsed;
     material.uniforms.light.value=pulse;
-    material.uniforms.waveAudio.value=waveAudioGain(audio.active?audio.level:0,settings.pulseSensitivity);
+    // Wave audio response is temporarily disabled; keep authored displacement unchanged.
     material.uniforms.bounce.value=audioScale(bass,settings.audioBounce);
     requestPaint();schedule();
   };

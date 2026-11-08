@@ -44,7 +44,7 @@ export function SceneVfxControls({bindings}:{bindings:PropertyBindings}){
  <UISection id="scene-waves" title="Waves" defaultExpanded={false}>
  <UIField id="scene.vfx.waves" label="Waves enabled" category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property="scene.waves" label="On"/></UIField>
  {WAVE_CONTROLS.map(({key,label})=><UIField key={key} id={`scene.vfx.${key}`} label={label} category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property={`scene.${key}`}/></UIField>)}
- <small>Displacement is a percentage of the view. Each wave count controls bands across the opposite axis. Speed 0 freezes that component; negative speed reverses it. Set both displacements to 0 for no wave deformation. Values preview live and save on release. Music strengthens wave displacement using the system audio input level and existing Audio response Sensitivity.</small>
+ <small>Displacement is a percentage of the view. Each wave count controls bands across the opposite axis. Speed 0 freezes that component; negative speed reverses it. Set both displacements to 0 for no wave deformation. Values preview live and save on release.</small>
  </UISection>
  <UIField id="scene-system-audio-toggle" label="System audio" category="Scene"><label><input type="checkbox" checked={audio.kind==='system'} onChange={()=>actions.invoke('scene.audioSystem')}/>System audio</label></UIField>
  {pairing&&!audio.remembered&&<UIField id="scene-audio-pairing" label="Preview pairing code" category="Scene"><label>Pairing code<input type="password" autoComplete="off" spellCheck={false} maxLength={32} value={pairingCode} onChange={event=>setPairingCode(event.target.value)} placeholder="Paste the helper code once"/></label></UIField>}

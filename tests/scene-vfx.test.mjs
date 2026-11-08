@@ -224,7 +224,7 @@ test('Single tint ticks remain live at exponent 0.1 while bounce works; colour v
   for(const value of [20,80,160,240,255,0]){
    ctx.nodes[0].value=value;ctx.nodes[1].value=value;ctx.nodes[2].value=value;const [key,fn]=pending.entries().next().value;pending.delete(key);fn(now+=20);values.push(u.light.value);waveValues.push(u.waveAudio.value);
   }
-  for(let i=1;i<5;i++)assert.ok(values[i]>values[i-1],'light must follow changing signal at 0.1 without retuning');assert.equal(values[5],0);assert.equal(waveValues[5],1);assert.ok(waveValues[4]>1,'audio increases wave displacement');assert.match(material.fragmentShader,/waves\*waveAudio\*waveAmplitudeX/);assert.match(material.fragmentShader,/waves\*waveAudio\*waveAmplitudeY/);assert.ok(u.bounce.value>1,'bounce can remain active while light returns to zero');
+  for(let i=1;i<5;i++)assert.ok(values[i]>values[i-1],'light must follow changing signal at 0.1 without retuning');assert.equal(values[5],0);assert.ok(waveValues.every(value=>value===1),'audio must not change wave displacement');assert.match(material.fragmentShader,/waves\*waveAudio\*waveAmplitudeX/);assert.match(material.fragmentShader,/waves\*waveAudio\*waveAmplitudeY/);assert.ok(u.bounce.value>1,'bounce can remain active while light returns to zero');
   assert.equal(material.defines.PULSE_ALL_COLORS,0);assert.equal(material.defines.IMAGE_TINT,0);
   paper.configure({...settings,pulseColorMode:'all',pulseOmniTint:'#330f00',pulseOmniTintLow:'#003300'});assert.ok(Math.abs(u.pulseOmniTintLow.value.y-.2)<1e-5);assert.equal(u.pulseOmniTintLow.value.x,0);assert.ok(Math.abs(u.pulseOmniTint.value.x-.2)<1e-5);assert.ok(Math.abs(u.pulseOmniTint.value.y-15/255)<1e-5);assert.equal(material.defines.PULSE_ALL_COLORS,1);assert.equal(material.defines.IMAGE_TINT,0);
   paper.configure({...settings,imageTintEnabled:true,imageTint:'#c20000'});assert.equal(material.defines.PULSE_ALL_COLORS,0);assert.equal(material.defines.IMAGE_TINT,1);
@@ -241,10 +241,10 @@ test('Single tint ticks remain live at exponent 0.1 while bounce works; colour v
   assert.equal(settings.pulseExponent,.1);assert.equal(settings.maxFps,DEFAULT_SCENE_VFX.maxFps);
   paper.configure({...settings,pulseAmount:0});ctx.nodes[0].value=255;
   {const [key,fn]=pending.entries().next().value;pending.delete(key);fn(now+=20);}
-  assert.equal(u.light.value,0,'light can be disabled');assert.ok(u.waveAudio.value>1,'waves still respond to input when light is disabled');
-  const high=u.waveAudio.value;paper.configure({...settings,pulseAmount:0,pulseSensitivity:4});
+  assert.equal(u.light.value,0,'light can be disabled');assert.equal(u.waveAudio.value,1,'waves remain independent of audio');
+  paper.configure({...settings,pulseAmount:0,pulseSensitivity:4});
   {const [key,fn]=pending.entries().next().value;pending.delete(key);fn(now+=20);}
-  assert.ok(u.waveAudio.value>1&&u.waveAudio.value<high,'existing sensitivity changes wave response');ctx.nodes[0].value=0;
+  assert.equal(u.waveAudio.value,1,'sensitivity does not change waves');ctx.nodes[0].value=0;
  }finally{paper.dispose();T.TextureLoader.prototype.loadAsync=prior.load;globalThis.window=prior.window;globalThis.document=prior.document;globalThis.AudioContext=prior.AudioContext;globalThis.requestAnimationFrame=prior.raf;globalThis.cancelAnimationFrame=prior.cancel;}
 });
 
