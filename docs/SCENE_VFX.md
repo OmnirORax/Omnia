@@ -48,7 +48,8 @@ Selected colours remains removed. Image tint stays separate and off by default.
 Open **Audio response → Automatic · detailed**. Existing saved settings keep
 Manual until you select Automatic; new settings default to Automatic. Use just:
 
-- **Sensitivity** (default 2, 0.25–8): sets quiet-attack contrast across the full range.
+- **Sensitivity** (default 2, 0.25–8): lifts quiet details, with a bounded contribution.
+- **Drop contrast** (default 2, 1–4): widens the strength gap between little hits and big drops. Higher values favour stronger drops.
 - **Flash amount** (the existing Audio amount, default 2, 0–2): scales light output.
 
 Automatic listens across both channels and detects upward changes separately in
@@ -58,9 +59,11 @@ an attack from sustained volume; there is no added output hold. Zero input gives
 zero pulse immediately. Its FFT smoothing is zero and dB range is −100 to 0 instead
 of Manual’s −100 to −30.
 
-Sensitivity now controls quiet-detail contrast logarithmically, rather than gain
-on a nearly saturated square-root volume curve. Higher values make small attacks
-more prominent; Flash amount scales output independently. The local change ratio
+Sensitivity controls a bounded quiet-detail lift logarithmically. That lift can
+contribute at most 10% of normalized strength on its own; it cannot boost every
+small hit to drop strength. Drop contrast shapes the remaining amplitude response
+(default power 2), while Flash amount scales the combined result. Unlike the
+previous curve, high Sensitivity no longer flattens the entire amplitude range. The local change ratio
 sets the brief pulse decay separately, so high sensitivity does not stretch a hit
 into a long tail. A steady unchanging tone settles rather than glowing constantly.
 This is an onset response, deliberately replacing Automatic’s former sustained
@@ -83,7 +86,7 @@ its existing path. Automatic affects both Single and Omni light modes.
 10 Hz. It differs from the existing RMS Audio input meter. Switch to **Manual**
 to restore selected frequency bands, lower/upper thresholds and exponent exactly;
 Automatic ignores those values but retains them. Audio amount is shared across
-both modes. Shared settings/history/exports own mode and sensitivity.
+both modes. Shared settings/history/exports own mode, sensitivity and Drop contrast.
 
 ## Optional Image tint
 
@@ -105,6 +108,7 @@ approximated as #ffe5e5 / #001438. Explicit older saved choices are preserved.
 | --- | --- | --- |
 | pulseRangeMode | Audio response | auto for new settings; manual for existing settings lacking mode |
 | pulseSensitivity | Sensitivity (Automatic) | 2; 0.25–8 |
+| pulseDropContrast | Drop contrast (Automatic) | 2; 1–4 |
 | pulseTintLow | Low tint | #ffe5e5 |
 | pulseTintHigh | High tint / Colour to add | #001438 |
 | pulseFrequencyMin | First frequency band | 14; integer 0–15 |
@@ -131,7 +135,7 @@ tint white, Bounce 1 and Waves/Distortion/Glitching off for original-file compar
 
 ## Compatibility and retirement
 
-The current serializer whitelists 40 fields: 19 active and 21 archived.
+The current serializer whitelists 41 fields: 20 active and 21 archived.
 Selected mode maps to Single; its palette/range remain archived. The earlier
 approximation fields and three superseded Omni sliders remain exportable without
 active controls/render paths. Existing Low/High tint choices are preserved.
@@ -182,6 +186,9 @@ detail, increasing hit strength, bass coverage, FFT mode restoration and retaine
 Manual settings. New regressions exercise repeated hits over a louder constant background (the
 previous silence-separated test missed this), a useful slider progression from
 0.25 through 8, short settling at maximum sensitivity and the live sampler.
+Strength regressions compare small attacks with drops across every tested
+sensitivity, verify that Drop contrast widens their ratio without eliminating
+quiet responses, and preserve the earlier cadence/settling checks.
 No fresh browser run was authorised for these changes. The numerical checks
 verify colour math and settings wiring, including normal-versus-Omni blend
 equality for pale gold/blue source hues; they do not verify GPU appearance. Test Omni

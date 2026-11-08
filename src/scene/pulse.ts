@@ -89,13 +89,17 @@ export function createAutomaticPulse(){
    }
    return measurement;
   },
-  sample(signal:number,seconds:number,sensitivity:number,amount:number,onset=signal,onsetLevel=signal){
+  sample(signal:number,seconds:number,sensitivity:number,amount:number,onset=signal,onsetLevel=signal,dropContrast=2){
    const dt=Math.max(0,Math.min(.1,seconds));
    const change=onset;
    // Log sensitivity changes quiet-detail contrast across its full range, not a near-saturated gain.
    const contrast=.8-.25*Math.log2(sensitivity/2);
    const level=onsetLevel;
-   const output=level>0&&change>0?Math.pow(level/(level+range),contrast)*Math.min(1,change/level)*amount:0;
+   const normalized=level/(level+range);
+   // Quiet-detail lift is bounded; amplitude dynamics retain most of the flash range.
+   const detail=.1*Math.pow(normalized,contrast);
+   const strength=detail+(1-detail)*Math.pow(normalized,dropContrast);
+   const output=level>0&&change>0?strength*Math.min(1,change/level)*amount:0;
    if(signal>0)range+=(Math.max(.01,Math.min(1,signal))-range)*(1-Math.exp(-dt/8));
    return output;
   },

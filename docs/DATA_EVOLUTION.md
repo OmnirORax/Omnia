@@ -724,3 +724,18 @@ are added and the whitelist remains 40 (19 active, 21 archived). Automatic outpu
 intentionally changes as a bug correction; no numerical preference conversion or
 asset/backend migration applies. Profiles are transient, reset with source/mode,
 and never saved. Older previews still render the prior sustained-volume response.
+
+
+### Separate quiet-detail lift from drop strength (2026-11-08)
+
+Add sceneVfx.pulseDropContrast (1–4, default 2) through the existing shared numeric
+property/settings/history/export owner. Missing values receive 2; explicit saved
+values within bounds round-trip. Automatic now bounds Sensitivity’s quiet-detail
+lift to 10% of normalized strength and applies Drop contrast to the amplitude
+response. Stronger sounds retain most of the flash range instead of quiet detail
+boost equalizing all attacks. Onset detection, FFT, local settling and calibration
+are unchanged, as are Manual, amount, colours, playback and bounce. This corrects
+Automatic strength interpretation without converting old Sensitivity values.
+Whitelist: 41 fields, 20 active, 21 archived. Older clients discard the additive
+contrast field and restore their prior curve; retain a current export before
+rollback. No asset, identity or backend-format migration is required.

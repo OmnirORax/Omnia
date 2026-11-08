@@ -33,6 +33,7 @@ export function SceneVfxControls({bindings}:{bindings:PropertyBindings}){
  <UIField id="scene.vfx.pulseRangeMode" label="Audio response" category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property="scene.pulseRangeMode"/></UIField>
  {automatic?<>
  <UIField id="scene.vfx.pulseSensitivity" label="Sensitivity" category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property="scene.pulseSensitivity"/></UIField>
+ <UIField id="scene.vfx.pulseDropContrast" label="Drop contrast" category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property="scene.pulseDropContrast"/></UIField>
  <UIField id="scene.vfx.pulseAmount" label="Flash amount" category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property="scene.pulseAmount" label="Flash amount"/></UIField>
  </>:PULSE_CONTROLS.map(({key,label})=><UIField key={key} id={`scene.vfx.${key}`} label={label} category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property={`scene.${key}`} label={label}/></UIField>)}
  <label>Light response<meter ref={responseMeter} aria-label="Light response" min={0} max={2} value={0}/></label>

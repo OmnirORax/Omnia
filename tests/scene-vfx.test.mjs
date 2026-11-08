@@ -5,7 +5,7 @@ import {RETIRED_LIGHT_CONTROLS,DEFAULT_SCENE_VFX,normalizeSceneVfx,serializeScen
 import {defaultSettings,normalizeSettings} from '../src/workspaceActions.ts';
 import {SETTINGS_PROPERTY_ADAPTERS} from '../src/properties/settingsAdapter.ts';
 test('scene effects serialize base controls plus requested light tuning, excluding session internals',()=>{
- const keys=['pulseRangeMode','pulseSensitivity','audioBounce','audioLight','distortion','glitching','maxFps','waves','lightAllColors','lightModel','pulseTintLow','pulseTintHigh','pulseOmniTint','pulseColorMode','pulseColors','pulseColorWidth','pulseAllBrightness','imageTintEnabled','imageTint',...PULSE_CONTROLS.map(c=>c.key),...RETIRED_OMNI_BRIGHTNESS_CONTROLS.map(c=>c.key),...RETIRED_LIGHT_CONTROLS.map(c=>c.key)].sort();
+ const keys=['pulseRangeMode','pulseSensitivity','pulseDropContrast','audioBounce','audioLight','distortion','glitching','maxFps','waves','lightAllColors','lightModel','pulseTintLow','pulseTintHigh','pulseOmniTint','pulseColorMode','pulseColors','pulseColorWidth','pulseAllBrightness','imageTintEnabled','imageTint',...PULSE_CONTROLS.map(c=>c.key),...RETIRED_OMNI_BRIGHTNESS_CONTROLS.map(c=>c.key),...RETIRED_LIGHT_CONTROLS.map(c=>c.key)].sort();
  assert.deepEqual(Object.keys(JSON.parse(serializeSceneVfx({audioLight:'#aa3300',audioBounce:1.12,waves:true,distortion:.4,glitching:.3,frequency:99,source:'private',particles:true}))).sort(),keys);
  assert.deepEqual(normalizeSceneVfx(undefined),{...DEFAULT_SCENE_VFX,audioLight:'#aa3300',audioBounce:1.3,waves:true,distortion:.4,glitching:.3,maxFps:120});
  assert.deepEqual(defaultSettings().sceneVfx,DEFAULT_SCENE_VFX);
@@ -326,7 +326,7 @@ test('automatic live sampler listens to bass and each transient with unsmoothed 
   for(const i of [1,3,5,7])assert.equal(values[i],0);
   assert.equal(ctx.nodes[1].fftSize,1024);assert.equal(ctx.nodes[1].smoothingTimeConstant,0);assert.equal(ctx.nodes[1].maxDecibels,0);
   ctx.nodes[1].value=0;ctx.nodes[1].bed=230;for(let i=0;i<120;i++)audio.sampleScenePulse(settings,1/120);
-  for(const hit of [170,195,220]){ctx.nodes[1].value=hit;assert.ok(audio.sampleScenePulse(settings,1/120)>.05);ctx.nodes[1].value=0;assert.ok(audio.sampleScenePulse(settings,1/120)<.0001);for(let i=0;i<12;i++)audio.sampleScenePulse(settings,1/120);}
+  for(const hit of [170,195,220]){ctx.nodes[1].value=hit;assert.ok(audio.sampleScenePulse(settings,1/120)>.002);ctx.nodes[1].value=0;assert.ok(audio.sampleScenePulse(settings,1/120)<.0001);for(let i=0;i<12;i++)audio.sampleScenePulse(settings,1/120);}
   ctx.nodes[1].value=200;assert.equal(audio.sampleScenePulse({...settings,pulseRangeMode:'manual'}),0,'legacy high bands still exclude bass');
   assert.equal(ctx.nodes[1].fftSize,2048);assert.equal(ctx.nodes[1].smoothingTimeConstant,.7);assert.equal(ctx.nodes[1].maxDecibels,-30);
   audio.sampleScenePulse(settings);assert.ok(audio.scenePulseResponse()>0);audio.disconnectSceneAudio();assert.equal(audio.scenePulseResponse(),0);
@@ -340,7 +340,7 @@ test('automatic flashes separate DUN hits above a continuous louder tone instead
  const sample=()=>{const m=pulse.spectrum(buffer,0,1,512,dt);return pulse.sample(m.level,dt,2,2,m.change,m.changeLevel);};
  for(let i=0;i<120;i++)sample();assert.ok(sample()<.0001,'a steady bed must stop holding the flash');
  for(const hit of [170,195,220]){
-  buffer[70]=hit;const attack=sample();assert.ok(attack>.05,'a quieter frequency attack must register below the louder sustained bed');
+  buffer[70]=hit;const attack=sample();assert.ok(attack>.002,'a quieter frequency attack must register below the louder sustained bed');
   buffer[70]=0;assert.ok(sample()<.0001,'between hits the continuous tone cannot keep the flash lit');
   for(let i=0;i<12;i++)sample();
  }
@@ -349,7 +349,7 @@ test('automatic flashes separate DUN hits above a continuous louder tone instead
 
 test('sensitivity has a useful graded effect across the whole slider, not only its bottom end',()=>{
  const outputs=[.25,.5,1,2,4,8].map(s=>createAutomaticPulse().sample(.002,0,s,2));
- for(let i=1;i<outputs.length;i++)assert.ok(outputs[i]>outputs[i-1]*1.8,'each octave should visibly increase quiet detail');
+ for(let i=1;i<outputs.length;i++)assert.ok(outputs[i]>outputs[i-1]*1.2,'each octave should visibly increase quiet detail');
  assert.ok(outputs.at(-1)<1,'even the highest sensitivity need not pin quiet input to full flash');
 });
 
@@ -359,4 +359,25 @@ test('maximum sensitivity does not turn the short onset window into a long flash
  const sample=()=>{const m=pulse.spectrum(buffer,0,1,512,dt);return pulse.sample(m.level,dt,8,2,m.change,m.changeLevel);};
  const attack=sample();let after=0;for(let i=0;i<12;i++)after=sample();
  assert.ok(after<attack*.02,'even max sensitivity should settle within 100 ms instead of extending the flash');
+});
+
+
+test('quiet-detail sensitivity cannot make small hits nearly equivalent to big drops',()=>{
+ const pulse=createAutomaticPulse();
+ for(const sensitivity of [.25,.5,1,2,4,8]){
+  const small=pulse.sample(.003,0,sensitivity,2),drop=pulse.sample(.3,0,sensitivity,2);
+  assert.ok(small>0);assert.ok(drop>small*10,`drop must remain much stronger at sensitivity ${sensitivity}`);
+ }
+ const smallBefore=pulse.sample(.003,0,8,2,.003,.003,1),bigBefore=pulse.sample(.3,0,8,2,.3,.3,1);
+ const smallAfter=pulse.sample(.003,0,8,2,.003,.003,4),bigAfter=pulse.sample(.3,0,8,2,.3,.3,4);
+ assert.ok(bigAfter/smallAfter>bigBefore/smallBefore,'Drop contrast must widen relative strength, independently of timing');
+ assert.ok(bigAfter>1,'high contrast must retain a strong drop rather than just dim everything');
+});
+
+test('Drop contrast inherits shared settings, bounds and persistence without editing other audio or colour parameters',()=>{
+ const base=defaultSettings(),channels=SETTINGS_PROPERTY_ADAPTERS['scene.vfx'].channels;
+ const changed=channels['scene.pulseDropContrast'].write(base,3.2);
+ assert.deepEqual(changed.sceneVfx,{...base.sceneVfx,pulseDropContrast:3.2});assert.equal(changed.appearance,base.appearance);
+ const saved=normalizeSceneVfx(JSON.parse(serializeSceneVfx(changed.sceneVfx)));assert.equal(saved.pulseDropContrast,3.2);
+ assert.equal(normalizeSceneVfx({}).pulseDropContrast,2);assert.equal(normalizeSceneVfx({pulseDropContrast:0}).pulseDropContrast,1);assert.equal(normalizeSceneVfx({pulseDropContrast:9}).pulseDropContrast,4);
 });
