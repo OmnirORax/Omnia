@@ -248,7 +248,8 @@ The current base-image UV sine formula and extra multipliers are guessed. Matchi
 those numbers does not reproduce their original meaning or layer composition.
 The supplied pulse shader/header do not define Waves. Turn Waves off for an
 undistorted image; a faithful port needs the actual waterwaves effect/shaders and
-relevant project-layer setup. No wave behavior/default was changed in this repair.
+relevant project-layer setup. The six wave setters below expose the current
+approximation for tuning; they do not establish fidelity to the missing source.
 
 
 ## Restore the earlier light baseline
@@ -271,3 +272,37 @@ motion. Source pixels still use the native wallpaper output path.
 Model/build/backend checks validate restoration and compatibility; visual quality
 and music feel still require user comparison. The prior isolated spatial-GPU
 check applies to the rejected implementation, not this restoration.
+
+
+## Live Waves tuning
+
+Open **Scene → Scene effects → Waves**. Its existing On toggle is retained; the
+six previously hardcoded coefficients now use existing shared settings sliders,
+preview, commit, history and serialization. No separate experiment scene.
+
+| Setter | Range | Starting value |
+| --- | --- | --- |
+| Horizontal displacement (%) | 0–5 | .875 |
+| Vertical displacement (%) | 0–5 | .5 |
+| Horizontal wave count | 0–40 | 10 |
+| Vertical wave count | 0–40 | 10 |
+| Horizontal phase speed (rad/s) | −20–20 | 5 |
+| Vertical phase speed (rad/s) | −20–20 | −3.5 |
+
+Each count sets how many sine periods span the opposite driving axis: horizontal
+displacement varies along Y; vertical displacement varies along the already offset
+X, preserving the existing coupled approximation. Displacement uses screen UV
+percent before image-cover cropping. Speed controls phase per second: zero freezes
+that component, negative reverses it. Both displacements zero removes waves.
+Distortion/Glitching and bass zoom are independent: turn those down/off when
+comparing just waves. Reduced motion still bypasses wave animation/deformation.
+
+Dragging previews uniforms immediately without image decoding, shader recompilation,
+a new animation loop or resetting existing time/audio state. Release commits normally;
+Escape cancels the shared value preview. Export/reload uses `sceneVfx` through
+`normalizeSceneVfx` and the existing settings owner, not `functionValues` copies.
+Absent fields reproduce the current .025×.35 / .025×.2 amplitudes, counts 10 and
+speeds 5 / −3.5. Existing explicit Waves false and new zero values are preserved.
+These are starting values, not new user-approved visual defaults. The user will
+choose replacement defaults after tuning the actual scene. Appearance remains
+unverified by a browser check in this change.

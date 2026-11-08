@@ -1,7 +1,7 @@
 import {createSceneCorrection,configureSceneCorrection,sceneCorrectionGLSL,sceneCorrectionUniforms} from './normalizationShader.ts';
 import type {Corrections} from './normalization.ts';
 import {REFERENCE_PULSE_GLSL,PULSE_COLOUR_GLSL} from './pulse.ts';
-import {normalizeSceneVfx,smoothAudio,followBass,createBassDynamics,audioScale,nextVfxDeadline,type SceneVfx} from './vfx.ts';
+import {normalizeSceneVfx,smoothAudio,followBass,createBassDynamics,WAVE_CONTROLS,audioScale,nextVfxDeadline,type SceneVfx} from './vfx.ts';
 import {sampleSceneAudio,sampleScenePulse,isSceneAudioConnected,subscribeSceneAudio,disposeSceneAudio} from './audio.ts';
 import * as THREE from 'three';
 import {FullScreenQuad} from 'three/addons/postprocessing/Pass.js';
@@ -16,12 +16,13 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
     uniforms: { ...sceneCorrectionUniforms(correction), worldLayer:{value:null},compositeWorld:{value:0},image: { value: null }, imageAspect: { value: 1 }, viewportAspect: { value: 1 },
       pulseOmniTintLow:{value:tint(initial.pulseOmniTintLow)},pulseOmniTint:{value:tint(initial.pulseOmniTint)},imageTint:{value:tint(initial.imageTint)},
       pulseTintLow:{value:tint(initial.pulseTintLow)},pulseTintHigh:{value:tint(initial.pulseTintHigh)},sceneGlowPass:{value:0},time:{value:0},bounce:{value:1},light:{value:0},
-      waves:{value:1}, distortion:{value:.4}, glitching:{value:.3},
+      ...Object.fromEntries(WAVE_CONTROLS.map(({key,initial})=>[key,{value:initial}])),waves:{value:1}, distortion:{value:.4}, glitching:{value:.3},
       feedbackColor: { value: new THREE.Color() }, feedbackStrength: { value: 0 } },
     vertexShader: 'varying vec2 imageUV; void main() { imageUV = uv; gl_Position = vec4(position.xy, 1.0, 1.0); }',
     fragmentShader: `uniform sampler2D image; uniform float imageAspect; uniform float viewportAspect;
       uniform float sceneGlowPass; uniform float time; uniform float bounce; uniform float light;
-      uniform float waves; uniform float distortion; uniform float glitching;
+      uniform float waves; uniform float waveAmplitudeX; uniform float waveAmplitudeY;
+      uniform float waveFrequencyX; uniform float waveFrequencyY; uniform float waveSpeedX; uniform float waveSpeedY; uniform float distortion; uniform float glitching;
       uniform vec3 imageTint;uniform vec3 pulseTintLow;uniform vec3 pulseTintHigh;
       ${sceneCorrectionGLSL}
       ${REFERENCE_PULSE_GLSL}
@@ -34,8 +35,8 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
         vec2 uv=(imageUV-.5)/bounce+.5;
         // Approximation only: original waterwaves shader/project-layer setup is missing.
         // Extracted numbers do not establish equivalent UV displacement.
-        uv.x+=waves*.025*sin(uv.y*62.83185+time*5.0)*.35;
-        uv.y+=waves*.025*sin(uv.x*62.83185-time*3.5)*.2;
+        uv.x+=waves*waveAmplitudeX*.01*sin(uv.y*6.28318530718*waveFrequencyX+time*waveSpeedX);
+        uv.y+=waves*waveAmplitudeY*.01*sin(uv.x*6.28318530718*waveFrequencyY+time*waveSpeedY);
         // One shared VHS pass: slow bending plus brief horizontal tracking bands.
         uv.x+=distortion*.02*sin(uv.y*12.566+time*.5);
         float frame=floor(time*12.0),band=floor(uv.y*36.0);
@@ -110,6 +111,7 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
     configure(value:SceneVfx){
       if(settings.pulseRangeMode!==value.pulseRangeMode)bassDynamics.reset();
       settings=normalizeSceneVfx(value);
+      for(const {key} of WAVE_CONTROLS)material.uniforms[key].value=settings[key];
       for(const key of ['pulseTintLow','pulseTintHigh','imageTint'] as const){
         const rgb=new THREE.Color(settings[key]).getRGB({r:0,g:0,b:0},THREE.SRGBColorSpace);
         material.uniforms[key].value.set(rgb.r,rgb.g,rgb.b);

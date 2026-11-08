@@ -900,3 +900,10 @@ store. Declare applicability only with a real renderer adapter. Current DOM
 text/background/contour support excludes 3D, icons, fine character paint and
 native pseudos. Preserve manual colours, locks/bypasses, private source guards
 and bounded palette/tile work. Read docs/SCENE_PATTERN_PAINT.md before extending.
+
+Waves tuning: six shared WAVE_CONTROLS own displacement/count/signed-speed
+metadata, validation, defaults and discovered scene.vfx setters. Wallpaper
+configure updates uniforms live without resetting time/audio. Keep the existing
+Waves toggle, reduced-motion bypass and explicit zero/negative persistence.
+Current defaults retain the old approximation pending user-selected values;
+never claim a faithful waterwaves port without its missing shaders/layer setup.

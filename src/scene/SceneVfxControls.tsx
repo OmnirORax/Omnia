@@ -1,3 +1,4 @@
+import {WAVE_CONTROLS} from './vfx.ts';
 import {PROPERTY_REGISTRY} from '../appearance/registry';
 import {PULSE_CONTROLS} from './pulse';
 import {useEffect,useLayoutEffect,useRef,useState,useSyncExternalStore} from 'react';
@@ -42,7 +43,12 @@ export function SceneVfxControls({bindings}:{bindings:PropertyBindings}){
  <UIField id="scene.vfx.imageTintEnabled" label="Enable image tint" category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property="scene.imageTintEnabled" label="Enable image tint"/></UIField>
  {tintEnabled&&<UIField id="scene.vfx.imageTint" label="Image tint colour" category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property="scene.imageTint" label="Image tint colour"/></UIField>}
  </UISection>
- {([['scene.audioBounce','Audio Bounce','bounce'],['scene.waves','Waves','waves'],['scene.distortion','Distortion','distortion'],['scene.glitching','Glitching','glitching'],['scene.maxFps','Max FPS','maxFps']] as const).map(([property,label,key])=><UIField key={key} id={`scene.vfx.${key}`} label={label} category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property={property} label={label}/></UIField>)}
+ {([['scene.audioBounce','Audio Bounce','bounce'],['scene.distortion','Distortion','distortion'],['scene.glitching','Glitching','glitching'],['scene.maxFps','Max FPS','maxFps']] as const).map(([property,label,key])=><UIField key={key} id={`scene.vfx.${key}`} label={label} category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property={property} label={label}/></UIField>)}
+ <UISection id="scene-waves" title="Waves" defaultExpanded={false}>
+ <UIField id="scene.vfx.waves" label="Waves enabled" category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property="scene.waves" label="On"/></UIField>
+ {WAVE_CONTROLS.map(({key,label})=><UIField key={key} id={`scene.vfx.${key}`} label={label} category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property={`scene.${key}`}/></UIField>)}
+ <small>Displacement is a percentage of the view. Each wave count controls bands across the opposite axis. Speed 0 freezes that component; negative speed reverses it. Set both displacements to 0 for no wave deformation. Values preview live and save on release.</small>
+ </UISection>
  <FunctionControl id="scene.audioSystem"/><FunctionControl id="scene.audioFile"/><FunctionControl id="scene.audioConnect"/><FunctionControl id="scene.audioDisconnect"/>
  <input ref={file} type="file" accept="audio/*" hidden onChange={event=>{const selected=event.target.files?.[0];event.target.value='';if(selected){setError('');loadSceneAudioFile(selected);}}}/>
  <div ref={host}/>

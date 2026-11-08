@@ -1007,3 +1007,13 @@ fields or private cloud derivatives. Original files, normalization, graph and
 backend formats are unaffected; no migration required. Older clients may ignore
 or drop new fields on rewrite. Locks opt out to ordinary paint, not a frozen
 multicolour snapshot. See [the owner map](SCENE_PATTERN_PAINT.md).
+
+### Live wave coefficients (2026-11-08)
+
+Six additive numeric sceneVfx fields use the existing parser/settings owner and
+export/history. Absence preserves the former hardcoded UV wave coefficients;
+explicit zero and negative speed survive. Saved Waves false remains authoritative.
+Normalization clamps finite values to declared ranges; invalid fields fall back
+without changing originals or graph/image/backend formats. No version migration
+is required. Older clients can drop the additional fields on rewrite. See
+[wave tuning](SCENE_VFX.md#live-waves-tuning).

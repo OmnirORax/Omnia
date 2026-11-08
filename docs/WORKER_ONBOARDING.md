@@ -842,3 +842,7 @@ The shared pattern owns a scene-palette source; consumers inherit it through
 `patternUse`, never copied colours. Existing settings/history/hierarchy owners
 remain authoritative. Current adapters cover registered DOM text/surfaces/contours;
 3D, icons and character paint must not advertise support without adapters.
+
+Scene Waves now exposes its six coefficients through WAVE_CONTROLS and the
+existing scene.vfx settings/preview/history owner. [Live wave tuning](SCENE_VFX.md#live-waves-tuning)
+documents units and preserved defaults; source-effect fidelity remains unresolved.
