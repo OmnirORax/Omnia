@@ -996,5 +996,16 @@ is inferred from saved settings; connection is explicit. Native packaging is a
 standalone Windows CI artifact with retained upstream/dependency licensing; final
 signed installer, auto-start and updates remain deferred. Native input only accepts
 omnium.nexus/localhost origins directly; raw.githack.com requires a per-run
-32-character pairing code copied from the helper console. Pairing stays transient
-and never enters settings, exports, history or connection snapshots.
+32-character pairing code copied from the helper console once. The new helper
+persists its random per-install identity under LocalAppData, independently of EXE
+updates. Browser-local `omnium.system-audio.connection.v1` stores a strict version-1
+record {version:1, code, enabled} after successful handshake; older clients ignore
+it. It never enters workspace settings, exports, UI history or public artifacts.
+Unknown/unreadable versions remain untouched; explicit Forget removes the local
+record. Stop retains the identity and disables auto-start; choosing a file also
+pauses auto-start. Helper identity corruption is reported and preserved rather than
+overwritten. Startup reconnects from this preference, with user-gesture resume
+when required. Clearing browser storage/profile change requires pairing again;
+older ephemeral helper builds require re-pairing after restart, so this delivery
+needs the new remembered-pairing build. One new client takes over from another;
+the old client's 4001 close does not auto-retry. No audio samples are persisted.

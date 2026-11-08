@@ -16,20 +16,29 @@ the unmodified upstream bridge on port 8985 is not compatible.
    Local development served on `http://localhost:<port>` or
    `http://127.0.0.1:<port>` is also supported. Grant the browser's loopback-network
    permission if requested. For the GitHack preview, copy the 32-character code printed in the **new**
-   helper window into **Preview pairing code**, then connect. No omnium.nexus
-   login is needed. The old helper build cannot pair. The code stays in tab memory,
-   clears from the input on connect, and expires when the helper closes. Paste it
-   only into your Omnium preview. A helper restart needs its new code and an
-   explicit reconnect; closing/reopening settings keeps an active connection.
+   helper window into **Preview pairing code**, then connect **once**. No omnium.nexus
+   login is needed. Use the **remembered pairing** helper build. The code is saved
+   at `%LOCALAPPDATA%/Omnium/AudioHelper/pairing-code.txt`, surviving restarts and
+   EXE updates. After a successful connection, this browser remembers it locally
+   across GitHack preview URLs/PRs. The helper still needs to be running.
+   A new preview reconnects automatically; click anywhere if browser autoplay
+   requires activation. Nothing needs to be copied on each preview.
+   GitHack has a shared browser origin, so remembered access applies across that
+   host: only open trusted previews. Private browsing/storage clearing or another
+   browser profile needs pairing again. Do not share or publish the code.
 3. Play music in another app/tab through the Windows default output. Audio input
    and the current wallpaper effects should react. Capture isn't played back.
 4. Change headphones/output device: capture reopens automatically. Closing the
    website's settings doesn't disconnect it. **Stop audio** disconnects and stops
-   capture; closing the helper exits it. Reconnect with the same control.
+   capture; closing the helper exits it. **Stop audio** also disables automatic startup while retaining pairing.
+   **Connect system audio** re-enables it; **Forget system audio** stops capture
+   and removes this browser’s remembered code. Closing the helper pauses capture,
+   but does not reset its identity.
 
 This first delivery is a console executable, not the final signed installer or
 automatic startup/update flow. The helper captures only while an allowed website
-tab is connected. Only one tab connects at a time. It does not listen on the LAN,
+tab is connected. One tab receives audio at a time; a new connection takes over. The old tab stops
+retrying until explicitly reconnected. It does not listen on the LAN,
 save audio, use a microphone, upload samples or request browser screen sharing.
 
 Windows/browser prompts may appear. ASIO/exclusive playback or audio on a different
@@ -59,7 +68,7 @@ feeds the same analyser/response path as website file playback.
 WebSocket: `ws://127.0.0.1:8986/omnium/audio-v1`. Host/path/origin are fixed by
 the helper and client. Origin is mandatory; only the canonical site and explicit
 localhost development origins are accepted directly. The shared raw.githack.com
-origin requires the per-run pairing code in the `pair` query parameter. Missing,
+origin requires the per-install pairing code in the `pair` query parameter. Missing,
 wrong or duplicate codes and unrelated origins are rejected before capture starts.
 JSON status messages accompany
 binary PCM packets. OMA1 packets are little-endian:
@@ -76,10 +85,18 @@ binary PCM packets. OMA1 packets are little-endian:
 Rate 8–192 kHz, channels 1–32, frames 1–4096, exact packet length and finite samples
 are required. Browser queue retains at most ~60 ms; starvation produces silence.
 Disconnect clears pending PCM; reconnect backs off 1–8 seconds and Stop cancels it.
-This is transient device input; no audio/connection state enters atlas exports,
-workspace settings or history. Existing effect/tint settings are unchanged.
+PCM/device buffers stay transient. A versioned browser-local connection preference
+(`omnium.system-audio.connection.v1`) stores pairing and automatic-start choice,
+separately from atlas exports, workspace settings and history. Unknown/corrupt
+preferences are preserved rather than silently overwritten; Forget explicitly
+removes them. Older clients ignore this key and keep manual connection behavior. Existing effect/tint settings are unchanged.
 
 Preview pairing is covered by actual localhost WebSocket handshakes using the
 GitHack Origin (valid/missing/wrong/duplicate codes and unrelated origins), plus
 frontend code validation, URL/retry retention and analyser wiring tests. This is
 not a browser or Windows-device acceptance check of preview pairing.
+
+Remembered pairing also has model/socket coverage for identity reuse, damaged-file
+preservation, auto-start and gesture resume, Stop/Forget, retry identity retention
+and new-tab takeover without the old disconnect stopping the new capture. No new
+browser or real Windows-device check was run for remembered connections.

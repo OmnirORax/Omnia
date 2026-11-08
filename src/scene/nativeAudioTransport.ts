@@ -1,7 +1,7 @@
 import {decodePcmPacket,SYSTEM_AUDIO_URL} from './nativePcm.ts';
 
 /** No discovery scans: one loopback endpoint, bounded reconnect, explicit Stop. */
-export function createNativeAudioTransport(port:{postMessage:(message:unknown,transfer?:Transferable[])=>void},status:(ready:boolean,message:string)=>void,pairingCode=''){
+export function createNativeAudioTransport(port:{postMessage:(message:unknown,transfer?:Transferable[])=>void},status:(ready:boolean,message:string)=>void,pairingCode='',opened?:()=>void){
  const endpoint=pairingCode?`${SYSTEM_AUDIO_URL}?pair=${encodeURIComponent(pairingCode)}`:SYSTEM_AUDIO_URL;
  let socket:WebSocket|null=null,timer:ReturnType<typeof setTimeout>|undefined,watchdog:ReturnType<typeof setInterval>|undefined;
  let stopped=false,attempt=0,lastMessage=0,lastSequence:number|undefined,ready=false;
@@ -11,7 +11,7 @@ export function createNativeAudioTransport(port:{postMessage:(message:unknown,tr
   if(stopped)return;
   lastSequence=undefined;lastMessage=performance.now();
   const ws=new WebSocket(endpoint);socket=ws;ws.binaryType='arraybuffer';
-  ws.onopen=()=>{lastMessage=performance.now();notify(false,'Audio helper connected — waiting for system audio');};
+  ws.onopen=()=>{opened?.();lastMessage=performance.now();notify(false,'Audio helper connected — waiting for system audio');};
   ws.onmessage=event=>{
    if(stopped||socket!==ws)return;
    lastMessage=performance.now();
@@ -28,8 +28,9 @@ export function createNativeAudioTransport(port:{postMessage:(message:unknown,tr
    }
   };
   ws.onerror=()=>{}; // close carries retry state; browsers hide handshake details.
-  ws.onclose=()=>{
+  ws.onclose=event=>{
    if(stopped||socket!==ws)return;
+   if(event?.code===4001){clear();clearInterval(watchdog);notify(false,'System audio moved to another Omnium tab — Connect to take it back');return;}
    clear();notify(false,pairingCode?'Audio helper unavailable — check its current pairing code, then reconnect. Retrying…':'Audio helper unavailable — start Omnium Audio Helper. Retrying…');
    timer=setTimeout(connect,Math.min(8000,1000*Math.pow(2,attempt++)));
   };

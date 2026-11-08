@@ -2,6 +2,8 @@ import asyncio
 import struct
 import sys
 import types
+import tempfile
+from pathlib import Path
 import unittest
 from unittest.mock import patch
 
@@ -9,6 +11,16 @@ import bridge
 
 
 class PacketTests(unittest.TestCase):
+    def test_pairing_identity_survives_restart_and_update_without_overwriting_bad_data(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'settings' / 'pairing-code.txt'
+            code = bridge.load_pairing_token(path)
+            self.assertRegex(code, r'^[A-Za-z0-9_-]{32}$')
+            self.assertEqual(bridge.load_pairing_token(path), code)
+            path.write_text('unsupported identity', encoding='ascii')
+            with self.assertRaises(OSError): bridge.load_pairing_token(path)
+            self.assertEqual(path.read_text(), 'unsupported identity')
+
     def test_header_payload_and_sequence_wrap(self):
         pcm = struct.pack('<4f', .1, -.2, .3, -.4)
         packet = bridge.pcm_packet(pcm, 48000, 2, 0x100000003)
@@ -115,3 +127,16 @@ class LocalConnectionTests(unittest.IsolatedAsyncioTestCase):
             packet = bridge.pcm_packet(struct.pack('<2f', .2, -.2), 48000, 2, 1)
             self.capture.queue.append(packet)
             self.assertEqual(await asyncio.wait_for(client.recv(), 1), packet)
+
+    async def test_new_tab_takes_over_without_old_disconnect_stopping_new_capture(self):
+        from websockets.asyncio.client import connect
+        async with connect(self.url, origin='http://localhost:5173') as old:
+            await old.recv()
+            async with connect(self.url + '?pair=' + self.code, origin='https://raw.githack.com') as current:
+                await current.recv()
+                await asyncio.wait_for(old.wait_closed(), 1)
+                self.assertEqual(old.close_code, 4001)
+                self.assertTrue(self.capture.active.is_set())
+                packet = bridge.pcm_packet(struct.pack('<2f', .1, -.1), 48000, 2, 2)
+                self.capture.queue.append(packet)
+                self.assertEqual(await asyncio.wait_for(current.recv(), 1), packet)

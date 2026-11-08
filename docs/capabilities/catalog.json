@@ -2170,24 +2170,20 @@
     {
       "id": "scene.systemAudio",
       "title": "Windows system audio through Omnium Audio Helper",
-      "where": "Scene → Scene effects → Connect system audio; run the Windows helper first. Website file playback stays under Choose audio file / Play audio. GitHack preview: enter Preview pairing code from the new helper console before connecting; no production login.",
-      "behavior": "The Windows helper uses WASAPI default-output loopback, adapted from MiniMeters Bridge, and sends bounded short PCM blocks over one localhost WebSocket. An inline AudioWorklet resamples them into the existing stereo/mono analyser graph; a zero-gain output keeps capture inaudible. Existing light/bounce settings and response equations are unchanged. One explicitly connected tab captures at a time; closing controls retains the connection, Stop disconnects and halts helper capture. Lost connections retry with bounded backoff; output-device changes reopen capture. Nothing is recorded, uploaded or saved to workspace/history.",
+      "where": "Scene → Scene effects → Preview pairing code (one-time on GitHack), Connect system audio, Stop audio and Forget system audio. Run the Windows helper first.",
+      "behavior": "Windows WASAPI helper feeds bounded PCM to the existing muted analyser graph. The remembered-pairing build keeps a random per-install identity across restarts/EXE updates. Pair once; a successful handshake saves a versioned browser-local connection preference shared across GitHack preview URLs/PRs. Updated previews reconnect without opening settings; browser autoplay may require one click anywhere. Stop pauses automatic startup but retains pairing; Connect re-enables it; choosing a file pauses auto-start; Forget stops capture and removes browser pairing. A new connection takes over, and the old tab does not auto-retry. Live audio stays transient, local and inaudible. Existing light/bounce processing is unchanged.",
       "steps": [
         {
-          "do": "Download the Windows audio-helper workflow artifact, extract its ZIP and run Omnium-Audio-Helper.exe. Open the updated site at https://omnium.nexus or localhost development. The fresh GitHack preview also works without login: copy the new helper console’s code into Preview pairing code.",
-          "expect": "The helper reports ready and waits without capturing. Users do not install Python; it is bundled in the executable. GitHack requires the current 32-character helper pairing code; the old helper build cannot pair. The field clears on connect; code stays in memory only and expires on helper exit. The first build has a console window; signed installer/autostart/updater are future work."
+          "do": "Close the old helper, extract/run the remembered-pairing build. Copy its code into Preview pairing code and Connect system audio once.",
+          "expect": "The console identifies remembered pairing. Browser remembers the code only after an accepted connection; the field clears. Input drives the existing light/bounce path without a sharing bar."
         },
         {
-          "do": "Choose Scene → Scene effects → Connect system audio. Grant browser loopback-network permission if requested, then play ordinary audio through the Windows default output.",
-          "expect": "Status becomes System audio connected, Audio input moves and existing light/bounce controls respond. No screen/tab-sharing picker or sharing bar is requested; captured sound is not replayed."
+          "do": "Leave helper running and open another updated GitHack preview/PR in the same browser profile. Click anywhere if needed. Restart the helper and play music again.",
+          "expect": "No code entry or Scene-panel opening is needed; the helper identity survives restart/update. The newest connection receives audio; older tab reports takeover and stops retrying."
         },
         {
-          "do": "Change output device or restart the helper, leaving the website connection active. Close/reopen Scene controls.",
-          "expect": "Capture or the local socket reconnects, pending PCM is bounded and old audio does not accumulate. The connection survives settings-panel closure. Real Windows driver/browser behavior still needs validation. After a helper restart on GitHack, paste its new code and explicitly reconnect."
-        },
-        {
-          "do": "Press Stop audio, then connect again. Switch to a website audio file.",
-          "expect": "Stop cancels retries, clears PCM and closes analysis. Reconnecting starts a fresh session; choosing/playing a file replaces system input through the existing owner. Effects settings remain intact."
+          "do": "Press Stop audio; reload. Then Connect again. Choose a file or use Forget system audio.",
+          "expect": "Stop and file selection disable automatic startup; Connect re-enables it using saved pairing. Forget removes browser pairing and stops capture. New pairing is required after Forget/storage clearing/profile changes."
         }
       ],
       "reference": "docs/SYSTEM_AUDIO.md",
@@ -2200,20 +2196,22 @@
         "native/audio-helper/build.ps1",
         "native/audio-helper/test_bridge.py",
         "tests/system-audio.test.mjs",
-        ".github/workflows/audio-helper.yml"
+        ".github/workflows/audio-helper.yml",
+        "src/scene/systemAudioPreference.ts"
       ],
       "actions": [
-        "scene.audioSystem"
+        "scene.audioSystem",
+        "scene.audioForget"
       ],
       "gestures": [],
       "related": [
         "scene.vfx"
       ],
       "status": "Implemented for first Windows validation; standalone build produced by CI; final installer deferred",
-      "limits": "Windows WASAPI default-output capture only. ASIO/exclusive or separately routed outputs may not be captured. Mono/stereo supported; first two channels used for multichannel input. One tab at a time. Browser AudioWorklet/user gesture and local-network permission are required. Native helper accepts omnium.nexus and explicit localhost development origins directly; raw.githack.com requires a per-run pairing code. Other origins are rejected. Source wire protocol differs from unmodified MiniMeters Bridge. Helper/website origin is fixed; no device/network scanning. Windows capture and packaged-driver behavior need user validation.",
+      "limits": "Windows default-output WASAPI only; helper must run. Console prototype, no autostart/signed installer yet. Browser local-network permission and initial user activation may be needed. GitHack is a shared origin: remembered access is shared across that host, so use trusted previews only. Browser storage/profile clearing requires pairing again. Production/localhost stay direct and have separate preferences. One live consumer; new connection replaces old. Real Windows driver and browser activation behavior need user validation.",
       "verification": {
-        "automated": "Protocol validation, bounded resampling/mono/stereo/underrun, native graph mute/Stop, socket retry/sequence, Python real-loopback WebSocket transfer/origin rejection and mocked WASAPI default-device reopening are covered. No real user audio is used. Required source/build/backend gate runs before publication. Seven helper tests also pass against pinned websockets 15.0.1; exact Python 3.12 Windows dependency wheels exist. Suspended worklets discard new PCM and clear their queue on resume. Windows CI packages the executable. Preview code validation, retry URL retention, and real socket handshakes with valid/missing/wrong/duplicate codes and unrelated origins are covered; no preview browser acceptance is inferred.",
-        "browser": "User-approved focused local compiled-browser check passed on 2026-11-08: synthetic stereo PCM over the real localhost helper socket reached the built AudioWorklet and existing analyser/light/bass paths; silence cleared input; Stop and reconnect succeeded. 180 samples included 58 zero-input samples. No real Windows capture/driver or packaged executable was tested on this Linux executor."
+        "automated": "Seven frontend tests cover PCM, bounded queues, muted graph, remembered credentials, startup/gesture resume, Stop/Forget, unknown preference preservation and retry/takeover. Nine Python tests cover real localhost transfer/origin pairing, persistent identity/corruption, latest-tab takeover and mocked output recovery. Required model/type/property/build/backend gates run before publication. No real audio devices are opened.",
+        "browser": "User-approved focused local compiled-browser check passed on 2026-11-08: synthetic stereo PCM over the real localhost helper socket reached the built AudioWorklet and existing analyser/light/bass paths; silence cleared input; Stop and reconnect succeeded. 180 samples included 58 zero-input samples. No real Windows capture/driver or packaged executable was tested on this Linux executor. Remembered setup/tab takeover/autoplay fallback have model/socket coverage only; no new browser run."
       }
     },
     {

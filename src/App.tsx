@@ -1,3 +1,4 @@
+import {startRememberedSystemAudio} from './scene/audio.ts';
 import {normalizationPreferences,NORMALIZATION_FUNCTION} from './scene/normalization.ts';
 import {useNormalizedScene} from './scene/useNormalizedScene.ts';
 import {paintNodes} from './graph/paintNodes.ts';
@@ -126,6 +127,7 @@ async function loadInitial(): Promise<InitialWorkspace> {
   }
 }
 function Workbench({initial}:{initial:InitialWorkspace}) {
+  useEffect(startRememberedSystemAudio,[]);
   const [workspace, setWorkspace] = useState(initial.workspace);
   const workspaceRef = useRef(workspace); workspaceRef.current = workspace;
   const document = useMemo(() => activeDocument(workspace), [workspace]);

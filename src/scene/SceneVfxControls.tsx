@@ -3,11 +3,12 @@ import {PULSE_CONTROLS} from './pulse';
 import {useEffect,useLayoutEffect,useRef,useState,useSyncExternalStore} from 'react';
 import {CoupledField,type PropertyBindings} from '../properties/CoupledProperties';
 import {UISection} from '../ui/UISection';
+import {readSystemAudioPreference} from './systemAudioPreference';
 import {UIField} from '../ui/UIField';
 import {FunctionControl} from '../ui/UIWorkspace';
 import {useFeatureActions} from '../ui/useFeatureActions';
 import {systemAudioRequiresPairing} from './nativePcm';
-import {connectSceneSystemAudio,playSceneAudio,loadSceneAudioFile,stopSceneAudio,sceneAudioSnapshot,subscribeSceneAudio,sampleSceneAudio,scenePulseResponse,parkSceneAudioPlayer} from './audio';
+import {connectSceneSystemAudio,forgetSceneSystemAudio,playSceneAudio,loadSceneAudioFile,stopSceneAudio,sceneAudioSnapshot,subscribeSceneAudio,sampleSceneAudio,scenePulseResponse,parkSceneAudioPlayer} from './audio';
 export function SceneVfxControls({bindings}:{bindings:PropertyBindings}){
  const file=useRef<HTMLInputElement>(null),host=useRef<HTMLDivElement>(null),meter=useRef<HTMLMeterElement>(null),responseMeter=useRef<HTMLMeterElement>(null),[error,setError]=useState('');
  const mode=bindings.values['scene.vfx']?.[PROPERTY_REGISTRY.consumer('scene.vfx')!.channels['scene.pulseColorMode']];
@@ -22,7 +23,8 @@ export function SceneVfxControls({bindings}:{bindings:PropertyBindings}){
  useEffect(()=>{let frame=0,last=0;const tick=(now:number)=>{if(now-last>=100){last=now;if(meter.current)meter.current.value=sampleSceneAudio().level;if(responseMeter.current)responseMeter.current.value=scenePulseResponse();}frame=requestAnimationFrame(tick);};frame=requestAnimationFrame(tick);return()=>cancelAnimationFrame(frame);},[]);
  const fail=(error:unknown)=>setError(error instanceof Error?error.message:'Audio connection failed');
  useFeatureActions('sceneAudio',{
- 'scene.audioSystem':{enabled:true,run:()=>{setError('');const code=pairingCode;setPairingCode('');void connectSceneSystemAudio(code).catch(fail);}},
+ 'scene.audioForget':{enabled:true,run:()=>{forgetSceneSystemAudio();setPairingCode('');setError('');}},
+ 'scene.audioSystem':{enabled:true,run:()=>{setError('');const code=pairingCode||readSystemAudioPreference()?.code||'';setPairingCode('');void connectSceneSystemAudio(code).catch(fail);}},
  'scene.audioConnect':{enabled:true,run:()=>{setError('');void playSceneAudio().catch(fail);}},
  'scene.audioDisconnect':{enabled:true,run:()=>{stopSceneAudio();setError('');}},
  'scene.audioFile':{enabled:true,run:()=>file.current?.click()},
@@ -45,7 +47,8 @@ export function SceneVfxControls({bindings}:{bindings:PropertyBindings}){
  {tintEnabled&&<UIField id="scene.vfx.imageTint" label="Image tint colour" category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property="scene.imageTint" label="Image tint colour"/></UIField>}
  </UISection>
  {([['scene.audioBounce','Audio Bounce','bounce'],['scene.waves','Waves','waves'],['scene.distortion','Distortion','distortion'],['scene.glitching','Glitching','glitching'],['scene.maxFps','Max FPS','maxFps']] as const).map(([property,label,key])=><UIField key={key} id={`scene.vfx.${key}`} label={label} category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property={property} label={label}/></UIField>)}
- {pairing&&<UIField id="scene-audio-pairing" label="Preview pairing code" category="Scene"><div><label>Preview pairing code<input type="password" autoComplete="off" spellCheck={false} maxLength={32} value={pairingCode} onChange={event=>setPairingCode(event.target.value)} placeholder="Paste code from the helper window"/></label><small>Use the new helper build. The code stays in this tab only and expires when the helper closes.</small></div></UIField>}
+ {pairing&&<UIField id="scene-audio-pairing" label="Preview pairing code" category="Scene"><div><label>Preview pairing code<input type="password" autoComplete="off" spellCheck={false} maxLength={32} value={pairingCode} onChange={event=>setPairingCode(event.target.value)} placeholder={audio.remembered?"Saved — leave blank to reconnect":"Paste code from the helper window once"}/></label><small>Pair once with the new helper; this browser remembers it across previews. Only open trusted previews on this shared host.</small></div></UIField>}
+ <FunctionControl id="scene.audioForget"/>
  <FunctionControl id="scene.audioSystem"/><FunctionControl id="scene.audioFile"/><FunctionControl id="scene.audioConnect"/><FunctionControl id="scene.audioDisconnect"/>
  <input ref={file} type="file" accept="audio/*" hidden onChange={event=>{const selected=event.target.files?.[0];event.target.value='';if(selected){setError('');loadSceneAudioFile(selected);}}}/>
  <div ref={host}/>

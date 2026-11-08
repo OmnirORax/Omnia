@@ -1,9 +1,10 @@
+import {readSystemAudioPreference,saveSystemAudioPreference,pauseRememberedSystemAudio,forgetSystemAudioPreference,validPairingCode} from './systemAudioPreference.ts';
 import {pcmWorkletSource,systemAudioOriginSupported,systemAudioRequiresPairing} from './nativePcm.ts';
 import {createNativeAudioTransport} from './nativeAudioTransport.ts';
 import {referencePulse,createAutomaticPulse} from './pulse.ts';
 import type {SceneVfx} from './vfx.ts';
 import {normalizeAudioLevel} from './vfx.ts';
-/** Ephemeral, explicitly connected browser audio. Nothing here is persisted. */
+/** Live PCM is ephemeral; remembered connection credentials stay device-local. */
 let context:AudioContext|null=null,analyser:AnalyserNode|null=null,source:AudioNode|null=null;
 let splitter:ChannelSplitterNode|null=null,stereo:AnalyserNode[]=[];
 const automaticPulse=createAutomaticPulse();let fftMode='',pulseResponse=0;
@@ -16,9 +17,9 @@ type InputKind='file'|'system'|null;
 let inputKind:InputKind=null;
 let bytes=new Uint8Array(0),epoch=0,status='No audio connected',connected=false;
 let player:HTMLAudioElement|null=null,playerURL='',parking:HTMLDivElement|null=null;
-let snapshot:{status:string;player:HTMLAudioElement|null;kind:InputKind}={status,player,kind:inputKind};
+let snapshot:{status:string;player:HTMLAudioElement|null;kind:InputKind;remembered:boolean}={status,player,kind:inputKind,remembered:false};
 const listeners=new Set<()=>void>();
-const publish=(message:string)=>{status=message;snapshot={status,player,kind:inputKind};listeners.forEach(fn=>fn());};
+const publish=(message:string)=>{status=message;snapshot={status,player,kind:inputKind,remembered:!!readSystemAudioPreference()};listeners.forEach(fn=>fn());};
 export const isSceneAudioConnected=()=>connected;
 export const sceneAudioStatus=()=>status;
 export const sceneAudioSnapshot=()=>snapshot;
@@ -31,6 +32,7 @@ export function disconnectSceneAudio(){
 function analysis(ctx:AudioContext){context=ctx;
  ctx.addEventListener?.('statechange',()=>{if(context!==ctx||!connected)return;if(ctx.state==='suspended')publish('Audio suspended — reconnect or press Play to resume');else if(ctx.state==='running')publish(inputKind==='system'?'System audio connected':'Audio file connected');});analyser=ctx.createAnalyser();analyser.fftSize=2048;analyser.smoothingTimeConstant=.7;bytes=new Uint8Array(analyser.frequencyBinCount);return analyser;}
 export async function connectSceneAudioElement(element:HTMLMediaElement){
+ pauseRememberedSystemAudio();
  if(activeMedia===element&&connected&&context){void context.resume().catch(()=>publish('Press Play to enable browser audio'));return;}
  disconnectSceneAudio();const token=epoch;const ctx=new AudioContext();context=ctx;
  try{source=ctx.createMediaElementSource(element);source.connect(analysis(ctx));analyser!.connect(ctx.destination);
@@ -42,15 +44,16 @@ export async function connectSceneAudioElement(element:HTMLMediaElement){
 }
 /** System PCM takes the same analyser graph as website playback, through a muted
  * output so capture is never replayed to the speakers or captured twice. */
-export async function connectSceneSystemAudio(code=''){
+export async function connectSceneSystemAudio(code=readSystemAudioPreference()?.code??''){
  if(!systemAudioOriginSupported(window.location.origin))throw Error('Use the Omnium preview, omnium.nexus or localhost to connect system audio.');
  const pairingCode=systemAudioRequiresPairing(window.location.origin)?code.trim():'';
- if(systemAudioRequiresPairing(window.location.origin)&&!/^[A-Za-z0-9_-]{32}$/.test(pairingCode))throw Error('Paste the 32-character Preview pairing code from the new Omnium Audio Helper window.');
+ if(systemAudioRequiresPairing(window.location.origin)&&!validPairingCode(pairingCode))throw Error('Paste the 32-character Preview pairing code from the new Omnium Audio Helper window.');
  disconnectSceneAudio();const token=epoch;inputKind='system';publish('Connecting to Omnium Audio Helper…');
  const ctx=new AudioContext({latencyHint:'interactive'});context=ctx;
  let moduleURL='';
  try{
-  await ctx.resume(); // Called within the explicit user gesture.
+  if(ctx.state==='suspended')publish('Click anywhere in Omnium to resume remembered system audio');
+  await ctx.resume(); // A remembered launch may need the next browser user gesture.
   if(token!==epoch)return;
   if(!ctx.audioWorklet||typeof AudioWorkletNode==='undefined')throw Error('System audio needs a browser with AudioWorklet support.');
   moduleURL=URL.createObjectURL(new Blob([pcmWorkletSource()],{type:'text/javascript'}));
@@ -71,10 +74,26 @@ export async function connectSceneSystemAudio(code=''){
    if(token!==epoch)return;
    if(connected!==ready){automaticPulse.reset();fftMode='';pulseResponse=0;}
    connected=ready;publish(message);
-  },pairingCode);
+  },pairingCode,()=>{if(token===epoch)saveSystemAudioPreference(pairingCode,true);});
   cleanupNative=()=>{transport.stop();node.port.close();mute.disconnect();};
  }catch(error){if(token!==epoch)return;disconnectSceneAudio();publish(error instanceof Error?error.message:'System audio connection failed');throw error;}
  finally{if(moduleURL)URL.revokeObjectURL(moduleURL);}
+}
+
+/** Install once at the app boundary, independent of opening the settings panel. */
+export function startRememberedSystemAudio(){
+ const resume=()=>{
+  if(!readSystemAudioPreference()?.enabled)return;
+  if(inputKind==='system'&&context?.state==='suspended')void context.resume().catch(()=>{});
+ };
+ window.addEventListener('pointerdown',resume,true);window.addEventListener('keydown',resume,true);
+ if(readSystemAudioPreference()?.enabled&&systemAudioOriginSupported(window.location.origin)){
+  void connectSceneSystemAudio().catch(error=>publish(error instanceof Error?error.message:'System audio reconnect failed'));
+ }
+ return()=>{window.removeEventListener('pointerdown',resume,true);window.removeEventListener('keydown',resume,true);};
+}
+export function forgetSceneSystemAudio(){
+ forgetSystemAudioPreference();stopSceneAudio();publish('System audio forgotten — pair once to remember it again');
 }
 
 /** Bounded FFT sampling: bass band 1 of a log-spaced 16-band approximation. */
@@ -135,6 +154,7 @@ function filePlayer(url:string){
  return media;
 }
 export function loadSceneAudioFile(file:File){
+ pauseRememberedSystemAudio();
  disconnectSceneAudio();player?.pause();if(playerURL)URL.revokeObjectURL(playerURL);
  playerURL=URL.createObjectURL(file);player=filePlayer(playerURL);publish('Audio file ready — press Play');
 }
@@ -148,6 +168,7 @@ export async function playSceneAudio(){
  catch(error){if(player===media)publish(error instanceof Error?error.message:'Press Play to enable browser audio');throw error;}
 }
 export function stopSceneAudio(){
+ pauseRememberedSystemAudio();
  disconnectSceneAudio();player?.pause();
  if(playerURL)player=filePlayer(playerURL); // A closed WebAudio source cannot reuse its media element.
  publish('No audio connected');

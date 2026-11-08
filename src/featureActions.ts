@@ -20,6 +20,7 @@ export const radialGroups = {
 /** Declare a feature command here once. ACTIONS supplies listing, saved bindings,
  * conflict policy and dispatch; components supply only availability and behavior. */
 const CORE_FEATURE_ACTIONS = [
+  {id:'scene.audioForget',owner:'sceneAudio',scope:'global',category:'Scene',label:'Forget system audio',defaultKey:'',description:'Stop system audio and remove the remembered browser pairing and automatic connection preference.'},
   {id:'scene.audioSystem',owner:'sceneAudio',scope:'global',category:'Scene',label:'Connect system audio',defaultKey:'',description:'Connect the local Omnium Audio Helper to analyse system playback without sharing a tab or replaying the captured sound.'},
   {id:'scene.audioConnect',owner:'sceneAudio',scope:'global',category:'Scene',label:'Play audio',defaultKey:'',description:'Play the website audio player and use its signal for scene effects. Choose an audio file first; no tab or screen sharing.'},
   {id:'scene.audioDisconnect',owner:'sceneAudio',scope:'global',category:'Scene',label:'Stop audio',defaultKey:'',description:'Disconnect system audio or stop website playback and release analysis; keep a chosen file ready to play again.'},
