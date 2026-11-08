@@ -456,3 +456,5 @@ limit .20. Existing unordered-interval interpretation yields luminance 0–.10 a
 contrast .02–.66. Explicit saved fields including false/zero are retained; absent
 fields intentionally acquire the new defaults. Preference keys naturally separate
 old/new constraints; there is no migration or rewriting of original image bytes.
+
+The redundant scene.normalize.preview field and transient show-original state are removed. Original/corrected comparison uses the existing serialized normalization enabled toggle. Saved layout references to the retired field remain unavailable-ID records, not deleted organization. No image, graph, cache or normalization-setting conversion. No browser run needed for this UI removal.

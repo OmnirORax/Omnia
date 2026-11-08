@@ -890,3 +890,5 @@ Current user-selected raw defaults are luma .10/0, contrast .66/.02, saturation1
 neutral tolerance .30, exposure limit1, contrast/saturation limits .75, balance .20.
 Keep raw crossed endpoints and existing unordered-range interpretation; explicit
 saved values/zero/false remain authoritative. The min/max controls bound one range.
+
+The redundant scene.normalize.preview field and transient show-original state are removed. Original/corrected comparison uses the existing serialized normalization enabled toggle. Saved layout references to the retired field remain unavailable-ID records, not deleted organization. No image, graph, cache or normalization-setting conversion. No browser run needed for this UI removal.

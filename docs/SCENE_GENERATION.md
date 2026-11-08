@@ -204,9 +204,9 @@ Scene → **Image normalization** defaults on globally. It applies during local
 Choose image/Paste image import and when viewing existing scene images. Originals
 are committed to the existing library first and never rewritten; download still
 returns the encoded source. The active world uses a disposable corrected PNG when
-ready, or the original while processing/on failure. **Preview original** switches
+ready, or the original while processing/on failure. **Normalize scene images** switches
 that same world between before/after without moving its camera or creating a
-separate comparator. That preview switch is transient; the enabled setting and
+separate comparator. The enabled setting and
 constraints use discovered settings inputs, existing settings persistence/history,
 Master Controller and normal movable UIField/CoupledField controls.
 
@@ -301,7 +301,7 @@ frame; settings commit normally and only the full result enters the saved cache.
 
 The reduced 384px drag image was visibly blurry before the full image arrived.
 Normalization now retains the original full-resolution texture through dragging,
-release and before/after comparison. The shared wallpaper sampler applies correction
+release and on/off comparison. The shared wallpaper sampler applies correction
 coefficients in GLSL using the CPU tone, neutral balance, gamut and quantization
 equations; adaptive sphere blending samples the same corrected image. Updating
 coefficients changes uniforms and requests paint without replacing/loading images.
@@ -315,3 +315,5 @@ exact visual/pixel parity and GPU cost remain user browser acceptance. The user
 chose to test the preview; no new browser suite/profiling was run for this path.
 This supersedes reduced-image/canvas preview descriptions above. It changes display
 implementation, not saved original bytes or constraint interpretation.
+
+The redundant Preview original UI field and its transient app state are retired. Use Normalize scene images off/on for original/corrected comparison. Existing saved organization for scene.normalize.preview is retained by unavailable-ID compatibility; no normalization settings or image bytes are removed.

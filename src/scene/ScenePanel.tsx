@@ -11,8 +11,8 @@ import { useFeatureActions } from '../ui/useFeatureActions';
 import type { SceneReference } from './background';
 import { deleteLocalScene, downloadScene, importLocalScene, listLocalScenes, loadCopiedPrompt, localSceneBlob, saveCopiedPrompt, type LocalScene, type ScenePromptSnapshot } from './library';
 
-export function ScenePanel({ normalization,normalizationState,showOriginal,onShowOriginal,node, revision, bindings, onApply, hasBackground, backgroundError, backgroundKey, onForgetLocal, nodeExists }: {
-  normalization:NormalizationPreferences;normalizationState:NormalizationState;showOriginal:boolean;onShowOriginal:(v:boolean)=>void;
+export function ScenePanel({ normalization,normalizationState,node, revision, bindings, onApply, hasBackground, backgroundError, backgroundKey, onForgetLocal, nodeExists }: {
+  normalization:NormalizationPreferences;normalizationState:NormalizationState;
   node: SceneNode | null; revision: number; bindings: PropertyBindings;
   onApply: (value: SceneReference | null, targetNodeId?: string | null) => void;
   onForgetLocal: (id: string) => void; nodeExists: (id: string) => boolean; hasBackground: boolean; backgroundError: string; backgroundKey?: string;
@@ -249,7 +249,7 @@ export function ScenePanel({ normalization,normalizationState,showOriginal,onSho
       <small>{copied.node.label || 'Untitled'} · {new Date(copied.copiedAt).toLocaleString()}</small>
       <pre className="scene-resolved">{copied.resolved}</pre>
     </UISection>}
-    <NormalizationPanel bindings={bindings} state={normalizationState} showOriginal={showOriginal} onShowOriginal={onShowOriginal}/>
+    <NormalizationPanel bindings={bindings} state={normalizationState}/>
     <UISection id="scene-imported-images" title="Imported images" defaultExpanded={false}>
       <UIField id="scene.localImage" label="Imported scene image" category="Scene"><label>Image<select value={localId} onChange={event => setLocalId(event.target.value)}>
         <option value="">Choose saved image</option>{localImages.map(item => <option key={item.id} value={item.id}>{item.input?.node.label || item.name} · {new Date(item.createdAt).toLocaleString()}</option>)}

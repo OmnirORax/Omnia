@@ -603,7 +603,6 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
   const imagePreferences=normalizationPreferences((settingsPreview??settings).functionValues[NORMALIZATION_FUNCTION]);
   const imagePreview=!!settingsPreview&&settingsPreview.functionValues[NORMALIZATION_FUNCTION]!==settings.functionValues[NORMALIZATION_FUNCTION];
   const normalizedScene=useNormalizedScene(sceneBackground.blob,imagePreferences,!!sceneBackground.reference&&'localId' in sceneBackground.reference,imagePreview);
-  const [showOriginalScene,setShowOriginalScene]=useState(false);
   const sceneNodeIds = useMemo(() => new Set(document.placements.map(item => item.id)), [document.placements]);
   const sceneNodeIdsRef = useRef(sceneNodeIds); sceneNodeIdsRef.current = sceneNodeIds;
   const selectedRelationData = document.relationships.find(
@@ -2267,7 +2266,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
             </UIPanel>
           }
           <UIPanel id="scene" title="Scene">
-            <ScenePanel normalization={imagePreferences} normalizationState={normalizedScene} showOriginal={showOriginalScene} onShowOriginal={setShowOriginalScene} node={selectedNode && selectedEntity ? { id: selectedNode.id, label: selectedEntity.label, notes: selectedEntity.notes } : null}
+            <ScenePanel normalization={imagePreferences} normalizationState={normalizedScene} node={selectedNode && selectedEntity ? { id: selectedNode.id, label: selectedEntity.label, notes: selectedEntity.notes } : null}
               revision={document.revision} bindings={propertyBindings} onApply={sceneBackground.apply}
               hasBackground={!!sceneBackground.reference} backgroundError={sceneBackground.error} backgroundKey={sceneReferenceKey(sceneBackground.reference)}
               onForgetLocal={sceneBackground.forgetLocal} nodeExists={id => sceneNodeIdsRef.current.has(id)} />
@@ -2293,7 +2292,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
               bindings={propertyBindings}
               history={actionHistory}
               onTransformNodes={(ids, rotation, pivot, layout) => {const scale=latticeScale(settings.spatial.latticeScale);commitDocument(transformPlacements(layout?latticeDocument(document,settings.spatial.nodeCellSize):document, ids, rotation, layout?{x:pivot.x/scale,y:pivot.y/scale,z:pivot.z/scale}:pivot, layout));}}
-              wallpaperCorrection={showOriginalScene||safeView||!normalizedScene.report?.changed?null:normalizedScene.report.corrections}
+              wallpaperCorrection={safeView||!normalizedScene.report?.changed?null:normalizedScene.report.corrections}
               wallpaperIdentity={sceneReferenceKey(sceneBackground.reference)}
               wallpaperURL={safeView ? null : sceneBackground.url}
               atlas={atlas}
