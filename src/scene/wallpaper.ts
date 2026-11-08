@@ -17,14 +17,14 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, ba
   scene.add(mesh);
   let texture: THREE.Texture | null = null, epoch = 0, alive = true;
   return {
-    async setURL(url: string | null) {
+    async setURL(url: string | null,keepPrevious=false) {
       const mine = ++epoch;
-      mesh.visible = false; texture?.dispose(); texture = null; background.image.value = null; background.hasImage.value=0; requestPaint();
+      if(!url||!keepPrevious){mesh.visible = false; texture?.dispose(); texture = null; background.image.value = null; background.hasImage.value=0; requestPaint();}
       if (!url) return;
       try {
         const loaded = await new THREE.TextureLoader().loadAsync(url);
         if (!alive || mine !== epoch) { loaded.dispose(); return; }
-        loaded.colorSpace = THREE.SRGBColorSpace; texture = loaded;
+        loaded.colorSpace = THREE.SRGBColorSpace;const previous=texture; texture = loaded;previous?.dispose();
         background.image.value = loaded; background.hasImage.value=1;
         background.imageAspect.value = loaded.image.width / loaded.image.height;
         mesh.visible = true; requestPaint();

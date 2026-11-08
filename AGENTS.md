@@ -860,3 +860,13 @@ changes cancel obsolete display work. Cache is disposable, SHA/version/constrain
 keyed and bounded to 8/32MiB; local source deletion purges matching derivatives first.
 Existing settings/UI/history, original-download, account guards and graph ownership
 remain authoritative. User owns browser/visual/performance acceptance.
+
+Live settings corrections: shared PropertyBindings.preview is optional and must
+route through the same validated owner as commit, including active context adapters.
+Normalization reads transient candidate settings; dragging must not persist or
+pollute history/cache. Its serial latest-candidate queue must complete previews
+rather than restart on every pointer sample. Preview/full solving shares original
+source samples. Release runs full resolution without needing collapse/blur. Retain
+last same-source imagery through processing and texture load, but clear it on
+source/account changes or explicit null. User authorized only a focused local
+normalization drag/release/image-refresh check; no broad suites/profile inference.

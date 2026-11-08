@@ -4013,7 +4013,7 @@
       "id": "scene.normalization",
       "title": "Non-destructive scene image normalization",
       "where": "Scene → Image normalization. Enable Normalize scene images; expand Preferred ranges and correction limits. Preview original compares in the actual world.",
-      "behavior": "Global constraint-driven normalization defaults on. Original encoded files and node assignments remain unchanged; image imports prepare a disposable derivative, and older imported images are prepared when viewed. Configurable preferred mean encoded-sRGB luminance, p95−p05 luma contrast, average HSV saturation and neutral-pixel colour-balance tolerance drive a bounded deterministic search. Values already within ranges remain byte-identical. Broad initial ranges preserve dark/night, daylight, saturated fantasy and warm interior moods; they are starting values, not a learned calibration from the supplied references. Exposure, contrast, saturation and colour-balance correction limits are independent. Neutral balance needs sufficient low-saturation midtone evidence; dominant artistic palettes are not neutralized. Near-endpoint tone curves and chroma compression protect highlights/shadows; per-channel quantization introduces no new endpoint clipping and alpha is preserved. Output pixels are remeasured. Unreachable targets remain reported instead of forcing stronger correction.",
+      "behavior": "Global constraint-driven normalization defaults on. Original encoded files and node assignments remain unchanged; image imports prepare a disposable derivative, and older imported images are prepared when viewed. Configurable preferred mean encoded-sRGB luminance, p95−p05 luma contrast, average HSV saturation and neutral-pixel colour-balance tolerance drive a bounded deterministic search. Values already within ranges remain byte-identical. Broad initial ranges preserve dark/night, daylight, saturated fantasy and warm interior moods; they are starting values, not a learned calibration from the supplied references. Exposure, contrast, saturation and colour-balance correction limits are independent. Neutral balance needs sufficient low-saturation midtone evidence; dominant artistic palettes are not neutralized. Near-endpoint tone curves and chroma compression protect highlights/shadows; per-channel quantization introduces no new endpoint clipping and alpha is preserved. Output pixels are remeasured. Unreachable targets remain reported instead of forcing stronger correction. Slider candidates now flow through shared validated transient settings bindings, including active-context routing. Held drags use a serial latest-candidate queue with a 384px preview; correction parameters come from the same original-image sample as full output. Previews never write settings/history/cache. Release commits once and generates the full-resolution result. The last same-source image remains visible while work/texture loading finishes; scene/account changes still clear it. No collapse or blur is required.",
       "steps": [
         {
           "do": "Select a node and import an image using Choose image or Paste image. Open Scene → Image normalization.",
@@ -4022,6 +4022,10 @@
         {
           "do": "Toggle Preview original while looking at the world, then switch Normalize scene images off and on.",
           "expect": "The same scene and camera compare original/corrected; off displays original bytes. No separate comparator or graph edits. The preview switch is transient; the global enabled setting persists."
+        },
+        {
+          "do": "Keep Preferred ranges and correction limits expanded. Drag a range slider far enough to violate a constraint, hold, then release.",
+          "expect": "The actual world changes during the held drag with a marked Live preview. The last rendered result stays visible while catching up. Release saves the value and replaces the preview with a full-resolution result without collapsing the section. Returning to the stored value/cancelling discards transient settings."
         },
         {
           "do": "Change preferred ranges and correction limits, including a zero limit.",
@@ -4043,7 +4047,13 @@
         "src/scene/library.ts",
         "src/scene/background.ts",
         "src/App.tsx",
-        "tests/scene-normalization.test.mjs"
+        "tests/scene-normalization.test.mjs",
+        "src/properties/settingsAdapter.ts",
+        "src/properties/CoupledProperties.tsx",
+        "src/properties/contextBindings.ts",
+        "src/scene/wallpaper.ts",
+        "src/SpatialWorkspace.tsx",
+        "tests/scene-normalization-live.browser.mjs"
       ],
       "actions": [],
       "gestures": [],
@@ -4055,8 +4065,8 @@
       "limits": "A bounded global statistical correction, not semantic relighting, local dodging, style transfer, reference matching or detail recovery from clipped originals. Metrics use at most 16,384 regularly sampled pixels; clipping protection itself applies to every processed channel. Single-image worker processing is bounded by existing 4096px/12MP decode limits. Local derivative cache is LRU-limited to 8 results/32 MiB; oversized outputs are usable but uncached. Private cloud derivatives remain transient and are not persisted in the local cache. Failure leaves originals available; unsupported worker/canvas/crypto or quota problems can prevent processing/caching. Settings export with existing UI settings; images, cache and scene assignments remain outside atlas/UI backups. Browser visual/Apply-reload/performance acceptance is pending.",
       "status": "Implemented for preview review; browser acceptance pending",
       "verification": {
-        "automated": "All 618 model/architecture tests, preview/type/property/capability build and backend checks pass. Focused models cover bounded improvement, identity/disabled/zero limits, unchanged originals/alpha, no new channel endpoint clipping, neutral evidence gating, key/default/range normalization, settings round trips and the actual worker bridge/output remeasurement. These do not establish live browser cache/UI/visual acceptance.",
-        "browser": "No new browser suite or hardware profiling. User-owned live import, toggle/preview, cache, cancellation, controls and visual acceptance pending."
+        "automated": "All 620 model/architecture tests, preview/type/property/capability build and backend checks pass. Focused regressions cover validated transient settings, cancel/commit boundaries, active context preview ownership and identical original-source correction parameters for preview/full output.",
+        "browser": "Authorized focused local Chromium check passed using a synthetic 2048×1152 image through the real import UI. Held-drag image pixels changed (mean crop brightness 94.25→134.55), saved values remained unchanged during the drag, and release saved .53 and displayed full-size output (136.24) with controls open. No page errors. This is interaction evidence, not hardware performance profiling or broad visual acceptance."
       }
     }
   ]

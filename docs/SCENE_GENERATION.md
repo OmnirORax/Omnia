@@ -259,3 +259,20 @@ Older clients may retain numeric/boolean unknown function values but do not appl
 normalization. Cache version changes invalidate disposable results; originals
 remain authoritative. Browser import/toggle/cache/visual/performance acceptance is
 user-owned; model/build success does not establish it.
+
+Live control correction: shared CoupledField/CoupledProperties now forward optional
+transient preview candidates, and settingsAdapter validates them through the same
+state adapters without writing settings/history. Active context bindings route
+preview to the same owner as commits. Restoring the stored value cancels the
+candidate; release clears preview and commits through the existing settings owner.
+Normalization consumes that transient settings view. A serial latest-candidate
+queue provides reduced 384px images during held drags without aborting every
+pointer sample; a bounded eight-source sample cache keeps correction parameters
+consistent with full-image analysis. These source samples and drag images stay in
+memory; private samples are never persisted. Release generates the full image and
+normal persistent cache entry. Live-preview output measurements are approximate
+at preview resolution and labelled; the final image is remeasured normally. The
+last same-source result stays on screen while processing/loading its replacement.
+Scene/account identity changes and explicit clear still clear immediately. Keeping
+or collapsing the settings section does not control scene refresh. No saved format
+changes or new global input listeners are introduced.

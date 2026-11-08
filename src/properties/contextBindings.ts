@@ -19,12 +19,13 @@ export function installContextBindings(binding: PropertyBindings) {
 export function contextPropertyBindings(base:PropertyBindings):PropertyBindings {
   const active=[...sessions.values()];
   if(!active.length)return base;
-  return {values:Object.assign({},base.values,...active.map(binding=>binding.values)),limits:Object.assign({},base.limits,...active.map(binding=>binding.limits)),commit:(changes:PropertyChange[])=>{
+  const dispatch=(changes:PropertyChange[],phase:"commit"|"preview")=>{
     const writes=new Map<PropertyBindings,PropertyChange[]>();
     for(const change of changes){const binding=[...active].reverse().find(binding=>Object.hasOwn(binding.values,change.consumer)) ?? base;
       const entries=writes.get(binding) ?? [];entries.push(change);writes.set(binding,entries);}
-    for(const [binding,entries]of writes)binding.commit(entries);
-  }};
+    for(const [binding,entries]of writes)if(phase==="commit")binding.commit(entries);else binding.preview?.(entries);
+  };
+  return {values:Object.assign({},base.values,...active.map(binding=>binding.values)),limits:Object.assign({},base.limits,...active.map(binding=>binding.limits)),commit:changes=>dispatch(changes,"commit"),preview:changes=>dispatch(changes,"preview")};
 }
 
 export function useContextPropertyBindings(base:PropertyBindings):PropertyBindings {

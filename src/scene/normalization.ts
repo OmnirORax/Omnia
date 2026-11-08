@@ -87,6 +87,8 @@ export function planSceneNormalization(sample:Uint8ClampedArray,p:NormalizationP
    }
   }
  }
- const unmet=violations(after,p,balanceAvailable).flatMap((v,i)=>v>.005?[['luminance','contrast','saturation','colour balance'][i]]:[]);
+ const unmet=unmetNormalizationConstraints(after,p,balanceAvailable);
  return {before,after,corrections,changed:JSON.stringify(corrections)!==JSON.stringify(identity()),unmet,balanceAvailable,version:NORMALIZATION_VERSION};
 }
+
+export const unmetNormalizationConstraints=(metrics:ImageMetrics,p:NormalizationPreferences,balanceAvailable:boolean)=>violations(metrics,p,balanceAvailable).flatMap((v,i)=>v>.005?[["luminance","contrast","saturation","colour balance"][i]]:[]);

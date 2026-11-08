@@ -49,5 +49,23 @@ test('worker bridge remeasures actual output pixels and returns its transferred 
   const input=gray.slice(),before=analyzeScenePixels(sampleScenePixels(input));
   globalThis.onmessage({data:{pixels:input,preferences:{...defaultNormalizationPreferences(),luminanceMin:.4,contrastMin:0,saturationMin:0}}});
   assert.ok(message.report.changed);assert.deepEqual(message.report.before,before);assert.deepEqual(message.report.after,analyzeScenePixels(sampleScenePixels(message.pixels)));assert.equal(transfers[0],message.pixels.buffer);
+  const preferences={...defaultNormalizationPreferences(),luminanceMin:.4,contrastMin:0,saturationMin:0},canonical=planSceneNormalization(gray,preferences);
+  globalThis.onmessage({data:{pixels:pixels(16,()=>[80,80,80,255]),sample:gray,preferences}});assert.deepEqual(message.report.corrections,canonical.corrections,'thumbnail solving uses the same source sample as full output');
  }finally{if(previous.onmessage===undefined)delete globalThis.onmessage;else globalThis.onmessage=previous.onmessage;if(previous.postMessage===undefined)delete globalThis.postMessage;else globalThis.postMessage=previous.postMessage;}
+});
+
+test('shared settings previews validate through the real adapters without writing until commit',async()=>{
+ const {defaultSettings}=await import('../src/workspaceActions.ts');const {settingsPropertyBindings}=await import('../src/properties/settingsAdapter.ts');
+ let saved=defaultSettings(),draft=null,writes=0;const original=saved,property=normalizationProperty('luminanceMin'),change={consumer:NORMALIZATION_FUNCTION,property,value:.6};
+ const bindings=settingsPropertyBindings(saved,update=>{saved=update(saved);writes++;},candidate=>{draft=candidate;});
+ bindings.preview([change]);assert.equal(writes,0);assert.equal(saved,original);assert.equal(normalizationPreferences(draft.functionValues[NORMALIZATION_FUNCTION]).luminanceMin,.55,'unordered interval interpretation still applies');
+ bindings.preview([{...change,value:.12}]);assert.equal(draft,null,'restoring the stored value cancels transient state');
+ bindings.preview([change]);bindings.commit([change]);assert.equal(draft,null);assert.equal(writes,1);assert.equal(saved.functionValues[NORMALIZATION_FUNCTION][property],.6);
+});
+
+
+test('active context bindings preserve preview ownership for settings and borrowed consumers',async()=>{
+ const {contextPropertyBindings,installContextBindings}=await import('../src/properties/contextBindings.ts');const events=[];
+ const base={values:{settings:{value:0}},commit:changes=>events.push(['base commit',changes]),preview:changes=>events.push(['base preview',changes])},borrowed={values:{object:{value:0}},commit:changes=>events.push(['object commit',changes]),preview:changes=>events.push(['object preview',changes])};
+ const active=installContextBindings(borrowed);try{const binding=contextPropertyBindings(base),changes=[{consumer:'settings',property:'value',value:1},{consumer:'object',property:'value',value:2}];binding.preview(changes);binding.commit(changes);assert.deepEqual(events.map(e=>e[0]),['base preview','object preview','base commit','object commit']);assert.equal(events[0][1][0],changes[0]);assert.equal(events[1][1][0],changes[1]);}finally{active.dispose();}
 });

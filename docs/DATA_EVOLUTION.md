@@ -428,3 +428,12 @@ and existing auth guards remain the authorities. Settings use existing UI export
 local images/cache/scene assignments are still not included in atlas/UI backups.
 Older clients do not apply these controls and may drop unknown settings on rewrite.
 No hosted migration, paid generation or new cloud persistence is introduced.
+
+Live normalization slider previews are transient candidate settings, validated by
+existing shared property adapters and routed through active context ownership.
+Dragging never writes settings/history or the derivative cache; restoring the
+stored value cancels and release commits normally. Reduced previews/source samples
+are memory-only; full-size derivatives retain the existing SHA/version/constraint
+cache and authored formats. Source/account guards still clear previous imagery;
+only same-source updates retain the last visible texture until replacement loads.
+No migration or change to saved image bytes, constraints or graph fields.

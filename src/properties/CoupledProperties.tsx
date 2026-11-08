@@ -9,6 +9,8 @@ export type PropertyBindings = {
   values: Record<string, Record<string, PropertyValue>>;
   limits?: Record<string, Record<string, {min:number;max:number}>>;
   commit: (changes: PropertyChange[]) => void;
+  /** Transient candidates; providers clear them on commit or when candidates equal stored values. */
+  preview?: (changes:PropertyChange[])=>void;
 };
 /** Generated categories, one editor per property, and independent consumer targets. */
 export function CoupledProperties({ bindings: suppliedBindings, category: requestedCategory, selectedConsumers, scope = "master" }: { bindings: PropertyBindings; category?: string; selectedConsumers?: readonly string[]; scope?: string }) {
@@ -40,7 +42,7 @@ export function CoupledProperties({ bindings: suppliedBindings, category: reques
           </UIField>)}
           <UIField id={`${scope}-setter:${property.id}`} label={property.label} category={category.label}>
             <label>{property.label}{property.unit ? ` (${property.unit})` : ""}{mixed ? " · Mixed" : ""}
-              <PropertyEditor property={property.id} value={value} limits={limits} disabled={!selected.length} choices={property.kind === "select" ? property.options?.filter(option => selected.every(consumer => !consumer.choices[property.id] || consumer.choices[property.id].includes(option.id))).map(option => option.id) : undefined} onPreview={() => {}}
+              <PropertyEditor property={property.id} value={value} limits={limits} disabled={!selected.length} choices={property.kind === "select" ? property.options?.filter(option => selected.every(consumer => !consumer.choices[property.id] || consumer.choices[property.id].includes(option.id))).map(option => option.id) : undefined} onPreview={value=>bindings.preview?.(preparePropertyChanges(PROPERTY_REGISTRY, property.id, value, selected.map(consumer=>consumer.id)))}
                 onCommit={value => bindings.commit(preparePropertyChanges(PROPERTY_REGISTRY, property.id, value, selected.map(consumer => consumer.id)))} />
             </label>
           </UIField>
@@ -57,5 +59,5 @@ export function CoupledField({ bindings, consumer, property }: { bindings: Prope
   if (!coupling || bindings.values[consumer]?.[coupling] === undefined) throw new Error(`Missing property adapter: ${consumer}/${property}`);
   const definition = PROPERTY_REGISTRY.property(property)!;
   return <label>{definition.label}<PropertyEditor property={property} value={bindings.values[consumer][coupling]}
-    onPreview={() => {}} onCommit={value => bindings.commit(preparePropertyChanges(PROPERTY_REGISTRY, property, value, [consumer]))} /></label>;
+    onPreview={value=>bindings.preview?.(preparePropertyChanges(PROPERTY_REGISTRY,property,value,[consumer]))} onCommit={value => bindings.commit(preparePropertyChanges(PROPERTY_REGISTRY, property, value, [consumer]))} /></label>;
 }
