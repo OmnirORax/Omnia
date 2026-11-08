@@ -797,3 +797,20 @@ change: 42 fields, 21 active and 21 archived. User-selected tint/sensitivity/dro
 flash defaults remain intact. Existing Audio Bounce continues to cap scale.
 Older previews render their previous motion semantics; no asset/backend/audio-
 source migration applies. Model timing constants are not end-to-end measurements.
+
+
+### Map bass amplitude proportionally and release over residual noise (2026-11-08)
+
+The user reported bounce staying expanded because quiet remaining bass still
+mapped to a large target. Automatic now decodes the bass FFT’s logarithmic values
+into linear amplitude with −100..0 dB headroom. A transient recent-peak reference
+(initial/minimum 0.03, 12-second decay) sets amplitude scale; it never holds zoom.
+A floor max(0.001, 2% of reference) suppresses residual noise. Current amplitude
+maps proportionally below the reference; strong drops can reach maximum scale.
+Reference resets with audio session notifications/mode changes, not colour edits.
+The 31–65 Hz band, 0.15 analyser smoothing, 12 ms attack/45 ms release and user’s
+Audio Bounce limit remain. Manual retains its old log-byte mapping and −30 dB
+ceiling. Light processing and all requested defaults remain unchanged. No saved
+field/default/bounds/identity/conversion/format changes: 42 fields, 21 active and
+21 archived. Older previews retain the old bounce mapping; no asset/backend/source
+permission migration applies. Runtime raw bassAmplitude is ephemeral, not exported.

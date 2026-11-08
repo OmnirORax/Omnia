@@ -37,15 +37,19 @@ export async function connectSceneAudioElement(element:HTMLMediaElement){
 }
 /** Bounded FFT sampling: bass band 1 of a log-spaced 16-band approximation. */
 export function sampleSceneAudio(){
- if(!connected||!analyser||!context||context.state!=='running')return {active:false,bass:0,level:0};
+ if(!connected||!analyser||!context||context.state!=='running')return {active:false,bass:0,bassAmplitude:0,level:0};
  analyser.getByteFrequencyData(bytes);
  const hz=context.sampleRate/analyser.fftSize;
  const low=Math.max(1,Math.floor(31/hz)),high=Math.max(low+1,Math.ceil(65/hz));
- let bass=0,level=0;
- for(let i=low;i<Math.min(high,bytes.length);i++)bass+=bytes[i]/255;
+ let bass=0,bassAmplitude=0,level=0;
+ const minDb=analyser.minDecibels??-100,maxDb=analyser.maxDecibels??-30;
+ for(let i=low;i<Math.min(high,bytes.length);i++){
+  bass+=bytes[i]/255;
+  if(bytes[i])bassAmplitude+=Math.pow(10,(minDb+bytes[i]/255*(maxDb-minDb))/20);
+ }
  analyser.getByteTimeDomainData(bytes);
  for(let i=0;i<bytes.length;i++)level+=Math.pow((bytes[i]-128)/128,2);
- return {active:true,bass:bass/(high-low),level:normalizeAudioLevel(Math.sqrt(level/bytes.length))};
+ return {active:true,bass:bass/(high-low),bassAmplitude:bassAmplitude/(high-low),level:normalizeAudioLevel(Math.sqrt(level/bytes.length))};
 }
 
 
@@ -56,7 +60,7 @@ export function sampleScenePulse(settings:SceneVfx,seconds=1/60){
  const auto=settings.pulseRangeMode==='auto';
  if(fftMode!==settings.pulseRangeMode){
   fftMode=settings.pulseRangeMode;automaticPulse.reset();
-  if(analyser)analyser.smoothingTimeConstant=auto ? .15 : .7;
+  if(analyser){analyser.smoothingTimeConstant=auto ? .15 : .7;analyser.minDecibels=-100;analyser.maxDecibels=auto?0:-30;}
   for(const node of stereo){node.fftSize=auto?1024:2048;node.smoothingTimeConstant=auto?0:.7;node.minDecibels=-100;node.maxDecibels=auto?0:-30;}
  }
  let peak=0,onset=0,onsetLevel=0;

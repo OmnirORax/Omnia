@@ -1,5 +1,5 @@
 import {REFERENCE_PULSE_GLSL,PULSE_COLOUR_GLSL} from './pulse.ts';
-import {normalizeSceneVfx,smoothAudio,followBass,audioScale,nextVfxDeadline,type SceneVfx} from './vfx.ts';
+import {normalizeSceneVfx,smoothAudio,followBass,createBassDynamics,audioScale,nextVfxDeadline,type SceneVfx} from './vfx.ts';
 import {sampleSceneAudio,sampleScenePulse,isSceneAudioConnected,subscribeSceneAudio,disposeSceneAudio} from './audio.ts';
 import * as THREE from 'three';
 import {FullScreenQuad} from 'three/addons/postprocessing/Pass.js';
@@ -71,6 +71,7 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
   mesh.userData.glowIntensity = 0; mesh.frustumCulled = false; mesh.renderOrder = -100000; mesh.visible = false; mesh.raycast = () => {};
   scene.add(mesh);
   let texture: THREE.Texture | null = null, epoch = 0, alive = true;
+  const bassDynamics=createBassDynamics();
   let settings=normalizeSceneVfx(undefined),frame=0,last=0,deadline=0,bass=0,level=0,elapsed=0;
   const reduced=window.matchMedia('(prefers-reduced-motion: reduce)');
   const cancel=()=>{if(frame)cancelAnimationFrame(frame);frame=0;last=0;deadline=0;};
@@ -84,15 +85,16 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
     if(deadline&&now+.1<deadline){schedule();return;}
     deadline=nextVfxDeadline(deadline,now,settings.maxFps);
     const dt=last?Math.min(.1,(now-last)/1000):0;last=now;elapsed+=dt;
-    const audio=sampleSceneAudio();bass=settings.pulseRangeMode==='auto'?followBass(bass,audio.bass,dt):smoothAudio(bass,audio.bass,dt);level=smoothAudio(level,audio.level,dt);
+    const pulse=sampleScenePulse(settings,dt),audio=sampleSceneAudio();
+    bass=settings.pulseRangeMode==='auto'?followBass(bass,bassDynamics.sample(audio.bassAmplitude,dt),dt):smoothAudio(bass,audio.bass,dt);level=smoothAudio(level,audio.level,dt);
     material.uniforms.time.value=elapsed;
-    material.uniforms.light.value=sampleScenePulse(settings,dt);
+    material.uniforms.light.value=pulse;
     material.uniforms.bounce.value=audioScale(bass,settings.audioBounce);
     requestPaint();schedule();
   };
   const visibility=()=>{cancel();schedule();};
   const motion=()=>{cancel();material.uniforms.waves.value=reduced.matches?0:Number(settings.waves);material.uniforms.distortion.value=reduced.matches?0:settings.distortion;material.uniforms.glitching.value=reduced.matches?0:settings.glitching;material.uniforms.bounce.value=1;material.uniforms.light.value=0;requestPaint();schedule();};
-  const stopAudio=subscribeSceneAudio(schedule);
+  const stopAudio=subscribeSceneAudio(()=>{bassDynamics.reset();schedule();});
   document.addEventListener('visibilitychange',visibility);reduced.addEventListener('change',motion);
   return {
     get visible(){return mesh.visible;},
@@ -103,6 +105,7 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
       finally{material.uniforms.worldLayer.value=null;material.uniforms.compositeWorld.value=0;}
     },
     configure(value:SceneVfx){
+      if(settings.pulseRangeMode!==value.pulseRangeMode)bassDynamics.reset();
       settings=normalizeSceneVfx(value);
       for(const key of ['pulseTintLow','pulseTintHigh','imageTint'] as const){
         const rgb=new THREE.Color(settings[key]).getRGB({r:0,g:0,b:0},THREE.SRGBColorSpace);

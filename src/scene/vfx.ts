@@ -58,3 +58,17 @@ export function followBass(previous:number,next:number,seconds:number){
  const time=target>previous ? .012 : .045;
  return previous+(target-previous)*(1-Math.exp(-dt/time));
 }
+
+/** Peak reference changes gain only, never holds the current zoom target. */
+export function createBassDynamics(){
+ let reference=.03;
+ return {
+  reset(){reference=.03;},
+  sample(amplitude:number,seconds:number){
+   const value=Math.max(0,Math.min(1,amplitude)),dt=Math.max(0,Math.min(.1,seconds));
+   reference=Math.max(.03,value,reference*Math.exp(-dt/12));
+   const floor=Math.max(.001,reference*.02);
+   return Math.max(0,Math.min(1,(value-floor)/(reference-floor)));
+  },
+ };
+}

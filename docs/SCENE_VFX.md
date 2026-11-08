@@ -94,21 +94,30 @@ both modes. Shared settings/history/exports own mode, sensitivity and Drop contr
 
 ## Continuous bass bounce with less delay
 
-Automatic bounce restores the original 31–65 Hz mono bass-level measurement.
+Automatic bounce keeps the original 31–65 Hz mono bass band, but decodes its
+logarithmic FFT values into linear amplitude before mapping them to zoom.
 Sustained bass retains a steady expansion; it no longer uses the light’s per-hit
 onset detector or responds across the broader 180 Hz bass/harmonic region.
 Light Sensitivity filters light only. **Audio Bounce** still sets maximum image
 scale (default 1.3); Flash amount and Drop contrast do not scale motion.
 
-To reduce lag while retaining smooth motion, Automatic lowers the bass analyser’s
-smoothing from 0.7 to 0.15, then follows the continuous level with a 12 ms attack
-and 45 ms release. The rise is quicker and the return remains gentle rather than
-snapping back on one quiet frame. These are filter time constants, not measured
-end-to-end latency; the original 2048-sample bass FFT window remains. Manual
-retains its previous analyser/response smoothing. No extra analyser/source,
-output peak hold, saved setting or permission is added. Actual motion feel remains
-user acceptance; model/renderer checks cover prompt rise, steady sustained bass,
-gentle return, convergence and independence from light pulses.
+Its mono FFT uses −100..0 dB so stronger drops are not clipped by the old −30 dB
+ceiling. A recent bass-peak reference maps strong drops to the configured maximum
+and smaller levels proportionally below it. The reference starts at 0.03, tracks
+higher peaks immediately, decays with a 12-second time constant and never goes
+below 0.03. This is a gain reference, not a zoom hold. The current amplitude alone
+sets the current target. A floor of max(0.001, 2% of reference) rejects residual
+noise; quiet bass above it creates only a small expansion. Reference state is
+transient and resets with audio-session notifications or response-mode changes;
+colour edits do not reset it. No saved calibration or additional user knobs.
+
+Automatic retains analyser smoothing 0.15 and the 12 ms attack/45 ms release, so
+motion rises quickly and returns gently to the newly lower target even when
+nonzero background bass remains. These are filter constants, not measured total
+latency; the original 2048-sample bass FFT window remains. Manual keeps its legacy
+log-byte mapping, −30 dB ceiling and smoothing. No extra analyser/source or
+permission is added. Actual motion feel remains user acceptance. Regression now
+covers a drop followed by nonzero residual bass, rather than only digital silence.
 
 ## Optional Image tint
 
@@ -219,9 +228,10 @@ quiet responses, and preserve the earlier cadence/settling checks.
 Latest regressions check actual admission counts across Sensitivity, rejection
 of continuous micro-fluctuations with strong drops retained, stronger amplitude
 response, Omni Low/High hue handling, preserved Single endpoints and renderer
-uniform wiring. Bounce checks now cover the restored continuous low-bass path, reduced analyser
-smoothing, fast attack/gentle release, sustained-level stability and renderer
-return over time independently from light pulses.
+uniform wiring. Bounce checks cover the continuous low-bass path, linear amplitude decoding,
+post-drop nonzero noise, proportional small/medium/drop strengths, unchanged
+fast attack/gentle release, Manual mapping and renderer return independently
+from light pulses.
 No fresh browser run was authorised for these changes. The numerical checks
 verify colour math and settings wiring, including normal-versus-Omni blend
 equality for pale gold/blue source hues; they do not verify GPU appearance. Test Omni

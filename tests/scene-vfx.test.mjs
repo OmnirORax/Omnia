@@ -1,7 +1,7 @@
 import {PULSE_CONTROLS,referencePulse,referencePulseRGB,pulsePalette,sourcePulseTint,RETIRED_OMNI_BRIGHTNESS_CONTROLS,omniHighTintRGB,createAutomaticPulse} from '../src/scene/pulse.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {RETIRED_LIGHT_CONTROLS,DEFAULT_SCENE_VFX,normalizeSceneVfx,serializeSceneVfx,smoothAudio,followBass,audioScale,normalizeAudioLevel,nextVfxDeadline,SCENE_VFX_FPS} from '../src/scene/vfx.ts';
+import {RETIRED_LIGHT_CONTROLS,DEFAULT_SCENE_VFX,normalizeSceneVfx,serializeSceneVfx,smoothAudio,followBass,createBassDynamics,audioScale,normalizeAudioLevel,nextVfxDeadline,SCENE_VFX_FPS} from '../src/scene/vfx.ts';
 import {defaultSettings,normalizeSettings} from '../src/workspaceActions.ts';
 import {SETTINGS_PROPERTY_ADAPTERS} from '../src/properties/settingsAdapter.ts';
 test('scene effects serialize base controls plus requested light tuning, excluding session internals',()=>{
@@ -38,7 +38,7 @@ test('website playback supplies analysis without requesting browser capture and 
  Object.defineProperty(globalThis,'navigator',{configurable:true,value:{mediaDevices:{getDisplayMedia:()=>{captures++;throw Error('capture must never be requested');},getUserMedia:()=>{captures++;throw Error('microphone must never be requested');}}}});
  const media={paused:false,pause(){this.paused=true;},addEventListener(){},removeEventListener(){}};
  try{
- await audio.connectSceneAudioElement(media);assert.equal(audio.isSceneAudioConnected(),true);assert.deepEqual(contexts.at(-1).source.links,[contexts.at(-1).analyser]);assert.deepEqual(contexts.at(-1).analyser.links,[contexts.at(-1).destination],'the analysed signal is also the audible website playback');assert.deepEqual(audio.sampleSceneAudio(),{active:true,bass:1,level:1});
+ await audio.connectSceneAudioElement(media);assert.equal(audio.isSceneAudioConnected(),true);assert.deepEqual(contexts.at(-1).source.links,[contexts.at(-1).analyser]);assert.deepEqual(contexts.at(-1).analyser.links,[contexts.at(-1).destination],'the analysed signal is also the audible website playback');assert.deepEqual(audio.sampleSceneAudio(),{active:true,bass:1,bassAmplitude:Math.pow(10,-30/20),level:1});
  contexts.at(-1).analyser.getByteTimeDomainData=array=>array.fill(132);assert.ok(Math.pow(audio.sampleSceneAudio().level,4)*1.2>.05);
  contexts.at(-1).state='suspended';await audio.connectSceneAudioElement(media);assert.equal(contexts.length,1,'resume reuses the media source/context');assert.equal(contexts[0].state,'running');assert.equal(captures,0);
  audio.disconnectSceneAudio();assert.equal(media.paused,true);assert.equal(audio.isSceneAudioConnected(),false);assert.ok(contexts[0].closed);
@@ -229,8 +229,8 @@ test('Single tint ticks remain live at exponent 0.1 while bounce works; colour v
   paper.configure({...settings,imageTintEnabled:true,imageTint:'#c20000'});assert.equal(material.defines.PULSE_ALL_COLORS,0);assert.equal(material.defines.IMAGE_TINT,1);
   paper.configure({...settings,pulseRangeMode:'auto',pulseAmount:0});ctx.nodes[1].value=ctx.nodes[2].value=255;
   {const [key,fn]=pending.entries().next().value;pending.delete(key);fn(now+=20);}assert.ok(u.bounce.value>1);assert.equal(u.light.value,0);
-  const expanded=u.bounce.value;ctx.nodes[0].value=0;ctx.nodes[1].value=ctx.nodes[2].value=0;
-  {const [key,fn]=pending.entries().next().value;pending.delete(key);fn(now+=20);}assert.ok(u.bounce.value>1&&u.bounce.value<expanded,'bass motion should return gently rather than snap in/out with each light pulse');
+  const expanded=u.bounce.value;ctx.nodes[0].value=120;ctx.nodes[1].value=ctx.nodes[2].value=0;
+  {const [key,fn]=pending.entries().next().value;pending.delete(key);fn(now+=20);}assert.ok(u.bounce.value>1&&u.bounce.value<expanded,'bass motion should breathe out gently even with nonzero residual noise');
   for(let i=0;i<20;i++){const [key,fn]=pending.entries().next().value;pending.delete(key);fn(now+=20);}assert.ok(u.bounce.value<1.001);
   assert.equal(settings.pulseExponent,.1);assert.equal(settings.maxFps,DEFAULT_SCENE_VFX.maxFps);
  }finally{paper.dispose();T.TextureLoader.prototype.loadAsync=prior.load;globalThis.window=prior.window;globalThis.document=prior.document;globalThis.AudioContext=prior.AudioContext;globalThis.requestAnimationFrame=prior.raf;globalThis.cancelAnimationFrame=prior.cancel;}
@@ -329,11 +329,11 @@ test('automatic live sampler listens to bass and each transient with unsmoothed 
   const values=[];for(const value of [150,0,180,0,220,0,245,0]){ctx.nodes[1].value=value;values.push(audio.sampleScenePulse(settings,1/120));}
   assert.ok(values[0]>0&&values[0]<values[2]&&values[2]<values[4]&&values[4]<values[6],JSON.stringify(values));
   for(const i of [1,3,5,7])assert.equal(values[i],0);
-  assert.equal(ctx.nodes[0].smoothingTimeConstant,.15);assert.equal(ctx.nodes[1].fftSize,1024);assert.equal(ctx.nodes[1].smoothingTimeConstant,0);assert.equal(ctx.nodes[1].maxDecibels,0);
+  assert.equal(ctx.nodes[0].smoothingTimeConstant,.15);assert.equal(ctx.nodes[0].maxDecibels,0);assert.equal(ctx.nodes[1].fftSize,1024);assert.equal(ctx.nodes[1].smoothingTimeConstant,0);assert.equal(ctx.nodes[1].maxDecibels,0);
   ctx.nodes[1].value=0;ctx.nodes[1].bed=230;for(let i=0;i<120;i++)audio.sampleScenePulse(settings,1/120);
   for(const hit of [170,195,220]){ctx.nodes[1].value=hit;assert.ok(audio.sampleScenePulse(settings,1/120)>.002);ctx.nodes[1].value=0;assert.ok(audio.sampleScenePulse(settings,1/120)<.0001);for(let i=0;i<12;i++)audio.sampleScenePulse(settings,1/120);}
   ctx.nodes[1].value=200;assert.equal(audio.sampleScenePulse({...settings,pulseRangeMode:'manual'}),0,'legacy high bands still exclude bass');
-  assert.equal(ctx.nodes[0].smoothingTimeConstant,.7);assert.equal(ctx.nodes[1].fftSize,2048);assert.equal(ctx.nodes[1].smoothingTimeConstant,.7);assert.equal(ctx.nodes[1].maxDecibels,-30);
+  assert.equal(ctx.nodes[0].smoothingTimeConstant,.7);assert.equal(ctx.nodes[0].maxDecibels,-30);assert.equal(ctx.nodes[1].fftSize,2048);assert.equal(ctx.nodes[1].smoothingTimeConstant,.7);assert.equal(ctx.nodes[1].maxDecibels,-30);
   audio.sampleScenePulse(settings);assert.ok(audio.scenePulseResponse()>0);audio.disconnectSceneAudio();assert.equal(audio.scenePulseResponse(),0);
  }finally{audio.disconnectSceneAudio();globalThis.AudioContext=prior;}
 });
@@ -417,4 +417,14 @@ test('restored continuous bass bounce attacks promptly and returns gently withou
  assert.equal(followBass(.5,.5,1/120),.5,'sustained bass should retain a steady expansion');
  let settled=1;for(let i=0;i<60;i++)settled=followBass(settled,0,1/120);assert.ok(settled<.0001);
  assert.equal(followBass(.4,1,0),.4);assert.ok(followBass(0,99,.1)<=1);
+});
+
+
+test('residual bass after a drop cannot hold zoom while small details remain proportionally small',()=>{
+ const dynamics=createBassDynamics();assert.equal(dynamics.sample(.2,1/120),1,'a strong drop reaches maximum displacement');
+ let zoom=1;for(let i=0;i<36;i++)zoom=followBass(zoom,dynamics.sample(.002,1/120),1/120);
+ assert.ok(zoom<.002,'residual noise must breathe out after a drop instead of retaining a large target');
+ const small=dynamics.sample(.01,0),medium=dynamics.sample(.08,0),drop=dynamics.sample(.2,0);
+ assert.ok(small>0&&small<.05);assert.ok(medium>small&&medium<.5);assert.equal(drop,1);
+ assert.equal(dynamics.sample(0,.1),0);dynamics.reset();assert.ok(dynamics.sample(.01,0)>small*5,'reset must release the previous track peak reference');assert.equal(dynamics.sample(.0005,.1),0);
 });
