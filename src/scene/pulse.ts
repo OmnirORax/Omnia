@@ -47,7 +47,7 @@ export const PULSE_COLOUR_GLSL=`
   float delta=hi-lo;
   return delta>.000001?(image-vec3(lo))/delta:vec3(1.0);
  }
- uniform vec3 pulseOmniTint;
+ uniform vec3 pulseOmniTint;uniform vec3 pulseOmniTintLow;
  vec3 omniHighTint(vec3 image,vec3 control){
   float value=max(control.r,max(control.g,control.b));
   float saturation=value>0.0?1.0-min(control.r,min(control.g,control.b))/value:0.0;
@@ -92,14 +92,12 @@ export function createAutomaticPulse(){
   sample(signal:number,seconds:number,sensitivity:number,amount:number,onset=signal,onsetLevel=signal,dropContrast=2){
    const dt=Math.max(0,Math.min(.1,seconds));
    const change=onset;
-   // Log sensitivity changes quiet-detail contrast across its full range, not a near-saturated gain.
-   const contrast=.8-.25*Math.log2(sensitivity/2);
    const level=onsetLevel;
-   const normalized=level/(level+range);
-   // Quiet-detail lift is bounded; amplitude dynamics retain most of the flash range.
-   const detail=.1*Math.pow(normalized,contrast);
-   const strength=detail+(1-detail)*Math.pow(normalized,dropContrast);
-   const output=level>0&&change>0?strength*Math.min(1,change/level)*amount:0;
+   // Sensitivity owns admission, independently of brightness and drop contrast.
+   const admitted=Math.max(0,change-range*.25/sensitivity);
+   const normalized=level/(level+range*.25);
+   const strength=Math.pow(normalized,dropContrast);
+   const output=level>0?strength*Math.min(1,admitted/level)*amount:0;
    if(signal>0)range+=(Math.max(.01,Math.min(1,signal))-range)*(1-Math.exp(-dt/8));
    return output;
   },

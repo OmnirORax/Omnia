@@ -739,3 +739,25 @@ Automatic strength interpretation without converting old Sensitivity values.
 Whitelist: 41 fields, 20 active, 21 archived. Older clients discard the additive
 contrast field and restore their prior curve; retain a current export before
 rollback. No asset, identity or backend-format migration is required.
+
+
+### Sensitivity admits/rejects attacks; Omni Low also uses source hues (2026-11-08)
+
+User reported continual micro-blinking and no useful Sensitivity effect. Automatic
+Sensitivity now controls a relative soft onset gate rather than a small bounded
+brightness lift. Lower values reject small changes with exactly zero pulse; higher
+values admit them. Existing sensitivity numbers/IDs/bounds/defaults remain, but
+Automatic semantics deliberately change to match the requested control. Admitted
+amplitude mapping is stronger; onset profiles, FFT, calibration, Manual, amount,
+Drop contrast, playback and bounce retain their owners/values.
+
+Add sceneVfx.pulseOmniTintLow through the same colour property/settings/history/
+export owner as Omni High. Missing values inherit the valid saved pulseTintLow
+hex (or its default); only saturation/value are applied per source hue. Explicit
+Omni Low, including black, wins. Both Single endpoints remain separately saved;
+no authored colour is discarded. Conversion is idempotent, with no eager write.
+Omni uses source-hue Low and High in the unchanged source blend. UI mode label
+becomes Tint mode, keeping the existing pulseColorMode ID. Whitelist: 42 fields,
+21 active, 21 archived. Older clients discard Omni Low and render their old base
+and sensitivity behavior; retain a current export before rollback. No asset,
+identity, atlas/backend-format or source-permission migration applies.

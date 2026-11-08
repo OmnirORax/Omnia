@@ -5,7 +5,7 @@ import {RETIRED_LIGHT_CONTROLS,DEFAULT_SCENE_VFX,normalizeSceneVfx,serializeScen
 import {defaultSettings,normalizeSettings} from '../src/workspaceActions.ts';
 import {SETTINGS_PROPERTY_ADAPTERS} from '../src/properties/settingsAdapter.ts';
 test('scene effects serialize base controls plus requested light tuning, excluding session internals',()=>{
- const keys=['pulseRangeMode','pulseSensitivity','pulseDropContrast','audioBounce','audioLight','distortion','glitching','maxFps','waves','lightAllColors','lightModel','pulseTintLow','pulseTintHigh','pulseOmniTint','pulseColorMode','pulseColors','pulseColorWidth','pulseAllBrightness','imageTintEnabled','imageTint',...PULSE_CONTROLS.map(c=>c.key),...RETIRED_OMNI_BRIGHTNESS_CONTROLS.map(c=>c.key),...RETIRED_LIGHT_CONTROLS.map(c=>c.key)].sort();
+ const keys=['pulseRangeMode','pulseSensitivity','pulseDropContrast','audioBounce','audioLight','distortion','glitching','maxFps','waves','lightAllColors','lightModel','pulseTintLow','pulseTintHigh','pulseOmniTint','pulseOmniTintLow','pulseColorMode','pulseColors','pulseColorWidth','pulseAllBrightness','imageTintEnabled','imageTint',...PULSE_CONTROLS.map(c=>c.key),...RETIRED_OMNI_BRIGHTNESS_CONTROLS.map(c=>c.key),...RETIRED_LIGHT_CONTROLS.map(c=>c.key)].sort();
  assert.deepEqual(Object.keys(JSON.parse(serializeSceneVfx({audioLight:'#aa3300',audioBounce:1.12,waves:true,distortion:.4,glitching:.3,frequency:99,source:'private',particles:true}))).sort(),keys);
  assert.deepEqual(normalizeSceneVfx(undefined),{...DEFAULT_SCENE_VFX,audioLight:'#aa3300',audioBounce:1.3,waves:true,distortion:.4,glitching:.3,maxFps:120});
  assert.deepEqual(defaultSettings().sceneVfx,DEFAULT_SCENE_VFX);
@@ -225,7 +225,7 @@ test('Single tint ticks remain live at exponent 0.1 while bounce works; colour v
   }
   for(let i=1;i<5;i++)assert.ok(values[i]>values[i-1],'light must follow changing signal at 0.1 without retuning');assert.equal(values[5],0);assert.ok(u.bounce.value>1,'bounce can remain active while light returns to zero');
   assert.equal(material.defines.PULSE_ALL_COLORS,0);assert.equal(material.defines.IMAGE_TINT,0);
-  paper.configure({...settings,pulseColorMode:'all',pulseOmniTint:'#330f00'});assert.ok(Math.abs(u.pulseOmniTint.value.x-.2)<1e-5);assert.ok(Math.abs(u.pulseOmniTint.value.y-15/255)<1e-5);assert.equal(material.defines.PULSE_ALL_COLORS,1);assert.equal(material.defines.IMAGE_TINT,0);
+  paper.configure({...settings,pulseColorMode:'all',pulseOmniTint:'#330f00',pulseOmniTintLow:'#003300'});assert.ok(Math.abs(u.pulseOmniTintLow.value.y-.2)<1e-5);assert.equal(u.pulseOmniTintLow.value.x,0);assert.ok(Math.abs(u.pulseOmniTint.value.x-.2)<1e-5);assert.ok(Math.abs(u.pulseOmniTint.value.y-15/255)<1e-5);assert.equal(material.defines.PULSE_ALL_COLORS,1);assert.equal(material.defines.IMAGE_TINT,0);
   paper.configure({...settings,imageTintEnabled:true,imageTint:'#c20000'});assert.equal(material.defines.PULSE_ALL_COLORS,0);assert.equal(material.defines.IMAGE_TINT,1);
   assert.equal(settings.pulseExponent,.1);assert.equal(settings.maxFps,DEFAULT_SCENE_VFX.maxFps);
  }finally{paper.dispose();T.TextureLoader.prototype.loadAsync=prior.load;globalThis.window=prior.window;globalThis.document=prior.document;globalThis.AudioContext=prior.AudioContext;globalThis.requestAnimationFrame=prior.raf;globalThis.cancelAnimationFrame=prior.cancel;}
@@ -289,7 +289,7 @@ test('pale source hues receive the same fully saturated High tint as normal mode
 
 test('automatic response follows every hit with no output hold, preserves quiet detail and stronger drops',()=>{
  const pulse=createAutomaticPulse();
- const quiet=pulse.sample(.00001,1/120,2,2);assert.ok(quiet>0&&quiet<.1);
+ const quiet=pulse.sample(.00001,1/120,2,2);assert.equal(quiet,0,'tiny fluctuations should be rejected at ordinary sensitivity');
  assert.equal(pulse.sample(0,1/120,2,2),0);
  const hits=[];for(const signal of [.01,0,.01,0,.01,0])hits.push(pulse.sample(signal,1/120,2,2));
  for(const i of [0,2,4])assert.ok(hits[i]>quiet);for(const i of [1,3,5])assert.equal(hits[i],0);
@@ -321,7 +321,7 @@ test('automatic live sampler listens to bass and each transient with unsmoothed 
  try{
   await audio.connectSceneAudioElement({pause(){},addEventListener(){},removeEventListener(){}});
   const settings={...DEFAULT_SCENE_VFX,pulseRangeMode:'auto'};
-  const values=[];for(const value of [80,0,100,0,180,0,240,0]){ctx.nodes[1].value=value;values.push(audio.sampleScenePulse(settings,1/120));}
+  const values=[];for(const value of [150,0,180,0,220,0,245,0]){ctx.nodes[1].value=value;values.push(audio.sampleScenePulse(settings,1/120));}
   assert.ok(values[0]>0&&values[0]<values[2]&&values[2]<values[4]&&values[4]<values[6]);
   for(const i of [1,3,5,7])assert.equal(values[i],0);
   assert.equal(ctx.nodes[1].fftSize,1024);assert.equal(ctx.nodes[1].smoothingTimeConstant,0);assert.equal(ctx.nodes[1].maxDecibels,0);
@@ -347,12 +347,11 @@ test('automatic flashes separate DUN hits above a continuous louder tone instead
  buffer[70]=170;const small=sample();buffer[70]=0;for(let i=0;i<24;i++)sample();buffer[70]=220;assert.ok(sample()>small,'a harder attack must yield a stronger flash');
 });
 
-test('sensitivity has a useful graded effect across the whole slider, not only its bottom end',()=>{
- const outputs=[.25,.5,1,2,4,8].map(s=>createAutomaticPulse().sample(.002,0,s,2));
- for(let i=1;i<outputs.length;i++)assert.ok(outputs[i]>outputs[i-1]*1.2,'each octave should visibly increase quiet detail');
- assert.ok(outputs.at(-1)<1,'even the highest sensitivity need not pin quiet input to full flash');
+test('sensitivity changes which attacks are admitted across the full slider range',()=>{
+ const attacks=[.001,.002,.005,.01,.02,.05];
+ const counts=[.25,.5,1,2,4,8].map(s=>{const p=createAutomaticPulse();return attacks.filter(a=>p.sample(a,0,s,2)>0).length;});
+ assert.deepEqual(counts,[1,2,3,4,5,6],'lower sensitivity must actually suppress events, not just shave their brightness');
 });
-
 
 test('maximum sensitivity does not turn the short onset window into a long flash tail',()=>{
  const pulse=createAutomaticPulse(),buffer=new Uint8Array(512),dt=1/120;buffer[10]=220;
@@ -366,7 +365,7 @@ test('quiet-detail sensitivity cannot make small hits nearly equivalent to big d
  const pulse=createAutomaticPulse();
  for(const sensitivity of [.25,.5,1,2,4,8]){
   const small=pulse.sample(.003,0,sensitivity,2),drop=pulse.sample(.3,0,sensitivity,2);
-  assert.ok(small>0);assert.ok(drop>small*10,`drop must remain much stronger at sensitivity ${sensitivity}`);
+  assert.ok(small>=0);assert.ok(drop>small*10,`drop must remain much stronger at sensitivity ${sensitivity}`);
  }
  const smallBefore=pulse.sample(.003,0,8,2,.003,.003,1),bigBefore=pulse.sample(.3,0,8,2,.3,.3,1);
  const smallAfter=pulse.sample(.003,0,8,2,.003,.003,4),bigAfter=pulse.sample(.3,0,8,2,.3,.3,4);
@@ -380,4 +379,28 @@ test('Drop contrast inherits shared settings, bounds and persistence without edi
  assert.deepEqual(changed.sceneVfx,{...base.sceneVfx,pulseDropContrast:3.2});assert.equal(changed.appearance,base.appearance);
  const saved=normalizeSceneVfx(JSON.parse(serializeSceneVfx(changed.sceneVfx)));assert.equal(saved.pulseDropContrast,3.2);
  assert.equal(normalizeSceneVfx({}).pulseDropContrast,2);assert.equal(normalizeSceneVfx({pulseDropContrast:0}).pulseDropContrast,1);assert.equal(normalizeSceneVfx({pulseDropContrast:9}).pulseDropContrast,4);
+});
+
+
+test('low sensitivity blocks ongoing micro-flicker, high sensitivity admits it, and strong drops stay powerful',()=>{
+ const low=createAutomaticPulse(),high=createAutomaticPulse(),buffer=new Uint8Array(512),dt=1/120;
+ const read=(p,s)=>{const m=p.spectrum(buffer,0,1,512,dt);return p.sample(m.level,dt,s,2,m.change,m.changeLevel);};
+ buffer[20]=210;for(let i=0;i<240;i++){read(low,.25);read(high,8);}
+ let lowCount=0,highCount=0;
+ for(let i=0;i<60;i++){buffer[20]=210+i%2;if(read(low,.25)>0)lowCount++;if(read(high,8)>0)highCount++;}
+ assert.equal(lowCount,0);assert.ok(highCount>20);
+ buffer[20]=250;assert.ok(read(low,.25)>1,'rejecting details must not make a strong drop weak');assert.ok(read(high,8)>1.5);
+});
+
+test('both Omni endpoints use source hue and independent picker saturation/value; Single base survives',()=>{
+ for(const image of [[.8,.3,.1],[.1,.3,.8],[.5,.5,.5]]){
+  const base=omniHighTintRGB(image,[.2,.1,0]),high=omniHighTintRGB(image,[.8,.4,0]);
+  const rest=referencePulseRGB(image,base,high,0),peak=referencePulseRGB(image,base,high,1);
+  assert.deepEqual(rest,image.map((v,i)=>v*base[i]));assert.ok(peak.some((v,i)=>v>rest[i]));
+  assert.deepEqual(base,omniHighTintRGB(image,[0,.1,.2]),'Omni base picker hue must also be ignored');
+ }
+ const old={pulseTintLow:'#003355'},converted=normalizeSceneVfx(old);assert.equal(converted.pulseOmniTintLow,'#003355');assert.deepEqual(normalizeSceneVfx(converted),converted);
+ const channels=SETTINGS_PROPERTY_ADAPTERS['scene.vfx'].channels,base=defaultSettings(),changed=channels['scene.pulseOmniTintLow'].write(base,'#000000');
+ assert.equal(changed.sceneVfx.pulseTintLow,base.sceneVfx.pulseTintLow);assert.equal(changed.sceneVfx.pulseOmniTint,base.sceneVfx.pulseOmniTint);
+ const saved=normalizeSceneVfx(JSON.parse(serializeSceneVfx(changed.sceneVfx)));assert.equal(saved.pulseOmniTintLow,'#000000');assert.equal(saved.pulseTintLow,base.sceneVfx.pulseTintLow);
 });

@@ -18,13 +18,15 @@ an approximation of Wallpaper Engine's undocumented FFT bands/scaling/smoothing.
 
 ## Low and high tints
 
-**Low tint (base)** remains the resting colour/level in both modes. **High tint
-type → Single colour** uses the normal High tint picker. **Omni (all colours)**
-uses **High tint (Omni)** through the same shared native colour picker, with its
-usual saturation/brightness square. Left–right controls saturation; up–down
-controls value (brightness). Omni ignores the picker’s hue strip: each image
-region supplies its own hue. The swatch is the native picker’s chosen display
-colour, not a restriction to that hue. Picker appearance depends on the browser.
+**Tint mode → Single colour** retains the normal Low/High tint pickers.
+**Omni (all colours)** has independent **Low tint (Omni)** and **High tint (Omni)**
+pickers. Both use the shared native colour editor’s saturation/brightness square:
+left–right controls saturation, up–down controls value. Each image region supplies
+its own hue at both endpoints; the picker hue strip is ignored. Swatches show
+the native picker’s chosen display colour, not a restriction to that hue. Native
+picker appearance varies by browser. Omni Low defines the resting image; Omni
+High defines the added light contribution. Single keeps its saved endpoints when
+switching modes. The source Low/High blend stays unchanged.
 
 Omni extracts the full HSV hue even from pale image colours; it does not
 blend that hue back toward white based on the source saturation. Exactly neutral
@@ -38,7 +40,7 @@ Audio amount above one still overdrives the blend; very strong settings can clip
 
 The separate Colour strength, Base brightness and Flash brightness sliders are
 removed. Their saved preferences remain in JSON for rollback. Single and Omni
-high tint choices are saved independently, while Low tint remains shared.
+low/high tint choices are saved independently.
 Manual audio processing, exponent 0.1 and bounce are unchanged. Automatic is
 a separate response path, described below.
 Selected colours remains removed. Image tint stays separate and off by default.
@@ -48,24 +50,26 @@ Selected colours remains removed. Image tint stays separate and off by default.
 Open **Audio response → Automatic · detailed**. Existing saved settings keep
 Manual until you select Automatic; new settings default to Automatic. Use just:
 
-- **Sensitivity** (default 2, 0.25–8): lifts quiet details, with a bounded contribution.
+- **Sensitivity** (default 2, 0.25–8): sets which attacks trigger. Lower it to reject tiny fluctuations; raise it to admit quiet details.
 - **Drop contrast** (default 2, 1–4): widens the strength gap between little hits and big drops. Higher values favour stronger drops.
 - **Flash amount** (the existing Audio amount, default 2, 0–2): scales light output.
 
 Automatic listens across both channels and detects upward changes separately in
-each frequency bin. A loud continuous tone cannot hide a quieter new hit in a
+each frequency bin. A loud continuous tone cannot hide an admitted quieter hit in a
 different bin or keep the flash open. A 20 ms running local baseline distinguishes
 an attack from sustained volume; there is no added output hold. Zero input gives
 zero pulse immediately. Its FFT smoothing is zero and dB range is −100 to 0 instead
 of Manual’s −100 to −30.
 
-Sensitivity controls a bounded quiet-detail lift logarithmically. That lift can
-contribute at most 10% of normalized strength on its own; it cannot boost every
-small hit to drop strength. Drop contrast shapes the remaining amplitude response
-(default power 2), while Flash amount scales the combined result. Unlike the
-previous curve, high Sensitivity no longer flattens the entire amplitude range. The local change ratio
-sets the brief pulse decay separately, so high sensitivity does not stretch a hit
-into a long tail. A steady unchanging tone settles rather than glowing constantly.
+Sensitivity now controls a soft admission threshold relative to the recent audio
+range: low settings produce fewer pulses instead of merely dimming the same events.
+Changes below that threshold produce exactly zero pulse. The remainder still
+follows the short frequency-local onset profile, without a hold. Higher settings
+admit smaller changes. Drop contrast shapes admitted attack amplitudes, and Flash
+amount scales output. The amplitude mapping now gives stronger attacks more room
+toward full flash; it no longer relies on the weak bounded detail-lift control.
+
+A steady unchanging tone settles rather than glowing constantly.
 This is an onset response, deliberately replacing Automatic’s former sustained
 loudness response. Manual remains available for the old volume/threshold behavior.
 
@@ -117,8 +121,9 @@ approximated as #ffe5e5 / #001438. Explicit older saved choices are preserved.
 | pulseAudioHigh | Audio upper threshold | 1; 0–1 |
 | pulseExponent | Audio exponent | 0.1; 0–4 |
 | pulseAmount | Audio amount | 2; 0–2 |
-| pulseColorMode | High tint type | tint; Single colour / Omni |
+| pulseColorMode | Tint mode | tint; Single colour / Omni |
 | pulseOmniTint | High tint (Omni); only HSV saturation/value used | #380000 (S 1, V 56/255) |
+| pulseOmniTintLow | Low tint (Omni); only HSV saturation/value used | #ffe5e5 |
 | imageTintEnabled | Enable image tint | false |
 | imageTint | Image tint colour | #c20000 |
 | audioBounce | Audio Bounce | 1.3; 1–1.5 |
@@ -135,7 +140,7 @@ tint white, Bounce 1 and Waves/Distortion/Glitching off for original-file compar
 
 ## Compatibility and retirement
 
-The current serializer whitelists 41 fields: 20 active and 21 archived.
+The current serializer whitelists 42 fields: 21 active and 21 archived.
 Selected mode maps to Single; its palette/range remain archived. The earlier
 approximation fields and three superseded Omni sliders remain exportable without
 active controls/render paths. Existing Low/High tint choices are preserved.
@@ -144,7 +149,9 @@ If pulseOmniTint is absent, the compatibility reader encodes the saved old
 pulseAllBrightness as a fully saturated reference red of the same value (rounded
 to the native picker’s 8-bit precision). Its hue is ignored. The default is
 #380000. Explicit picker colours, including black, take precedence and round-trip
-unchanged. The former exposure multipliers are retained but not applied: the user
+unchanged. Missing pulseOmniTintLow inherits the saved Single Low tint’s hex,
+using only its saturation/value in Omni; explicit new Low values win. Single
+low/high values remain untouched. The former exposure multipliers are retained but not applied: the user
 requested the High tint blend instead. This is an intentional rendering change,
 not a claim of equivalent output to the abandoned exposure model. Normalization
 is idempotent; no eager storage writes are added.
@@ -189,7 +196,10 @@ previous silence-separated test missed this), a useful slider progression from
 Strength regressions compare small attacks with drops across every tested
 sensitivity, verify that Drop contrast widens their ratio without eliminating
 quiet responses, and preserve the earlier cadence/settling checks.
-No fresh browser run was authorised for these changes. The numerical checks
+Latest regressions check actual admission counts across Sensitivity, rejection
+of continuous micro-fluctuations with strong drops retained, stronger amplitude
+response, Omni Low/High hue handling, preserved Single endpoints and renderer
+uniform wiring. No fresh browser run was authorised for these changes. The numerical checks
 verify colour math and settings wiring, including normal-versus-Omni blend
 equality for pale gold/blue source hues; they do not verify GPU appearance. Test Omni
 with different saturation/brightness positions, then compare Single colour; actual brightness,

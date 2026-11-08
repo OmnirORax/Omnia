@@ -26,10 +26,9 @@ export function SceneVfxControls({bindings}:{bindings:PropertyBindings}){
  });
  return <UISection id="scene-vfx" title="Scene effects">
  <UISection id="scene-pulse" title="Wallpaper Engine pulse">
- <UIField id="scene.vfx.pulseTintLow" label="Low tint (base)" category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property="scene.pulseTintLow" label="Low tint (base)"/></UIField>
- <UIField id="scene.vfx.pulseColorMode" label="High tint type" category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property="scene.pulseColorMode" label="High tint type"/></UIField>
- {([{key:mode==='all'?'pulseOmniTint':'pulseTintHigh',label:mode==='all'?'High tint (Omni)':'High tint'}]).map(({key,label})=><UIField key={key} id={`scene.vfx.${key}`} label={label} category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property={`scene.${key}`} label={label}/></UIField>)}
- {mode==='all'&&<small>Omni uses the picker’s saturation and brightness for every image hue; the hue strip is ignored.</small>}
+ <UIField id="scene.vfx.pulseColorMode" label="Tint mode" category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property="scene.pulseColorMode" label="Tint mode"/></UIField>
+ {([{key:mode==='all'?'pulseOmniTintLow':'pulseTintLow',label:mode==='all'?'Low tint (Omni)':'Low tint (base)'},{key:mode==='all'?'pulseOmniTint':'pulseTintHigh',label:mode==='all'?'High tint (Omni)':'High tint'}]).map(({key,label})=><UIField key={key} id={`scene.vfx.${key}`} label={label} category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property={`scene.${key}`} label={label}/></UIField>)}
+ {mode==='all'&&<small>Both Omni tints use saturation and brightness for every image hue; the hue strip is ignored.</small>}
  <UIField id="scene.vfx.pulseRangeMode" label="Audio response" category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property="scene.pulseRangeMode"/></UIField>
  {automatic?<>
  <UIField id="scene.vfx.pulseSensitivity" label="Sensitivity" category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property="scene.pulseSensitivity"/></UIField>

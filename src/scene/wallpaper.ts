@@ -12,7 +12,7 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
   const material = new THREE.ShaderMaterial({
     depthTest: false, depthWrite: false, toneMapped: false,defines:{PULSE_ALL_COLORS:0,IMAGE_TINT:0},
     uniforms: { worldLayer:{value:null},compositeWorld:{value:0},image: { value: null }, imageAspect: { value: 1 }, viewportAspect: { value: 1 },
-      pulseOmniTint:{value:tint(initial.pulseOmniTint)},imageTint:{value:tint(initial.imageTint)},
+      pulseOmniTintLow:{value:tint(initial.pulseOmniTintLow)},pulseOmniTint:{value:tint(initial.pulseOmniTint)},imageTint:{value:tint(initial.imageTint)},
       pulseTintLow:{value:tint(initial.pulseTintLow)},pulseTintHigh:{value:tint(initial.pulseTintHigh)},sceneGlowPass:{value:0},time:{value:0},bounce:{value:1},light:{value:0},
       waves:{value:1}, distortion:{value:.4}, glitching:{value:.3},
       feedbackColor: { value: new THREE.Color() }, feedbackStrength: { value: 0 } },
@@ -44,7 +44,7 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
         vec3 color = texture2D(image, clamp(coverUV + 0.5,vec2(.001),vec2(.999))).rgb;
         vec3 visible=displayColour(color);
         #if PULSE_ALL_COLORS
-        vec3 coloured=referencePulse(visible,pulseTintLow,omniHighTint(visible,pulseOmniTint),light);
+        vec3 coloured=referencePulse(visible,omniHighTint(visible,pulseOmniTintLow),omniHighTint(visible,pulseOmniTint),light);
         vec3 enhanced=linearColour(coloured);
         #if IMAGE_TINT
         enhanced=linearColour(displayColour(enhanced)*imageTint);
@@ -111,6 +111,7 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
       const all=Number(settings.pulseColorMode==='all');
       if(material.defines.PULSE_ALL_COLORS!==all){material.defines.PULSE_ALL_COLORS=all;material.needsUpdate=true;}
       material.uniforms.pulseOmniTint.value.copy(tint(settings.pulseOmniTint));
+      material.uniforms.pulseOmniTintLow.value.copy(tint(settings.pulseOmniTintLow));
       const filter=Number(settings.imageTintEnabled);
       if(material.defines.IMAGE_TINT!==filter){material.defines.IMAGE_TINT=filter;material.needsUpdate=true;}
       motion();
