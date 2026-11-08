@@ -2218,6 +2218,9 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
         </MasterController>
       </FloatingWindow>}
       {settingsOpen && <FloatingWindow id="settings" title="Workspace settings" width={520} height={640} onClose={() => setSettingsOpen(false)}>
+        <UISection id="workspace-interface-tools" title="Workspace interface tools">
+          {["ui:devMode", "shortcuts", "ui:arrange", "ui:createFrame", "ui:select", "ui:compact", "ui:align", "ui:undo", "ui:redo"].map(id => <FunctionControl key={id} id={id} mirror />)}
+        </UISection>
         <CloudPanel />
         <FunctionControl id="appearance" palette />
         <UISection id="spatial-settings" title="Spatial settings">
