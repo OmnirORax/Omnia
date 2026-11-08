@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
-import {decodePcmPacket,PcmQueue,pcmWorkletSource} from '../src/scene/nativePcm.ts';
+import {decodePcmPacket,PcmQueue,pcmWorkletSource,systemAudioRequiresPairing,systemAudioOriginSupported} from '../src/scene/nativePcm.ts';
 import {createNativeAudioTransport} from '../src/scene/nativeAudioTransport.ts';
 
 function packet(values,rate=48000,channels=2,sequence=0){
@@ -33,10 +33,10 @@ test('native transport ignores duplicate packets, reconnects and Stop cancels re
  class Socket{constructor(url){this.url=url;sockets.push(this);}close(){this.onclose?.();}}
  globalThis.WebSocket=Socket;globalThis.setTimeout=fn=>{timers.set(++id,fn);return id;};globalThis.clearTimeout=id=>timers.delete(id);globalThis.setInterval=()=>999;globalThis.clearInterval=()=>{};
  try{
-  const transport=createNativeAudioTransport({postMessage:m=>messages.push(m)},(ready,message)=>states.push({ready,message}));const socket=sockets[0];socket.onopen();
+  const transport=createNativeAudioTransport({postMessage:m=>messages.push(m)},(ready,message)=>states.push({ready,message}),'a'.repeat(32));const socket=sockets[0];assert.equal(new URL(socket.url).searchParams.get('pair'),'a'.repeat(32));socket.onopen();
   socket.onmessage({data:packet([.25,-.25],48000,2,8)});socket.onmessage({data:packet([.25,-.25],48000,2,8)});assert.equal(messages.filter(m=>m.samples).length,1);assert.equal(states.at(-1).ready,true);
   socket.onclose();assert.equal(states.at(-1).ready,false);assert.ok(messages.at(-1).clear);assert.equal(timers.size,1);
-  [...timers.values()][0]();assert.equal(sockets.length,2);transport.stop();assert.equal(timers.size,0);assert.ok(messages.at(-1).clear);
+  [...timers.values()][0]();assert.equal(sockets.length,2);assert.equal(sockets[1].url,socket.url);transport.stop();assert.equal(timers.size,0);assert.ok(messages.at(-1).clear);
  }finally{Object.assign(globalThis,prior);}
 });
 
@@ -53,10 +53,12 @@ test('system input feeds the existing analysers through a muted graph and releas
   createAnalyser(){const a=Object.assign(new Node(),{fftSize:2048,frequencyBinCount:1024,getByteFrequencyData:b=>{b.fill(0);b[2]=240;},getByteTimeDomainData:b=>b.fill(150)});this.analysers.push(a);return a;}
  }
  class Worklet extends Node{port={messages:[],postMessage(m){this.messages.push(m);},close(){this.closed=true;}};constructor(_context,name,options){super();assert.equal(name,'omnium-system-pcm');assert.deepEqual(options.outputChannelCount,[2]);worklet=this;}}
- class Socket{constructor(){sockets.push(this);}close(){this.closed=true;}}
+ class Socket{constructor(url){this.url=url;sockets.push(this);}close(){this.closed=true;}}
  globalThis.window={location:{origin:'https://omnium.nexus'}};globalThis.AudioContext=Context;globalThis.AudioWorkletNode=Worklet;globalThis.WebSocket=Socket;
  try{
-  await audio.connectSceneSystemAudio();assert.equal(audio.isSceneAudioConnected(),false);const socket=sockets[0];socket.onopen();socket.onmessage({data:packet([.25,-.25])});
+  globalThis.window.location.origin='https://raw.githack.com';
+  await assert.rejects(audio.connectSceneSystemAudio(),/pairing code/);assert.equal(contexts.length,0);
+  await audio.connectSceneSystemAudio('a'.repeat(32));assert.equal(new URL(sockets[0].url).searchParams.get('pair'),'a'.repeat(32));assert.ok(!JSON.stringify(audio.sceneAudioSnapshot()).includes('a'.repeat(32)));assert.equal(audio.isSceneAudioConnected(),false);const socket=sockets[0];socket.onopen();socket.onmessage({data:packet([.25,-.25])});
   assert.equal(audio.sceneAudioSnapshot().kind,'system');assert.equal(audio.isSceneAudioConnected(),true);
   const ctx=contexts[0];assert.equal(ctx.mute.gain.value,0);assert.equal(ctx.analysers.length,3);assert.ok(worklet.links.includes(ctx.analysers[0]));assert.deepEqual(ctx.analysers[0].links,[ctx.mute]);
   assert.ok(audio.sampleScenePulse(DEFAULT_SCENE_VFX)>0);assert.ok(audio.sampleSceneAudio().bassAmplitude>0);assert.ok(audio.sampleSceneAudio().level>0);
@@ -64,4 +66,11 @@ test('system input feeds the existing analysers through a muted graph and releas
   ctx.state='running';socket.onmessage({data:packet([.25,-.25],48000,2,2)});assert.ok(worklet.port.messages.at(-2).clear,'resumption discards stale queued sound');
   audio.stopSceneAudio();assert.equal(audio.isSceneAudioConnected(),false);assert.equal(ctx.state,'closed');assert.ok(socket.closed);assert.ok(worklet.port.closed);assert.equal(audio.sampleScenePulse(DEFAULT_SCENE_VFX),0);
  }finally{audio.disposeSceneAudio();Object.assign(globalThis,prior);}
+});
+
+test('preview requires explicit pairing while unrelated origins remain unsupported',()=>{
+ assert.equal(systemAudioRequiresPairing('https://raw.githack.com'),true);
+ for(const origin of ['https://raw.githack.com','https://omnium.nexus','http://localhost:5173'])assert.equal(systemAudioOriginSupported(origin),true);
+ for(const origin of ['https://unrelated.example','https://raw.githack.com.evil.test','null'])assert.equal(systemAudioOriginSupported(origin),false);
+ assert.equal(systemAudioRequiresPairing('https://omnium.nexus'),false);
 });

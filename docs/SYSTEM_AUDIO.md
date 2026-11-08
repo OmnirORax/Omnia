@@ -15,7 +15,12 @@ the unmodified upstream bridge on port 8985 is not compatible.
    is deployed, choose **Scene → Scene effects → Connect system audio**.
    Local development served on `http://localhost:<port>` or
    `http://127.0.0.1:<port>` is also supported. Grant the browser's loopback-network
-   permission if requested. Shared GitHack origins are deliberately not allowed.
+   permission if requested. For the GitHack preview, copy the 32-character code printed in the **new**
+   helper window into **Preview pairing code**, then connect. No omnium.nexus
+   login is needed. The old helper build cannot pair. The code stays in tab memory,
+   clears from the input on connect, and expires when the helper closes. Paste it
+   only into your Omnium preview. A helper restart needs its new code and an
+   explicit reconnect; closing/reopening settings keeps an active connection.
 3. Play music in another app/tab through the Windows default output. Audio input
    and the current wallpaper effects should react. Capture isn't played back.
 4. Change headphones/output device: capture reopens automatically. Closing the
@@ -53,7 +58,10 @@ feeds the same analyser/response path as website file playback.
 
 WebSocket: `ws://127.0.0.1:8986/omnium/audio-v1`. Host/path/origin are fixed by
 the helper and client. Origin is mandatory; only the canonical site and explicit
-localhost development origins are accepted. JSON status messages accompany
+localhost development origins are accepted directly. The shared raw.githack.com
+origin requires the per-run pairing code in the `pair` query parameter. Missing,
+wrong or duplicate codes and unrelated origins are rejected before capture starts.
+JSON status messages accompany
 binary PCM packets. OMA1 packets are little-endian:
 
 | Bytes | Meaning |
@@ -74,9 +82,9 @@ workspace settings or history. Existing effect/tint settings are unchanged.
 
 ## Verification for this first implementation
 
-Six Python helper tests pass against pinned websockets 15.0.1, including actual
+Seven Python helper tests pass against pinned websockets 15.0.1, including actual
 localhost WebSocket PCM transfer/origin rejection and mocked WASAPI output change.
-Five frontend model tests cover packet validation, bounded resampling, mono/stereo,
+Six frontend model tests cover packet validation, bounded resampling, mono/stereo,
 underrun/Stop/retry, analyser wiring with zero-gain output, and suspended-worklet
 queue protection. Exact Python 3.12 Windows wheels for pinned capture/build
 packages are available. These checks do not open real audio devices.
@@ -87,3 +95,8 @@ observations during silence, Stop and reconnect. It exercised a production-built
 inline AudioWorklet via the real local WebSocket server. It does not establish
 Windows driver capture, packaged executable behavior, hardware latency or visual
 quality. Those need the Windows artifact/user test. No other browser suite ran.
+
+Preview pairing is covered by actual localhost WebSocket handshakes using the
+GitHack Origin (valid/missing/wrong/duplicate codes and unrelated origins), plus
+frontend code validation, URL/retry retention and analyser wiring tests. This is
+not a browser or Windows-device acceptance check of preview pairing.

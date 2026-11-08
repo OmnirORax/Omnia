@@ -1,4 +1,4 @@
-import {pcmWorkletSource,systemAudioOriginSupported} from './nativePcm.ts';
+import {pcmWorkletSource,systemAudioOriginSupported,systemAudioRequiresPairing} from './nativePcm.ts';
 import {createNativeAudioTransport} from './nativeAudioTransport.ts';
 import {referencePulse,createAutomaticPulse} from './pulse.ts';
 import type {SceneVfx} from './vfx.ts';
@@ -42,8 +42,10 @@ export async function connectSceneAudioElement(element:HTMLMediaElement){
 }
 /** System PCM takes the same analyser graph as website playback, through a muted
  * output so capture is never replayed to the speakers or captured twice. */
-export async function connectSceneSystemAudio(){
- if(!systemAudioOriginSupported(window.location.origin))throw Error('System audio requires omnium.nexus or localhost development; shared preview hosts are not supported.');
+export async function connectSceneSystemAudio(code=''){
+ if(!systemAudioOriginSupported(window.location.origin))throw Error('Use the Omnium preview, omnium.nexus or localhost to connect system audio.');
+ const pairingCode=systemAudioRequiresPairing(window.location.origin)?code.trim():'';
+ if(systemAudioRequiresPairing(window.location.origin)&&!/^[A-Za-z0-9_-]{32}$/.test(pairingCode))throw Error('Paste the 32-character Preview pairing code from the new Omnium Audio Helper window.');
  disconnectSceneAudio();const token=epoch;inputKind='system';publish('Connecting to Omnium Audio Helper…');
  const ctx=new AudioContext({latencyHint:'interactive'});context=ctx;
  let moduleURL='';
@@ -69,7 +71,7 @@ export async function connectSceneSystemAudio(){
    if(token!==epoch)return;
    if(connected!==ready){automaticPulse.reset();fftMode='';pulseResponse=0;}
    connected=ready;publish(message);
-  });
+  },pairingCode);
   cleanupNative=()=>{transport.stop();node.port.close();mute.disconnect();};
  }catch(error){if(token!==epoch)return;disconnectSceneAudio();publish(error instanceof Error?error.message:'System audio connection failed');throw error;}
  finally{if(moduleURL)URL.revokeObjectURL(moduleURL);}

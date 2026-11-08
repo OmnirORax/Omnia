@@ -8,21 +8,29 @@ from collections import deque
 from http import HTTPStatus
 import json
 import re
+import secrets
 import struct
 import sys
 import threading
 import time
+from urllib.parse import urlsplit, parse_qs
 
 HOST, PORT, PATH = "127.0.0.1", 8986, "/omnium/audio-v1"
 HEADER = struct.Struct("<4sIHHI")
 
 
-def allowed_origin(origin):
-    # Shared public preview origins aren't trusted to access local system audio.
-    return origin == "https://omnium.nexus" or bool(
+def allowed_origin(origin, token=None, preview_token=None):
+    trusted = origin == "https://omnium.nexus" or bool(
         isinstance(origin, str)
         and re.fullmatch(r"http://(?:localhost|127\.0\.0\.1):[0-9]{1,5}", origin)
     )
+    # Shared preview hosting never gets ambient access. A per-run capability is
+    # copied by the user from the local helper and kept in the page's memory only.
+    paired = (origin == "https://raw.githack.com" and isinstance(token, str)
+              and re.fullmatch(r"[A-Za-z0-9_-]{32}", token) is not None
+              and isinstance(preview_token, str) and len(preview_token) == 32
+              and secrets.compare_digest(token, preview_token))
+    return trusted or paired
 
 
 def pcm_packet(data, rate, channels, sequence):
@@ -127,15 +135,18 @@ class Capture:
             self.thread.join(timeout=3)
 
 
-async def serve(capture, port=PORT):
+async def serve(capture, port=PORT, preview_token=None):
     from websockets.asyncio.server import serve as websocket_server
     occupied = False
 
     async def check(connection, request):
-        if request.path != PATH:
+        url = urlsplit(request.path)
+        if url.path != PATH:
             return connection.respond(HTTPStatus.NOT_FOUND, "Unknown audio protocol\n")
-        if not allowed_origin(request.headers.get("Origin")):
-            return connection.respond(HTTPStatus.FORBIDDEN, "Use omnium.nexus or localhost development\n")
+        tokens = parse_qs(url.query).get('pair', [])
+        token = tokens[0] if len(tokens) == 1 else None
+        if not allowed_origin(request.headers.get("Origin"), token, preview_token):
+            return connection.respond(HTTPStatus.FORBIDDEN, "Preview pairing required\n")
 
     async def handler(socket):
         nonlocal occupied
@@ -177,11 +188,15 @@ async def main():
     # worker-thread CoInitialize/CoUninitialize pair.
     __import__("comtypes")
     capture = Capture()
+    preview_token = secrets.token_urlsafe(24)
     try:
-        async with await serve(capture):
+        async with await serve(capture, preview_token=preview_token):
             capture.start()
             print("Omnium Audio Helper is ready. In Omnium: Scene → Scene effects → Connect system audio.", flush=True)
             print("Leave this window open. Close it or press Ctrl+C to stop. No audio is recorded.", flush=True)
+            print("To use the Omnium GitHack preview, paste this code into Preview pairing code:", flush=True)
+            print(preview_token, flush=True)
+            print("The code expires when this helper closes. Only paste it into your Omnium preview.", flush=True)
             await asyncio.Future()
     finally:
         capture.close()

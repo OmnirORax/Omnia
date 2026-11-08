@@ -995,4 +995,6 @@ keep website-file playback and do not connect to the helper. No capture permissi
 is inferred from saved settings; connection is explicit. Native packaging is a
 standalone Windows CI artifact with retained upstream/dependency licensing; final
 signed installer, auto-start and updates remain deferred. Native input only accepts
-omnium.nexus/localhost origins; shared public preview origins are excluded.
+omnium.nexus/localhost origins directly; raw.githack.com requires a per-run
+32-character pairing code copied from the helper console. Pairing stays transient
+and never enters settings, exports, history or connection snapshots.

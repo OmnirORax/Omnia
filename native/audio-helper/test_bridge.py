@@ -69,7 +69,8 @@ class PacketTests(unittest.TestCase):
 class LocalConnectionTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.capture = bridge.Capture()
-        self.server = await bridge.serve(self.capture, port=0)
+        self.code = 'a' * 32
+        self.server = await bridge.serve(self.capture, port=0, preview_token=self.code)
         self.url = f'ws://127.0.0.1:{self.server.sockets[0].getsockname()[1]}{bridge.PATH}'
 
     async def asyncTearDown(self):
@@ -96,3 +97,21 @@ class LocalConnectionTests(unittest.IsolatedAsyncioTestCase):
             async with connect(self.url, origin='https://unrelated.example'):
                 self.fail('Unauthorized peer was accepted')
         self.assertFalse(self.capture.active.is_set())
+
+    async def test_preview_requires_current_code_and_correct_origin(self):
+        from websockets.asyncio.client import connect
+        from websockets.exceptions import InvalidStatus
+        for suffix, origin in [('', 'https://raw.githack.com'),
+                               ('?pair=' + 'b' * 32, 'https://raw.githack.com'),
+                               ('?pair=' + self.code + '&pair=' + self.code, 'https://raw.githack.com'),
+                               ('?pair=' + self.code, 'https://unrelated.example')]:
+            with self.assertRaises(InvalidStatus):
+                async with connect(self.url + suffix, origin=origin):
+                    self.fail('Unpaired preview accepted')
+            self.assertFalse(self.capture.active.is_set())
+        async with connect(self.url + '?pair=' + self.code, origin='https://raw.githack.com') as client:
+            await asyncio.wait_for(client.recv(), 1)
+            self.assertTrue(self.capture.active.is_set())
+            packet = bridge.pcm_packet(struct.pack('<2f', .2, -.2), 48000, 2, 1)
+            self.capture.queue.append(packet)
+            self.assertEqual(await asyncio.wait_for(client.recv(), 1), packet)

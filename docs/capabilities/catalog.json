@@ -2160,12 +2160,12 @@
     {
       "id": "scene.systemAudio",
       "title": "Windows system audio through Omnium Audio Helper",
-      "where": "Scene → Scene effects → Connect system audio; run the Windows helper first. Website file playback stays under Choose audio file / Play audio.",
+      "where": "Scene → Scene effects → Connect system audio; run the Windows helper first. Website file playback stays under Choose audio file / Play audio. GitHack preview: enter Preview pairing code from the new helper console before connecting; no production login.",
       "behavior": "The Windows helper uses WASAPI default-output loopback, adapted from MiniMeters Bridge, and sends bounded short PCM blocks over one localhost WebSocket. An inline AudioWorklet resamples them into the existing stereo/mono analyser graph; a zero-gain output keeps capture inaudible. Existing light/bounce settings and response equations are unchanged. One explicitly connected tab captures at a time; closing controls retains the connection, Stop disconnects and halts helper capture. Lost connections retry with bounded backoff; output-device changes reopen capture. Nothing is recorded, uploaded or saved to workspace/history.",
       "steps": [
         {
-          "do": "Download the Windows audio-helper workflow artifact, extract its ZIP and run Omnium-Audio-Helper.exe. Open the updated site at https://omnium.nexus or localhost development.",
-          "expect": "The helper reports ready and waits without capturing. Users do not install Python; it is bundled in the executable. Shared GitHack preview origins are not supported. The first build has a console window; signed installer/autostart/updater are future work."
+          "do": "Download the Windows audio-helper workflow artifact, extract its ZIP and run Omnium-Audio-Helper.exe. Open the updated site at https://omnium.nexus or localhost development. The fresh GitHack preview also works without login: copy the new helper console’s code into Preview pairing code.",
+          "expect": "The helper reports ready and waits without capturing. Users do not install Python; it is bundled in the executable. GitHack requires the current 32-character helper pairing code; the old helper build cannot pair. The field clears on connect; code stays in memory only and expires on helper exit. The first build has a console window; signed installer/autostart/updater are future work."
         },
         {
           "do": "Choose Scene → Scene effects → Connect system audio. Grant browser loopback-network permission if requested, then play ordinary audio through the Windows default output.",
@@ -2173,7 +2173,7 @@
         },
         {
           "do": "Change output device or restart the helper, leaving the website connection active. Close/reopen Scene controls.",
-          "expect": "Capture or the local socket reconnects, pending PCM is bounded and old audio does not accumulate. The connection survives settings-panel closure. Real Windows driver/browser behavior still needs validation."
+          "expect": "Capture or the local socket reconnects, pending PCM is bounded and old audio does not accumulate. The connection survives settings-panel closure. Real Windows driver/browser behavior still needs validation. After a helper restart on GitHack, paste its new code and explicitly reconnect."
         },
         {
           "do": "Press Stop audio, then connect again. Switch to a website audio file.",
@@ -2200,9 +2200,9 @@
         "scene.vfx"
       ],
       "status": "Implemented for first Windows validation; standalone build produced by CI; final installer deferred",
-      "limits": "Windows WASAPI default-output capture only. ASIO/exclusive or separately routed outputs may not be captured. Mono/stereo supported; first two channels used for multichannel input. One tab at a time. Browser AudioWorklet/user gesture and local-network permission are required. Native helper accepts only omnium.nexus and explicit localhost development origins; shared GitHack hosts are excluded. Source wire protocol differs from unmodified MiniMeters Bridge. Helper/website origin is fixed; no device/network scanning. Windows capture and packaged-driver behavior need user validation.",
+      "limits": "Windows WASAPI default-output capture only. ASIO/exclusive or separately routed outputs may not be captured. Mono/stereo supported; first two channels used for multichannel input. One tab at a time. Browser AudioWorklet/user gesture and local-network permission are required. Native helper accepts omnium.nexus and explicit localhost development origins directly; raw.githack.com requires a per-run pairing code. Other origins are rejected. Source wire protocol differs from unmodified MiniMeters Bridge. Helper/website origin is fixed; no device/network scanning. Windows capture and packaged-driver behavior need user validation.",
       "verification": {
-        "automated": "Protocol validation, bounded resampling/mono/stereo/underrun, native graph mute/Stop, socket retry/sequence, Python real-loopback WebSocket transfer/origin rejection and mocked WASAPI default-device reopening are covered. No real user audio is used. Required source/build/backend gate runs before publication. Six helper tests also pass against pinned websockets 15.0.1; exact Python 3.12 Windows dependency wheels exist. Suspended worklets discard new PCM and clear their queue on resume. The Windows build job must still compile/package the executable.",
+        "automated": "Protocol validation, bounded resampling/mono/stereo/underrun, native graph mute/Stop, socket retry/sequence, Python real-loopback WebSocket transfer/origin rejection and mocked WASAPI default-device reopening are covered. No real user audio is used. Required source/build/backend gate runs before publication. Seven helper tests also pass against pinned websockets 15.0.1; exact Python 3.12 Windows dependency wheels exist. Suspended worklets discard new PCM and clear their queue on resume. Windows CI packages the executable. Preview code validation, retry URL retention, and real socket handshakes with valid/missing/wrong/duplicate codes and unrelated origins are covered; no preview browser acceptance is inferred.",
         "browser": "User-approved focused local compiled-browser check passed on 2026-11-08: synthetic stereo PCM over the real localhost helper socket reached the built AudioWorklet and existing analyser/light/bass paths; silence cleared input; Stop and reconnect succeeded. 180 samples included 58 zero-input samples. No real Windows capture/driver or packaged executable was tested on this Linux executor."
       }
     },

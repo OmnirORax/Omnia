@@ -1,7 +1,8 @@
 import {decodePcmPacket,SYSTEM_AUDIO_URL} from './nativePcm.ts';
 
 /** No discovery scans: one loopback endpoint, bounded reconnect, explicit Stop. */
-export function createNativeAudioTransport(port:{postMessage:(message:unknown,transfer?:Transferable[])=>void},status:(ready:boolean,message:string)=>void){
+export function createNativeAudioTransport(port:{postMessage:(message:unknown,transfer?:Transferable[])=>void},status:(ready:boolean,message:string)=>void,pairingCode=''){
+ const endpoint=pairingCode?`${SYSTEM_AUDIO_URL}?pair=${encodeURIComponent(pairingCode)}`:SYSTEM_AUDIO_URL;
  let socket:WebSocket|null=null,timer:ReturnType<typeof setTimeout>|undefined,watchdog:ReturnType<typeof setInterval>|undefined;
  let stopped=false,attempt=0,lastMessage=0,lastSequence:number|undefined,ready=false;
  const notify=(next:boolean,message:string)=>{ready=next;status(next,message);};
@@ -9,7 +10,7 @@ export function createNativeAudioTransport(port:{postMessage:(message:unknown,tr
  const connect=()=>{
   if(stopped)return;
   lastSequence=undefined;lastMessage=performance.now();
-  const ws=new WebSocket(SYSTEM_AUDIO_URL);socket=ws;ws.binaryType='arraybuffer';
+  const ws=new WebSocket(endpoint);socket=ws;ws.binaryType='arraybuffer';
   ws.onopen=()=>{lastMessage=performance.now();notify(false,'Audio helper connected — waiting for system audio');};
   ws.onmessage=event=>{
    if(stopped||socket!==ws)return;
@@ -29,7 +30,7 @@ export function createNativeAudioTransport(port:{postMessage:(message:unknown,tr
   ws.onerror=()=>{}; // close carries retry state; browsers hide handshake details.
   ws.onclose=()=>{
    if(stopped||socket!==ws)return;
-   clear();notify(false,'Audio helper unavailable — start Omnium Audio Helper. Retrying…');
+   clear();notify(false,pairingCode?'Audio helper unavailable — check its current pairing code, then reconnect. Retrying…':'Audio helper unavailable — start Omnium Audio Helper. Retrying…');
    timer=setTimeout(connect,Math.min(8000,1000*Math.pow(2,attempt++)));
   };
  };

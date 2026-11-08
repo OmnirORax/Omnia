@@ -15,7 +15,12 @@ the unmodified upstream bridge on port 8985 is not compatible.
    is deployed, choose **Scene → Scene effects → Connect system audio**.
    Local development served on `http://localhost:<port>` or
    `http://127.0.0.1:<port>` is also supported. Grant the browser's loopback-network
-   permission if requested. Shared GitHack origins are deliberately not allowed.
+   permission if requested. For the GitHack preview, copy the 32-character code printed in the **new**
+   helper window into **Preview pairing code**, then connect. No omnium.nexus
+   login is needed. The old helper build cannot pair. The code stays in tab memory,
+   clears from the input on connect, and expires when the helper closes. Paste it
+   only into your Omnium preview. A helper restart needs its new code and an
+   explicit reconnect; closing/reopening settings keeps an active connection.
 3. Play music in another app/tab through the Windows default output. Audio input
    and the current wallpaper effects should react. Capture isn't played back.
 4. Change headphones/output device: capture reopens automatically. Closing the
@@ -53,7 +58,10 @@ feeds the same analyser/response path as website file playback.
 
 WebSocket: `ws://127.0.0.1:8986/omnium/audio-v1`. Host/path/origin are fixed by
 the helper and client. Origin is mandatory; only the canonical site and explicit
-localhost development origins are accepted. JSON status messages accompany
+localhost development origins are accepted directly. The shared raw.githack.com
+origin requires the per-run pairing code in the `pair` query parameter. Missing,
+wrong or duplicate codes and unrelated origins are rejected before capture starts.
+JSON status messages accompany
 binary PCM packets. OMA1 packets are little-endian:
 
 | Bytes | Meaning |
@@ -70,3 +78,8 @@ are required. Browser queue retains at most ~60 ms; starvation produces silence.
 Disconnect clears pending PCM; reconnect backs off 1–8 seconds and Stop cancels it.
 This is transient device input; no audio/connection state enters atlas exports,
 workspace settings or history. Existing effect/tint settings are unchanged.
+
+Preview pairing is covered by actual localhost WebSocket handshakes using the
+GitHack Origin (valid/missing/wrong/duplicate codes and unrelated origins), plus
+frontend code validation, URL/retry retention and analyser wiring tests. This is
+not a browser or Windows-device acceptance check of preview pairing.
