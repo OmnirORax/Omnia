@@ -64,8 +64,8 @@ read must not silently reopen an older copy. Storage failure reports that export
 is needed. The `before-replace` slot preserves the previous workspace before a
 workspace import or cloud load. **Recover previous workspace** restores that slot.
 
-Normal atlas export remains available and carries the canonical definitions and
-archived dependencies needed to reconstruct it. Library **Export workspace**
+Historical atlas-only files remain importable as independent atlases. File →
+Export JSON and Library **Export workspace** use the same combined backup and
 includes every atlas, organization and revision. Workspace state, JSON exports and cloud snapshots
 are capped at 8 MB through cached checks on immutable subtrees; oversized edits
 are rejected before replacing committed work. Exports use compact JSON so the
@@ -204,11 +204,12 @@ and hosted rollout must be distinguished from model/local backend evidence.
 
 ## Combined workspace and UI export (2026-11-04)
 
-Omnic library → Export workspace now downloads `omnium-workspace-backup.json`:
+File → Export JSON and Omnic library → Export workspace download `omnium-workspace-backup.json`:
 `omnium-workspace-backup` version 1 wraps the unchanged version-1 workspace and a
 version-3 UI template. It includes the current UI layout/settings/shortcuts,
 current appearance, embedded UI icons and referenced custom fonts. Standalone UI
-and individual-atlas exports remain available. Cloud snapshots remain workspace-only.
+templates remain available. File → Import JSON also accepts historical atlas-only
+files as independent atlases (without UI changes). Cloud snapshots remain workspace-only.
 
 Import workspace validates the complete envelope before replacement. Historical
 `omnium-workspace` version-1 files still load without changing UI. Unknown envelope,

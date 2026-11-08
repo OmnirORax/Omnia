@@ -45,7 +45,7 @@ Use disposable work for tests; export your workspace first. Each numbered step i
 | [Collections, tags, presets and names](#library-organize) | Implemented; browser verification pending | Omnic library → selected object / Organization. |
 | [Structural filters, indexing and saved families](#library-filters) | Implemented; browser verification pending | Omnic library → Structural filters / Organization → Save filter as family. |
 | [Live dependencies, frozen pins, restore and archive pruning](#library-revisions) | Implemented; browser verification pending | Composer reference component → Dependency version; library → Dependencies / revisions. |
-| [Local workspace autosave, portability and recovery](#library-persistence) | Implemented; browser verification pending | Library → Export workspace / Import workspace / Recover previous workspace; File → Import/Export JSON for individual atlases. |
+| [Local workspace autosave, portability and recovery](#library-persistence) | Implemented; browser verification pending | File → Export JSON / Import JSON; Library → Export workspace / Import workspace / Recover previous workspace. |
 | [Existing account, private workspace and image storage](#cloud-connection) | Existing hosted foundation; current browser acceptance not recorded | Workspace settings → Cloud connection. |
 | [Explicit workspace cloud save/load and conflicts](#cloud-snapshots) | Implemented and locally tested; hosted rollout pending | Omnic library → Cloud workspace, after signing in. |
 | [Node-linked scenes from imported images and copied prompts](#scene-manual) | Implemented; browser verification pending | Scene panel; select an Omnium node. |
@@ -983,14 +983,14 @@ Live references follow edits. Pinned references use saved revisions with frozen 
 
 **ID:** `library.persistence` · **Status:** Implemented; browser verification pending
 
-**Where:** Library → Export workspace / Import workspace / Recover previous workspace; File → Import/Export JSON for individual atlases.
+**Where:** File → Export JSON / Import JSON; Library → Export workspace / Import workspace / Recover previous workspace.
 
-IndexedDB autosaves the workspace locally. Export workspace now downloads one versioned workspace-backup file containing all atlases, saved glyph definitions/lexicon/library plus the current UI layout, shortcuts, settings, appearance, embedded UI icons and referenced custom fonts. Import validates both parts before replacement and preserves the previous workspace/UI pair in one local recovery record. Recover previous workspace restores both when that record includes UI. Historical workspace-only exports leave current UI unchanged. Standalone Save UI template and ordinary atlas export remain available. Cloud snapshots remain workspace-only. Workspace and UI retain separate existing undo owners; use Recover previous workspace to restore the pair together.
+IndexedDB autosaves the workspace locally. Export workspace now downloads one versioned workspace-backup file containing all atlases, saved glyph definitions/lexicon/library plus the current UI layout, shortcuts, settings, appearance, embedded UI icons and referenced custom fonts. Import validates both parts before replacement and preserves the previous workspace/UI pair in one local recovery record. Recover previous workspace restores both when that record includes UI. Historical workspace-only exports leave current UI unchanged. File → Export JSON uses this same combined backup. File → Import JSON restores combined backups and accepts historical atlas-only files as independent atlases without changing UI. Standalone Save UI template remains available. Cloud snapshots remain workspace-only. Workspace and UI retain separate existing undo owners; use Recover previous workspace to restore the pair together.
 
 **Minimal working test**
 
-1. Customize a shortcut and UI layout; create two atlases and saved glyphs/lexicon mappings. Choose Omnic library → Export workspace. **Expected:** One omnium-workspace-backup.json file contains both workspace and UI; current custom fonts referenced by the appearance are embedded.
-2. Change the UI and workspace, then Import workspace using that combined file. **Expected:** Both saved workspace and UI return. Referenced custom fonts are prepared before replacement; changes during asynchronous preparation abort the restore.
+1. Customize a shortcut and UI layout; create two atlases and saved glyphs/lexicon mappings. Choose File → Export JSON (or Omnic library → Export workspace). **Expected:** One omnium-workspace-backup.json file contains both workspace and UI; current custom fonts referenced by the appearance are embedded.
+2. Change the UI and workspace, then File → Import JSON using that combined file and confirm the restore. **Expected:** Both saved workspace and UI return. Referenced custom fonts are prepared before replacement; changes during asynchronous preparation abort the restore.
 3. Choose Recover previous workspace. **Expected:** The pre-import workspace and UI return together. An ordinary workspace-only/cloud replacement creates a workspace-only recovery record and cannot revive stale UI from an earlier import.
 4. Import an old omnium-workspace v1 file, or try a damaged/unsupported newer combined file. **Expected:** A valid old workspace replaces workspace only. A damaged or unsupported component rejects the combined import before replacing either domain.
 

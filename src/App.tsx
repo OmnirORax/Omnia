@@ -7,7 +7,7 @@ import { editBinderConnection } from "./graph/binderActions";
 import { uiContextEnabled } from "./ui/contextMenuOwnership";
 import { reconnectBinder, binderReconnectReason } from "./graph/reconnectBinder";
 import { localLatticePoint, latticeDocument, latticeWorld, latticeScale, latticeMove, resolveLatticePoint, reconcileLattice } from "./graph/lattice";
-import {createWorkspaceBackup,parseWorkspaceBackup,validateWorkspaceUI,type WorkspaceUI} from './omnic/workspaceBackup';
+import {createWorkspaceBackup,parseWorkspaceBackup,validateWorkspaceUI,WORKSPACE_BACKUP_BYTES,type WorkspaceUI} from './omnic/workspaceBackup';
 import { ScoreTracker } from './metrics/ScoreTracker';
 import {readWorkspaceSlot,readWorkspaceReplacement,saveWorkspaceSlot} from "./omnic/workspaceStorage";
 import { activeDocument, createWorkspace, validateWorkspace, withActiveDocument, importWorkspaceAtlas, workspaceHistory, restoreWorkspaceHistory, advanceWorkspaceRevisions, type OmnicWorkspace as WorkspaceSnapshot } from "./omnic/workspace";
@@ -476,17 +476,18 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
     setAppearancePreview(null);
     actionHistory.travel("redo", { ...actionHistory.options, ...(steps === undefined ? {} : { steps }) });
   }
-  function exportJSON() {
-    const data=JSON.stringify(document);
-    if(new TextEncoder().encode(data).length>5_000_000){setError('This atlas exceeds the 5 MB atlas import limit. Use Omnic library → Export workspace to keep the complete workspace.');setOmnicLibraryOpen(true);return;}
+  async function exportJSON() {
+    try {
+    const data=await exportWorkspaceBackup();
     const url = URL.createObjectURL(
       new Blob([data], { type: "application/json" }),
     );
     const link = window.document.createElement("a");
     link.href = url;
-    link.download = "omnium-atlas.json";
+    link.download = "omnium-workspace-backup.json";
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch(e) { setError(`Workspace export failed. ${message(e)}`); }
   }
   async function captureWorkspaceUI(snapshot=backupUI.current):Promise<WorkspaceUI>{
     return validateWorkspaceUI({format:'omnium-ui-template',version:3,layout:snapshot.layout,settings:{...snapshot.settings,appearance:snapshot.appearance},fonts:(await Promise.all(appearanceFonts(snapshot.appearance).map(embeddedFont))).flat()});
@@ -572,8 +573,18 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
   async function importJSON(file?: File) {
     if (!file) return;
     try {
-      if (file.size > 5_000_000) throw new Error("Atlas exceeds the 5 MB import limit.");
-      const next = parseDocument(await file.text());
+      if (file.size > WORKSPACE_BACKUP_BYTES) throw new Error("Workspace backup exceeds its import limit.");
+      const text=await file.text(),value:unknown=JSON.parse(text);
+      const format=value&&typeof value==='object'?(value as {format?:unknown}).format:undefined;
+      if(format==='omnium-workspace-backup'||format==='omnium-workspace'){
+        const source=parseWorkspaceBackup(text);
+        if(!window.confirm(source.ui?'Restore the entire workspace and its UI/settings? A recovery copy of your current workspace and UI will be kept.':'Restore this workspace? This older file has no UI; your current UI/settings will be kept.'))return;
+        await restoreWorkspaceBackup(source);
+        setSelection(null);setOptionNodeId(null);setExpandedVariants(new Set());
+        return;
+      }
+      if(file.size>5_000_000)throw new Error('Atlas exceeds the 5 MB import limit.');
+      const next = parseDocument(text);
       if (
         atlas.nodes.length &&
         !window.confirm(

@@ -1999,15 +1999,15 @@
     {
       "id": "library.persistence",
       "title": "Local workspace autosave, portability and recovery",
-      "where": "Library → Export workspace / Import workspace / Recover previous workspace; File → Import/Export JSON for individual atlases.",
-      "behavior": "IndexedDB autosaves the workspace locally. Export workspace now downloads one versioned workspace-backup file containing all atlases, saved glyph definitions/lexicon/library plus the current UI layout, shortcuts, settings, appearance, embedded UI icons and referenced custom fonts. Import validates both parts before replacement and preserves the previous workspace/UI pair in one local recovery record. Recover previous workspace restores both when that record includes UI. Historical workspace-only exports leave current UI unchanged. Standalone Save UI template and ordinary atlas export remain available. Cloud snapshots remain workspace-only. Workspace and UI retain separate existing undo owners; use Recover previous workspace to restore the pair together.",
+      "where": "File → Export JSON / Import JSON; Library → Export workspace / Import workspace / Recover previous workspace.",
+      "behavior": "IndexedDB autosaves the workspace locally. Export workspace now downloads one versioned workspace-backup file containing all atlases, saved glyph definitions/lexicon/library plus the current UI layout, shortcuts, settings, appearance, embedded UI icons and referenced custom fonts. Import validates both parts before replacement and preserves the previous workspace/UI pair in one local recovery record. Recover previous workspace restores both when that record includes UI. Historical workspace-only exports leave current UI unchanged. File → Export JSON uses this same combined backup. File → Import JSON restores combined backups and accepts historical atlas-only files as independent atlases without changing UI. Standalone Save UI template remains available. Cloud snapshots remain workspace-only. Workspace and UI retain separate existing undo owners; use Recover previous workspace to restore the pair together.",
       "steps": [
         {
-          "do": "Customize a shortcut and UI layout; create two atlases and saved glyphs/lexicon mappings. Choose Omnic library → Export workspace.",
+          "do": "Customize a shortcut and UI layout; create two atlases and saved glyphs/lexicon mappings. Choose File → Export JSON (or Omnic library → Export workspace).",
           "expect": "One omnium-workspace-backup.json file contains both workspace and UI; current custom fonts referenced by the appearance are embedded."
         },
         {
-          "do": "Change the UI and workspace, then Import workspace using that combined file.",
+          "do": "Change the UI and workspace, then File → Import JSON using that combined file and confirm the restore.",
           "expect": "Both saved workspace and UI return. Referenced custom fonts are prepared before replacement; changes during asynchronous preparation abort the restore."
         },
         {
