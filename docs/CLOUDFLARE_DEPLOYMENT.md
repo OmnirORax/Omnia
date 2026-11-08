@@ -243,9 +243,9 @@ when accepting code from anyone not trusted with deployment credentials.
 Wrangler deploys to the existing `omnia-web` project with branch `pr-<number>`;
 production branch remains `master`. PR #29's alias is
 `https://pr-29.omnia-web-bae.pages.dev`. Before uploading content, the Access checker
-requires login redirects on that alias and a fresh wildcard probe hostname, plus
-all existing inventoried hosts. Unavailable/unprotected aliases fail closed. After
-upload it enumerates/checks the new deployment hosts again. No deployment occurs
+requires login redirects on that alias and a fresh wildcard probe hostname.
+Unavailable/unprotected aliases fail closed. After upload it checks the alias,
+wildcard probe and deployment hosts for the exact branch and source. No deployment occurs
 if the preflight fails. Production conditions and activation variable are separate.
 No Supabase origins or backend settings change: cloud operations remain restricted
 to the production/development origins documented above. PR UI/prompt preview works;
@@ -259,7 +259,7 @@ new public GitHack artifacts. Existing public artifacts and repository visibilit
 are unchanged. Continue implementation on `codex/system-audio-helper`, PR #61.
 
 ```sh
-# Read-only project/host inventory and Access verification; no build/upload.
+# Read-only preview alias and wildcard Access verification; no build/upload.
 node --run preview:cloudflare -- pr-61 --check
 # Commit the source, then build and upload only the private PR preview.
 node --run preview:cloudflare -- pr-61
@@ -274,9 +274,9 @@ for the cached, pinned Wrangler 4.152.0 tool. Access login is performed by the u
 in their browser; probes never follow authentication redirects.
 
 The command accepts only `pr-<positive number>` branches, checks the existing
-project/production branch and full deployment host inventory, and requires Access
-login redirects before and after upload. A fresh wildcard probe checks future
-aliases. It builds the self-contained preview with existing type/property/catalog
+project/production branch and requires Access login redirects on the target alias
+and a fresh wildcard probe before and after upload. After upload it also checks
+the newly discovered deployment URLs for the exact branch and source. It builds the self-contained preview with existing type/property/catalog
 gates and uploads only `index.html`, `favicon.svg` and `source.json` from a temporary
 directory. Provenance records the clean source SHA. npm/Wrangler caches persist in
 the temporary directory tree to avoid reinstalling every upload. No GitHub push,

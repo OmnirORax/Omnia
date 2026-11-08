@@ -145,11 +145,7 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_ACCESS_EXTRA_HOSTS: ${{ vars.CLOUDFLARE_ACCESS_EXTRA_HOSTS }}
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          export CLOUDFLARE_ACCESS_EXTRA_HOSTS="$CLOUDFLARE_ACCESS_EXTRA_HOSTS $PREVIEW_BRANCH.omnia-web-bae.pages.dev access-probe-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT.omnia-web-bae.pages.dev"
-          node scripts/cloudflare-access-check.mjs
+        run: node --use-env-proxy scripts/publish-cloudflare-preview.mjs "$PREVIEW_BRANCH" --check
       - name: Install pinned Wrangler
         run: npm install --prefix "$RUNNER_TEMP/omnia-wrangler" --no-audit --no-fund --package-lock=false wrangler@4.152.0
       - name: Deploy preview only and verify resulting hosts
@@ -162,6 +158,5 @@ jobs:
         run: |
           test "$PREVIEW_BRANCH" != master
           "$RUNNER_TEMP/omnia-wrangler/node_modules/.bin/wrangler" pages deploy dist --project-name omnia-web --branch "$PREVIEW_BRANCH"
-          export CLOUDFLARE_ACCESS_EXTRA_HOSTS="$CLOUDFLARE_ACCESS_EXTRA_HOSTS $PREVIEW_BRANCH.omnia-web-bae.pages.dev"
-          node scripts/cloudflare-access-check.mjs
+          node --use-env-proxy scripts/publish-cloudflare-preview.mjs "$PREVIEW_BRANCH" --check-upload
           echo "Verified private preview: https://$PREVIEW_BRANCH.omnia-web-bae.pages.dev" >> "$GITHUB_STEP_SUMMARY"

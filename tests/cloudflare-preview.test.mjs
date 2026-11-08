@@ -24,7 +24,7 @@ globalThis.fetch=async value=>{
  const url=new URL(value), mode=process.env.OMNIA_TEST_MODE;
  if(url.hostname==='api.cloudflare.com'){
   if(mode==='api-denied')return new Response('{}',{status:403});
-  const result=url.pathname.endsWith('/deployments')?[{url:'https://abcd1234.omnia-web-bae.pages.dev',aliases:['https://pr-61.omnia-web-bae.pages.dev']}]:{
+  const result=url.pathname.endsWith('/deployments')?[{url:'https://abcd1234.omnia-web-bae.pages.dev',environment:'preview',deployment_trigger:{metadata:{branch:'pr-61',commit_hash:process.env.OMNIA_TEST_SOURCE}},aliases:['https://pr-61.omnia-web-bae.pages.dev']}]:{
    name:'omnia-web',production_branch:mode==='wrong-production'?'pr-61':'master',subdomain:'omnia-web-bae.pages.dev',domains:['omnium.nexus']};
   return Response.json({success:true,result});
  }
@@ -38,9 +38,14 @@ globalThis.fetch=async value=>{
    const result=spawnSync(process.execPath,['--import',preload,'scripts/publish-cloudflare-preview.mjs','pr-61','--check'],{
     cwd,encoding:'utf8',env:{PATH:process.env.PATH,CLOUDFLARE_ACCOUNT_ID:'a'.repeat(32),CLOUDFLARE_API_TOKEN:'test-only',OMNIA_TEST_MODE:mode},
    });
-   if(mode==='protected'){assert.equal(result.status,0,result.stderr);assert.match(result.stdout,/Access required on 5 hosts/);}
+   if(mode==='protected'){assert.equal(result.status,0,result.stderr);assert.match(result.stdout,/Access required on 2 hosts/);}
    else assert.notEqual(result.status,0,mode);
    assert.doesNotMatch(result.stdout,/Verified private preview|Self-contained preview/);
   }
+  const source=spawnSync('git',['rev-parse','HEAD'],{cwd,encoding:'utf8'}).stdout.trim();
+  const post=spawnSync(process.execPath,['--import',preload,'scripts/publish-cloudflare-preview.mjs','pr-61','--check-upload'],{cwd,encoding:'utf8',env:{PATH:process.env.PATH,CLOUDFLARE_ACCOUNT_ID:'a'.repeat(32),CLOUDFLARE_API_TOKEN:'test-only',OMNIA_TEST_MODE:'protected',OMNIA_TEST_SOURCE:source}});
+  assert.equal(post.status,0,post.stderr);assert.match(post.stdout,/Access required on 3 hosts/);
+  const missing=spawnSync(process.execPath,['--import',preload,'scripts/publish-cloudflare-preview.mjs','pr-61','--check-upload'],{cwd,encoding:'utf8',env:{PATH:process.env.PATH,CLOUDFLARE_ACCOUNT_ID:'a'.repeat(32),CLOUDFLARE_API_TOKEN:'test-only',OMNIA_TEST_MODE:'protected',OMNIA_TEST_SOURCE:'wrong'}});
+  assert.notEqual(missing.status,0);assert.match(missing.stderr,/not found/);
  }finally{rmSync(directory,{recursive:true,force:true});}
 });
