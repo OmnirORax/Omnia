@@ -104,3 +104,25 @@ test('user-created controls with no canonical home remain recoverable in their c
  assert.equal(canResetResidentHome(layout,'function:custom',homes),false);
  assert.equal(resetResidentHome(layout,'function:custom',homes),layout);
 });
+
+test('website default keeps one settings entry and embeds each live panel once',async()=>{
+ const {readFile}=await import('node:fs/promises');
+ const {containers,residentKey}=await import('../src/ui/layout.ts');
+ const layout=validateUILayout(JSON.parse(await readFile(new URL('../src/ui/default-template.json',import.meta.url),'utf8')).layout);
+ assert.equal(layout.panels['@workspaceOnly'],true);
+ assert.equal(layout.panels['@settings'],false);
+ assert.equal(layout.items.settings.home,false);
+ assert.equal(ownerOf(layout,'function:settings'),undefined);
+ assert.equal(layout.windows.settings.layoutMode,'stacked');
+ const panels=['menu:workspace','menu:file','menu:create','menu:view','menu:infinity','reuse','frames','hierarchy','inspector','relationships','scene'].map(id=>`window:panel:${id}`);
+ for(const key of [...panels,'window:camera-guide','window:theme']){
+  assert.equal(ownerOf(layout,key),'window:settings',`${key} belongs to settings`);
+  assert.equal(layout.windows[key.slice(7)].collapsed,true,'embedded panels start collapsed');
+ }
+ const memberships=containers(layout).flatMap(([,state])=>(state.members??[]).map(residentKey));
+ assert.equal(new Set(memberships).size,memberships.length,'no duplicate residents');
+ assert.equal(memberships.includes('function:settings'),false,'entry cannot be trapped inside its own window');
+ for(const id of ['ui:undo','ui:redo','ui:reset'])assert.equal(ownerOf(layout,`function:${id}`),'window:panel:menu:workspace');
+ const reloaded=validateUILayout(JSON.parse(JSON.stringify(layout)));
+ assert.deepEqual(reloaded,layout,'the default survives save/reload without an import conversion');
+});
