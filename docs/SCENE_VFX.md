@@ -90,7 +90,9 @@ rapid event separation; new events within one flare can be grouped deliberately.
 Manual-only parameters. Audio amount remains shared across modes. Shared settings,
 history and exports own the existing mode/sensitivity/contrast/amount fields.
 Requested RGB/default values and the current bass-bounce behavior are unchanged.
-Shared sliders apply on release; committing an edit no longer restarts a flare.
+Shared sliders and colour pickers preview while dragging; release/accept commits.
+Cancel restores the prior rendering without saving samples. Committing an edit
+does not restart the flare.
 
 ## Expanding and contracting flare light
 
@@ -111,6 +113,13 @@ back toward those features while its energy falls. It uses the selected Single
 High tint or source-hue Omni High endpoint. Low tint remains the resting baseline.
 The requested RGB, Sensitivity 8, Drop contrast 1 and Flash amount 1.7 remain.
 
+To keep dense image details from producing a screen-wide coloured veil, each
+projected blur subtracts its broader low-frequency field. Spatial radius mapping
+is tighter, and the previous radius-squared energy amplification is removed.
+This intentionally narrows/localizes existing saved reach/strength settings; no
+user tint/audio/default values are rewritten. These optics need fresh user
+comparison; the earlier isolated bright-point check predates this correction.
+
 A cached, separable Gaussian emission pyramid has a maximum edge of 512 pixels.
 Only the emission is blurred; the base image stays native and sharp. Tint/image
 changes rebuild the cache; each active frame projects at most eight transient
@@ -120,7 +129,8 @@ Half-float rendering requires EXT_color_buffer_float; unsupported/failed targets
 fall back to core tint. Context restoration retries the cache. Manual and reduced
 motion do not use spatial glow. Actual performance and music appearance need user
 acceptance; this is not a claim of Wallpaper Engine parity or guaranteed 120 FPS.
-Shared controls commit on release and inherit history, persistence and exports.
+Shared controls preview while dragging, commit on release/accept, and inherit
+history, persistence and exports.
 
 ## Continuous bass bounce with less delay
 
@@ -264,7 +274,7 @@ Live sampler checks cover the same dense-background case, Manual restoration,
 pause/resume and audio-clock progress even when render dt is reset. Renderer
 checks ensure colour edits preserve a live pulse. Existing colour/serialization,
 source blend, defaults, bass-bounce/noise release and native-output cases remain.
-An explicitly approved synthetic bright-point GPU check passed: Single/Omni shader
+Before the localization correction, an explicitly approved synthetic bright-point GPU check passed: Single/Omni shader
 compilation, default spatial expansion/contraction, unchanged one-pixel base detail
 and exact rest-frame return. Kernel RMS radius grew 3.9 → 38.8 pixels and shrank
 back to 3.9 at constant energy; the integrated tail contracted to 8.9 pixels before

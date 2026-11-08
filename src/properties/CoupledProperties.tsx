@@ -1,5 +1,5 @@
 import { useContextPropertyBindings } from "./contextBindings";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { PROPERTY_REGISTRY } from "../appearance/registry";
 import { PropertyEditor } from "../appearance/Controls";
 import { UISection } from "../ui/UISection";
@@ -9,7 +9,21 @@ export type PropertyBindings = {
   values: Record<string, Record<string, PropertyValue>>;
   limits?: Record<string, Record<string, {min:number;max:number}>>;
   commit: (changes: PropertyChange[]) => void;
+  preview?: (changes: PropertyChange[] | null) => void;
 };
+/** One frame-coalesced preview lifecycle for local fields and generated groups. */
+function BoundEditor({bindings,property,consumers,...props}:Omit<Parameters<typeof PropertyEditor>[0],'onPreview'|'onCommit'|'onCancelPreview'>&{bindings:PropertyBindings;consumers:string[]}){
+ const latest=useRef(bindings);latest.current=bindings;
+ const frame=useRef(0),pending=useRef<PropertyChange[]|null>(null),active=useRef<PropertyBindings|null>(null);
+ const cancel=()=>{cancelAnimationFrame(frame.current);frame.current=0;pending.current=null;active.current?.preview?.(null);active.current=null;};
+ const cancelRef=useRef(cancel);cancelRef.current=cancel;
+ const scope=JSON.stringify([property,consumers]);
+ useEffect(()=>()=>cancelRef.current(),[scope]);
+ return <PropertyEditor {...props} property={property} onCancelPreview={cancel} onPreview={value=>{
+   pending.current=preparePropertyChanges(PROPERTY_REGISTRY,property,value,consumers);
+   if(!frame.current)frame.current=requestAnimationFrame(()=>{frame.current=0;active.current??=latest.current;active.current.preview?.(pending.current);});
+ }} onCommit={value=>{cancelAnimationFrame(frame.current);frame.current=0;pending.current=null;active.current=null;bindings.commit(preparePropertyChanges(PROPERTY_REGISTRY,property,value,consumers));}}/>;
+}
 /** Generated categories, one editor per property, and independent consumer targets. */
 export function CoupledProperties({ bindings: suppliedBindings, category: requestedCategory, selectedConsumers, scope = "master" }: { bindings: PropertyBindings; category?: string; selectedConsumers?: readonly string[]; scope?: string }) {
   const bindings = useContextPropertyBindings(suppliedBindings);
@@ -40,8 +54,7 @@ export function CoupledProperties({ bindings: suppliedBindings, category: reques
           </UIField>)}
           <UIField id={`${scope}-setter:${property.id}`} label={property.label} category={category.label}>
             <label>{property.label}{property.unit ? ` (${property.unit})` : ""}{mixed ? " · Mixed" : ""}
-              <PropertyEditor property={property.id} value={value} limits={limits} disabled={!selected.length} choices={property.kind === "select" ? property.options?.filter(option => selected.every(consumer => !consumer.choices[property.id] || consumer.choices[property.id].includes(option.id))).map(option => option.id) : undefined} onPreview={() => {}}
-                onCommit={value => bindings.commit(preparePropertyChanges(PROPERTY_REGISTRY, property.id, value, selected.map(consumer => consumer.id)))} />
+              <BoundEditor bindings={bindings} consumers={selected.map(consumer=>consumer.id)} property={property.id} value={value} limits={limits} disabled={!selected.length} choices={property.kind === "select" ? property.options?.filter(option => selected.every(consumer => !consumer.choices[property.id] || consumer.choices[property.id].includes(option.id))).map(option => option.id) : undefined} />
             </label>
           </UIField>
         </UISection>;
@@ -56,6 +69,6 @@ export function CoupledField({ bindings, consumer, property, label }: { bindings
   const coupling = PROPERTY_REGISTRY.consumer(consumer)?.channels[property];
   if (!coupling || bindings.values[consumer]?.[coupling] === undefined) throw new Error(`Missing property adapter: ${consumer}/${property}`);
   const definition = PROPERTY_REGISTRY.property(property)!;
-  return <label>{label ?? definition.label}<PropertyEditor label={label ?? definition.label} property={property} value={bindings.values[consumer][coupling]}
-    onPreview={() => {}} onCommit={value => bindings.commit(preparePropertyChanges(PROPERTY_REGISTRY, property, value, [consumer]))} /></label>;
+  return <label>{label ?? definition.label}<BoundEditor bindings={bindings} consumers={[consumer]} label={label ?? definition.label} property={property} value={bindings.values[consumer][coupling]}
+    /></label>;
 }

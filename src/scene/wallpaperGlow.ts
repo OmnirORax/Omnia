@@ -44,9 +44,11 @@ export function createWallpaperGlow(renderer:THREE.WebGLRenderer){
    void main(){
     vec3 emission=vec3(0.0);
     for(int i=0;i<8;i++)if(phases[i].y>.00001){
-     float radius=reach*phases[i].x,lod=clamp(log2(max(1.0,radius)/3.2)+1.0,0.0,5.0);
-     float radiation=1.0+min(radius*radius*.025,12.0);
-     emission=max(emission,field(lod)*phases[i].y*radiation);
+     float radius=reach*phases[i].x,lod=clamp(log2(max(1.0,radius)/6.4)+1.0,0.0,5.0);
+     // Reject the broader low-frequency field: dense highlights must not turn
+     // the whole image (including silhouettes) into a coloured veil.
+     vec3 local=max(vec3(0.0),field(lod)-field(min(5.0,lod+1.5)));
+     emission=max(emission,local*phases[i].y);
     }
     gl_FragColor=vec4(emission*strength,1.0);
    }`});

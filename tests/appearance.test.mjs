@@ -1649,3 +1649,19 @@ test('a synchronous selection entry advances catalog, lens geometry and continui
  assert.equal(next.catalog,freshParts);assert.equal(nearestLensBoundary(next.catalog,{x:0,y:0},18,part=>next.lensGeometry.get(part)),freshParts[0]);
  assert.deepEqual(first.continuity.groups.get('a'),['a','b']);assert.deepEqual(next.continuity.groups.get('a'),['a'],'continuity is refreshed with that same geometry revision');
 });
+
+test('shared colour and number settings preview without persistence, validate through the same setters, then commit once',async()=>{
+ const {settingsPropertyBindings}=await import('../src/properties/settingsAdapter.ts');
+ const {preparePropertyChanges}=await import('../src/properties/registry.ts');
+ const {defaultSettings}=await import('../src/workspaceActions.ts');
+ const {PROPERTY_REGISTRY}=await import('../src/appearance/registry.ts');
+ let saved=defaultSettings(),shown=saved,writes=0;
+ const original=saved,bindings=settingsPropertyBindings(saved,change=>{saved=change(saved);shown=saved;writes++;},change=>{shown=change?change(saved):saved;});
+ const color=preparePropertyChanges(PROPERTY_REGISTRY,'scene.pulseTintHigh','#ff8800',['scene.vfx']);
+ const amount=preparePropertyChanges(PROPERTY_REGISTRY,'scene.pulseAmount',.5,['scene.vfx']);
+ bindings.preview(color);assert.equal(shown.sceneVfx.pulseTintHigh,'#ff8800');assert.equal(saved,original);assert.equal(writes,0);
+ bindings.preview(amount);assert.equal(shown.sceneVfx.pulseAmount,.5);assert.equal(shown.sceneVfx.pulseTintHigh,original.sceneVfx.pulseTintHigh,'a new sample cannot accumulate a previous unrelated preview');
+ assert.throws(()=>bindings.preview([{consumer:'scene.vfx',property:'scene.pulseAmount',value:'invalid'}]));assert.equal(saved,original);
+ bindings.preview(null);assert.equal(shown,saved);assert.equal(writes,0);
+ bindings.preview([...color,...amount]);bindings.commit([...color,...amount]);assert.equal(writes,1);assert.equal(saved.sceneVfx.pulseTintHigh,'#ff8800');assert.equal(saved.sceneVfx.pulseAmount,.5);
+});

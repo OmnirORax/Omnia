@@ -13,25 +13,25 @@ export function commitOmnicParameter(params:Record<string,PropertyValue>, parame
   if (!input?.write) throw Error(`Unregistered Omnic input: ${parameter.property}`);
   return input.write({params,parameters:[parameter]},value).params;
 }
-export function omnicPropertyBindings(params:Record<string,PropertyValue>, onChange:(params:Record<string,PropertyValue>)=>void, parameters:readonly Parameter[]):PropertyBindings {
+export function omnicPropertyBindings(params:Record<string,PropertyValue>, onChange:(params:Record<string,PropertyValue>,temporary?:boolean)=>void, parameters:readonly Parameter[]):PropertyBindings {
   const state={params,parameters};
   const bound=bindStateProperties(PROPERTY_REGISTRY,"omnic",state,OMNIC_PROPERTY_ADAPTERS,change=>{
-    const next=change(state);if(next.params!==params)onChange(next.params);
-  });
+    const next=change(state);onChange(next.params);
+  },change=>onChange(change?change(state).params:params,true));
   // Current scope capabilities, rather than every possible future operator field.
   const active = Object.fromEntries([...new Set(parameters.map(parameter=>parameter.property))].map(property=>[property, Object.getOwnPropertyDescriptor(bound.values[OMNIC_CONSUMER],property)!]));
   const values = Object.defineProperties({},active) as Record<string,PropertyValue>;
   return {values:{[OMNIC_CONSUMER]:values},
-    limits:{[OMNIC_CONSUMER]:Object.fromEntries(parameters.filter(p=>p.kind==="number").map(p=>[p.property,{min:p.min!,max:p.max!}]))},commit:bound.commit};
+    limits:{[OMNIC_CONSUMER]:Object.fromEntries(parameters.filter(p=>p.kind==="number").map(p=>[p.property,{min:p.min!,max:p.max!}]))},commit:changes=>bound.commit(changes.filter(change=>Object.hasOwn(values,change.property))),preview:bound.preview};
 }
 /** The composer owns params. MC subscribes to lent adapters; it never causes an
  * application-wide state render or introduces a second mutable parameter pool. */
-export function useOmnicParameterBindings(params:Record<string,PropertyValue>, onChange:(params:Record<string,PropertyValue>)=>void, parameters:readonly Parameter[]) {
+export function useOmnicParameterBindings(params:Record<string,PropertyValue>, onChange:(params:Record<string,PropertyValue>,temporary?:boolean)=>void, parameters:readonly Parameter[]) {
   const change=useRef(onChange);change.current=onChange;
   const session=useRef<ReturnType<typeof installContextBindings>|null>(null);
   useLayoutEffect(()=>{
     if(!parameters.length)return;
-    const binding=omnicPropertyBindings(params,next=>change.current(next),parameters);
+    const binding=omnicPropertyBindings(params,(next,temporary)=>change.current(next,temporary),parameters);
     if(session.current)session.current.update(binding);else session.current=installContextBindings(binding);
   },[params,parameters]);
   useLayoutEffect(()=>()=>{session.current?.dispose();session.current=null;},[]);

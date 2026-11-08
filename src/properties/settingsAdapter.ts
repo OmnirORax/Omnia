@@ -8,6 +8,6 @@ export const SETTINGS_PROPERTY_ADAPTERS: StatePropertyAdapters<WorkspaceSettings
     channels: Object.fromEntries(Object.entries(fn.inputs).map(([id, input]) => [id, input])),
   }]),
 ) as StatePropertyAdapters<WorkspaceSettings>;
-export function settingsPropertyBindings(settings: WorkspaceSettings, update: (change: (old: WorkspaceSettings) => WorkspaceSettings) => void) {
-  return bindStateProperties(PROPERTY_REGISTRY, "settings", settings, SETTINGS_PROPERTY_ADAPTERS, update);
+export function settingsPropertyBindings(settings: WorkspaceSettings, update: (change: (old: WorkspaceSettings) => WorkspaceSettings) => void, preview?: (change: ((old:WorkspaceSettings)=>WorkspaceSettings)|null)=>void) {
+  return bindStateProperties(PROPERTY_REGISTRY, "settings", settings, SETTINGS_PROPERTY_ADAPTERS, update, preview);
 }

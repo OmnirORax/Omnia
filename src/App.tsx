@@ -170,7 +170,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
   const backupUI=useRef({layout:savedUILayout,settings:savedSettings,appearance:previewAppearance});backupUI.current={layout:savedUILayout,settings:savedSettings,appearance:previewAppearance};
   const appearancePending = ui.pendingAppearance || !sameAppearance(previewAppearance, savedSettings.appearance);
   const settings = useMemo(() => ({ ...ui.settings, appearance: safeView ? safeAppearance() : previewAppearance }), [ui.settings, safeView, previewAppearance]);
-  const propertyBindings = settingsPropertyBindings(settings, setSettings);
+  const propertyBindings = settingsPropertyBindings(settings, setSettings, ui.previewSettings);
   const renderSource = useMemo(() => safeView ? settings.appearance : activityPreview(settings.appearance, activityRequests), [settings.appearance, safeView, activityRequests]);
   const renderedAppearance = useMemo(() => resolveControllerAppearance(renderSource), [renderSource]);
   const renderSettings = useMemo(() => ({ ...settings, appearance: renderedAppearance }), [settings, renderedAppearance]);

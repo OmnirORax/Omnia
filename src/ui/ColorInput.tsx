@@ -6,12 +6,13 @@ type Props = Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "value" | "onC
   value: string;
   onChange: (value: string) => void;
   onPreview?: (value: string) => void;
+  onCancel?:()=>void;
 };
 /** Native input previews stay outside document/history persistence. Native change
  * commits once when the picker is accepted; blur is a fallback for browser pickers. */
-export function ColorInput({ value, onChange, onPreview, autoOpen=false, ...props }: Props) {
+export function ColorInput({ value, onChange, onPreview, onCancel, autoOpen=false, ...props }: Props) {
   const input = useRef<HTMLInputElement>(null);
-  const callbacks = useRef({ onChange, onPreview }); callbacks.current = { onChange, onPreview };
+  const callbacks = useRef({ onChange, onPreview, onCancel }); callbacks.current = { onChange, onPreview, onCancel };
   const [draft, setDraft] = useState(value);
   const editing = useRef(false),opened=useRef(false);
   const committed = useRef(value), pending = useRef(value), frame = useRef(0);
@@ -38,7 +39,7 @@ export function ColorInput({ value, onChange, onPreview, autoOpen=false, ...prop
     cancelAnimationFrame(frame.current); frame.current = 0;
     editing.current = false; pending.current = committed.current; setDraft(committed.current);
     input.current!.value = committed.current;
-    callbacks.current.onPreview?.(committed.current);
+    if(callbacks.current.onCancel)callbacks.current.onCancel();else callbacks.current.onPreview?.(committed.current);
   });
   // Open after native change listeners and ancestor popup layout are ready.
   useEffect(()=>{

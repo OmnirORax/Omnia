@@ -19,11 +19,16 @@ export function installContextBindings(binding: PropertyBindings) {
 export function contextPropertyBindings(base:PropertyBindings):PropertyBindings {
   const active=[...sessions.values()];
   if(!active.length)return base;
-  return {values:Object.assign({},base.values,...active.map(binding=>binding.values)),limits:Object.assign({},base.limits,...active.map(binding=>binding.limits)),commit:(changes:PropertyChange[])=>{
+  const owners=new Set<PropertyBindings>();
+  const dispatch=(changes:PropertyChange[],temporary:boolean)=>{
     const writes=new Map<PropertyBindings,PropertyChange[]>();
     for(const change of changes){const binding=[...active].reverse().find(binding=>Object.hasOwn(binding.values,change.consumer)) ?? base;
       const entries=writes.get(binding) ?? [];entries.push(change);writes.set(binding,entries);}
-    for(const [binding,entries]of writes)binding.commit(entries);
+    if(temporary){for(const owner of owners)if(!writes.has(owner))owner.preview?.(null);owners.clear();}
+    for(const [binding,entries]of writes){if(temporary){owners.add(binding);binding.preview?.(entries);}else binding.commit(entries);}
+  };
+  return {values:Object.assign({},base.values,...active.map(binding=>binding.values)),limits:Object.assign({},base.limits,...active.map(binding=>binding.limits)),commit:(changes:PropertyChange[])=>dispatch(changes,false),preview:changes=>{
+    if(changes===null){for(const owner of owners)owner.preview?.(null);owners.clear();}else dispatch(changes,true);
   }};
 }
 

@@ -351,6 +351,49 @@
       "gestures": []
     },
     {
+      "id": "properties.live-preview",
+      "title": "Live colour and slider previews across shared controls",
+      "where": "Colour swatches and numeric sliders throughout the website: local settings, Scene effects, Master controller property groups and Composer.",
+      "behavior": "Dragging/picking previews the actual consumer before confirmation. Shared bindings route validated/bounded samples to transient settings, appearance or recipe owners; samples coalesce per animation frame. Release/accept commits through normal history. Escape/editor teardown clears the preview; mixed groups restore each original value. Existing immediately applied legacy sliders retain their live behavior.",
+      "steps": [
+        {
+          "do": "Open Scene effects, pick High tint and drag through colours without accepting; drag Flash amount or Glow reach while holding the pointer.",
+          "expect": "The wallpaper changes while choosing/dragging, before final acceptance/release. Samples do not save settings or enter Undo history."
+        },
+        {
+          "do": "Cancel a numeric drag with Escape; accept a second drag and use Undo. Close an editor with an unfinished preview.",
+          "expect": "Cancel/teardown restores the prior result. Acceptance creates the ordinary committed edit; Undo restores its previous value."
+        },
+        {
+          "do": "Use a Master controller colour/numeric property targeting multiple consumers with differing values, then cancel. Repeat through a Composer contextual property group.",
+          "expect": "All applicable consumers preview, cancel restores each own original value, and confirmed edits use their existing owner/history. Future registered inputs inherit the shared path."
+        }
+      ],
+      "reference": "docs/SHARED_PROPERTIES.md",
+      "sources": [
+        "src/properties/CoupledProperties.tsx",
+        "src/properties/registry.ts",
+        "src/properties/contextBindings.ts",
+        "src/properties/settingsAdapter.ts",
+        "src/ui/useInterfaceState.ts",
+        "src/ui/ColorInput.tsx",
+        "src/appearance/Controls.tsx",
+        "src/omnic/propertyAdapter.ts"
+      ],
+      "actions": [],
+      "gestures": [],
+      "related": [
+        "appearance.edit",
+        "scene.vfx"
+      ],
+      "status": "Implemented; user interaction acceptance pending",
+      "limits": "Native colour pickers control change/blur/cancel delivery; behavior varies by browser. Temporary action configuration remains a draft and does not execute actions during a drag. Some existing legacy sliders already apply immediately; this change does not replace those owners. Settings previews still render through the current app state owner; smoothness on large workspaces requires user acceptance.",
+      "verification": {
+        "automated": "Regression verifies validated colour/number previews leave saved state unchanged, cancellation, a single committed write, contextual owner routing and transient Omnic restoration. Type/property/model/build/backend checks required for delivery.",
+        "browser": "No new browser check authorized or run. User verifies native picker behavior, live slider feedback and real-wallpaper localization."
+      }
+    },
+    {
       "id": "appearance.edit",
       "title": "Visual hierarchy, shared properties and Apply/Discard",
       "where": "Master controller → Visuals → Visual hierarchy / Properties.",
@@ -2079,15 +2122,19 @@
       "id": "scene.vfx",
       "title": "Source-based Wallpaper Engine pulse and scene audio effects",
       "where": "Scene → Scene effects. Import/apply an image through the existing Scene image workflow.",
-      "behavior": "Automatic light now produces finite graded flares: pooled spectral rises are compared with a recent background median, related changes coalesce, and each event rises smoothly over 30 ms and retracts over 45 ms to Low tint baseline. Continuous texture cannot keep extending the event deadline. Sensitivity controls event prominence; Drop contrast 1 retains linear calibrated peak heights; Flash amount scales the envelope. Audio time owns phase and setting edits preserve the process. Manual, proportional continuous bass bounce, source-hue Omni Low/High pickers, RGB/defaults and Image tint remain. Automatic now adds spatial emission sourced from existing bright local image features: its Gaussian field expands outward and contracts back. Flare light exposes soft peak gain, emission strength, reach and travel independently of detection; core 30/45 ms timing and bass bounce remain.",
+      "behavior": "Automatic light now produces finite graded flares: pooled spectral rises are compared with a recent background median, related changes coalesce, and each event rises smoothly over 30 ms and retracts over 45 ms to Low tint baseline. Continuous texture cannot keep extending the event deadline. Sensitivity controls event prominence; Drop contrast 1 retains linear calibrated peak heights; Flash amount scales the envelope. Audio time owns phase and setting edits preserve the process. Manual, proportional continuous bass bounce, source-hue Omni Low/High pickers, RGB/defaults and Image tint remain. Automatic now adds spatial emission sourced from existing bright local image features: its Gaussian field expands outward and contracts back. Flare light exposes soft peak gain, emission strength, reach and travel independently of detection; core 30/45 ms timing and bass bounce remain. Live colour/slider samples now reach the renderer before confirmation. Spatial glow subtracts its broad diffuse component, uses tighter radius mapping and no radius-squared amplification to reduce the reported coloured veil.",
       "steps": [
         {
           "do": "Use Audio response → Automatic · detailed with your saved settings. Compare dense ongoing texture, then small/medium/big attacks and a DUN chain. Adjust Sensitivity while it plays and release the slider to apply.",
-          "expect": "Background texture is not a continuous high flash. Related changes form one shaped flare with intermediate rise/fall values, then return to Low tint baseline. Attack peaks retain distinct strengths; settings edits do not freeze or restart the envelope. Event grouping and perceived timing still need user acceptance. Shared sliders commit on release; committed values preserve the current flare phase."
+          "expect": "Background texture is not a continuous high flash. Related changes form one shaped flare with intermediate rise/fall values, then return to Low tint baseline. Attack peaks retain distinct strengths; settings edits do not freeze or restart the envelope. Event grouping and perceived timing still need user acceptance. Shared sliders preview during dragging and commit on release; committed values preserve the current flare phase."
         },
         {
           "do": "In Automatic · detailed, open Flare light. Compare gain 1 and 4; adjust Glow strength, Glow reach (%) and Glow travel (ms), releasing each control. Play isolated hits, then Undo/Redo and reload.",
           "expect": "Gain raises admitted peak heights without changing event admission; the glow grows from bright image features and contracts back. Strength/reach zero disables the added field. Travel controls spatial duration independently of core tint. Defaults are gain 4, strength 6, reach 4%, travel 100 ms. Values use shared history/persistence. Base image detail stays sharp."
+        },
+        {
+          "do": "Keep the same wallpaper/tints/audio settings and compare the dark figure and gaps between bright edges during a drop. Drag Glow reach/strength before releasing.",
+          "expect": "The changed optics aim to keep emission close to bright details rather than washing the whole image; broad glow is subtracted. Changes preview during dragging. Visual match remains user acceptance; the earlier synthetic GPU result predates these localized optics."
         },
         {
           "do": "Use new settings or inspect defaults: Low/base 250/240/240, High 61/0/0, Sensitivity 8, Drop contrast 1, Flash amount 1.7. Reload an existing saved preset.",
@@ -2194,7 +2241,7 @@
       "limits": "Spatial light sources are existing bright local image details; no chosen-point source. Cached emission has a 512-pixel maximum edge, eight transient fields and max overlap blending; base image remains native. HDR support is required, otherwise core tint remains. Manual/reduced motion omit the spatial layer. Very bright/high-gain settings may clip. Selected colours is retired; Waves remains guessed pending actual shaders. Browser FFT mapping is approximate; real-music quality and hardware performance remain user acceptance. Existing capture-free website playback and native output budgets remain.",
       "verification": {
         "automated": "Models reproduce the prior dense-frequency hover (~0.69 average, no valley below 0.5), then verify sparse background emission, graded peaks over nonzero texture, zero valleys at 100 ms attack spacing, 60/120/240 Hz shape, event coalescing, live sampler behavior, pause/resume, audio-clock ownership and preserved live uniforms during edits. Existing Manual/colour/default/bass/native-output regressions remain. Full local gate required before delivery. Added soft gain, radius progression, serialized Flare light controls and cache/recovery coverage.",
-        "browser": "User-approved bounded synthetic bright-point GPU check passed on 2026-11-08: Single/Omni compile; Gaussian radius expands/contracts; native one-pixel detail survives; final frame exactly equals base. Kernel RMS 3.9 → 38.8 → 3.9 pixels at constant energy. Real music, full wallpaper appearance and performance remain user acceptance."
+        "browser": "User-approved bounded synthetic bright-point GPU check passed on 2026-11-08: Single/Omni compile; Gaussian radius expands/contracts; native one-pixel detail survives; final frame exactly equals base. Kernel RMS 3.9 → 38.8 → 3.9 pixels at constant energy. Real music, full wallpaper appearance and performance remain user acceptance. That check predates the tighter/localized optics; no fresh browser run for this follow-up. User wallpaper/music comparison is pending."
       }
     },
     {

@@ -434,3 +434,25 @@ The Composer top always shows compact active DOF, mode/rule and ⟴ reference co
 Dragging detects Position; left-holding just outside a selected object's boundary activates a registered Rotation DOF. Self is the default reference. Coordinate DOFs also offer Environment boundaries or a compatible authored target through a temporary MS request, restoring the previous selection on accept/cancel. Return to the shared value slider: drag previews, release commits, wheel/arrows traverse generated values. Limits stay on its ends; the mathematical dial configures rules/variables. Canonical evaluated boundary axes account for parent coordinates. Retained single-target coordinate fields guide subsequent drags; unconfigured/multiple-target drags keep their previous movement behavior.
 
 Current limits: authored SVG reference boundaries and single coordinate axes, not arbitrary 3D feature picking, containment or persistent geometric constraints. Browser acceptance remains pending; see the living E06 record and capability omnic.dof-state-wheel.
+
+
+## Live value previews
+
+Shared colour/numeric editors preview the actual consumer while picking/dragging,
+including local CoupledField controls and generated MC property groups. Preview
+batches travel through the same validated/bounded state adapters as commits.
+Bindings expose preview(changes | null); context routing preserves the real owner
+for each consumer. Frame-coalesced samples remain transient. Cancel/unmount clears
+the preview; mixed groups recover their individual values rather than applying
+one member's old value to all. Commit clears the sample and uses the ordinary
+setter/history once. Existing immediately applied native/legacy sliders remain live.
+
+Interface settings preview against the current committed/draft session without
+publishing a saved session, dirty flag, storage write or journal entry. A real
+session change invalidates that overlay. Omnic lends its existing recipe sample
+path with the temporary flag; appearance uses its existing controller preview.
+Future function inputs inherit the binding contract without per-feature preview
+handlers. Temporary action configuration remains an action-input draft, not an
+instruction to execute actions while dragging. Native colour acceptance/blur and
+cancel availability depend on the browser's picker behavior. No saved format or
+new global value pool is introduced.

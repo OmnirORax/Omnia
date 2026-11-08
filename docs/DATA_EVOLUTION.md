@@ -856,3 +856,21 @@ source permissions or asset lifecycle changes. Model tests cover absent/default
 and explicit bounded roundtrips, shared setters, timing and cache recovery. The
 approved synthetic GPU check covers expansion/contraction and native rest detail;
 real music and performance remain user acceptance.
+
+
+### Shared live control preview and localized emission (2026-11-08)
+
+No fields/defaults/formats change (SceneVfx remains 46 fields, 25 active/21 archived).
+Property adapter preview batches reuse validation and numeric bounds without
+calling saved setters. The interface owner holds a session-bound transient settings
+overlay; commits, history replay and new sessions invalidate it. Storage and journal
+read the original session. Contextual Omnic previews use existing recipe samples;
+commit/cancel retain the existing owner. This does not introduce saved draft fields.
+The wallpaper optics intentionally subtract broad diffuse glow, tighten radius
+mapping and remove radius-squared amplification. Existing reach/strength numbers
+stay saved but render more locally; older clients retain the wider glow. Tints,
+audio thresholds/detection, bounce and requested presets remain unchanged. No
+asset, atlas, backend or media-source migration applies. Retain an export for
+rollback as usual. Regression covers validated transient settings/Omnic previews,
+owner routing, exact cancellation and a single saved commit; visual acceptance
+of localization and live control behavior remains user-owned.

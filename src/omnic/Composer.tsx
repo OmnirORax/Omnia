@@ -98,7 +98,7 @@ function PresetDegreeEditor({recipe,degree,configure,onPreview,onCommit,onDismis
   const value=targetDegreeValue(recipe,degree);
   const parameters=useMemo(()=>degree.axes?degree.axes.map(targetParameter):[parameter],[degree,parameter]);
   const values=useMemo(()=>degree.axes?Object.fromEntries(degree.axes.map(a=>[targetParameter(a).key,targetDegreeValue(recipe,a)])):{[parameter.key]:value},[degree,recipe,parameter.key,value]);
-  useOmnicParameterBindings(values,next=>onCommit(degree.axes?Object.fromEntries(degree.axes.map(a=>[a.properties[0],Number(next[targetParameter(a).key])])):next[parameter.key]),parameters);
+  useOmnicParameterBindings(values,(next,temporary)=>(temporary?onPreview:onCommit)(degree.axes?Object.fromEntries(degree.axes.map(a=>[a.properties[0],Number(next[targetParameter(a).key])])):next[parameter.key]),parameters);
   return <div className="progressive-configuration">
     <DegreeValueEditor recipe={recipe} degree={degree} configure={configure} onDismiss={onDismiss} onPreview={onPreview} onCommit={onCommit}/>
   </div>;
@@ -225,7 +225,7 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
       : { ...current, operations: current.operations.map(operation => operation.id === focus.id ? { ...operation, params } : operation) }, temporary);
   };
   const activeParameters=useMemo(()=>spec?applicableParameters(spec,active?.params??{}):[],[spec,active?.params]);
-  useOmnicParameterBindings(active?.params ?? {}, params => changeParams(params), radar||presetSession||atomnicActive&&radarPanel?.kind!=='parameters'?[]:activeParameters);
+  useOmnicParameterBindings(active?.params ?? {}, (params,temporary) => changeParams(params,temporary), radar||presetSession||atomnicActive&&radarPanel?.kind!=='parameters'?[]:activeParameters);
   const parameter = (field: Parameter, value: string | number | boolean, temporary: boolean) => {
     if (active) changeParams(commitOmnicParameter(active.params, field, value), temporary);
   };
