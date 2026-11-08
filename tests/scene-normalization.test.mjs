@@ -47,9 +47,9 @@ test('worker bridge remeasures actual output pixels and returns its transferred 
  try{
   globalThis.postMessage=(value,buffers)=>{message=value;transfers=buffers;};await import('../src/scene/normalization.worker.ts');
   const input=gray.slice(),before=analyzeScenePixels(sampleScenePixels(input));
-  globalThis.onmessage({data:{pixels:input,preferences:{...defaultNormalizationPreferences(),luminanceMin:.4,contrastMin:0,saturationMin:0}}});
+  globalThis.onmessage({data:{pixels:input,preferences:{...defaultNormalizationPreferences(),luminanceMin:.4,luminanceMax:.6,contrastMin:0,saturationMin:0}}});
   assert.ok(message.report.changed);assert.deepEqual(message.report.before,before);assert.deepEqual(message.report.after,analyzeScenePixels(sampleScenePixels(message.pixels)));assert.equal(transfers[0],message.pixels.buffer);
-  const preferences={...defaultNormalizationPreferences(),luminanceMin:.4,contrastMin:0,saturationMin:0},canonical=planSceneNormalization(gray,preferences);
+  const preferences={...defaultNormalizationPreferences(),luminanceMin:.4,luminanceMax:.6,contrastMin:0,saturationMin:0},canonical=planSceneNormalization(gray,preferences);
   globalThis.onmessage({data:{pixels:pixels(16,()=>[80,80,80,255]),sample:gray,preferences}});assert.deepEqual(message.report.corrections,canonical.corrections,'thumbnail solving uses the same source sample as full output');
  }finally{if(previous.onmessage===undefined)delete globalThis.onmessage;else globalThis.onmessage=previous.onmessage;if(previous.postMessage===undefined)delete globalThis.postMessage;else globalThis.postMessage=previous.postMessage;}
 });
@@ -58,8 +58,8 @@ test('shared settings previews validate through the real adapters without writin
  const {defaultSettings}=await import('../src/workspaceActions.ts');const {settingsPropertyBindings}=await import('../src/properties/settingsAdapter.ts');
  let saved=defaultSettings(),draft=null,writes=0;const original=saved,property=normalizationProperty('luminanceMin'),change={consumer:NORMALIZATION_FUNCTION,property,value:.6};
  const bindings=settingsPropertyBindings(saved,update=>{saved=update(saved);writes++;},candidate=>{draft=candidate;});
- bindings.preview([change]);assert.equal(writes,0);assert.equal(saved,original);assert.equal(normalizationPreferences(draft.functionValues[NORMALIZATION_FUNCTION]).luminanceMin,.55,'unordered interval interpretation still applies');
- bindings.preview([{...change,value:.12}]);assert.equal(draft,null,'restoring the stored value cancels transient state');
+ bindings.preview([change]);assert.equal(writes,0);assert.equal(saved,original);assert.equal(normalizationPreferences(draft.functionValues[NORMALIZATION_FUNCTION]).luminanceMin,0,'unordered interval interpretation still applies');
+ bindings.preview([{...change,value:.1}]);assert.equal(draft,null,'restoring the stored value cancels transient state');
  bindings.preview([change]);bindings.commit([change]);assert.equal(draft,null);assert.equal(writes,1);assert.equal(saved.functionValues[NORMALIZATION_FUNCTION][property],.6);
 });
 
@@ -86,4 +86,20 @@ test('canvas previews reach the existing wallpaper sampler synchronously without
  const first=wallpaper.setSource(canvas);assert.ok(background.image.value instanceof THREE.CanvasTexture);assert.equal(background.image.value.image,canvas);assert.equal(background.image.value.colorSpace,THREE.SRGBColorSpace);assert.equal(background.hasImage.value,1);assert.ok(paints>0,'no async load barrier before repaint request');await first;
  const previous=background.image.value;let disposed=false;previous.addEventListener('dispose',()=>{disposed=true;});const replacement={width:384,height:216};await wallpaper.setSource(replacement,true);assert.equal(background.image.value.image,replacement);assert.equal(disposed,true);
  await wallpaper.setSource(null);assert.equal(background.image.value,null);assert.equal(background.hasImage.value,0);wallpaper.dispose();assert.equal(scene.children.length,0);
+});
+
+test('full-resolution correction changes shared uniforms without replacing the source texture',async()=>{
+ const THREE=await import('three');const {createWallpaper}=await import('../src/scene/wallpaper.ts');const {createSphereBackground,sphereBackgroundUniforms,sphereBackgroundGLSL}=await import('../src/scene/sphereBlend.ts');
+ const scene=new THREE.Scene(),background=createSphereBackground();let paints=0;const wallpaper=createWallpaper(scene,()=>paints++,background),source={width:2560,height:1440};await wallpaper.setSource(source);
+ const texture=background.image.value,uniforms=sphereBackgroundUniforms(background);wallpaper.setCorrection({exposure:.5,contrast:1.2,saturation:.9,balance:[1.04,.97,1]});
+ assert.equal(background.image.value,texture);assert.equal(texture.image,source);assert.equal(texture.image.width,2560);assert.equal(texture.image.height,1440);assert.equal(uniforms.sceneCorrectionEnabled.value,1);assert.equal(uniforms.sceneCorrectionExposure.value,.5*Math.LN2);assert.deepEqual(uniforms.sceneCorrectionBalance.value.toArray(),[1.04,.97,1]);assert.ok(paints>=2);
+ assert.match(sphereBackgroundGLSL,/return correctSceneImage\(texture2D/,'wallpaper and adaptive spheres sample the same corrected full-size image');
+ wallpaper.setCorrection(null);assert.equal(uniforms.sceneCorrectionEnabled.value,0);assert.equal(background.image.value,texture,'before/after changes uniforms, not image size');
+ await wallpaper.setSource(null);assert.equal(background.image.value,null);assert.equal(uniforms.sceneCorrectionEnabled.value,0);wallpaper.dispose();
+});
+
+
+test('user-selected normalization defaults retain raw crossed fields and their effective intervals',()=>{
+ const raw=Object.fromEntries(NORMALIZATION_FIELDS.map(field=>[field.key,field.initial]));assert.deepEqual(raw,{enabled:true,luminanceMin:.1,luminanceMax:0,contrastMin:.66,contrastMax:.02,saturationMin:1,saturationMax:1,balanceTolerance:.3,exposureLimit:1,contrastLimit:.75,saturationLimit:.75,balanceLimit:.2});
+ const effective=defaultNormalizationPreferences();assert.equal(effective.luminanceMin,0);assert.equal(effective.luminanceMax,.1);assert.equal(effective.contrastMin,.02);assert.equal(effective.contrastMax,.66);assert.equal(effective.saturationMin,1);assert.equal(effective.saturationMax,1);
 });

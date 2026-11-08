@@ -2,7 +2,7 @@ import {chromium} from 'playwright-core';
 import assert from 'node:assert/strict';
 const browser=await chromium.launch({executablePath:'/usr/bin/chromium',args:['--no-sandbox','--disable-dev-shm-usage','--use-gl=angle','--use-angle=swiftshader']});
 try {
-const page=await browser.newPage({viewport:{width:1440,height:950}});const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.addInitScript(()=>localStorage.setItem('omnium.workspace.settings.v1',JSON.stringify({appearance:{motion:0,atmosphere:false,effect:'off'}})));await page.goto(process.env.ATLAS_URL||'http://127.0.0.1:5173');await page.waitForTimeout(2500);
+const page=await browser.newPage({viewport:{width:1440,height:950}});const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.addInitScript(()=>localStorage.setItem('omnium.workspace.settings.v1',JSON.stringify({appearance:{motion:0,atmosphere:false,effect:'off'},functionValues:{'scene.normalize':{'scene.normalize.luminanceMax':.55,'scene.normalize.contrastMin':0,'scene.normalize.contrastMax':1,'scene.normalize.saturationMin':0,'scene.normalize.saturationMax':1}}})));await page.goto(process.env.ATLAS_URL||'http://127.0.0.1:5173');await page.waitForTimeout(2500);
 
 await page.getByRole('button',{name:'+ Add first node',exact:true}).click();
 const image=await page.evaluate(()=>{const c=document.createElement('canvas');c.width=2048;c.height=1152;const ctx=c.getContext('2d');const data=ctx.createImageData(2048,1152);for(let i=0;i<data.data.length;i+=4){const v=35+(i/4)%110;data.data.set([v,v,v,255],i);}ctx.putImageData(data,0,0);return c.toDataURL().split(',')[1];});

@@ -879,3 +879,14 @@ polling or full-resolution processing during dragging. Full PNG/cache work remai
 on commit. Preserve scalar-kernel byte parity, source/account guards and transient
 settings/history boundaries. The user owns post-fix latency acceptance; do not
 extend delivery into repeated profiling/benchmarks or claim sufficiency from tests.
+
+Normalization sharpness correction supersedes reduced drag canvases: keep the
+original full-resolution texture and update correction uniforms in the shared
+wallpaper/sphere-background sampler. Worker dragging solves samples/coefficients
+only; CPU PNG preparation/cache stays on commit. Before/after toggles uniforms;
+never change resolution on drag/release. User chose preview testing, so no GPU
+pixel parity/quality/performance acceptance is inferred from model/build checks.
+Current user-selected raw defaults are luma .10/0, contrast .66/.02, saturation1/1,
+neutral tolerance .30, exposure limit1, contrast/saturation limits .75, balance .20.
+Keep raw crossed endpoints and existing unordered-range interpretation; explicit
+saved values/zero/false remain authoritative. The min/max controls bound one range.

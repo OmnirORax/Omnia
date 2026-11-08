@@ -28,31 +28,29 @@ export function createNormalizationProcessor(){
   dispose(){closed=true;pending?.();worker?.terminate();worker=null;},
  };
 }
-type NormalizationOptions={signal?:AbortSignal;persistent?:boolean;maxEdge?:number;processor?:ReturnType<typeof createNormalizationProcessor>};
-export async function normalizeSceneBlob(original:Blob,preferences:NormalizationPreferences,{signal,persistent=true,maxEdge,processor}:NormalizationOptions={}):Promise<{blob:Blob;report:NormalizationReport;cached:boolean;canvas?:HTMLCanvasElement}>{
- persistent=persistent&&!maxEdge;
+type NormalizationOptions={signal?:AbortSignal;persistent?:boolean;preview?:boolean;processor?:ReturnType<typeof createNormalizationProcessor>};
+export async function normalizeSceneBlob(original:Blob,preferences:NormalizationPreferences,{signal,persistent=true,preview=false,processor}:NormalizationOptions={}):Promise<{blob:Blob;report:NormalizationReport;cached:boolean}>{
+ persistent=persistent&&!preview;
  aborted(signal);
  const digest=await crypto.subtle.digest('SHA-256',await original.arrayBuffer());
  const hash=Array.from(new Uint8Array(digest),v=>v.toString(16).padStart(2,'0')).join(''),key=`${hash}:${preferences.enabled}:${normalizationKey(preferences)}`;
  aborted(signal);
  // Cached derivatives are optional. Storage failure never prevents using the source.
  const cached=persistent?await cacheRead(key).catch(()=>undefined):undefined;aborted(signal);if(cached)return {blob:cached.report.changed?cached.blob:original,report:cached.report,cached:true};
+ const cachedSample=samples.get(hash);
+ if(preview&&cachedSample){const owned=processor?null:createNormalizationProcessor();try{const result=await (processor??owned!).process(cachedSample.slice(),preferences,cachedSample,signal);aborted(signal);return {blob:original,report:result.report,cached:false};}finally{owned?.dispose();}}
  const image=await createImageBitmap(original);try{
   aborted(signal);if(image.width>4096||image.height>4096||image.width*image.height>12_000_000)throw new Error('Scene exceeds the normalization resolution limit.');
-  const canvas=document.createElement('canvas'),scale=maxEdge?Math.min(1,maxEdge/Math.max(image.width,image.height)):1;canvas.width=Math.max(1,Math.round(image.width*scale));canvas.height=Math.max(1,Math.round(image.height*scale));const context=canvas.getContext('2d',{willReadFrequently:true});if(!context)throw new Error('Image processing is unavailable.');context.drawImage(image,0,0,canvas.width,canvas.height);
+  const canvas=document.createElement('canvas');canvas.width=image.width;canvas.height=image.height;const context=canvas.getContext('2d',{willReadFrequently:true});if(!context)throw new Error('Image processing is unavailable.');context.drawImage(image,0,0,canvas.width,canvas.height);
   const input=context.getImageData(0,0,canvas.width,canvas.height);
-  let sample=samples.get(hash);
-  if(!sample){
-   if(scale===1)sample=sampleScenePixels(input.data);
-   else{const full=document.createElement('canvas');full.width=image.width;full.height=image.height;const fullContext=full.getContext('2d',{willReadFrequently:true});if(!fullContext)throw new Error('Image analysis is unavailable.');fullContext.drawImage(image,0,0);sample=sampleScenePixels(fullContext.getImageData(0,0,image.width,image.height).data);}
-  }
+  const sample=samples.get(hash)??sampleScenePixels(input.data);
   samples.delete(hash);samples.set(hash,sample);if(samples.size>8)samples.delete(samples.keys().next().value!);
 
   const owned=processor?null:createNormalizationProcessor();let result:WorkerResult;
-  try{result=await (processor??owned!).process(input.data,preferences,sample,signal);}finally{owned?.dispose();}aborted(signal);
-  if(result.report.changed)context.putImageData(new ImageData(new Uint8ClampedArray(result.pixels),canvas.width,canvas.height),0,0);
-  // Drag previews upload directly to the existing wallpaper texture; no PNG encode/decode.
-  if(maxEdge)return {blob:original,report:result.report,cached:false,canvas};
+  try{result=await (processor??owned!).process(preview?sample.slice():input.data,preferences,sample,signal);}finally{owned?.dispose();}aborted(signal);
+  if(result.report.changed&&!preview)context.putImageData(new ImageData(new Uint8ClampedArray(result.pixels),canvas.width,canvas.height),0,0);
+  // Live rendering uses the original full-resolution texture plus these coefficients.
+  if(preview)return {blob:original,report:result.report,cached:false};
   let blob=original;
   if(result.report.changed)blob=await new Promise<Blob>((resolve,reject)=>canvas.toBlob(value=>value?resolve(value):reject(new Error('Corrected image could not be encoded.')),'image/png'));
   aborted(signal);if(persistent)await cacheWrite({key,blob:result.report.changed?blob:new Blob(),report:result.report,touched:Date.now()}).catch(()=>{});aborted(signal);

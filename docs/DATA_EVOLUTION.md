@@ -444,3 +444,15 @@ image bytes and graph settings retain their formats. Scalar kernel optimization
 is checked against frozen historical pixel-byte hashes. The shared wallpaper owner
 now accepts URL or canvas sources; source/account clear and resource disposal are
 preserved. No data migration/version bump or cloud deployment is required.
+
+Full-resolution normalization now renders the original texture with transient shared
+correction uniforms instead of displaying reduced canvases/derived image URLs.
+CPU correction equations/cache/output remain unchanged; originals, assignments and
+version-1 settings/cache formats are retained. GPU floating-point/sample rounding
+can differ from cached CPU output; visual parity is user-owned. Raw initial settings
+now use the user's screenshot: luminance .10/0, contrast .66/.02, saturation 1/1,
+neutral tolerance .30, exposure limit 1, contrast/saturation limits .75 and balance
+limit .20. Existing unordered-interval interpretation yields luminance 0–.10 and
+contrast .02–.66. Explicit saved fields including false/zero are retained; absent
+fields intentionally acquire the new defaults. Preference keys naturally separate
+old/new constraints; there is no migration or rewriting of original image bytes.

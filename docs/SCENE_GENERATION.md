@@ -210,17 +210,17 @@ separate comparator. That preview switch is transient; the enabled setting and
 constraints use discovered settings inputs, existing settings persistence/history,
 Master Controller and normal movable UIField/CoupledField controls.
 
-Preferred ranges are soft constraints, not a filter preset or matching one image's
-histogram. Initial ranges are mean encoded-sRGB weighted luma .12–.55, p95−p05 luma
-contrast .35–.98, mean HSV saturation .25–.88 and neutral colour imbalance ≤.08.
-These broad starting ranges reflect the user's diverse dark, daylight and warm
-references qualitatively; they are not measurements learned from those files.
-The individual images should retain their palettes/moods. Change all ranges and
-maximum correction bounds in **Preferred ranges and correction limits**. Reversed
-endpoints are treated as an unordered interval. Default bounds: exposure ±.75 EV
-(a log-odds luminance adjustment), contrast gain 1±.25, saturation gain 1±.25 and
-neutral-channel gains 1±.06. Exposure EV labels the bounded tone adjustment, not a
-physical camera exposure simulation.
+Preferred ranges are soft constraints, not a filter preset or one image's histogram.
+Current user-selected raw defaults are luminance minimum .10 / maximum 0, contrast
+minimum .66 / maximum .02, saturation 1 / 1, neutral colour tolerance .30, maximum
+exposure correction 1 EV, contrast/saturation correction .75 and neutral colour
+correction .20. Crossed endpoints are kept as authored in controls and interpreted
+as unordered pairs: effective luminance 0–.10, contrast .02–.66. Min/max bound one
+acceptable interval: below it correction increases the metric, above it correction
+decreases it, and inside it that constraint requests no change. These are not two
+independent contrast effects. Limits can prevent reaching the requested interval;
+remaining violations are reported. Explicit saved values still override defaults.
+EV labels the bounded log-odds tone adjustment, not physical camera simulation.
 
 A portable deterministic search evaluates small bounded corrections against
 measured range violations plus an identity penalty. Already acceptable images
@@ -295,3 +295,23 @@ remain unverified after this change; model/build checks do not establish them.
 Short drags also catch up with a small final frame before starting full-size PNG
 work if no preview of the committed value arrived yet. This is still a transient
 frame; settings commit normally and only the full result enters the saved cache.
+
+
+## Full-resolution normalization display
+
+The reduced 384px drag image was visibly blurry before the full image arrived.
+Normalization now retains the original full-resolution texture through dragging,
+release and before/after comparison. The shared wallpaper sampler applies correction
+coefficients in GLSL using the CPU tone, neutral balance, gamut and quantization
+equations; adaptive sphere blending samples the same corrected image. Updating
+coefficients changes uniforms and requests paint without replacing/loading images.
+The worker solves from the original bounded source sample during dragging; no small
+image is generated, encoded, uploaded or substituted. Final CPU processing and PNG
+caching remain on commit for verified output/reuse. The hook no longer creates URLs
+for normalized derivatives; the existing original-background owner still owns URLs,
+identity/account guards and deletion. Texture resolution and viewport pixel budgets
+are unchanged. GPU floating-point and sampling can differ from CPU-cached output;
+exact visual/pixel parity and GPU cost remain user browser acceptance. The user
+chose to test the preview; no new browser suite/profiling was run for this path.
+This supersedes reduced-image/canvas preview descriptions above. It changes display
+implementation, not saved original bytes or constraint interpretation.

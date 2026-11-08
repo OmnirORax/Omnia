@@ -3,17 +3,17 @@ export const NORMALIZATION_VERSION=1;
 export const NORMALIZATION_FUNCTION='scene.normalize';
 export const NORMALIZATION_FIELDS=[
  {key:'enabled',label:'Normalize scene images',kind:'toggle',initial:true},
- {key:'luminanceMin',label:'Luminance minimum',kind:'number',initial:.12,min:0,max:1},
- {key:'luminanceMax',label:'Luminance maximum',kind:'number',initial:.55,min:0,max:1},
- {key:'contrastMin',label:'Contrast minimum',kind:'number',initial:.35,min:0,max:1},
- {key:'contrastMax',label:'Contrast maximum',kind:'number',initial:.98,min:0,max:1},
- {key:'saturationMin',label:'Saturation minimum',kind:'number',initial:.25,min:0,max:1},
- {key:'saturationMax',label:'Saturation maximum',kind:'number',initial:.88,min:0,max:1},
- {key:'balanceTolerance',label:'Neutral colour tolerance',kind:'number',initial:.08,min:0,max:.3},
- {key:'exposureLimit',label:'Maximum exposure correction (EV)',kind:'number',initial:.75,min:0,max:2},
- {key:'contrastLimit',label:'Maximum contrast correction',kind:'number',initial:.25,min:0,max:.75},
- {key:'saturationLimit',label:'Maximum saturation correction',kind:'number',initial:.25,min:0,max:.75},
- {key:'balanceLimit',label:'Maximum neutral colour correction',kind:'number',initial:.06,min:0,max:.2},
+ {key:'luminanceMin',label:'Luminance minimum',kind:'number',initial:.1,min:0,max:1},
+ {key:'luminanceMax',label:'Luminance maximum',kind:'number',initial:0,min:0,max:1},
+ {key:'contrastMin',label:'Contrast minimum',kind:'number',initial:.66,min:0,max:1},
+ {key:'contrastMax',label:'Contrast maximum',kind:'number',initial:.02,min:0,max:1},
+ {key:'saturationMin',label:'Saturation minimum',kind:'number',initial:1,min:0,max:1},
+ {key:'saturationMax',label:'Saturation maximum',kind:'number',initial:1,min:0,max:1},
+ {key:'balanceTolerance',label:'Neutral colour tolerance',kind:'number',initial:.3,min:0,max:.3},
+ {key:'exposureLimit',label:'Maximum exposure correction (EV)',kind:'number',initial:1,min:0,max:2},
+ {key:'contrastLimit',label:'Maximum contrast correction',kind:'number',initial:.75,min:0,max:.75},
+ {key:'saturationLimit',label:'Maximum saturation correction',kind:'number',initial:.75,min:0,max:.75},
+ {key:'balanceLimit',label:'Maximum neutral colour correction',kind:'number',initial:.2,min:0,max:.2},
 ] as const;
 export type NormalizationPreferences={enabled:boolean;luminanceMin:number;luminanceMax:number;contrastMin:number;contrastMax:number;saturationMin:number;saturationMax:number;balanceTolerance:number;exposureLimit:number;contrastLimit:number;saturationLimit:number;balanceLimit:number};
 export const normalizationProperty=(key:string)=>`scene.normalize.${key}`;
