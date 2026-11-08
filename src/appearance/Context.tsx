@@ -1,3 +1,4 @@
+import type {PatternPaint} from '../paint/pattern.ts';
 import { removedTargets, restoreTargetDraft } from "./draftTargets";
 import {functionIndex} from '../ui/functionIndex';
 import { boundedNumber } from "../properties/numericRange";
@@ -26,6 +27,7 @@ import { MouseTrail } from "./MouseTrail";
 import { VisualSelectionProvider } from "./VisualSelector";
 export type AppearanceLocation = { target: string; property?: string };
 export type AppearanceBridge = {
+  pattern?:PatternPaint;
   safe?: boolean;
   masterOpen?: boolean;
   activityPreview?: (requests: ActivityPreview[]) => void;

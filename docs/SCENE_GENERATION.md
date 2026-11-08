@@ -345,3 +345,11 @@ so drag samples stay outside settings/history and derivative-cache writes. The
 user explicitly retired wallpaper-to-sphere blending; its old shared sphere
 sampler is removed. Normalization, source originals, native output and audio
 controls remain. No browser/GPU parity claim is inferred from the merge tests.
+
+## Shared pattern paint
+
+The current scene can feed a shared multicolour pattern for registered UI text,
+contours and surfaces. The pattern owns the colour connection; consumers opt in
+globally or through hierarchy use modes without copying colours. See
+[Shared scene pattern paint](SCENE_PATTERN_PAINT.md) for controls, resting-tint
+semantics, renderer limits and data ownership.

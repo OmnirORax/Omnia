@@ -996,3 +996,14 @@ is inferred from saved settings; connection is explicit. Native packaging is a
 standalone Windows CI artifact with retained upstream/dependency licensing; final
 signed installer, auto-start and updates remain deferred. Native input only accepts
 omnium.nexus/localhost origins; shared public preview origins are excluded.
+
+### Shared scene pattern paint (2026-11-08)
+
+Additive `paint.pattern` functionValues and per-socket `patternUse` reuse existing
+settings/controller version-1 formats, history and exports. Global application
+defaults off, preserving ordinary stored colours, explicit false/zero and bypass
+semantics. Live palette links and SVG tiles are transient, not copied into colour
+fields or private cloud derivatives. Original files, normalization, graph and
+backend formats are unaffected; no migration required. Older clients may ignore
+or drop new fields on rewrite. Locks opt out to ordinary paint, not a frozen
+multicolour snapshot. See [the owner map](SCENE_PATTERN_PAINT.md).

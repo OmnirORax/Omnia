@@ -4273,6 +4273,56 @@
         "automated": "Existing 624-model suite, preview/type/property/capability build and backend checks are required by the source pre-push gate. No new test for removing a redundant transient UI control. Merge integration retains the correction/texture lifecycle checks through the audio-capable native wallpaper owner.",
         "browser": "No browser run for this control removal; on/off comparison uses the existing normalization toggle. User retains visual acceptance for the full-resolution shader path."
       }
+    },
+    {
+      "id": "paint.pattern",
+      "title": "Shared scene-colour pattern paint",
+      "where": "Master controller → Visuals → Pattern paint (Show all controls if inspecting a selection). Selective route: visual hierarchy socket → Color → Pattern paint.",
+      "behavior": "One shared pattern owns the scene-palette connection. Supported text, contours and UI surfaces inherit its colour pair and geometry without overwriting ordinary colours. Global application defaults off. Per-socket Inherit global / Use shared pattern / Solid/manual modes inherit through the existing hierarchy. Four editable presets are Ring + dot, Alternating dots, Checker and Stripes; shared controls set spacing, fill, text keyline and manual/fallback colours. Scene colour extraction follows normalization and resting low tint, excluding audio flashes. Existing settings previews, controller Apply/Discard, history and export own changes.",
+      "steps": [
+        {
+          "do": "Open Master controller → Visuals → Pattern paint. Choose Manual pair, set green and yellow, then turn on Apply pattern globally.",
+          "expect": "The pattern preview and supported UI text, surfaces and borders use both colours within each painted object, rather than assigning one colour per role."
+        },
+        {
+          "do": "Change Pattern preset, spacing and fill while keeping the section open.",
+          "expect": "Connected consumers update from the same edited source. Try all four presets; Text keyline affects text only."
+        },
+        {
+          "do": "Turn global application off; select a supported text or frame socket in the visual hierarchy and choose Color → Pattern paint → Use shared pattern.",
+          "expect": "The selected socket inherits the shared pattern while ordinary sockets retain their stored paint. Solid/manual opts it out; Inherit global restores inherited routing."
+        },
+        {
+          "do": "Choose Follow scene image and select a node with an imported scene. Change to another scene.",
+          "expect": "The preview reports inherited colours and connected sockets follow the new dominant/accent pair after palette analysis settles. No scene uses the labelled manual fallback."
+        },
+        {
+          "do": "Lock or bypass a socket’s colour, then turn pattern application off and use the existing Apply/Discard controls and reload.",
+          "expect": "Locked/bypassed sockets retain ordinary paint. Turning pattern off restores stored colours. Apply retains accepted settings; Discard restores the accepted controller state, and reload uses saved source/use settings."
+        }
+      ],
+      "reference": "docs/SCENE_PATTERN_PAINT.md",
+      "sources": [
+        "src/paint/pattern.ts",
+        "src/paint/pattern.function.ts",
+        "src/paint/routing.ts",
+        "src/paint/useScenePalette.ts",
+        "src/paint/PatternControls.tsx",
+        "src/appearance/Styles.tsx",
+        "src/appearance/registry.ts",
+        "tests/pattern-paint.test.mjs"
+      ],
+      "actions": [],
+      "gestures": [],
+      "status": "Implemented for PR/commit-pinned preview; not merged or production deployed.",
+      "limits": "Registered DOM text, contours and surfaces only. Native 3D, icons/emoji, raster art, individual characters and native placeholder/scrollbar pseudos have no pattern adapter. Border-image can square rounded corners and replace dashed geometry. Tiny text/borders may need spacing/contour adjustments. No local contrast guarantee, dynamic audio palette following, arbitrary Omnic pattern recipes or named saved presets. Colour locks opt out rather than freeze a multicolour snapshot. Older clients may drop unknown settings.",
+      "verification": {
+        "browser": "Awaiting user preview acceptance; no browser run authorized for this feature yet.",
+        "automated": "Five focused palette/source/routing/serialization/SVG tests pass within the 667-test model/architecture suite. Preview build, property contract and backend type-check command pass. Browser/visual acceptance is pending."
+      },
+      "related": [
+        "scene.manual"
+      ]
     }
   ]
 }

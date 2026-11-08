@@ -10,7 +10,7 @@ export type PropertyNode = {
 };
 const leaf = (id: string, label: string): PropertyNode => ({ id, label, property: id });
 export const PROPERTY_TREE: PropertyNode[] = [
-  leaf("color", "Color"),
+  {...leaf("color", "Color"),children:[leaf("patternUse","Pattern paint")]},
   {
     id: "lighting",
     label: "Lighting",

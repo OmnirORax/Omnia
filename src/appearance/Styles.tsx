@@ -1,3 +1,5 @@
+import {patternApplies,patternCSS} from '../paint/routing.ts';
+import {patternTile} from '../paint/pattern.ts';
 import {translucentOpacity} from '../properties/translucency.ts';
 import { useMemo } from "react";
 import { fontFamily } from "../fonts";
@@ -15,8 +17,9 @@ export function AppearanceStyles() {
   const css = useMemo(() => {
     if (!context || context.safe) return "";
     const { legacyBase: base, state, targets } = context,
-      rules: string[] = ["body *{--omnium-custom-shadow:0 0 0 transparent}"];
+      rules: string[] = ["body *{--omnium-custom-shadow:0 0 0 transparent;--omnium-pattern-text:none;--omnium-pattern-surface:none}"];
     const read = context.read, index = context.hierarchy.index;
+    const patternActive=!!context.pattern&&(context.pattern.settings.global||Object.values(state.values).some(values=>values.patternUse==='on'));
     for (const target of [...targets].sort(
       (a, b) => (a.instance ? scopeDepth(a.instance) : -1) - (b.instance ? scopeDepth(b.instance) : -1),
     )) {
@@ -25,19 +28,21 @@ export function AppearanceStyles() {
       if (target.aggregate && !target.instance) continue;
       if (!binding?.selector || !binding.css || !target.properties) continue;
       const values = state.values[target.id] ?? {};
+      const paint=context.pattern, patterned=!!paint&&!!binding.patternRole&&patternApplies(state,targets,target,paint.settings.global,index);
+      const resetPatternText=patternActive&&binding.patternRole==='text'&&!patterned;
       const icon = binding.animation?.kind === "icons" && binding.css === "color";
       const active = target.properties
         .filter(
           (p) =>
             !["effect", "speed", "intensity", "density", "size", "length"].includes(p) &&
-            !p.startsWith("effect"),
+            !p.startsWith("effect")&&p!=="patternUse",
         )
         .some((p) => values[p] !== undefined || !connected(state, targets, target.id, p, index));
       const legacyText = !!binding.text && (base.textColor !== undefined || base.textGlow > 0);
       // Always establish an icon's own ink, even before it has an override.
       // Otherwise currentColor falls through to a styled text container.
-      if (!active && !legacyText && !icon) continue;
-      const color = read(target, "color") as string,
+      if (!active && !legacyText && !icon&&!patterned&&!resetPatternText) continue;
+      const color = (patterned&&paint?paint.colors[0]:read(target, "color")) as string,
         brightness = read(target, "brightness") as number,
         opacity = translucentOpacity(Number(read(target, "opacity")),Number(read(target,"translucency"))),
         glow = read(target, "glow") as number;
@@ -72,7 +77,7 @@ export function AppearanceStyles() {
       if (!binding.text || ["color", "brightness", "opacity", "translucency"].some(custom) || legacyText)
         declarations.push(`${binding.css}:${tint(color, brightness, opacity)} !important`);
       if (icon) {
-        declarations.push("text-shadow:none !important", "font-family:system-ui !important", "letter-spacing:normal !important",
+        declarations.push("-webkit-text-fill-color:currentColor !important", "-webkit-text-stroke:0 !important", "text-shadow:none !important", "font-family:system-ui !important", "letter-spacing:normal !important",
           `filter:saturate(${Number(get("saturation"))})${glow > 0 ? ` drop-shadow(0 0 ${glow * 8}px ${color})` : ""} !important`);
       } else if (binding.text) {
         if (["glow", "color", "brightness", "opacity", "translucency"].some(custom) || legacyText)
@@ -118,6 +123,19 @@ export function AppearanceStyles() {
           );
       }
       rules.push(`${rootSelector} ${rawSelector}{${declarations.join(";")}}`);
+      if(resetPatternText)rules.push(`${rootSelector} ${rawSelector}{color:${tint(String(read(target,"color")),brightness,opacity)} !important;-webkit-text-fill-color:currentColor !important;-webkit-text-stroke:0 !important}`);
+      if(patterned&&paint&&binding.patternRole){
+        const tile=patternTile(paint,brightness,opacity),ink=paint.colors.reduce((sum,c)=>sum+parseInt(c.slice(1,3),16)+parseInt(c.slice(3,5),16)+parseInt(c.slice(5,7),16),0)/6>120?'#071019':'#effcff';
+        // Root containers do not own isolated text masks; keep their surfaces independent.
+        const safe=binding.patternRole==='text'?`${rawSelector}:not(.workbench,.floating-window,.spatial-menu,.ui-background-menu,.ui-shortcut-notice,.ui-frame-search-popup,input[type=color],input[type=range],input[type=checkbox],input[type=radio])`:rawSelector;
+        rules.push(`${rootSelector} ${safe}{${patternCSS(binding.patternRole,tile,paint.settings.outline,tint(ink,1,opacity))}}`);
+      }
+
+    }
+    if(patternActive)for(const target of targets){
+      if(target.instance?.part?.text===undefined||!state.values[target.id])continue;
+      const root=target.instance.owner==='app'?':root[data-omnium-theme]':':root[data-omnium-theme] body';
+      rules.push(`${root} ${partSelector(target.instance)}{--omnium-pattern-text:none;-webkit-text-fill-color:currentColor !important;-webkit-text-stroke:0 !important;background-image:var(--omnium-pattern-surface,none) !important;background-clip:padding-box !important}`);
     }
     const thumb = targets.find((t) => t.id === "ui.scrollbars.thumb")!,
       track = targets.find((t) => t.id === "ui.scrollbars.track")!;
@@ -131,7 +149,7 @@ export function AppearanceStyles() {
       rules.push(`:root[data-omnium-theme] *{scrollbar-color:${ink(thumb)} ${ink(track)}}`);
     }
     return rules.join("\n");
-  }, [context?.legacyBase, context?.state.values, context?.state.disconnected, context?.targets, context?.safe]);
+  }, [context?.legacyBase, context?.state.values, context?.state.disconnected, context?.targets, context?.safe,context?.pattern,context?.state.locks]);
   return <><style data-appearance-registry>{css}</style><ScopedTextAppearance /></>;
 }
 export function useIconTint(owner: string, fallbackOwner?: string) {

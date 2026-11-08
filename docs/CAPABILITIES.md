@@ -79,6 +79,7 @@ Use disposable work for tests; export your workspace first. Each numbered step i
 | [Wallpaper-to-sphere blending (retired)](#render-adaptiveComparison) | Retired at user request; archived preferences retained | No active control; removed at the user’s request. |
 | [Adjust the transparent centre of sphere nodes](#render-radialTranslucency) | Implemented for preview review; visual acceptance pending | MS / Master controller → Visuals → Omnium → Nodes → Sphere / geometric body → Translucency → Translucency radius. |
 | [Non-destructive scene image normalization](#scene-normalization) | Implemented for preview review; browser acceptance pending | Scene → Image normalization. Normalize scene images switches between corrected and original; expand Preferred ranges and correction limits. |
+| [Shared scene-colour pattern paint](#paint-pattern) | Implemented for PR/commit-pinned preview; not merged or production deployed. | Master controller → Visuals → Pattern paint (Show all controls if inspecting a selection). Selective route: visual hierarchy socket → Color → Pattern paint. |
 
 <a id="guidance-catalog"></a>
 ## Capability guide and automatic coverage checks
@@ -1948,6 +1949,31 @@ Global non-destructive normalization defaults on and keeps original image files,
 **Details:** [subsystem guide](SCENE_GENERATION.md). **Implementation:** [src/scene/normalization.ts](../src/scene/normalization.ts), [src/scene/normalization.function.ts](../src/scene/normalization.function.ts), [src/scene/normalization.worker.ts](../src/scene/normalization.worker.ts), [src/scene/normalizationCache.ts](../src/scene/normalizationCache.ts), [src/scene/useNormalizedScene.ts](../src/scene/useNormalizedScene.ts), [src/scene/NormalizationPanel.tsx](../src/scene/NormalizationPanel.tsx), [src/scene/library.ts](../src/scene/library.ts), [src/scene/background.ts](../src/scene/background.ts), [src/App.tsx](../src/App.tsx), [tests/scene-normalization.test.mjs](../tests/scene-normalization.test.mjs), [src/properties/settingsAdapter.ts](../src/properties/settingsAdapter.ts), [src/properties/CoupledProperties.tsx](../src/properties/CoupledProperties.tsx), [src/properties/contextBindings.ts](../src/properties/contextBindings.ts), [src/scene/wallpaper.ts](../src/scene/wallpaper.ts), [src/SpatialWorkspace.tsx](../src/SpatialWorkspace.tsx), [tests/scene-normalization-live.browser.mjs](../tests/scene-normalization-live.browser.mjs), [src/scene/normalizationShader.ts](../src/scene/normalizationShader.ts).
 
 **Related:** [Node-linked scenes from imported images and copied prompts](#scene-manual), [Optional API scene generation](#scene-api), [Wallpaper-to-sphere blending (retired)](#render-adaptiveComparison).
+
+<a id="paint-pattern"></a>
+## Shared scene-colour pattern paint
+
+**ID:** `paint.pattern` · **Status:** Implemented for PR/commit-pinned preview; not merged or production deployed.
+
+**Where:** Master controller → Visuals → Pattern paint (Show all controls if inspecting a selection). Selective route: visual hierarchy socket → Color → Pattern paint.
+
+One shared pattern owns the scene-palette connection. Supported text, contours and UI surfaces inherit its colour pair and geometry without overwriting ordinary colours. Global application defaults off. Per-socket Inherit global / Use shared pattern / Solid/manual modes inherit through the existing hierarchy. Four editable presets are Ring + dot, Alternating dots, Checker and Stripes; shared controls set spacing, fill, text keyline and manual/fallback colours. Scene colour extraction follows normalization and resting low tint, excluding audio flashes. Existing settings previews, controller Apply/Discard, history and export own changes.
+
+**Minimal working test**
+
+1. Open Master controller → Visuals → Pattern paint. Choose Manual pair, set green and yellow, then turn on Apply pattern globally. **Expected:** The pattern preview and supported UI text, surfaces and borders use both colours within each painted object, rather than assigning one colour per role.
+2. Change Pattern preset, spacing and fill while keeping the section open. **Expected:** Connected consumers update from the same edited source. Try all four presets; Text keyline affects text only.
+3. Turn global application off; select a supported text or frame socket in the visual hierarchy and choose Color → Pattern paint → Use shared pattern. **Expected:** The selected socket inherits the shared pattern while ordinary sockets retain their stored paint. Solid/manual opts it out; Inherit global restores inherited routing.
+4. Choose Follow scene image and select a node with an imported scene. Change to another scene. **Expected:** The preview reports inherited colours and connected sockets follow the new dominant/accent pair after palette analysis settles. No scene uses the labelled manual fallback.
+5. Lock or bypass a socket’s colour, then turn pattern application off and use the existing Apply/Discard controls and reload. **Expected:** Locked/bypassed sockets retain ordinary paint. Turning pattern off restores stored colours. Apply retains accepted settings; Discard restores the accepted controller state, and reload uses saved source/use settings.
+
+**Limits / unavailable behavior:** Registered DOM text, contours and surfaces only. Native 3D, icons/emoji, raster art, individual characters and native placeholder/scrollbar pseudos have no pattern adapter. Border-image can square rounded corners and replace dashed geometry. Tiny text/borders may need spacing/contour adjustments. No local contrast guarantee, dynamic audio palette following, arbitrary Omnic pattern recipes or named saved presets. Colour locks opt out rather than freeze a multicolour snapshot. Older clients may drop unknown settings.
+
+**Verification:** browser — Awaiting user preview acceptance; no browser run authorized for this feature yet.. Automated — Five focused palette/source/routing/serialization/SVG tests pass within the 667-test model/architecture suite. Preview build, property contract and backend type-check command pass. Browser/visual acceptance is pending..
+
+**Details:** [subsystem guide](SCENE_PATTERN_PAINT.md). **Implementation:** [src/paint/pattern.ts](../src/paint/pattern.ts), [src/paint/pattern.function.ts](../src/paint/pattern.function.ts), [src/paint/routing.ts](../src/paint/routing.ts), [src/paint/useScenePalette.ts](../src/paint/useScenePalette.ts), [src/paint/PatternControls.tsx](../src/paint/PatternControls.tsx), [src/appearance/Styles.tsx](../src/appearance/Styles.tsx), [src/appearance/registry.ts](../src/appearance/registry.ts), [tests/pattern-paint.test.mjs](../tests/pattern-paint.test.mjs).
+
+**Related:** [Node-linked scenes from imported images and copied prompts](#scene-manual).
 
 ## Exact registered command inventory
 

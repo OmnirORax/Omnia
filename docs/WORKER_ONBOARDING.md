@@ -834,3 +834,11 @@ endpoint through shared domain validation/history; normal clicks still edit.
 Canonical links, visual nesting and variant references keep their own owners.
 Live and saved-view XYZ rebase through coordinates.rebaseParentage, also used by
 Detach. See [ATLAS_BINDERS.md](ATLAS_BINDERS.md); browser acceptance pending.
+
+## Shared scene pattern paint
+
+[Pattern paint](SCENE_PATTERN_PAINT.md) is a small reusable scene-theme module.
+The shared pattern owns a scene-palette source; consumers inherit it through
+`patternUse`, never copied colours. Existing settings/history/hierarchy owners
+remain authoritative. Current adapters cover registered DOM text/surfaces/contours;
+3D, icons and character paint must not advertise support without adapters.
