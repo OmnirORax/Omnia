@@ -27,7 +27,7 @@ export function SceneVfxControls({bindings}:{bindings:PropertyBindings}){
  <UISection id="scene-pulse" title="Wallpaper Engine pulse">
  {mode!=='all'&&<UIField id="scene.vfx.pulseTintLow" label="Low tint (base)" category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property="scene.pulseTintLow" label="Low tint (base)"/></UIField>}
  <UIField id="scene.vfx.pulseColorMode" label="High tint type" category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property="scene.pulseColorMode" label="High tint type"/></UIField>
- {([...(mode==='all'?[]:[{key:'pulseTintHigh',label:'High tint'}]),...(mode==='all'?OMNI_BRIGHTNESS_CONTROLS:[]),...PULSE_CONTROLS]).map(({key,label})=><UIField key={key} id={`scene.vfx.${key}`} label={label} category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property={`scene.${key}`} label={label}/></UIField>)}
+ {([...(mode==='all'?[]:[{key:'pulseTintHigh',label:'High tint'}]),...(mode==='all'?[{key:'pulseAllBrightness',label:'Colour strength'},...OMNI_BRIGHTNESS_CONTROLS]:[]),...PULSE_CONTROLS]).map(({key,label})=><UIField key={key} id={`scene.vfx.${key}`} label={label} category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property={`scene.${key}`} label={label}/></UIField>)}
  </UISection>
  <UISection id="scene-image-tint" title="Image tint" defaultExpanded={false}>
  <UIField id="scene.vfx.imageTintEnabled" label="Enable image tint" category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property="scene.imageTintEnabled" label="Enable image tint"/></UIField>

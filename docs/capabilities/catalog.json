@@ -2079,11 +2079,11 @@
       "id": "scene.vfx",
       "title": "Source-based Wallpaper Engine pulse and scene audio effects",
       "where": "Scene → Scene effects. Import/apply an image through the existing Scene image workflow.",
-      "behavior": "Single colour retains the original Low/High tint blend. High tint type → Omni (all colours) exposes Base brightness and Flash brightness: independent scalar linear RGB exposure endpoints that retain source colours before display clipping. Defaults 0.5/1.5, bounds 0–2/0–4. Audio processing, exponent 0.1, timing and bounce are unchanged. Selected remains removed; optional Image tint stays separate.",
+      "behavior": "Single colour retains the supplied Low/High tint blend. Omni (all colours) retains Colour strength for the source-hue pulse, plus independent Base brightness and Flash brightness sliders that multiply the coloured result in linear RGB. Colour strength zero gives brightness-only response; higher strength adds the earlier coloured response. Audio processing, exponent 0.1, timing and bounce are unchanged. Selected remains removed; optional Image tint stays separate.",
       "steps": [
         {
-          "do": "Open Scene → Scene effects → Wallpaper Engine pulse → High tint type → Omni (all colours). Set Base brightness and Flash brightness, then play audio.",
-          "expect": "Base controls pulse-zero intensity; Flash controls pulse-one intensity. Zero is black, one original intensity. Audio amount above one overdrives beyond Flash; high gains can clip. Equal sliders remain constant."
+          "do": "Open Scene → Scene effects → Wallpaper Engine pulse → High tint type → Omni (all colours). Set Base brightness and Flash brightness, then play audio. Adjust Colour strength independently.",
+          "expect": "Base controls pulse-zero intensity; Flash controls pulse-one intensity. Zero is black, one original intensity. Audio amount above one overdrives beyond Flash; high gains can clip. Equal sliders remain constant. Colour strength adjusts source-coloured response; zero leaves brightness-only response. Saved strength is restored."
         },
         {
           "do": "Switch High tint type to Single colour, then back to Omni.",
@@ -2099,7 +2099,7 @@
         },
         {
           "do": "Load prior Selected colours settings and inspect/export settings.",
-          "expect": "Mode falls back to Single; palette/range and former Omni strength remain archived in JSON. Serializer preserves 37 fields, including 19 archived preferences."
+          "expect": "Mode falls back to Single; palette/range remain archived in JSON. Serializer preserves 37 fields, including 18 archived preferences. Omni colour strength remains active."
         },
         {
           "do": "Turn Waves off and set Distortion/Glitching to zero with no audio connected. Restore their defaults.",
@@ -2152,10 +2152,10 @@
         "scene.manual",
         "scene.api"
       ],
-      "status": "Two Omni brightness sliders implemented; visual acceptance pending",
+      "status": "Omni colour strength and two brightness sliders implemented; visual acceptance pending",
       "limits": "Selected colours is deliberately retired; old palette/range data stays archived only. Single/All and optional Image tint compile separately. Omni uses the adjustable shared Low tint and a source-coloured High tint with numeric strength; existing explicit brightness survives. Image tint is disabled by default and can intentionally recolour the full wallpaper. The reported Single freeze/slowdown is not visually verified repaired; local frame tests only prove changing uniforms at 0.1. Source FFT mapping remains approximate. Waves remains the rejected guessed deformation pending its actual shaders. No audio-input, exponent, smoothing or frame-pacing change was made. Existing native-resolution caps/capture-free file playback remain.",
       "verification": {
-        "automated": "Model tests cover endpoint interpolation, overdrive, chroma ratios before clipping, bounds, zero values, shared settings roundtrip and renderer uniforms; full local checks required before delivery.",
+        "automated": "Model tests cover restored colour response, independent shared setters, brightness interpolation/overdrive/bounds/zero persistence, renderer uniforms, unchanged Single and audio timing; full local gate required before delivery.",
         "browser": "No new browser run; visual response and highlight clipping await user acceptance."
       }
     },

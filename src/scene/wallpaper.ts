@@ -12,7 +12,7 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
   const material = new THREE.ShaderMaterial({
     depthTest: false, depthWrite: false, toneMapped: false,defines:{PULSE_ALL_COLORS:0,IMAGE_TINT:0},
     uniforms: { worldLayer:{value:null},compositeWorld:{value:0},image: { value: null }, imageAspect: { value: 1 }, viewportAspect: { value: 1 },
-      pulseOmniLowBrightness:{value:initial.pulseOmniLowBrightness},pulseOmniHighBrightness:{value:initial.pulseOmniHighBrightness},imageTint:{value:tint(initial.imageTint)},
+      pulseAllBrightness:{value:initial.pulseAllBrightness},pulseOmniLowBrightness:{value:initial.pulseOmniLowBrightness},pulseOmniHighBrightness:{value:initial.pulseOmniHighBrightness},imageTint:{value:tint(initial.imageTint)},
       pulseTintLow:{value:tint(initial.pulseTintLow)},pulseTintHigh:{value:tint(initial.pulseTintHigh)},sceneGlowPass:{value:0},time:{value:0},bounce:{value:1},light:{value:0},
       waves:{value:1}, distortion:{value:.4}, glitching:{value:.3},
       feedbackColor: { value: new THREE.Color() }, feedbackStrength: { value: 0 } },
@@ -44,9 +44,10 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
         vec3 color = texture2D(image, clamp(coverUV + 0.5,vec2(.001),vec2(.999))).rgb;
         vec3 visible=displayColour(color);
         #if PULSE_ALL_COLORS
-        // Scalar exposure of original linear RGB: brightness, no chroma remapping.
+        // Retain the source-coloured pulse, then apply the independent brightness envelope.
         float exposure=max(0.0,mix(pulseOmniLowBrightness,pulseOmniHighBrightness,light));
-        vec3 enhanced=color*exposure;
+        vec3 coloured=referencePulse(visible,vec3(1.0),pulseSourceTint(visible)*pulseAllBrightness,light);
+        vec3 enhanced=linearColour(coloured)*exposure;
         #if IMAGE_TINT
         enhanced=linearColour(displayColour(enhanced)*imageTint);
         #endif
@@ -111,6 +112,7 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
       }
       const all=Number(settings.pulseColorMode==='all');
       if(material.defines.PULSE_ALL_COLORS!==all){material.defines.PULSE_ALL_COLORS=all;material.needsUpdate=true;}
+      material.uniforms.pulseAllBrightness.value=settings.pulseAllBrightness;
       material.uniforms.pulseOmniLowBrightness.value=settings.pulseOmniLowBrightness;
       material.uniforms.pulseOmniHighBrightness.value=settings.pulseOmniHighBrightness;
       const filter=Number(settings.imageTintEnabled);

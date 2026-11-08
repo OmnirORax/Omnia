@@ -42,6 +42,17 @@ export const PULSE_COLOUR_GLSL=`
  vec3 displayColour(vec3 c){return mix(c*12.92,1.055*pow(max(c,vec3(0.0)),vec3(1.0/2.4))-.055,step(vec3(.0031308),c));}
  vec3 linearColour(vec3 c){return mix(c/12.92,pow((c+.055)/1.055,vec3(2.4)),step(vec3(.04045),c));}
  #if PULSE_ALL_COLORS
+ vec3 pulseSourceTint(vec3 image){
+  float hi=max(image.r,max(image.g,image.b)),lo=min(image.r,min(image.g,image.b));
+  vec3 chroma=(image-vec3(lo))/max(hi-lo,.000001);
+  return mix(vec3(1.0),chroma,smoothstep(.03,.2,(hi-lo)/max(hi,.000001)));
+ }
+ uniform float pulseAllBrightness;
  uniform float pulseOmniLowBrightness;uniform float pulseOmniHighBrightness;
  #endif
 `;
+/** Numerical contract for independent coloured responses and source-hue All. */
+export function sourcePulseTint(image:readonly number[]):number[]{
+ const hi=Math.max(...image),lo=Math.min(...image),s=hi?(hi-lo)/hi:0,t=Math.max(0,Math.min(1,(s-.03)/.17)),w=t*t*(3-2*t);
+ return image.map(c=>1-w+w*(c-lo)/Math.max(hi-lo,.000001));
+}

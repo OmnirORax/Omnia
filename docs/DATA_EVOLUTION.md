@@ -649,3 +649,15 @@ receive their defaults. Explicit zeros survive. Total whitelist: 37 fields,
 18 active and 19 archived. Older clients can discard the new fields on resave and
 render their former Omni behavior; retain a current export before rollback.
 Image bytes, assignments, backend formats and audio-session ownership are unchanged.
+
+
+### Restore Omni colour strength alongside brightness (2026-11-08)
+
+The user wanted the existing colour slider retained alongside the two new
+brightness sliders. Reactivate pulseAllBrightness with its existing saved value,
+0–1 bounds and default 56/255, labelled Colour strength. Omni restores the prior
+source-hue high tint blend against neutral low, followed by the independent scalar
+brightness envelope. Single tint and audio processing remain unchanged. No new
+field or migration: 37 whitelisted fields, now 19 active and 18 archived. The
+preceding brightness-only preview ignores colour strength but retains it; older
+clients can still discard the two brightness fields. Keep an export for rollback.

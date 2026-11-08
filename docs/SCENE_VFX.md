@@ -20,13 +20,15 @@ an approximation of Wallpaper Engine's undocumented FFT bands/scaling/smoothing.
 
 **High tint type → Single colour** keeps the original Low/High tint pickers and
 supplied blend equation. **Omni (all colours)** instead exposes two independent
-sliders: **Base brightness** and **Flash brightness**. These multiply original
-linear RGB equally across channels, preserving source colours before display
-clipping. There is no saturation or hue remapping operator in Omni.
+sliders: **Base brightness** and **Flash brightness**. The restored **Colour strength** slider controls the source-coloured pulse,
+using each region’s own hue. The two brightness sliders multiply that result
+in linear RGB independently. Colour strength zero leaves brightness-only response;
+higher colour strength adds the earlier coloured response. It can also brighten
+matching channels; this is the retained source blend, not a pure saturation filter.
 
 Base brightness defaults to 0.5 (range 0–2); Flash brightness defaults to 1.5
-(range 0–4). Zero is black, one is original intensity, and higher values increase
-exposure. Pulse zero uses Base; pulse one uses Flash. Audio amount above one
+(range 0–4). Zero is black, one leaves the coloured pulse at its existing intensity, and
+higher values increase exposure. With Colour strength zero, one is original intensity. Pulse zero uses Base; pulse one uses Flash. Audio amount above one
 can overdrive beyond Flash, preserving the existing unclamped audio curve.
 Strong exposure can still clip bright highlights. Equal sliders give constant
 brightness. Single tint choices are retained when switching modes.
@@ -61,6 +63,7 @@ approximated as #ffe5e5 / #001438. Explicit older saved choices are preserved.
 | pulseExponent | Audio exponent | 0.1; 0–4 |
 | pulseAmount | Audio amount | 2; 0–2 |
 | pulseColorMode | High tint type | tint; Single colour / Omni |
+| pulseAllBrightness | Colour strength (Omni) | 56/255; 0–1 |
 | pulseOmniLowBrightness | Base brightness (Omni) | 0.5; 0–2 |
 | pulseOmniHighBrightness | Flash brightness (Omni) | 1.5; 0–4 |
 | imageTintEnabled | Enable image tint | false |
@@ -79,8 +82,8 @@ tint white, Bounce 1 and Waves/Distortion/Glitching off for original-file compar
 
 ## Compatibility and retirement
 
-The current serializer whitelists 37 fields: 18 active fields above and 19 inactive
-historical approximation/model/Omni-strength fields kept only for settings round trips and older
+The current serializer whitelists 37 fields: 19 active fields above and 18 inactive
+historical approximation/model fields kept only for settings round trips and older
 client rollback. No current renderer or registered editor consumes those retired
 fields. The earlier shader/cache implementation and its obsolete browser test are
 deleted. Loading lightModel=legacy cannot select the retired renderer in this
@@ -89,8 +92,7 @@ not silently erased or reinterpreted as the new palette.
 
 Older selected mode now maps to tint; its palette/range remain archived. Missing
 Image tint fields acquire disabled/red defaults. Missing Omni brightness fields
-acquire 0.5/1.5 defaults; former pulseAllBrightness is archived rather than
-reinterpreted as exposure. The former shared Low tint now applies only to Single. Explicit tint and pulse choices
+acquire 0.5/1.5 defaults; pulseAllBrightness retains its saved colour-strength meaning. The former shared Low tint now applies only to Single. Explicit tint and pulse choices
 are retained.
 Missing numeric/tint values acquire the screenshot defaults; existing explicit
 values, including zeros, survive. Older clients may drop the new palette/brightness
@@ -123,7 +125,7 @@ remain; actual rate depends on hardware. Waves/VHS are still approximate.
 
 Local regressions cover the direct source pulse and stereo analysis, changing
 light uniforms at exponent 0.1 with independent bounce, compile-variant switching,
-Selected retirement and preservation of inactive palette/strength fields, independent Omni brightness endpoints, Image tint opt-in/serialization, and existing native output/lifecycle.
+Selected retirement and preservation of inactive palette fields, independent Omni brightness endpoints, Image tint opt-in/serialization, and existing native output/lifecycle.
 No fresh browser run was authorised for these two sliders. The numerical checks
 verify endpoint interpolation and settings wiring, not GPU appearance. Test Omni
 with different Base/Flash values, then compare Single colour; actual brightness,
