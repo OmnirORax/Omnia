@@ -54,6 +54,7 @@ function PropertyInput({
   value,
   onPreview,
   onCommit,
+  onCancelPreview,
   disabled = false,
   label,
   effectKinds,
@@ -70,6 +71,7 @@ function PropertyInput({
   value: Value;
   onPreview: (value: Value) => void;
   onCommit: (value: Value) => void;
+  onCancelPreview?:()=>void;
   disabled?: boolean;
   label?: string;
   effectKinds?: readonly string[];
@@ -110,7 +112,7 @@ function PropertyInput({
     if (!editing.current) return;
     editing.current = false; draft.current = beforeRange.current;
     setNumber(Number(beforeRange.current));
-    onPreview(beforeRange.current);
+    if(onCancelPreview)onCancelPreview();else onPreview(beforeRange.current);
   };
   useCancelValueEdit(input, cancelRange, p.kind);
   if (p.kind === "text") return <TextPropertyInput value={String(value)} onCommit={onCommit} disabled={disabled}
@@ -123,6 +125,7 @@ function PropertyInput({
         value={String(value)}
         disabled={disabled}
         onPreview={onPreview}
+        onCancel={onCancelPreview}
         onChange={onCommit}
       />
     );
@@ -169,7 +172,7 @@ function PropertyInput({
   if(numericEditor.mathematical)return <MathematicalValueControl
     inline={numericPresentation==='inline'} configure={configuration==='step'} configurationKey={property} step={limits?.step??p.step} label={label??p.label} disabled={disabled}
     value={Number(value)} min={limits?.min??p.min!} max={limits?.max??p.max!} integer={p.integer}
-    onPreview={onPreview} onCommit={onCommit}/>;
+    onPreview={onPreview} onCommit={onCommit} onCancelPreview={onCancelPreview}/>;
   return <RangeControl
     configuration={configuration}
     configurationKey={property}

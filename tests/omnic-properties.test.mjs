@@ -81,3 +81,32 @@ test('DOF shortcut entry resolves live scalar/vector capabilities and repeated a
   const other={...radius,targets:radius.targets.map(target=>({...target,id:'another-ring'}))};
   assert.equal(repeatedDegree(radius,other),false,'changing target starts a new edit instead of configuring a stale one');
 });
+
+test('context preview routes to the owning adapters and clears mixed owners without committing',()=>{
+ const previews=[],commits=[];
+ const base={values:{settings:{value:1}},commit:c=>commits.push(c),preview:c=>previews.push(['base',c])};
+ const local={values:{active:{value:2}},commit:c=>commits.push(c),preview:c=>previews.push(['local',c])};
+ const owner=installContextBindings(local);
+ try{
+  const bindings=contextPropertyBindings(base),a={consumer:'settings',property:'value',value:4},b={consumer:'active',property:'value',value:5};
+  bindings.preview([a,b]);assert.equal(commits.length,0);assert.deepEqual(previews,[['base',[a]],['local',[b]]]);
+  bindings.preview([b]);assert.ok(previews.some(([id,value])=>id==='base'&&value===null));
+  bindings.preview(null);assert.deepEqual(previews.at(-1),['local',null]);assert.equal(commits.length,0);
+ }finally{owner.dispose();}
+});
+
+test('Omnic bindings lend transient parameter previews and restore the exact original without a saved edit',()=>{
+ const params={size:6,color:'#123456'},events=[];
+ const binding=omnicPropertyBindings(params,(next,temporary=false)=>events.push({next,temporary}),generator('dot').parameters);
+ const changes=preparePropertyChanges(PROPERTY_REGISTRY,'omnic.extent',20,['omnic.composer']);
+ binding.preview(changes);assert.equal(events.at(-1).next.size,20);assert.equal(events.at(-1).temporary,true);assert.deepEqual(params,{size:6,color:'#123456'});
+ binding.preview(null);assert.equal(events.at(-1).next,params);assert.equal(events.at(-1).temporary,true);
+ binding.commit(changes);assert.equal(events.at(-1).temporary,false);assert.equal(events.at(-1).next.size,20);
+});
+
+test('accepting an Omnic value already displayed by a preview still commits it',()=>{
+ const events=[],params={size:20};
+ const binding=omnicPropertyBindings(params,(next,temporary=false)=>events.push({next,temporary}),generator('dot').parameters);
+ binding.commit(preparePropertyChanges(PROPERTY_REGISTRY,'omnic.extent',20,['omnic.composer']));
+ assert.equal(events.length,1);assert.equal(events[0].temporary,false);assert.equal(events[0].next.size,20);
+});

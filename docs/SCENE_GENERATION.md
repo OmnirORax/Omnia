@@ -84,12 +84,20 @@ without generating again. Existing backend permissions/quotas are unchanged.
   imports are browser data, not an account-private cloud store. Object URLs and
   Three.js textures are released when replaced; reference/account checks suppress
   stale display on navigation. Image bytes do not enter embedded atlas/icon stores.
-- `src/scene/wallpaper.ts` draws one static screen-space texture in the existing
-  Three.js scene with cover cropping, selection feedback and disposal. It is not
-  pickable. Theme background remains the fallback; safe UI mode hides wallpaper.
-  The direct WebGL canvas has CSS width/height 100%; its budgeted drawing-buffer
-  resolution must never determine its visible size. No animated inference,
-  per-pointer scans or progress ticks in the app root.
+- `src/scene/wallpaper.ts` loads the original texture and draws the wallpaper at
+  the output resolution after graph-only post-processing. SpatialWorkspace uses
+  separate graph/output pixel budgets: ordinary 2560×1440/1600 at DPR 1 is native,
+  wallpaper output is capped at 8,294,400 pixels / DPR 2, and graph targets retain
+  1.5 million pixels with existing glow limits. The wallpaper is excluded from the
+  graph render/AA/glow passes; its final shader combines the image with the linear
+  premultiplied graph layer and applies output colour conversion once. Cover crop,
+  selection feedback and image disposal are retained. Theme remains the fallback;
+  removing the image restores the original output budget. If offscreen composition
+  fails, the existing direct renderer is the fallback at the selected output size,
+  which may increase graph cost. Actual sharpness/performance await user testing.
+  The canvas has CSS width/height 100%; physical pixel dimensions never determine
+  its visible CSS size. Imports retain original accepted file bytes, with no resize
+  or recompression. No new storage, per-pointer scans or app-root progress ticks.
 - Scene assignment currently uses the selected placement, not semantic parent,
   camera focus or zoom. Ancestor defaults/inheritance, semantic environment/mood/
   scale rules, multiple bindings, image editing, music and animated scenes remain
@@ -197,6 +205,14 @@ passed. The existing large-chunk warning remains. The user performs clipboard/
 file import, per-node restore, reload, clear/undo and image rendering checks. No
 browser suite or actual image generation was run for this local flow. Backend
 code, provider secrets, hosted settings and deployment workflows are unchanged.
+
+
+## Selected image effects (2026-11-07)
+
+The same screen-space wallpaper renderer now supports the pictured audio/VFX
+controls and the requested Max FPS cap without changing image bytes or node assignments. See
+[SCENE_VFX.md](SCENE_VFX.md) for defaults, permitted audio sources, shared settings,
+reduced-motion/performance limits and the Wallpaper Engine approximation boundary.
 
 ## Non-destructive image normalization
 
@@ -317,3 +333,15 @@ This supersedes reduced-image/canvas preview descriptions above. It changes disp
 implementation, not saved original bytes or constraint interpretation.
 
 The redundant Preview original UI field and its transient app state are retired. Use Normalize scene images off/on for original/corrected comparison. Existing saved organization for scene.normalize.preview is retained by unavailable-ID compatibility; no normalization settings or image bytes are removed.
+
+
+PR #58/#59 integration (2026-11-08): normalization now feeds the audio-capable
+native wallpaper owner directly. Correction uniforms transform the original
+full-resolution sample before the Low/High audio tint, without changing texture
+identity/dimensions while dragging. Source replacement/clear retains normalization
+ownership/correction reset and existing stale-load guards. The shared interface
+preview owner supplies normalization candidates and the preview-vs-committed flag,
+so drag samples stay outside settings/history and derivative-cache writes. The
+user explicitly retired wallpaper-to-sphere blending; its old shared sphere
+sampler is removed. Normalization, source originals, native output and audio
+controls remain. No browser/GPU parity claim is inferred from the merge tests.

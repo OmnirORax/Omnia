@@ -145,3 +145,17 @@ then profile residual input latency, React notification scope, catalog refreshes
 and graph/media combinations. Keep before/after fixture measurements with future
 cross-cutting changes. Do not close the overall performance report on model tests
 or software-renderer traces alone.
+
+
+## Wallpaper detail exception (2026-11-08)
+
+The user reported that a 2560-wide imported wallpaper appeared softer than its
+original. Native wallpaper output now has a separate 8,294,400-pixel / DPR 2 cap;
+graph targets retain 1.5 million pixels and glow retains the existing bounded
+buffers. The wallpaper is drawn after graph-only AA/glow, combining the graph's
+transparent linear layer in one output shader. This increases final output pixel
+work without promoting all graph post-processing to native density. Import bytes
+are unchanged. No second context, per-frame image decode or higher-resolution
+bloom allocation is introduced. Direct-render fallback can raise graph cost if
+offscreen composition fails. Model checks verify budget separation; real GPU
+performance and appearance remain user testing, with no new profiling claimed.

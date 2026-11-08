@@ -1113,3 +1113,14 @@ hidden action availability through DockArea.visibleResidents without deleting sa
 menu members, positions, sizes or customizations. Toggling edit mode restores the
 same authored menu organization. This projection is transient; no saved format or
 migration, new event listener or alternate movement permission is introduced.
+
+
+Live colour/numeric controls (2026-11-08): CoupledField and generated coupled
+property groups must forward live samples through PropertyBindings.preview, never
+silently discard them. Use the same validated setter adapters, rendering only a
+transient owner overlay and coalescing samples per animation frame. Release/native
+accept commits once; Escape and editor teardown clear the sample. Cancellation of
+mixed groups clears preview instead of writing the first member's baseline to all.
+Existing appearance/Composer preview owners remain authoritative. Legacy controls
+that already apply while dragging keep their immediate behavior. Native picker
+change/blur acceptance varies by browser. No browser acceptance is inferred.

@@ -1,4 +1,5 @@
-import { sceneSampleCount } from "./renderBudget";
+import type {WallpaperComposite} from "./scene/wallpaper";
+import {RENDER_BUDGET,budgetPixelRatio, sceneSampleCount } from "./renderBudget";
 import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
@@ -23,6 +24,8 @@ export function createSceneAppearance(
   let composer: EffectComposer | null = null,
     bloom: SceneGlow | null = null,
     output: OutputPass | null = null;
+  let wallpaper:WallpaperComposite|null=null,pipelineWallpaper=false,pipelineGlow=false;
+  const graphRatio=()=>wallpaper?.visible?budgetPixelRatio(width,height,window.devicePixelRatio,RENDER_BUDGET.scenePixels,RENDER_BUDGET.maxSceneDpr):renderer.getPixelRatio();
   let appearance: Appearance = { ...defaultSettings().appearance, theme: "classic" };
   let width = 1,
     height = 1,
@@ -108,6 +111,7 @@ export function createSceneAppearance(
   document.addEventListener("visibilitychange", resume);
   reducedMotion.addEventListener("change", resume);
   return {
+    setWallpaper(value:WallpaperComposite){wallpaper=value;},
     setSources(callback: () => TextScene | null) {
       sources = callback;
     },
@@ -127,9 +131,9 @@ export function createSceneAppearance(
     resize(w: number, h: number) {
       width = w;
       height = h;
-      // The canvas owner already applies the shared DPR/pixel budget. Keep effect
-      // buffers at that density instead of introducing a second 1x ceiling.
-      if (composer) { composer.setPixelRatio(renderer.getPixelRatio()); composer.setSize(w, h); }
+      // The graph retains its own pixel budget while wallpaper output can be native.
+      // Without wallpaper, use the existing renderer density.
+      if (composer) { composer.setPixelRatio(graphRatio()); composer.setSize(w, h); }
     },
     render() {
       const now = performance.now();
@@ -146,7 +150,9 @@ export function createSceneAppearance(
       lightning.update(appearance, sources(), phase, camera, width, height, reducedMotion.matches);
       electricText.update(appearance, sources(), phase, camera, reducedMotion.matches);
       if (timer === undefined) schedule();
-      if (appearance.theme === "neon" && appearance.glow > 0 && !failed) {
+      const nativeWallpaper=Boolean(wallpaper?.visible),glow=appearance.theme==='neon'&&appearance.glow>0;
+      if(composer&&(pipelineWallpaper!==nativeWallpaper||pipelineGlow!==glow))disposeBloom();
+      if ((nativeWallpaper||glow) && !failed) {
         try {
           if (!composer) {
             const target = new THREE.WebGLRenderTarget(width, height, {
@@ -155,20 +161,28 @@ export function createSceneAppearance(
             });
             composer = new EffectComposer(renderer, target);
             composer.addPass(new RenderPass(scene, camera));
-            bloom = new SceneGlow(scene, camera, target.samples);
-            bloom.configure(appearance.glow, appearance.glowSpread);
-            composer.addPass(bloom);
-            output = new OutputPass();
-            composer.addPass(output);
-            composer.setPixelRatio(renderer.getPixelRatio());
-            composer.setSize(width, height);
+            if(glow){
+              bloom = new SceneGlow(scene, camera, target.samples);
+              bloom.configure(appearance.glow, appearance.glowSpread);composer.addPass(bloom);
+            }
+            if(!nativeWallpaper){output = new OutputPass();composer.addPass(output);}
+            composer.renderToScreen=!nativeWallpaper;
+            composer.setPixelRatio(graphRatio());composer.setSize(width, height);
+            pipelineWallpaper=nativeWallpaper;pipelineGlow=glow;
           }
-          composer.render();
+          if(nativeWallpaper&&wallpaper){
+            const background=scene.background,clear=renderer.getClearColor(new THREE.Color()),alpha=renderer.getClearAlpha();
+            try{
+              scene.background=null;renderer.setClearColor(0,0);
+              wallpaper.without(()=>composer!.render());
+            }finally{scene.background=background;renderer.setClearColor(clear,alpha);}
+            // Composite a native-resolution image after graph-only AA/glow. Apply
+            // output colour conversion once, in the wallpaper's final shader.
+            wallpaper.renderComposite(composer.readBuffer.texture);
+          }else composer.render();
           return;
         } catch {
-          failed = true;
-          disposeBloom();
-          renderer.setRenderTarget(null);
+          failed = true;disposeBloom();renderer.setRenderTarget(null);
         }
       }
       renderer.render(scene, camera);

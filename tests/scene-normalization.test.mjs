@@ -80,20 +80,22 @@ test('allocation-free pixel processing retains frozen pre-optimization byte outp
  ];
  for(const [corrections,hash] of fixtures)assert.equal(createHash('sha256').update(transformScenePixels(source,corrections)).digest('hex'),hash);
 });
-test('canvas previews reach the existing wallpaper sampler synchronously without image encoding/loading',async()=>{
- const THREE=await import('three');const {createWallpaper}=await import('../src/scene/wallpaper.ts');const {createSphereBackground}=await import('../src/scene/sphereBlend.ts');
- const scene=new THREE.Scene(),background=createSphereBackground();let paints=0;const wallpaper=createWallpaper(scene,()=>paints++,background),canvas={width:384,height:216};
- const first=wallpaper.setSource(canvas);assert.ok(background.image.value instanceof THREE.CanvasTexture);assert.equal(background.image.value.image,canvas);assert.equal(background.image.value.colorSpace,THREE.SRGBColorSpace);assert.equal(background.hasImage.value,1);assert.ok(paints>0,'no async load barrier before repaint request');await first;
+test('canvas previews reach the existing wallpaper sampler synchronously without image encoding/loading',async(t)=>{
+ const prior={window:globalThis.window,document:globalThis.document};globalThis.window={matchMedia:()=>({matches:false,addEventListener(){},removeEventListener(){}})};globalThis.document=Object.assign(new EventTarget(),{hidden:true});t.after(()=>{globalThis.window=prior.window;globalThis.document=prior.document;});
+ const THREE=await import('three');const {createWallpaper}=await import('../src/scene/wallpaper.ts');
+ const scene=new THREE.Scene(),background={};let paints=0;const wallpaper=createWallpaper(scene,()=>paints++,{}),canvas={width:384,height:216};
+ Object.assign(background,scene.children[0].material.uniforms);const first=wallpaper.setSource(canvas);assert.ok(background.image.value instanceof THREE.CanvasTexture);assert.equal(background.image.value.image,canvas);assert.equal(background.image.value.colorSpace,THREE.SRGBColorSpace);assert.equal(wallpaper.visible,true);assert.ok(paints>0,'no async load barrier before repaint request');await first;
  const previous=background.image.value;let disposed=false;previous.addEventListener('dispose',()=>{disposed=true;});const replacement={width:384,height:216};await wallpaper.setSource(replacement,true);assert.equal(background.image.value.image,replacement);assert.equal(disposed,true);
- await wallpaper.setSource(null);assert.equal(background.image.value,null);assert.equal(background.hasImage.value,0);wallpaper.dispose();assert.equal(scene.children.length,0);
+ await wallpaper.setSource(null);assert.equal(background.image.value,null);assert.equal(wallpaper.visible,false);wallpaper.dispose();assert.equal(scene.children.length,0);
 });
 
-test('full-resolution correction changes shared uniforms without replacing the source texture',async()=>{
- const THREE=await import('three');const {createWallpaper}=await import('../src/scene/wallpaper.ts');const {createSphereBackground,sphereBackgroundUniforms,sphereBackgroundGLSL}=await import('../src/scene/sphereBlend.ts');
- const scene=new THREE.Scene(),background=createSphereBackground();let paints=0;const wallpaper=createWallpaper(scene,()=>paints++,background),source={width:2560,height:1440};await wallpaper.setSource(source);
- const texture=background.image.value,uniforms=sphereBackgroundUniforms(background);wallpaper.setCorrection({exposure:.5,contrast:1.2,saturation:.9,balance:[1.04,.97,1]});
+test('full-resolution correction changes shared uniforms without replacing the source texture',async(t)=>{
+ const prior={window:globalThis.window,document:globalThis.document};globalThis.window={matchMedia:()=>({matches:false,addEventListener(){},removeEventListener(){}})};globalThis.document=Object.assign(new EventTarget(),{hidden:true});t.after(()=>{globalThis.window=prior.window;globalThis.document=prior.document;});
+ const THREE=await import('three');const {createWallpaper}=await import('../src/scene/wallpaper.ts');
+ const scene=new THREE.Scene(),background={};let paints=0;const wallpaper=createWallpaper(scene,()=>paints++,{}),source={width:2560,height:1440};Object.assign(background,scene.children[0].material.uniforms);await wallpaper.setSource(source);
+ const texture=background.image.value,uniforms=background;wallpaper.setCorrection({exposure:.5,contrast:1.2,saturation:.9,balance:[1.04,.97,1]});
  assert.equal(background.image.value,texture);assert.equal(texture.image,source);assert.equal(texture.image.width,2560);assert.equal(texture.image.height,1440);assert.equal(uniforms.sceneCorrectionEnabled.value,1);assert.equal(uniforms.sceneCorrectionExposure.value,.5*Math.LN2);assert.deepEqual(uniforms.sceneCorrectionBalance.value.toArray(),[1.04,.97,1]);assert.ok(paints>=2);
- assert.match(sphereBackgroundGLSL,/return correctSceneImage\(texture2D/,'wallpaper and adaptive spheres sample the same corrected full-size image');
+ assert.match(scene.children[0].material.fragmentShader,/correctSceneImage\(texture2D/,'wallpaper corrects the original full-size sample before audio tinting');
  wallpaper.setCorrection(null);assert.equal(uniforms.sceneCorrectionEnabled.value,0);assert.equal(background.image.value,texture,'before/after changes uniforms, not image size');
  await wallpaper.setSource(null);assert.equal(background.image.value,null);assert.equal(uniforms.sceneCorrectionEnabled.value,0);wallpaper.dispose();
 });

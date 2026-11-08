@@ -1650,6 +1650,22 @@ test('a synchronous selection entry advances catalog, lens geometry and continui
  assert.deepEqual(first.continuity.groups.get('a'),['a','b']);assert.deepEqual(next.continuity.groups.get('a'),['a'],'continuity is refreshed with that same geometry revision');
 });
 
+test('shared colour and number settings preview without persistence, validate through the same setters, then commit once',async()=>{
+ const {settingsPropertyBindings}=await import('../src/properties/settingsAdapter.ts');
+ const {preparePropertyChanges}=await import('../src/properties/registry.ts');
+ const {defaultSettings}=await import('../src/workspaceActions.ts');
+ const {PROPERTY_REGISTRY}=await import('../src/appearance/registry.ts');
+ let saved=defaultSettings(),shown=saved,writes=0;
+ const original=saved,bindings=settingsPropertyBindings(saved,change=>{saved=change(saved);shown=saved;writes++;},candidate=>{shown=candidate??saved;});
+ const color=preparePropertyChanges(PROPERTY_REGISTRY,'scene.pulseTintHigh','#ff8800',['scene.vfx']);
+ const amount=preparePropertyChanges(PROPERTY_REGISTRY,'scene.pulseAmount',.5,['scene.vfx']);
+ bindings.preview(color);assert.equal(shown.sceneVfx.pulseTintHigh,'#ff8800');assert.equal(saved,original);assert.equal(writes,0);
+ bindings.preview(amount);assert.equal(shown.sceneVfx.pulseAmount,.5);assert.equal(shown.sceneVfx.pulseTintHigh,original.sceneVfx.pulseTintHigh,'a new sample cannot accumulate a previous unrelated preview');
+ assert.throws(()=>bindings.preview([{consumer:'scene.vfx',property:'scene.pulseAmount',value:'invalid'}]));assert.equal(saved,original);
+ bindings.preview(null);assert.equal(shown,saved);assert.equal(writes,0);
+ bindings.preview([...color,...amount]);bindings.commit([...color,...amount]);assert.equal(writes,1);assert.equal(saved.sceneVfx.pulseTintHigh,'#ff8800');assert.equal(saved.sceneVfx.pulseAmount,.5);
+});
+
 test('sphere translucency participates in shared appearance targeting and persists independently of opacity',async()=>{
  const {propertyFor,controllerTargets,loadController}=await import('../src/appearance/registry.ts');
  const {defaultSettings}=await import('../src/workspaceActions.ts');const {resolveControllerAppearance}=await import('../src/appearance/resolve.ts');
@@ -1681,57 +1697,13 @@ test('sphere glow masks inherit soft edge coverage and live authored glow/transl
  updateAtomicCarrier(source,0,.5,2);assert.equal(source.opacity,0);updateAtomicCarrier(source,.7,1,2);assert.equal(source.opacity,0);source.dispose();mask.dispose();
 });
 
-test('adaptive sphere trial preserves off/zero states and bounds alpha with hue-preserving gain',async()=>{
- const {adaptiveSample,createSphereBackground}=await import('../src/scene/sphereBlend.ts');
- const rgb=[.02,.08,.5],original={rgb,alpha:.02};assert.deepEqual(adaptiveSample(rgb,[1,1,1],.02,.8,.82,0),original);
- for(const background of [[0,0,0],[1,1,1],rgb,[.8,.01,.4]])for(const strength of [0,.2,.65,1]){
-  const adapted=adaptiveSample(rgb,background,.02,.8,.82,strength,"contrast",0);assert.equal(adapted.alpha,.02);assert.ok(adapted.rgb.every(Number.isFinite));assert.ok(Math.abs(adapted.rgb[0]/adapted.rgb[2]-rgb[0]/rgb[2])<1e-9,'no hue rotation');
- }
- assert.deepEqual(adaptiveSample(rgb,[1,1,1],0,0,.82,1),{rgb,alpha:0});assert.deepEqual(adaptiveSample(rgb,[1,1,1],0,1,1,1),{rgb,alpha:0});
- const a=createSphereBackground(),b=createSphereBackground();a.enabled.value=1;assert.equal(b.enabled.value,0,'separate views never share trial state');
-});
-test('adaptive contrast improves representative luminance contrast with explicit coverage',async()=>{
- const {adaptiveSample}=await import('../src/scene/sphereBlend.ts');const luma=rgb=>rgb.reduce((s,v,i)=>s+Math.max(0,Math.min(1,v))*[.2126,.7152,.0722][i],0);
- for(const [rgb,bg] of [[[.01,.03,.3],[0,0,0]],[[.01,.03,.3],[.9,.9,.9]],[[0,0,1],[0,0,1]]]){
-  const before=Math.abs(luma(rgb)*.0045+luma(bg)*.9955-luma(bg)),adapted=adaptiveSample(rgb,bg,.0045,1,.82,1),after=Math.abs(luma(adapted.rgb)*adapted.alpha+luma(bg)*(1-adapted.alpha)-luma(bg));assert.ok(after>before,JSON.stringify({rgb,bg,before,after}));
- }
-});
-
-test('adaptive shader attachment preserves actual Phong preprocessor boundaries and shares view uniforms',async()=>{
- const THREE=await import('three');const {atomicCarrierMaterial}=await import('../src/atomicCarrier.ts');const {createSphereBackground}=await import('../src/scene/sphereBlend.ts');
- const background=createSphereBackground(),material=atomicCarrierMaterial('#0044ff',1,.82,1,background),shader={uniforms:{},vertexShader:THREE.ShaderLib.phong.vertexShader,fragmentShader:THREE.ShaderLib.phong.fragmentShader};material.onBeforeCompile(shader,{});
- assert.ok(!shader.fragmentShader.includes('}#define'));assert.match(shader.fragmentShader,/(^|\n)#define PHONG/);assert.equal(shader.uniforms.sphereBlendStrength,background.strength);background.strength.value=.2;assert.equal(shader.uniforms.sphereBlendStrength.value,.2);material.dispose();
-});
 
 
 
 
-test('live adaptive fields persist in the controller and resolve only for sphere body targets',async()=>{
- const {loadController,controllerTargets}=await import('../src/appearance/registry.ts');const {defaultSettings}=await import('../src/workspaceActions.ts');const {resolveControllerAppearance}=await import('../src/appearance/resolve.ts');
- const state=loadController(JSON.parse(JSON.stringify({...emptyController(),values:{'omnium.nodes.body':{adaptiveBlend:true,adaptiveBlendStrength:.37}}}))),targets=controllerTargets(state),body=targets.find(t=>t.id==='omnium.nodes.body');
- assert.ok(body.properties.includes('adaptiveBlend'));assert.ok(body.properties.includes('adaptiveBlendStrength'));assert.ok(!targets.find(t=>t.id==='ui.buttons.background').properties.includes('adaptiveBlend'));
- const base=defaultSettings().appearance,resolved=resolveControllerAppearance({...base,controller:state});assert.equal(resolved.renderDefaults['omnium.nodes.body'].adaptiveBlend,true);assert.equal(resolved.renderDefaults['omnium.nodes.body'].adaptiveBlendStrength,.37);
- const {createSphereBackground,configureSphereBlend}=await import('../src/scene/sphereBlend.ts');const live=createSphereBackground(),uniform=live.strength;configureSphereBlend(live,resolved.renderDefaults['omnium.nodes.body']);assert.equal(live.enabled.value,1);assert.equal(uniform.value,.37);configureSphereBlend(live,{adaptiveBlend:true,adaptiveBlendStrength:0});assert.equal(live.strength,uniform);assert.equal(uniform.value,0);configureSphereBlend(live);assert.equal(live.enabled.value,0);assert.equal(uniform.value,.65);
- const defaults=resolveControllerAppearance(base).renderDefaults['omnium.nodes.body'];assert.equal(defaults.adaptiveBlend,false);assert.equal(defaults.adaptiveBlendStrength,.65);
-});
 
 
-test('whole-node blend modes use conventional equations and explicit bounded body coverage',async()=>{
- const {blendChannel,adaptiveSample}=await import('../src/scene/sphereBlend.ts');const {SPHERE_BLEND_MODES}=await import('../src/properties/sphereBlendModes.ts');
- const near=(a,b)=>assert.ok(Math.abs(a-b)<1e-9,`${a} != ${b}`);
- near(blendChannel('screen',.4,0),.4);near(blendChannel('screen',.4,1),1);near(blendChannel('multiply',.4,1),.4);near(blendChannel('multiply',.4,0),0);near(blendChannel('difference',.4,.4),0);near(blendChannel('softLight',.5,.7),.7);
- const rgb=[.1,.3,.8],bg=[.4,.5,.7];
- for(const {id} of SPHERE_BLEND_MODES){const result=adaptiveSample(rgb,bg,.0045,1,.82,1,id,1);near(result.alpha,.18);assert.ok(result.rgb.every(Number.isFinite));assert.deepEqual(adaptiveSample(rgb,bg,.0045,1,.82,0,id,1),{rgb,alpha:.0045});assert.deepEqual(adaptiveSample(rgb,bg,0,0,.82,1,id,1),{rgb,alpha:0});}
- const normal=adaptiveSample(rgb,bg,.0045,1,.82,1,'normal',0);assert.deepEqual(normal,{rgb,alpha:.0045});const covered=adaptiveSample(rgb,bg,.0045,1,.82,.5,'normal',.5);near(covered.alpha,.045);
- for(const {id} of SPHERE_BLEND_MODES.filter(m=>!['contrast','normal'].includes(m.id))){assert.notDeepEqual(adaptiveSample(rgb,bg,.0045,1,.82,1,id,1).rgb,rgb,id);}
-});
-test('blend mode and coverage survive settings serialization and bind live uniforms',async()=>{
- const {loadController}=await import('../src/appearance/registry.ts');const {defaultSettings}=await import('../src/workspaceActions.ts');const {resolveControllerAppearance}=await import('../src/appearance/resolve.ts');const {createSphereBackground,configureSphereBlend}=await import('../src/scene/sphereBlend.ts');const {SPHERE_BLEND_MODES}=await import('../src/properties/sphereBlendModes.ts');
- for(const [index,mode] of SPHERE_BLEND_MODES.entries()){
-  const controller=loadController(JSON.parse(JSON.stringify({...emptyController(),values:{'omnium.nodes.body':{adaptiveBlend:true,adaptiveBlendMode:mode.id,adaptiveBlendStrength:1,adaptiveBlendCoverage:.4}}})));const values=resolveControllerAppearance({...defaultSettings().appearance,controller}).renderDefaults['omnium.nodes.body'],live=createSphereBackground();configureSphereBlend(live,values);assert.equal(live.mode.value,index);assert.equal(live.coverage.value,.4);assert.equal(values.adaptiveBlendMode,mode.id);
- }
- const live=createSphereBackground();configureSphereBlend(live,{adaptiveBlendCoverage:0,adaptiveBlendMode:'normal'});assert.equal(live.coverage.value,0);assert.equal(live.mode.value,5);configureSphereBlend(live);assert.equal(live.coverage.value,1);assert.equal(live.mode.value,0);
-});
+
 
 
 test('sphere translucency radius is a serialized sphere-only property with current default and explicit zero',async()=>{
@@ -1747,11 +1719,23 @@ test('sphere translucency radius is a serialized sphere-only property with curre
 });
 test('radial transmission updates base and bloom uniforms without losing authored opacity at full centre translucency',async()=>{
  const THREE=await import('three');const {atomicCarrierMaterial,updateAtomicCarrier}=await import('../src/atomicCarrier.ts');const {inheritMaterialCoverage}=await import('../src/materialCoverage.ts');
- const material=atomicCarrierMaterial('#4488ff',.6,1,.5,undefined,.7),mask=new THREE.MeshBasicMaterial();inheritMaterialCoverage(material,mask);
+ const material=atomicCarrierMaterial('#4488ff',.6,1,.5,.7),mask=new THREE.MeshBasicMaterial();inheritMaterialCoverage(material,mask);
  const compile=m=>{const shader={uniforms:{},vertexShader:THREE.ShaderLib.phong.vertexShader,fragmentShader:THREE.ShaderLib.phong.fragmentShader};m.onBeforeCompile(shader,{});return shader;};
  const base=compile(material),bloom=compile(mask);
  assert.equal(base.uniforms.carrierTranslucencyRadius.value,.7);assert.equal(base.uniforms.carrierAuthoredOpacity.value,.6,'fully clear centre does not erase shell opacity');
  assert.equal(base.uniforms.carrierTranslucencyRadius,bloom.uniforms.carrierTranslucencyRadius);assert.equal(base.uniforms.carrierAuthoredOpacity,bloom.uniforms.carrierAuthoredOpacity);
  updateAtomicCarrier(material,.4,.9,.8,0);assert.equal(base.uniforms.carrierTranslucencyRadius.value,0);assert.equal(bloom.uniforms.carrierAuthoredOpacity.value,.4);
  updateAtomicCarrier(material,0);assert.equal(base.uniforms.carrierAuthoredOpacity.value,0);assert.equal(base.uniforms.carrierTranslucencyRadius.value,.76,'omitted argument uses the shared default radius');material.dispose();mask.dispose();
+});
+
+
+test('retired wallpaper sphere blending stays archived without controls or renderer applicability',()=>{
+ const values={adaptiveBlend:true,adaptiveBlendStrength:.37,adaptiveBlendMode:'screen',adaptiveBlendCoverage:.4};
+ const state=loadController({...emptyController(),values:{'omnium.nodes.body':values}});
+ assert.deepEqual(state.values['omnium.nodes.body'],values);
+ assert.deepEqual(loadController(JSON.parse(JSON.stringify(state))).values['omnium.nodes.body'],values);
+ const body=controllerTargets(state).find(t=>t.id==='omnium.nodes.body');
+ for(const key of Object.keys(values)){assert.ok(!body.properties.includes(key));assert.equal(PROPERTY_REGISTRY.property(key),undefined);}
+ const resolved=resolveControllerAppearance({...defaultSettings().appearance,controller:state});
+ for(const key of Object.keys(values))assert.equal(resolved.renderDefaults?.['omnium.nodes.body']?.[key],undefined);
 });

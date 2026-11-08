@@ -217,5 +217,6 @@ test('all workspace commit paths reject oversized UTF-8 data while preserving th
  assert.equal(restoredUI.settings.spatial.nodeNames,"expanded");delete restoredUI.settings.spatial.nodeNames;
  assert.equal(restoredUI.settings.spatial.latticeScale,1);delete restoredUI.settings.spatial.latticeScale;
  assert.equal(restoredUI.settings.spatial.showVacantCells,false);delete restoredUI.settings.spatial.showVacantCells;
+ const {DEFAULT_SCENE_VFX}=await import("../src/scene/vfx.ts");assert.deepEqual(restoredUI.settings.sceneVfx,DEFAULT_SCENE_VFX);delete restoredUI.settings.sceneVfx;
  assert.deepEqual(restored.workspace,source.workspace);assert.deepEqual(restoredUI,source.ui);assert.equal(restored.ui.settings.bindings['selector.open'],'');assert.equal(restored.ui.layout.assets[0].id,'fixture-icon');
  });

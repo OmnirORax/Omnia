@@ -1,3 +1,5 @@
+import {SceneVfxControls} from "./SceneVfxControls";
+
 import {NormalizationPanel,type NormalizationState} from './NormalizationPanel.tsx';
 import type {NormalizationPreferences} from './normalization.ts';
 import { useEffect, useRef, useState } from 'react';
@@ -224,6 +226,7 @@ export function ScenePanel({ normalization,normalizationState,node, revision, bi
     } },
   });
   return <div className="scene-panel">
+    <SceneVfxControls bindings={bindings}/>
     <UIField id="scene.prompt" label="Image prompt" category="Scene"><CoupledField bindings={bindings} consumer="scene.generate" property="scene.prompt" /></UIField>
     <div className="scene-input-row">
       <UIField id="scene.variable" label="Prompt variable" category="Scene"><CoupledField bindings={bindings} consumer="scene.generate" property="scene.variable" /></UIField>

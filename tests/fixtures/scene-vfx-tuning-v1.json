@@ -1,0 +1,21 @@
+{
+  "audioLight": "#aa3300",
+  "audioBounce": 1.12,
+  "waves": true,
+  "distortion": 0.4,
+  "glitching": 0.3,
+  "maxFps": 120,
+  "lightCoreStrength": 1.1,
+  "lightNearStrength": 0.9,
+  "lightFarStrength": 1.2,
+  "lightNearRadius": 0.35,
+  "lightFarRadius": 1.2,
+  "lightGain": 2,
+  "lightMix": 0.85,
+  "lightTintSaturation": 1,
+  "lightHueInner": 14.4,
+  "lightHueOuter": 50.4,
+  "lightSourcePower": 2,
+  "lightAudioGain": 1.2,
+  "lightAudioPower": 4
+}

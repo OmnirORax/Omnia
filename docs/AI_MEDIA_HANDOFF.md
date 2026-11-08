@@ -144,3 +144,11 @@ checks; do not launch unsolicited browser suites. Keep static previews self-cont
 external generation services still require their own configuration and connectivity.
 Update this brief when decisions are made, clearly separating implemented behavior
 from plans and recommendations.
+
+
+Scene audio input update (2026-11-07): reactive effects now use direct local-file
+website playback, with no tab/screen/system/microphone capture. The user rejected
+sharing indicators. Choose audio file → Play audio uses the existing app-owned
+media/analyser session; closing Scene controls keeps it playing. Stop audio ends
+playback/analysis. This is not AI music generation, a streaming-provider integration
+or a native system-audio bridge. See SCENE_VFX.md for defaults, limits and evidence.

@@ -81,8 +81,8 @@ export function useContextCommands(props:Props){
   const bindingDegrees=useMemo(()=>active&&props.selection.length?targetDegrees(props.recipe,memberTargets(props.recipe,props.selection),[],props.recipe.atomnic?.active&&atomnicSettings(props.recipe).mode==='constrained'?['omnic.extent']:[],props.selection.some(id=>componentIndex(props.recipe).get(id)?.component.generator==='group')?'available':'common'):[],[active,props.recipe,props.selection]);
   const parameters=useMemo(()=>bindingDegrees.map(targetParameter),[bindingDegrees]);
   const values=useMemo(()=>Object.fromEntries(bindingDegrees.map(degree=>[degree.targets[0].input.key,targetDegreeValue(props.recipe,degree)])),[bindingDegrees,props.recipe]);
-  useOmnicParameterBindings(values,next=>{
-    try{let recipe=latest.current.recipe;for(const degree of bindingDegrees){const key=degree.targets[0].input.key;if(next[key]!==values[key])recipe=writeTargetDegree(recipe,degree,next[key]);}if(recipe!==latest.current.recipe)latest.current.commit(recipe);}
+  useOmnicParameterBindings(values,(next,temporary)=>{
+    try{let recipe=latest.current.recipe;for(const degree of bindingDegrees){const key=degree.targets[0].input.key;if(next[key]!==values[key])recipe=writeTargetDegree(recipe,degree,next[key]);}if(recipe!==latest.current.recipe||!temporary)latest.current.commit(recipe,temporary);}
     catch(failure){latest.current.error(failure instanceof Error?failure.message:String(failure));}
   },parameters);
   return {activate,active};

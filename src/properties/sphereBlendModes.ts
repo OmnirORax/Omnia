@@ -1,4 +1,4 @@
-/** One portable mode declaration for appearance validation, controls and shader dispatch. */
+/** Compatibility-only enum choices for archived wallpaper/sphere blend preferences. */
 export const SPHERE_BLEND_MODES=[
  {id:'contrast',label:'Auto contrast'},
  {id:'screen',label:'Screen · lighten'},

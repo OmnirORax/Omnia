@@ -173,8 +173,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
   const backupUI=useRef({layout:savedUILayout,settings:savedSettings,appearance:previewAppearance});backupUI.current={layout:savedUILayout,settings:savedSettings,appearance:previewAppearance};
   const appearancePending = ui.pendingAppearance || !sameAppearance(previewAppearance, savedSettings.appearance);
   const settings = useMemo(() => ({ ...ui.settings, appearance: safeView ? safeAppearance() : previewAppearance }), [ui.settings, safeView, previewAppearance]);
-  const [settingsPreview,setSettingsPreview]=useState<WorkspaceSettings|null>(null);
-  const propertyBindings = settingsPropertyBindings(settings, setSettings,setSettingsPreview);
+  const propertyBindings = settingsPropertyBindings(settings, setSettings, candidate=>ui.previewSettings(candidate?()=>candidate:null));
   const renderSource = useMemo(() => safeView ? settings.appearance : activityPreview(settings.appearance, activityRequests), [settings.appearance, safeView, activityRequests]);
   const renderedAppearance = useMemo(() => resolveControllerAppearance(renderSource), [renderSource]);
   const renderSettings = useMemo(() => ({ ...settings, appearance: renderedAppearance }), [settings, renderedAppearance]);
@@ -600,8 +599,8 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
     : undefined;
   const selectedEntity = document.entities.find((e) => e.id === selectedPlacement?.entityId);
   const sceneBackground = useSceneBackground(actionHistory, selectedNode?.id ?? null);
-  const imagePreferences=normalizationPreferences((settingsPreview??settings).functionValues[NORMALIZATION_FUNCTION]);
-  const imagePreview=!!settingsPreview&&settingsPreview.functionValues[NORMALIZATION_FUNCTION]!==settings.functionValues[NORMALIZATION_FUNCTION];
+  const imagePreferences=normalizationPreferences(settings.functionValues[NORMALIZATION_FUNCTION]);
+  const imagePreview=ui.previewingSettings&&settings.functionValues[NORMALIZATION_FUNCTION]!==ui.committedSettings.functionValues[NORMALIZATION_FUNCTION];
   const normalizedScene=useNormalizedScene(sceneBackground.blob,imagePreferences,!!sceneBackground.reference&&'localId' in sceneBackground.reference,imagePreview);
   const sceneNodeIds = useMemo(() => new Set(document.placements.map(item => item.id)), [document.placements]);
   const sceneNodeIdsRef = useRef(sceneNodeIds); sceneNodeIdsRef.current = sceneNodeIds;

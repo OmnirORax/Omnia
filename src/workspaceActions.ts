@@ -1,3 +1,4 @@
+import {DEFAULT_SCENE_VFX,normalizeSceneVfx,type SceneVfx} from "./scene/vfx.ts";
 import {SPHERE_VISUAL_DEFAULTS} from './properties/sphereVisualDefaults.ts';
 import { contextTargets } from './ui/contextTargets.ts';
 import { uiPointerHeld, eventPathMatches } from './ui/pointerOwnership.ts';
@@ -77,13 +78,14 @@ export type WorkspaceSettings = {
   isolateFocus: boolean;
   appearance: { controller?: Controller; renderDefaults?: Record<string, Record<string, Value>>; font: FontId; textGlow: number; textColor?: string; controlGlow: number; theme: "neon" | "classic"; accent: string; background: string; opacity: number; glow: number; glowSpread: number; nodes: StyleDefaults; binders: StyleDefaults; atmosphere: boolean; effectColor?: string; effect: EffectKind; effectTargets: Record<AnimationTarget, boolean>; surfaceEffects: Partial<Record<SurfaceTarget, Partial<SparkleStyle>>>; effectIntensity: number; lightningLength: number; starSize: number; density: number; motion: number; windowOpacity: number; blur: number };
   mouse: { leftEmpty: MouseAction; rightEmpty: MouseAction; subtreeModifier: SubtreeModifier; selectionModifier: SubtreeModifier; nestModifier: SubtreeModifier; backButton: ActionId; forwardButton: ActionId; shiftBackButton: ActionId; shiftForwardButton: ActionId };
+  sceneVfx: SceneVfx;
   functionValues: Record<string, Record<string, Value>>;
   bindings: Record<string, string>;
   buttonLabels: Record<string, string>;
 };
 export const SETTINGS_KEY = "omnium.workspace.settings.v1";
 export function defaultSettings(): WorkspaceSettings {
-  return { spatial: { ...DEFAULT_SPATIAL_SETTINGS, latticeScale: 1, showVacantCells: false }, isolateFocus: false, appearance: { controller: loadController(undefined), font: "system", textGlow: 0, controlGlow: 0, theme: "neon", accent: "#60ddec", background: "#030c15", opacity: 1, glow: 0.22, glowSpread: 0.15, nodes: { color: SPHERE_VISUAL_DEFAULTS.color, opacity: SPHERE_VISUAL_DEFAULTS.opacity, glow: SPHERE_VISUAL_DEFAULTS.glow }, binders: { opacity: 0.85, glow: 0.7 }, atmosphere: true, effect: "stars", effectTargets: { windows: true, buttons: false, fields: false, nodes: true, binders: true, background: false }, surfaceEffects: {}, effectIntensity: 0.35, lightningLength: 0.35, starSize: 1, density: 0.5, motion: 0.25, windowOpacity: 0.9, blur: 10 }, mouse: { leftEmpty: "pan", rightEmpty: "rotate", subtreeModifier: "shift", selectionModifier: "ctrl", nestModifier: "shift", backButton: "undo", forwardButton: "redo", shiftBackButton: "history.configure", shiftForwardButton: "history.configure" },
+  return { sceneVfx: {...DEFAULT_SCENE_VFX}, spatial: { ...DEFAULT_SPATIAL_SETTINGS, latticeScale: 1, showVacantCells: false }, isolateFocus: false, appearance: { controller: loadController(undefined), font: "system", textGlow: 0, controlGlow: 0, theme: "neon", accent: "#60ddec", background: "#030c15", opacity: 1, glow: 0.22, glowSpread: 0.15, nodes: { color: SPHERE_VISUAL_DEFAULTS.color, opacity: SPHERE_VISUAL_DEFAULTS.opacity, glow: SPHERE_VISUAL_DEFAULTS.glow }, binders: { opacity: 0.85, glow: 0.7 }, atmosphere: true, effect: "stars", effectTargets: { windows: true, buttons: false, fields: false, nodes: true, binders: true, background: false }, surfaceEffects: {}, effectIntensity: 0.35, lightningLength: 0.35, starSize: 1, density: 0.5, motion: 0.25, windowOpacity: 0.9, blur: 10 }, mouse: { leftEmpty: "pan", rightEmpty: "rotate", subtreeModifier: "shift", selectionModifier: "ctrl", nestModifier: "shift", backButton: "undo", forwardButton: "redo", shiftBackButton: "history.configure", shiftForwardButton: "history.configure" },
     functionValues: {}, buttonLabels: {}, bindings: Object.fromEntries(ACTIONS.map((action) => [action.id, action.defaultKey])) };
 }
 export function normalizeKey(event: KeyboardEvent): string {
@@ -190,6 +192,7 @@ export function normalizeSettings(input: unknown): WorkspaceSettings {
   defaults.appearance.controller = loadController(undefined);
   try {
     let value = input as Partial<WorkspaceSettings>;
+    defaults.sceneVfx = normalizeSceneVfx(value.sceneVfx);
     const savedBindings = { ...value.bindings };
     if (value.functionValues && typeof value.functionValues === "object") {
       for (const [consumer, fields] of Object.entries(value.functionValues).slice(0, 200)) {

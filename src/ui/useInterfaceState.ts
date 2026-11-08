@@ -25,6 +25,12 @@ export function useInterfaceState(
     const state = initial();
     return startSession({ ...state, settings: normalizeSettings(state.settings) });
   });
+  const [preview,setPreview]=useState<{base:InterfaceSession;settings:WorkspaceSettings}|null>(null);
+  const previewSettings=useCallback((change:((settings:WorkspaceSettings)=>WorkspaceSettings)|null)=>{
+    if(!change){setPreview(null);return;}
+    const base=ref.current,current=currentState(base).settings;
+    setPreview({base,settings:normalizeLiveSettings(change(current),current)});
+  },[]);
   const ref = useRef(session);
   const dirty = useRef(false);
   const error = useRef(onError);
@@ -120,7 +126,10 @@ export function useInterfaceState(
     history = session.draft ?? session.saved;
   return {
     layout: current.layout,
-    settings: current.settings,
+    settings: preview?.base===session?preview.settings:current.settings,
+    previewSettings,
+    committedSettings:current.settings,
+    previewingSettings:preview?.base===session,
     savedSettings: session.saved.present.settings,
     update,
     setSettings,

@@ -20,6 +20,9 @@ export const radialGroups = {
 /** Declare a feature command here once. ACTIONS supplies listing, saved bindings,
  * conflict policy and dispatch; components supply only availability and behavior. */
 const CORE_FEATURE_ACTIONS = [
+  {id:'scene.audioConnect',owner:'sceneAudio',scope:'global',category:'Scene',label:'Play audio',defaultKey:'',description:'Play the website audio player and use its signal for scene effects. Choose an audio file first; no tab or screen sharing.'},
+  {id:'scene.audioDisconnect',owner:'sceneAudio',scope:'global',category:'Scene',label:'Stop audio',defaultKey:'',description:'Stop website audio playback and release its analysis context; keep the chosen file ready to play again.'},
+  {id:'scene.audioFile',owner:'sceneAudio',scope:'global',category:'Scene',label:'Choose audio file',defaultKey:'',description:'Play a local audio file to drive scene effects. File and playback position are not saved or uploaded.'},
   {id:'world.navigatorCancel',owner:'worldNavigator',scope:'world',category:'World navigator',label:'Cancel node drive',defaultKey:'Esc',description:'Restore the driven node and its branch to their starting placements without saving the preview.'},
 
   {id:'world.navigatorDepthUp',owner:'worldNavigator',scope:'world',held:true,category:'World navigator',label:'Navigator forward (depth −)',defaultKey:'ArrowUp',description:'Move the active world navigator forward, one cell along camera-relative negative Z. Hold repeats through the bounded movement scheduler.'},

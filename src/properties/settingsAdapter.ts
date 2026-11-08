@@ -1,6 +1,6 @@
 import type { WorkspaceSettings } from "../workspaceActions";
 import { PROPERTY_REGISTRY } from "../appearance/registry.ts";
-import { bindStateProperties, type PropertyChange, type StatePropertyAdapters } from "./registry.ts";
+import { bindStateProperties, type StatePropertyAdapters } from "./registry.ts";
 import { CONFIGURABLE_FUNCTIONS } from "./functions.generated.ts";
 /** Adapter discovery follows the real function inputs; no second setter/channel list. */
 export const SETTINGS_PROPERTY_ADAPTERS: StatePropertyAdapters<WorkspaceSettings> = Object.fromEntries(
@@ -8,7 +8,6 @@ export const SETTINGS_PROPERTY_ADAPTERS: StatePropertyAdapters<WorkspaceSettings
     channels: Object.fromEntries(Object.entries(fn.inputs).map(([id, input]) => [id, input])),
   }]),
 ) as StatePropertyAdapters<WorkspaceSettings>;
-export function settingsPropertyBindings(settings: WorkspaceSettings, update: (change: (old: WorkspaceSettings) => WorkspaceSettings) => void, preview?:(candidate:WorkspaceSettings|null)=>void) {
-  const binding=bindStateProperties(PROPERTY_REGISTRY, "settings", settings, SETTINGS_PROPERTY_ADAPTERS, update);
-  return {...binding,commit:(changes:PropertyChange[])=>{preview?.(null);binding.commit(changes);},...(preview?{preview:(changes:PropertyChange[])=>{let candidate=settings;bindStateProperties(PROPERTY_REGISTRY,"settings",settings,SETTINGS_PROPERTY_ADAPTERS,change=>{candidate=change(settings);}).commit(changes);preview(candidate===settings?null:candidate);}}:{})};
+export function settingsPropertyBindings(settings: WorkspaceSettings, update: (change: (old: WorkspaceSettings) => WorkspaceSettings) => void, preview?: (candidate:WorkspaceSettings|null)=>void) {
+  return bindStateProperties(PROPERTY_REGISTRY, "settings", settings, SETTINGS_PROPERTY_ADAPTERS, update, preview ? change=>{const candidate=change?.(settings);preview(!candidate||candidate===settings?null:candidate);} : undefined);
 }

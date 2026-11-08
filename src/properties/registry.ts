@@ -165,7 +165,8 @@ export type StatePropertyAdapters<State> = Record<string, {
 }>;
 /** The same binding/setter path works for any state owner, without a global value pool. */
 export function bindStateProperties<State>(registry: PropertyRegistry, owner: string, state: State,
-  adapters: StatePropertyAdapters<State>, update: (change: (state: State) => State) => void) {
+  adapters: StatePropertyAdapters<State>, update: (change: (state: State) => State) => void,
+  preview?: (change: ((state: State) => State) | null) => void) {
   const values: Record<string, Record<string, PropertyValue>> = {};
   for (const consumer of registry.consumers.filter(consumer => consumer.owner === owner)) {
     values[consumer.id] = {};
@@ -176,7 +177,7 @@ export function bindStateProperties<State>(registry: PropertyRegistry, owner: st
       Object.defineProperty(values[consumer.id], channel, { enumerable: true, get: () => functionInputValue(consumer.id, channel, () => adapter.read(state)) });
     }
   }
-  return { values, commit: (changes: PropertyChange[]) => {
+  const prepare = (changes: PropertyChange[]) => {
     const writes = changes.map(change => {
       const consumer = registry.consumer(change.consumer), property = registry.property(change.property);
       const adapter = adapters[change.consumer]?.channels[change.property];
@@ -186,11 +187,15 @@ export function bindStateProperties<State>(registry: PropertyRegistry, owner: st
         throw new Error(`Invalid state coupling write: ${change.consumer}/${change.property}`);
       return { adapter, value: change.value, spec: property, consumer };
     });
-    if (writes.length) update(current => writes.reduce((next, write) => {
+    return (current:State) => writes.reduce((next, write) => {
       const value = typeof write.value === "number" ? boundedNumber(write.spec, write.value, key => adapters[write.consumer.id]?.channels[write.consumer.channels[key] ?? key]?.read(next)) : write.value;
       return write.adapter.read(next) === value ? next : write.adapter.write(next, value);
-    }, current));
-  } };
+    }, current);
+  };
+  let previewing=false;
+  const clear=()=>{if(previewing){previewing=false;preview?.(null);}};
+  return { values, commit: (changes:PropertyChange[]) => { const apply=prepare(changes);clear();if(changes.length)update(apply); },
+    preview: preview ? (changes:PropertyChange[]|null) => {if(changes===null){clear();return;}const apply=prepare(changes);previewing=true;preview(apply);} : undefined };
 }
 
 /** Logical objects/devices use the same consumer/group identities as the hierarchy. */

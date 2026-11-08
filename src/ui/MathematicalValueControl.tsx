@@ -9,7 +9,7 @@ import {useNumericEditor} from './NumericEditorScope';
  * reserved for the field's rule parameters; external editors retain RangeControl. */
 export function MathematicalValueControl({inline=false,configurationKey,step=1,onPreview=()=>{},...props}:Parameters<typeof MathematicalDial>[0]&{inline?:boolean;configurationKey?:string;step?:number}){
  const [point,setPoint]=useState<{x:number;y:number}|null>(null),scope=useNumericEditor();
- const close=()=>{scope.cancelPreview?.();setPoint(null);};
+ const close=()=>{props.onCancelPreview?.();scope.cancelPreview?.();setPoint(null);};
  const field=<DofStateField property={configurationKey??props.label??'value'} label={props.label??'Value'} value={props.value} disabled={props.disabled} configure={props.configure} onDismiss={close}
   domain={{min:props.min,max:props.max,integer:props.integer,resolution:step,projection:'radial'}} onPreview={onPreview} onCommit={props.onCommit}/>;
  if(inline)return field;

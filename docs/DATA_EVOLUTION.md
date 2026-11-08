@@ -392,6 +392,503 @@ existing camera history. No graph/schema migration. Depth action IDs and saved
 key assignments are unchanged; their forward/backward semantics are corrected.
 CI retry logs are private ephemeral files, not application data or credentials.
 
+
+### Scene image VFX (2026-11-07)
+
+`WorkspaceSettings.sceneVfx` is an additive five-field object. Its sole normalizer
+in `scene/vfx.ts` whitelists audioLight/audioBounce/waves/distortion/glitching and
+defines screenshot defaults for absence. Finite numbers clamp to supported bounds;
+explicit false/zero survive. Existing UI/settings persistence, shared history and
+UI-template/workspace-backup exports carry the branch. The historical combined
+backup fixture stays frozen; its test verifies only this additive default before
+comparing every older field. No image Blob, scene assignment, atlas coordinate,
+canonical identity or backend format changes. Source JSON scripts are not imported
+or evaluated. Capture streams, file URLs/bytes, FFT buffers and playback state are
+transient and never serialized. Older clients can omit the new preference when
+resaving; rollback loses only this effect preference, with original images and
+scene assignments intact. No new cloud audio/media storage or migration exists.
+
+Scene audio-pickup repair (2026-11-07): changes only ephemeral audio-session/view
+ownership and input normalization. The sceneVfx object remains exactly five fields
+with unchanged defaults/bounds. The readonly input meter, media element, stream,
+context state and playback URL never enter settings, graph/history or exports.
+No stored image, assignment, audio bytes or existing preference is converted.
+
+Scene colour-range correction and pacing (2026-11-07): Audio Light retains its
+stored RGB value but now selects a broad soft source-image hue range, as explicitly
+requested, instead of global tinting. No conversion or image rewrite occurs.
+Older clients apply the same saved colour globally; rollback needs no data
+conversion. The 120 fps target, glow-mask capability and app-owned hidden media
+parking host are runtime-only; exactly five sceneVfx fields remain serialized.
+
+Editable scene FPS cap (2026-11-07): the user explicitly extended the earlier
+five-field screenshot-only scope with maxFps. SceneVfx now serializes six fields;
+old five-field settings acquire 120, values below 60 clamp to 60, and finite values
+are rounded/bounded to 60–1000. Existing explicit effect choices remain intact.
+The registered settings owner, shared history and export/import paths carry the
+additive field. Older clients omit only the cap on resave; source images/assignments
+and audio/session exclusion remain unchanged. No atlas or backend format changes.
+
+Scene flash contrast correction (2026-11-07): Audio Light emission now weights
+source radiance/highlights and removes the chroma-normalized shadow floor. No
+saved values, defaults, ranges, image bytes or scene assignments change. Six-field
+serialization, selected hue ranges and Max FPS remain intact. Older clients render
+the former shadow-lifting response from the same preferences; no data conversion.
+
+Prepared bright-colour headroom correction (2026-11-07): runtime flash brightness
+is bounded to remaining source headroom and halo energy is separate. No six-field
+sceneVfx settings, defaults, image bytes, assignments or exported formats change.
+Older clients render the former unbounded gain from the same stored preferences.
+
+Audio Light saturation correction (2026-11-07): the user explicitly replaced the
+rejected brightness/bloom interpretation with saturation. The stored audioLight
+RGB still selects a broad hue family; audio now changes display-space saturation
+with fixed hue/HSV value. No exposure or audio bloom is added. All six stored
+fields/defaults/bounds remain unchanged, with no image, assignment or atlas rewrite.
+Older clients interpret the same preference using the former light-gain response;
+rollback needs no data conversion. Obsolete visual tests are replaced to reflect
+the requested semantics, without claiming the new visual check was run.
+
+
+Audio Light emitter/halo correction (2026-11-07): the user clarified that selected
+image regions should pulse as coloured light sources, rather than saturation
+alone. Existing audioLight RGB selects the source hue/saturation and emitted tint;
+new cached GPU masks are transient and never stored. The six sceneVfx fields,
+defaults, bounds, serializer, image bytes, assignments and atlas formats stay
+unchanged. This deliberately supersedes fixed hue/value saturation semantics.
+Older clients render their earlier response from the same preferences; rollback
+needs no conversion. No stored preferences are overwritten or discarded.
+
+
+### Editable scene light tuning (2026-11-07)
+
+The user explicitly extended the earlier screenshot-only scope to serialize the
+parameters being tuned. SceneVfx adds 13 numeric preferences: lightCoreStrength,
+lightNearStrength, lightFarStrength, lightNearRadius, lightFarRadius, lightGain,
+lightMix, lightTintSaturation, lightHueInner, lightHueOuter, lightSourcePower,
+lightAudioGain and lightAudioPower. `SCENE_LIGHT_CONTROLS` in scene/vfx.ts owns their
+defaults/bounds and supplies the shared numeric property editors and UI. The same
+normalizer/serializer, WorkspaceSettings, history, UI templates and workspace
+exports carry them. No new store or saved-schema version is introduced for this
+additive change. Missing fields acquire the preceding shader constants (radii in
+percent, hue bounds in degrees); explicit finite values, including zero, survive
+within bounds. Nonfinite/malformed values use those defaults. The historical
+six-field fixture is retained and verifies the original choices stay unchanged.
+
+Exactly 19 fields now serialize. Session/media state and GPU masks remain transient;
+image bytes, assignments, atlas identities and backend contracts do not change.
+Older clients can discard these additive tuning fields when resaving, while
+keeping the original six controls. Export current settings before using an older
+preview if the tuned preferences need preserving. Rollback needs no image/data
+conversion; it restores the older renderer's fixed parameters. No stored source
+assets or authored geometry are replaced by parameter defaults.
+
+
+### User-selected light defaults and All colours (2026-11-07)
+
+The user selected new numeric defaults in a screenshot. `SCENE_LIGHT_CONTROLS`
+now supplies core 8, near 8, far 1, near radius 0.2%, far radius 0%, gain 12,
+maximum mix 0.12, saturation 2, hue inner 180°/outer 0°, source power 2.78,
+audio gain 8 and audio power 8. Missing fields acquire these defaults; explicit
+previous values (including zero) are preserved. The frozen 19-field fixture from
+the preceding revision verifies the earlier tuning remains unchanged. Hue bounds
+keep the existing sorted rendering interpretation; their saved values are intact.
+
+`lightAllColors` is an additive boolean defaulting false: true bypasses selected
+hue matching and uses source-image hues for cores and cached RGB halos. The existing
+settings/property/history/export boundary carries all 20 fields. Turning off
+retains the selective colour and ranges. Six-field clients can drop all 14 newer
+preferences; 19-field clients can drop only All colours on resave. Preserve a current
+export before using older clients. Older runtime rendering remains its previous
+selective model. No asset, assignment, atlas, permission or backend schema changes;
+RGB masks remain transient and reuse the existing bounded GPU allocation.
+
+
+### Capture-free website audio (2026-11-07)
+
+The user rejected all browser sharing indicators and explicitly replaced shared
+capture with direct website playback. Tab/screen/system capture implementation is
+removed. `scene.audioConnect` now means Play audio for the app-owned file player;
+`scene.audioDisconnect` means Stop audio. These retained action IDs preserve saved
+shortcut/resident references while retiring their old capture semantics. Play
+cannot open a sharing dialog; Stop keeps the chosen local file ready for replay.
+All 20 sceneVfx fields/defaults, image bytes, assignments, atlas/settings formats
+and history owners remain unchanged. Media URLs/files/analysis were already
+transient, so no saved audio conversion is needed. Older clients still offer their
+former sharing actions; rollback does not transfer a live session. Captures in
+older open preview tabs must be ended there/by closing those tabs. No native
+system-audio bridge, remote audio import or new backend service is introduced.
+
+
+### Source-based Wallpaper Engine pulse (2026-11-08)
+
+The user supplied pulse.vert/pulse.frag/common_blending.h and authorised a port.
+SceneVfx adds nine fields: lightModel (pulse/legacy, default pulse), pulseTintLow,
+pulseTintHigh and six numeric pulse controls. Normalization retains all 20 prior
+fields unchanged; the serializer whitelists 29. Missing new fields choose the
+source-based port as explicitly requested; selecting legacy restores prior knob,
+colour-range and All colours behavior. No automatic numeric reinterpretation or
+asset rewrite occurs. Source low tint 0.65882 uses #a8a8a8 in existing 8-bit colour
+controls. Spectrum FFT mapping remains approximate; supplied response/blend math
+is retained. Equal/reversed bounds are guarded for defined results. The original
+low-tint rest dimming is intentional in this mode, including when disconnected.
+
+Existing settings/history/UI templates/workspace exports carry the new fields;
+there is no new persistent store/schema version. Older clients can drop the nine
+new preferences when resaving, so preserve a current export. Earlier numeric
+preferences remain available for rollback. Audio/media/FFT buffers and legacy GPU
+masks are transient. Reference mode allocates no synthetic halo buffers. Images,
+assignments, atlas identities and backend formats stay unchanged. Unit/model
+checks cover shared setters, defaults, round trips and retained legacy tuning;
+new GPU/browser validation remains unrun, with no inferred appearance acceptance.
+
+
+### Native-detail wallpaper composition (2026-11-08)
+
+Render-only change: the applied image is drawn after graph post-processing at its
+own output density (8,294,400 pixels / DPR 2 cap). The graph/bloom targets retain
+their original budgets. No saved preferences/defaults, 29-field sceneVfx format,
+image bytes, references, assignments, atlas/backend contracts or history behavior
+change; no migration is required. Clearing the wallpaper restores the former
+output budget. Older clients render the same image/preferences through their prior
+lower-resolution path. Offscreen-composite failure falls back to direct rendering
+at output density, with potentially increased graph cost. No browser appearance or
+performance acceptance is inferred from resolution-model/build checks.
+
+
+### Pulse palette, new defaults and approximation retirement (2026-11-08)
+
+The user explicitly requested screenshot defaults and removal of Earlier
+approximation. Its renderer, model selector, properties and halo cache are removed.
+The 16 historical approximation/model values remain normalized/serialized only
+for settings round trips and older-client rollback; no current render/editor uses
+them. Old lightModel=legacy cannot activate that renderer. This is deliberate
+retirement, not reinterpretation or silent loss of prior preferences.
+
+Three additive active fields are introduced: pulseColorMode (tint/selected/all,
+absent tint), pulseColors (bounded normalized comma-separated palette, absent blue
+and orange) and pulseColorWidth (absent 30 degrees). Total 32 whitelisted fields
+include 16 active and 16 archived. Existing settings/history/templates/exports
+remain the owners. Empty palette remains empty, matching zero pixels in Selected
+mode. Invalid tokens are ignored; duplicates are case-folded; at most eight colours
+are retained. Earlier 29-field clients can discard the three new fields on resave.
+
+Numeric defaults change to bands 14–15, bounds 0.01–1, exponent 0.1, amount 2 and
+Bounce 1.3. Screenshot swatches are approximated #ffe5e5 / #001438 pending exact
+hex values. Existing explicit values survive; absence adopts the requested new
+defaults. Assets/image bytes, assignments, atlas/backend schemas and audio-source
+ownership do not change. Palette/All modes extend the pulse by selecting source
+hue families and using untinted image-channel contributions, not by remapping the
+archived legacy colour settings. Browser acceptance remains unverified.
+
+
+### Independent coloured pulse correction (2026-11-08)
+
+The user clarified that palette and All modes mean independent coloured responses,
+not an untinted white pulse. Palette entries now retain their RGB/brightness and
+are evaluated separately through the source blend, with matching/overlap weights
+combining completed responses. All derives a chromatic tint per source region;
+neutral regions remain neutral. Single tint is unchanged. Existing palette/mode
+values retain identity; no asset or graph changes.
+
+pulseAllBrightness is additive (0–1). If absent it derives from the saved High tint
+maximum channel, rather than the former full-white strength; explicit zero survives.
+It uses the same shared property/history/settings/export owner. The serializer now
+whitelists 33 fields, including 16 inactive archived approximation fields. Older
+clients may drop this brightness preference on resave and still render the earlier
+white-pulse semantics. No saved tint/palette is overwritten. GPU appearance remains
+unverified; source-response isolation/brightness migration have model coverage.
+
+
+### Selected-colour retirement and separate Image tint (2026-11-08)
+
+The user rejected Selected colours, requested its removal, and reported Single
+tint stopped responding at unchanged settings after the shared palette shader.
+Selected mode is normalized to tint; palette/range remain archived in JSON, with
+no current editor/action/shader loop. Single uses a direct compiled source path,
+All a separate variant. Audio processing/settings and exponent 0.1 are unchanged;
+no zero-exponent migration or retuning was made. All ignores Low/High tints and uses
+an untinted rest base; absent All brightness now uses a fixed default independent
+of tint. Existing explicit brightness remains. This corrects a dependency the
+user rejected; it changes rendering semantics, not authored tint identities.
+
+The user separately requested keeping whole-image tinting. imageTintEnabled
+(default false) and imageTint (default #c20000) are additive settings in the same
+property/history/export owner. Tint is an optional post-pulse wallpaper-only
+multiply, compiled out when disabled. Total serialization is 35 whitelisted
+fields: 17 active and 18 archived. Older clients may discard the two new fields and
+still expose Selected mode; retained palette values allow rollback inspection.
+No image bytes, atlas/schema/backend, capture ownership or frame pacing changes.
+Frame-model regression confirms live uniforms at 0.1, not actual GPU appearance.
+
+
+### Omni as the high tint, with a shared low tint (2026-11-08)
+
+The user clarified that Omni belongs to the high tint while Low tint must remain
+an adjustable resting endpoint. UI labels now read High tint type → Single colour
+or Omni (all colours). The existing pulseColorMode tint/all values, pulseTintLow
+and pulseAllBrightness fields keep their identity. Omni now supplies pulseTintLow
+to the original source blend instead of fixed white. No new settings or default
+changes; 35 whitelisted fields remain. Ordinary High tint remains saved for Single
+colour, while pulseAllBrightness controls Omni High strength. Image tint stays a
+separate optional filter. Audio input, exponent/curve, smoothing, frame rate and
+Single-colour shader calculation are unchanged. Earlier clients may render Omni
+with their former fixed-white low semantics; no image/atlas/backend conversion.
+
+
+### Independent Omni exposure endpoints (2026-11-08)
+
+User requested two brightness sliders rather than chroma strength. The existing
+sceneVfx owner adds pulseOmniLowBrightness (0–2, default 0.5) and
+pulseOmniHighBrightness (0–4, default 1.5). Omni interpolates scalar linear RGB
+exposure with the unchanged audio pulse, including amount overdrive above one.
+Single Low/High tint and the audio pipeline retain their meaning. Old
+pulseAllBrightness remains archived and serialized, with no active setter or
+renderer use; it is not converted heuristically into exposure. Missing new fields
+receive their defaults. Explicit zeros survive. Total whitelist: 37 fields,
+18 active and 19 archived. Older clients can discard the new fields on resave and
+render their former Omni behavior; retain a current export before rollback.
+Image bytes, assignments, backend formats and audio-session ownership are unchanged.
+
+
+### Restore Omni colour strength alongside brightness (2026-11-08)
+
+The user wanted the existing colour slider retained alongside the two new
+brightness sliders. Reactivate pulseAllBrightness with its existing saved value,
+0–1 bounds and default 56/255, labelled Colour strength. Omni restores the prior
+source-hue high tint blend against neutral low, followed by the independent scalar
+brightness envelope. Single tint and audio processing remain unchanged. No new
+field or migration: 37 whitelisted fields, now 19 active and 18 archived. The
+preceding brightness-only preview ignores colour strength but retains it; older
+clients can still discard the two brightness fields. Keep an export for rollback.
+
+
+### Omni High tint uses native picker saturation/value (2026-11-08)
+
+User clarified that Omni is the normal High tint picker with source-local hues,
+not separate scalar colour/exposure sliders. Add sceneVfx.pulseOmniTint as a hex
+colour: HSV saturation/value are used; hue is ignored. Existing shared colour
+property/editor/history/export paths own it. Low tint applies in both modes.
+The source mode-9 Low/High blend and audio processing remain unchanged.
+If absent, encode old pulseAllBrightness as fully saturated red at the same value,
+rounded to 8-bit; default #380000. Explicit new hex, including black, wins. The
+conversion is idempotent and retains original fields without eager save writes.
+Old pulseAllBrightness and two exposure endpoints remain inspectable/exportable
+archives, but their sliders and exposure multiplier are retired. Their prior
+rendering cannot be represented exactly by the requested High tint model; this
+semantic change is deliberate. Whitelist: 38 fields, 17 active, 21 archived.
+Older clients may discard the new field and render old semantics; preserve an
+export before rollback. No backend/asset/identity format changes.
+
+
+### Omni saturation follows the chosen High tint, not source paleness (2026-11-08)
+
+Fix source hue extraction: remove the source-saturation-dependent mix toward
+white. Pale chromatic pixels now use their full HSV hue before applying the
+saved picker saturation/value, matching a normal High tint of that hue. Neutral
+pixels within 0.000001 RGB delta retain neutral response because hue is undefined.
+No saved field, default, conversion, ID, audio curve or backend contract changes.
+Saved Omni picker positions keep their meaning and now honor saturation without
+the unintended white bias. Older previews still render the former bias.
+
+
+### Automatic detailed audio response (2026-11-08)
+
+Add sceneVfx.pulseRangeMode (auto/manual) and pulseSensitivity (0.25–8, default 2)
+through shared function/property/settings/history/export owners. Brand-new defaults
+and an absent sceneVfx block use Automatic. An existing settings object missing a
+valid mode uses Manual, preserving its authored frequencies/thresholds/exponent and
+previous response. Explicit modes round-trip. Audio amount remains shared and
+retains its identity; Automatic ignores but preserves Manual-only parameters.
+Automatic changes only light analysis: unsmoothed full-spectrum stereo peak,
+−100..0 dB FFT range, linear-amplitude soft knee and slow transient gain calibration.
+Manual restores the existing FFT smoothing/range and source curve. Calibration
+resets at source reconnect/mode change and is not saved. Bounce/audio playback,
+colour settings, assets/identities/backend formats remain unchanged. Forty fields
+are serialized: 19 active, 21 archived. Older clients discard the two new fields
+and render Manual; retain a current export before using older previews. No eager
+save rewrite, capture permission, new media source or audio processing on playback.
+
+
+### Automatic responds to attacks without sustained-volume pinning (2026-11-08)
+
+Correct Automatic analysis after the user reported a flat extended flash and an
+ineffective sensitivity range. Per-frequency 20 ms baselines now extract positive
+rises, so sustained strong bins cannot mask new quieter bins. Sensitivity controls
+quiet-attack contrast rather than gain on the old saturating volume curve; the
+change fraction governs settling separately from contrast. Automatic uses 1024 FFT
+samples for a shorter window, while Manual restores 2048 and prior smoothing/dB
+range. Manual, tint rendering, bounce and playback are unaffected. Existing mode,
+amount and sensitivity values/IDs/bounds/defaults round-trip unchanged; no fields
+are added and the whitelist remains 40 (19 active, 21 archived). Automatic output
+intentionally changes as a bug correction; no numerical preference conversion or
+asset/backend migration applies. Profiles are transient, reset with source/mode,
+and never saved. Older previews still render the prior sustained-volume response.
+
+
+### Separate quiet-detail lift from drop strength (2026-11-08)
+
+Add sceneVfx.pulseDropContrast (1–4, default 2) through the existing shared numeric
+property/settings/history/export owner. Missing values receive 2; explicit saved
+values within bounds round-trip. Automatic now bounds Sensitivity’s quiet-detail
+lift to 10% of normalized strength and applies Drop contrast to the amplitude
+response. Stronger sounds retain most of the flash range instead of quiet detail
+boost equalizing all attacks. Onset detection, FFT, local settling and calibration
+are unchanged, as are Manual, amount, colours, playback and bounce. This corrects
+Automatic strength interpretation without converting old Sensitivity values.
+Whitelist: 41 fields, 20 active, 21 archived. Older clients discard the additive
+contrast field and restore their prior curve; retain a current export before
+rollback. No asset, identity or backend-format migration is required.
+
+
+### Sensitivity admits/rejects attacks; Omni Low also uses source hues (2026-11-08)
+
+User reported continual micro-blinking and no useful Sensitivity effect. Automatic
+Sensitivity now controls a relative soft onset gate rather than a small bounded
+brightness lift. Lower values reject small changes with exactly zero pulse; higher
+values admit them. Existing sensitivity numbers/IDs/bounds/defaults remain, but
+Automatic semantics deliberately change to match the requested control. Admitted
+amplitude mapping is stronger; onset profiles, FFT, calibration, Manual, amount,
+Drop contrast, playback and bounce retain their owners/values.
+
+Add sceneVfx.pulseOmniTintLow through the same colour property/settings/history/
+export owner as Omni High. Missing values inherit the valid saved pulseTintLow
+hex (or its default); only saturation/value are applied per source hue. Explicit
+Omni Low, including black, wins. Both Single endpoints remain separately saved;
+no authored colour is discarded. Conversion is idempotent, with no eager write.
+Omni uses source-hue Low and High in the unchanged source blend. UI mode label
+becomes Tint mode, keeping the existing pulseColorMode ID. Whitelist: 42 fields,
+21 active, 21 archived. Older clients discard Omni Low and render their old base
+and sensitivity behavior; retain a current export before rollback. No asset,
+identity, atlas/backend-format or source-permission migration applies.
+
+
+### User-chosen defaults and shared-sensitivity Automatic bounce (2026-11-08)
+
+Set missing/new endpoint defaults in both Single and Omni to base RGB 250/240/240
+(#faf0f0), high RGB 61/0/0 (#3d0000); Sensitivity 8, Drop contrast 1, shared Audio/
+Flash amount 1.7. Shared numeric metadata and normalizer fallbacks use these same
+values. Explicit authored values, including black/zero, are retained. Missing
+Omni High inherits an explicitly saved valid legacy strength when present; without
+one it uses the current high default. Omni Low still inherits saved Single Low.
+No eager saved-setting rewrite or new field; whitelist stays 42 (21 active and 21 archived).
+
+Automatic bounce now consumes bass rises through 180 Hz from the same FFT/local
+profiles and shared Sensitivity gate as light. No duplicate FFT read or extra
+calibration advancement; no old bounce smoothing on this path. Audio Bounce keeps
+its identity/bounds/default as maximum scale. Flash amount/Drop contrast do not
+scale motion. Manual keeps its previous bass processing/smoothing. No new settings,
+media source, capture permission, asset/identity/backend-format changes. Older
+previews retain old defaults and old Automatic bounce behavior; exported explicit
+settings still round-trip through the normal compatibility limits.
+
+
+### Restore continuous bass bounce while reducing delay (2026-11-08)
+
+The user rejected the per-hit Automatic bounce as rapid in/out and clarified that
+the earlier motion was preferred, with lower delay. Restore the original mono
+31–65 Hz continuous bass-level measurement and maximum-scale mapping. Automatic
+reduces analyser smoothing to 0.15 and uses 12 ms attack/45 ms release, retaining
+steady expansion on sustained bass and a gentle return. Manual keeps smoothing
+0.7 and its original response. Light Sensitivity/onset detection remains unchanged
+and no longer drives bounce. Remove the rejected bass-onset projection/getter.
+No saved fields, bounds, defaults, values, identifiers, conversion or format
+change: 42 fields, 21 active and 21 archived. User-selected tint/sensitivity/drop/
+flash defaults remain intact. Existing Audio Bounce continues to cap scale.
+Older previews render their previous motion semantics; no asset/backend/audio-
+source migration applies. Model timing constants are not end-to-end measurements.
+
+
+### Map bass amplitude proportionally and release over residual noise (2026-11-08)
+
+The user reported bounce staying expanded because quiet remaining bass still
+mapped to a large target. Automatic now decodes the bass FFT’s logarithmic values
+into linear amplitude with −100..0 dB headroom. A transient recent-peak reference
+(initial/minimum 0.03, 12-second decay) sets amplitude scale; it never holds zoom.
+A floor max(0.001, 2% of reference) suppresses residual noise. Current amplitude
+maps proportionally below the reference; strong drops can reach maximum scale.
+Reference resets with audio session notifications/mode changes, not colour edits.
+The 31–65 Hz band, 0.15 analyser smoothing, 12 ms attack/45 ms release and user’s
+Audio Bounce limit remain. Manual retains its old log-byte mapping and −30 dB
+ceiling. Light processing and all requested defaults remain unchanged. No saved
+field/default/bounds/identity/conversion/format changes: 42 fields, 21 active and
+21 archived. Older previews retain the old bounce mapping; no asset/backend/source
+permission migration applies. Runtime raw bassAmplitude is ephemeral, not exported.
+
+
+### Finite graded flares replace continuously retriggered light (2026-11-08)
+
+The user reported micro-flicker, hovering near high emission and binary strength.
+Automatic now pools positive spectral-change energy, compares it with a transient
+64-bin recent-background median, and admits finite flare events. Thirty-ms smooth
+attack plus 45-ms return defines a 75-ms envelope. Nearby changes coalesce without
+extending it; substantially stronger attacks may replace faint late tails.
+Calibrated event amplitude (reference floor 0.25) replaces the old near-saturating
+per-frame curve, so Drop contrast 1 retains linear intermediate peak heights.
+Sensitivity controls event prominence above background rather than a binary
+frame-level flash gate. Existing numeric values/IDs/defaults/bounds remain; this
+is an intentional Automatic response correction, not an equivalent old rendering.
+AudioContext time owns phase, so config/render restarts cannot stretch it. Field
+edits preserve live uniforms/timing; pause/stop clears stale events. Learning and
+phase are transient and reset with the audio/mode lifecycle. No saved fields or
+migrations: 42 fields, 21 active and 21 archived. Manual, bass bounce, requested
+RGB/defaults and spatial tint blending remain. Older previews render the former
+curve; exports retain their normal compatibility limits. No assets, identities,
+backend formats, sources or permissions change.
+
+
+### Spatial flare optics and peak gain (2026-11-08)
+
+SceneVfx's shared normalizer, properties and settings/history/export owner add
+pulsePeakGain (4, .25–16), pulseGlowStrength (6, 0–16), pulseGlowReach (4 percent,
+0–12) and pulseGlowTravel (100 ms, 75–500). Absence uses these defaults; explicit
+finite values survive within bounds. The whitelist is now 46 fields: 25 active,
+21 archived. No eager storage conversion or write is added. Older clients discard
+these additive fields and render the former response; retain a current export
+before rollback. Explicit RGB/Sensitivity/Drop contrast/Flash presets stay intact.
+Gain intentionally raises admitted Automatic peaks with a soft shoulder (gain 1
+restores previous heights), without changing admission or core duration. Manual
+and bass bounce remain unchanged. Runtime trails and Gaussian targets are transient,
+not a second persistence owner. pulse.ts owns timing/projected fields;
+wallpaperGlow.ts owns cached emission optics; wallpaper.ts integrates them without
+resampling the native base image. No atlas identities, media bytes, backend schema,
+source permissions or asset lifecycle changes. Model tests cover absent/default
+and explicit bounded roundtrips, shared setters, timing and cache recovery. The
+approved synthetic GPU check covers expansion/contraction and native rest detail;
+real music and performance remain user acceptance.
+
+
+### Shared live control preview and localized emission (2026-11-08)
+
+No fields/defaults/formats change (SceneVfx remains 46 fields, 25 active/21 archived).
+Property adapter preview batches reuse validation and numeric bounds without
+calling saved setters. The interface owner holds a session-bound transient settings
+overlay; commits, history replay and new sessions invalidate it. Storage and journal
+read the original session. Contextual Omnic previews use existing recipe samples;
+commit/cancel retain the existing owner. This does not introduce saved draft fields.
+The wallpaper optics intentionally subtract broad diffuse glow, tighten radius
+mapping and remove radius-squared amplification. Existing reach/strength numbers
+stay saved but render more locally; older clients retain the wider glow. Tints,
+audio thresholds/detection, bounce and requested presets remain unchanged. No
+asset, atlas, backend or media-source migration applies. Retain an export for
+rollback as usual. Regression covers validated transient settings/Omnic previews,
+owner routing, exact cancellation and a single saved commit; visual acceptance
+of localization and live control behavior remains user-owned.
+
+
+### Restore pre-flare Automatic and retire spatial optics (2026-11-08)
+
+User-rejected finite events, peak gain and spatial Gaussian emission are removed.
+Automatic returns to the per-frequency onset calculation from 6ca2edbe. This is
+an intentional rendering rollback without modifying authored audio/tint numbers.
+The serializer retains 46 fields: 21 active and 25 archived. The four recent
+pulsePeakGain/pulseGlowStrength/pulseGlowReach/pulseGlowTravel values remain bounded
+and exportable for rollback, without active controls/setters/renderers. Other
+settings keep their current defaults and shared owner. Global live previews and
+continuous bass bounce stay. No asset bytes, atlas identities, source permissions
+or backend formats change. Tests retain historical audio-response fixtures and
+verify archived optics values survive save/export without active setters.
+
 Atlas paint strokes use existing entity/placement/composition formats and document validation/history/autosave; no new saved schema. Copies get new entity/placement identities; existing text and Omnic references retain their original canonical targets. No descendants or relations are copied. Stroke preview is transient and discarded on cancellation/stale document.
 
 Sphere translucency adds an optional property value to the existing version-1 appearance controller settings; no graph/backend schema change. Absence resolves .82, preserving the prior bubble appearance approximately. Explicit 0/1 survive shared validation/serialization. Older clients do not know this property and may discard it when rewriting settings; cross-version retention is not guaranteed. Existing appearance undo/persistence remain authoritative.
@@ -413,6 +910,19 @@ Whole-node blending adds version-1 controller properties adaptiveBlendMode (abse
 Sphere translucency radius adds the version-1 controller property translucencyRadius (absent/neutral 1, explicit 0 retained), applicable only to omnium.nodes.body. Radius 1 preserves historical alpha semantics, including fully clear Translucency 1. Explicitly reducing radius changes Translucency to centre transmission with a smooth stronger shell; Opacity remains authoritative over the entire sphere. Existing shared validation/settings Apply/Discard/history owns serialization. No graph/image/backend format migration or destructive data conversion. Older clients may ignore/drop the radius and render the historical profile; preserve a current export before older-client editing.
 
 User-selected sphere defaults supersede previous absent/default values: shared sphereVisualDefaults defines orange #ffb000 (approximate screenshot match), Glow .35, Opacity 1, Translucency .70 and Translucency radius .76. Fresh workspace node style, MS base resolution and actual/preview carrier fallbacks inherit this definition. Saved explicit styles/controller values, including zeros and radius 1, remain authoritative; missing transmission fields intentionally pick up the new defaults. Radius 1 still selects historical all-surface transmission. UI translucency and adaptive blending defaults are unchanged. No graph/schema migration or browser acceptance is inferred.
+
+
+PR #58 merge/retirement (2026-11-08): preserve master's newer sphere defaults and
+all explicit user styles, translucency/radius, atlas painting and viewport changes.
+The user explicitly retired wallpaper-to-sphere blending. Its four adaptiveBlend*
+preferences remain validated by the existing appearance compatibility reader but
+are absent from the active property pool/targets and renderer. Locks/refinements
+and validated saved values survive normalization/export for rollback; no runtime
+wallpaper sampling or comparator remains. Wallpaper/audio/native output and live
+shared value previews retain their existing owners. No graph schema, image bytes,
+scene-effect defaults or backend migration. Regression covers archive roundtrip
+and absent renderer applicability. No browser acceptance is inferred from merge
+checks; ordinary sphere/wallpaper appearance remains user-owned verification.
 
 Scene normalization adds settings functionValues['scene.normalize'] entries through
 existing discovered property adapters (enabled, preferred metric ranges and bounded
@@ -458,3 +968,14 @@ fields intentionally acquire the new defaults. Preference keys naturally separat
 old/new constraints; there is no migration or rewriting of original image bytes.
 
 The redundant scene.normalize.preview field and transient show-original state are removed. Original/corrected comparison uses the existing serialized normalization enabled toggle. Saved layout references to the retired field remain unavailable-ID records, not deleted organization. No image, graph, cache or normalization-setting conversion. No browser run needed for this UI removal.
+
+
+PR #59 integration into #58 preserves normalization preferences/defaults and their
+existing functionValues format. A single transient interface preview layer feeds
+both normalization and other settings; committed settings remain authoritative
+for history/storage/cache decisions. The wallpaper owns its correction uniforms
+and original texture; normalization runs before audio tint. No derivative replaces
+the display texture and no graph/source/account contract changes. Retired
+adaptiveBlend* settings remain archive-only; new orange sphere defaults remain.
+Combined source, normalization, VFX, archive and settings regressions are required
+before publication. Merging current master changes no production branch here.
