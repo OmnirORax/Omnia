@@ -59,18 +59,20 @@ test('system input feeds the existing analysers through a muted graph and releas
  try{
   globalThis.window.location.origin='https://raw.githack.com';
   await assert.rejects(audio.connectSceneSystemAudio(),/pairing code/);assert.equal(contexts.length,0);
-  await audio.connectSceneSystemAudio('a'.repeat(32));assert.equal(new URL(sockets[0].url).searchParams.get('pair'),'a'.repeat(32));assert.ok(!JSON.stringify(audio.sceneAudioSnapshot()).includes('a'.repeat(32)));assert.equal(audio.isSceneAudioConnected(),false);const socket=sockets[0];socket.onopen();socket.onmessage({data:packet([.25,-.25])});
+  await audio.toggleSceneSystemAudio('a'.repeat(32));assert.equal(new URL(sockets[0].url).searchParams.get('pair'),'a'.repeat(32));assert.ok(!JSON.stringify(audio.sceneAudioSnapshot()).includes('a'.repeat(32)));assert.equal(audio.isSceneAudioConnected(),false);const socket=sockets[0];socket.onopen();socket.onmessage({data:packet([.25,-.25])});
   assert.equal(audio.sceneAudioSnapshot().kind,'system');assert.equal(audio.isSceneAudioConnected(),true);
   const ctx=contexts[0];assert.equal(ctx.mute.gain.value,0);assert.equal(ctx.analysers.length,3);assert.ok(worklet.links.includes(ctx.analysers[0]));assert.deepEqual(ctx.analysers[0].links,[ctx.mute]);
   assert.ok(audio.sampleScenePulse(DEFAULT_SCENE_VFX)>0);assert.ok(audio.sampleSceneAudio().bassAmplitude>0);assert.ok(audio.sampleSceneAudio().level>0);
   const count=worklet.port.messages.length;ctx.state='suspended';socket.onmessage({data:packet([.25,-.25],48000,2,1)});assert.equal(worklet.port.messages.length,count,'suspended worklets must not accumulate PCM messages');
   ctx.state='running';socket.onmessage({data:packet([.25,-.25],48000,2,2)});assert.ok(worklet.port.messages.at(-2).clear,'resumption discards stale queued sound');
-  audio.stopSceneAudio();assert.equal(audio.isSceneAudioConnected(),false);assert.equal(ctx.state,'closed');assert.ok(socket.closed);assert.ok(worklet.port.closed);assert.equal(audio.sampleScenePulse(DEFAULT_SCENE_VFX),0);
+  await audio.toggleSceneSystemAudio();assert.equal(audio.isSceneAudioConnected(),false);assert.equal(ctx.state,'closed');assert.ok(socket.closed);assert.ok(worklet.port.closed);assert.equal(audio.sampleScenePulse(DEFAULT_SCENE_VFX),0);
   const pref=await import('../src/scene/systemAudioPreference.ts');assert.equal(pref.readSystemAudioPreference().enabled,false);
   pref.saveSystemAudioPreference('a'.repeat(32),true);
   const uninstall=audio.startRememberedSystemAudio();await new Promise(resolve=>setImmediate(resolve));
   assert.equal(sockets.length,2);assert.equal(new URL(sockets[1].url).searchParams.get('pair'),'a'.repeat(32));
+  assert.equal(audio.sceneAudioSnapshot().kind,'system','the toggle stays on while reconnecting without PCM');
   let resumed=0;contexts[1].state='suspended';contexts[1].resume=()=>{resumed++;return Promise.resolve();};events.get('pointerdown')();assert.equal(resumed,1);
+  await audio.toggleSceneSystemAudio();assert.equal(audio.sceneAudioSnapshot().kind,null);assert.ok(sockets[1].closed,'off cancels a pending reconnect');assert.equal(pref.readSystemAudioPreference().enabled,false);
   audio.forgetSceneSystemAudio();assert.equal(pref.readSystemAudioPreference(),null);assert.ok(sockets[1].closed);events.get('pointerdown')();assert.equal(resumed,1);
   uninstall();assert.equal(events.size,0);
  }finally{audio.disposeSceneAudio();Object.assign(globalThis,prior);}

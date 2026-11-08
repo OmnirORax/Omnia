@@ -456,3 +456,12 @@ handlers. Temporary action configuration remains an action-input draft, not an
 instruction to execute actions while dragging. Native colour acceptance/blur and
 cancel availability depend on the browser's picker behavior. No saved format or
 new global value pool is introduced.
+
+## Shared pattern source and paint applicability
+
+`paint.pattern` uses the existing function settings/preview owner; `patternUse`
+links supported visual sockets to it through normal hierarchy and lock policies.
+Do not copy extracted scene colours into consumer colour fields. Only a real
+renderer adapter may declare pattern applicability. Current DOM adapters cover
+text, background and contour roles; icons, native 3D and fine character paint do
+not. [Pattern contract and controls](SCENE_PATTERN_PAINT.md).

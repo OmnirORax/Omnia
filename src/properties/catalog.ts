@@ -14,6 +14,7 @@ const retiredSphereProperties:Property[]=[
   {id:"adaptiveBlendStrength",label:"Blend strength",kind:"number",min:0,max:1,step:.01,initial:.65,neutral:0},
 ];
 const builtins: Property[] = [
+  {id:"patternUse",label:"Pattern paint",kind:"select",initial:"inherit",neutral:"off",options:[{id:"inherit",label:"Inherit global"},{id:"on",label:"Use shared pattern"},{id:"off",label:"Solid / manual"}]},
   {id:"translucencyRadius",label:"Translucency radius",kind:"number",min:0,max:1,step:.01,initial:SPHERE_VISUAL_DEFAULTS.translucencyRadius,neutral:1},
   {id:"translucency",label:"Translucency",kind:"number",min:0,max:1,step:.01,initial:0,neutral:0},
   { id: "color", label: "Color", kind: "color", initial: "#60ddec" },

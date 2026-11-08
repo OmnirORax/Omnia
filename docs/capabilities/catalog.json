@@ -2176,24 +2176,28 @@
     {
       "id": "scene.systemAudio",
       "title": "Windows system audio through Omnium Audio Helper",
-      "where": "Scene → Scene effects → Preview pairing code (once per preview origin), Connect system audio, Stop audio and Forget system audio. Run the Windows helper first.",
-      "behavior": "Windows WASAPI helper feeds bounded PCM to the existing muted analyser graph. The remembered-pairing build keeps a random per-install identity across restarts/EXE updates. Pair once; a successful handshake saves a versioned browser-local connection preference shared across GitHack preview URLs/PRs. Updated previews reconnect without opening settings; browser autoplay may require one click anywhere. Stop pauses automatic startup but retains pairing; Connect re-enables it; choosing a file pauses auto-start; Forget stops capture and removes browser pairing. Up to 16 tabs receive audio simultaneously from one capture stream, with independent bounded queues. Connecting or stopping one tab does not interrupt the others; capture stops when the last disconnects. Live audio stays transient, local and inaudible. Existing light/bounce processing is unchanged. Private Pages previews under a single-label omnia-web-bae.pages.dev alias also require pairing. Update the helper and enter its existing code once per preview origin; use the stable PR alias to retain the remembered connection between uploads. Access login and local audio pairing are separate. Other Pages projects and suffix lookalikes remain rejected.",
+      "where": "Scene → Scene effects → System audio toggle. First preview pairing appears when needed; replacement pairing and Forget are under Audio connection settings. Run the Windows helper first.",
+      "behavior": "Windows WASAPI helper feeds bounded PCM to the existing muted analyser graph. The remembered-pairing build keeps a random per-install identity across restarts/EXE updates. Pair once; a successful handshake saves a versioned browser-local connection preference shared across GitHack preview URLs/PRs. Updated previews reconnect without opening settings; browser autoplay may require one click anywhere. One System audio toggle owns connection intent: on connects or retries; off cancels retries and disables automatic startup while retaining pairing. The toggle stays on while waiting for the helper, even before audio arrives. Forget under collapsed Audio connection settings stops capture and removes browser pairing. Choose audio file, Play audio and the separate Stop action are retired; there is no file picker or player in Scene controls. Up to 16 tabs receive audio simultaneously from one capture stream, with independent bounded queues. Connecting or stopping one tab does not interrupt the others; capture stops when the last disconnects. Live audio stays transient, local and inaudible. Existing light/bounce processing is unchanged. Private Pages previews under a single-label omnia-web-bae.pages.dev alias also require pairing. Update the helper and enter its existing code once per preview origin; use the stable PR alias to retain the remembered connection between uploads. Access login and local audio pairing are separate. Other Pages projects and suffix lookalikes remain rejected.",
       "steps": [
         {
-          "do": "Close the old helper, extract/run the remembered-pairing build. Copy its code into Preview pairing code and Connect system audio once.",
-          "expect": "The console identifies remembered pairing. Browser remembers the code only after an accepted connection; the field clears. Input drives the existing light/bounce path without a sharing bar."
+          "do": "Run the updated Windows helper. Open Scene → Scene effects. On a preview origin, paste its code into the first-time Pairing code field, then switch System audio on. Play music.",
+          "expect": "The toggle stays on during connection/retry. After an accepted handshake the browser saves pairing and hides first-time pairing. Audio input and existing effects respond without replaying capture."
         },
         {
-          "do": "Leave helper running and open another updated GitHack preview/PR in the same browser profile. Click anywhere if needed. Restart the helper and play music again.",
-          "expect": "No code entry or Scene-panel opening is needed; the helper identity survives restart/update. All connected tabs receive the same audio without takeover; stopping/closing one leaves the others connected."
+          "do": "Leave System audio on, close/reopen Scene controls and reload the same PR alias. Restart the helper if needed.",
+          "expect": "The app reconnects with saved pairing; controls do not own the session. A browser gesture/local-network permission may still be needed. Up to 16 tabs receive independent audio."
         },
         {
-          "do": "Press Stop audio; reload. Then Connect again. Choose a file or use Forget system audio.",
-          "expect": "Stop and file selection disable automatic startup; Connect re-enables it using saved pairing. Forget removes browser pairing and stops capture. New pairing is required after Forget/storage clearing/profile changes."
+          "do": "Switch System audio off while connected or retrying; reload, then switch it on again.",
+          "expect": "Off disconnects, cancels retries and disables automatic startup while preserving pairing. On reconnects without another pairing entry. File/Play/separate Stop controls are absent; Waves tuning remains available."
         },
         {
-          "do": "Update the helper, open the private PR alias through Access, then enter its existing code in Scene → Scene effects → Preview pairing code and Connect. Reload after another upload to the same PR alias.",
-          "expect": "Audio connects after pairing and the stable PR origin remembers it. A different deployment hostname needs pairing again; workspace content must be transferred separately with export/import."
+          "do": "Expand Audio connection settings. Use Forget system audio. Enter the helper code again and switch System audio on.",
+          "expect": "Forget removes the saved browser credential and stops the connection. First-time pairing returns; the helper identity, workspace and other tabs are unaffected."
+        },
+        {
+          "do": "Use a different deployment hostname instead of the stable PR alias.",
+          "expect": "The different origin requires its own pairing. Return to the stable PR alias to reuse its existing preference. Workspace data transfers separately through export/import."
         }
       ],
       "reference": "docs/SYSTEM_AUDIO.md",
@@ -2220,7 +2224,7 @@
       "status": "Implemented for first Windows validation; standalone build produced by CI; final installer deferred",
       "limits": "Windows default-output WASAPI only; helper must run. Console prototype, no autostart/signed installer yet. Browser local-network permission and initial user activation may be needed. GitHack is a shared origin: remembered access is shared across that host, so use trusted previews only. Browser storage/profile clearing requires pairing again. Production/localhost stay direct and have separate preferences. Up to 16 concurrent consumers, each with a bounded six-packet queue; extra connections are rejected without disconnecting existing tabs. Real Windows driver and browser activation behavior need user validation.",
       "verification": {
-        "automated": "Seven frontend tests cover PCM, bounded queues, muted graph, remembered credentials, startup/gesture resume, Stop/Forget, unknown preference preservation and retry. Ten Python tests cover real localhost transfer/origin pairing, persistent identity/corruption, simultaneous PCM fan-out and independent disconnect and mocked output recovery. Required model/type/property/build/backend gates run before publication. No real audio devices are opened. Pages origin regressions pass in the seven frontend and ten Python tests; arbitrary Pages projects and suffix/port/HTTP lookalikes are rejected. Private Pages Windows/browser acceptance remains pending.",
+        "automated": "Seven frontend tests cover PCM, bounded queues, muted graph, remembered credentials, startup/gesture resume, Stop/Forget, unknown preference preservation and retry. Ten Python tests cover real localhost transfer/origin pairing, persistent identity/corruption, simultaneous PCM fan-out and independent disconnect and mocked output recovery. Required model/type/property/build/backend gates run before publication. No real audio devices are opened. Pages origin regressions pass in the seven frontend and ten Python tests; arbitrary Pages projects and suffix/port/HTTP lookalikes are rejected. Private Pages Windows/browser acceptance remains pending. Toggle coverage checks connection intent, off during pending retry, cancellation and preserved disabled pairing. No new browser acceptance is claimed. Current integration validation: all 679 model/architecture tests, self-contained preview build/type/property/capability checks, backend type checks and ten Python helper tests pass. Toggle/browser visual acceptance remains pending.",
         "browser": "User-approved focused local compiled-browser check passed on 2026-11-08: synthetic stereo PCM over the real localhost helper socket reached the built AudioWorklet and existing analyser/light/bass paths; silence cleared input; Stop and reconnect succeeded. 180 samples included 58 zero-input samples. No real Windows capture/driver or packaged executable was tested on this Linux executor. Remembered setup/multi-tab delivery/autoplay fallback have model/socket coverage only; no new browser run."
       }
     },
@@ -2228,7 +2232,7 @@
       "id": "scene.vfx",
       "title": "Source-based Wallpaper Engine pulse and scene audio effects",
       "where": "Scene → Scene effects. Import/apply an image through the existing Scene image workflow.",
-      "behavior": "Restores the earlier per-frequency Automatic onset response before the rejected finite-event/gain/spatial-glow rewrite. No added Gaussian emission or gain runs. Global live colour/slider previews remain. Tint mode → Single colour retains normal Low/High pickers. Omni has independent source-hue Low tint (Omni) and High tint (Omni) pickers; both use saturation/value and ignore selected hue. Automatic detects per-frequency rises; Sensitivity now admits or rejects attacks relative to recent levels, so low values stop tiny-detail blinking instead of only dimming it. Admitted strong attacks map more powerfully toward full flash. Drop contrast and Flash amount retain separate strength roles; short onset timing/FFT/calibration remain. Automatic bounce follows continuous mono low bass (31–65 Hz), decoding log FFT to linear amplitude. Recent-peak normalization and a residual-noise floor keep small details small and let strong drops reach maximum. Analyser smoothing 0.15 and 12 ms attack/45 ms release remain. Sustained bass stays expanded; one quiet frame returns gently. Light Sensitivity does not drive bounce. Audio Bounce still limits scale; Flash amount/Drop contrast do not scale motion. Manual, playback and Image tint are unchanged. New defaults: base RGB 250/240/240, high 61/0/0, Sensitivity 8, Drop contrast 1, Flash amount 1.7; explicit saved choices are retained. System audio is an additional explicit input through the Windows Omnium helper; file playback remains available. Both feed the same analyser/response path.",
+      "behavior": "Restores the earlier per-frequency Automatic onset response before the rejected finite-event/gain/spatial-glow rewrite. No added Gaussian emission or gain runs. Global live colour/slider previews remain. Tint mode → Single colour retains normal Low/High pickers. Omni has independent source-hue Low tint (Omni) and High tint (Omni) pickers; both use saturation/value and ignore selected hue. Automatic detects per-frequency rises; Sensitivity now admits or rejects attacks relative to recent levels, so low values stop tiny-detail blinking instead of only dimming it. Admitted strong attacks map more powerfully toward full flash. Drop contrast and Flash amount retain separate strength roles; short onset timing/FFT/calibration remain. Automatic bounce follows continuous mono low bass (31–65 Hz), decoding log FFT to linear amplitude. Recent-peak normalization and a residual-noise floor keep small details small and let strong drops reach maximum. Analyser smoothing 0.15 and 12 ms attack/45 ms release remain. Sustained bass stays expanded; one quiet frame returns gently. Light Sensitivity does not drive bounce. Audio Bounce still limits scale; Flash amount/Drop contrast do not scale motion. Manual analysis and Image tint are unchanged. New defaults: base RGB 250/240/240, high 61/0/0, Sensitivity 8, Drop contrast 1, Flash amount 1.7; explicit saved choices are retained. System audio uses the Windows Omnium helper through one on/off toggle; the website file picker/player and separate Play/Stop actions are retired. The existing analyser/response path is retained. Waves now exposes six serialized live setters under its own section: horizontal/vertical displacement (%), wave count and signed phase speed (rad/s). User-selected defaults are Waves on, displacement .1%/.3%, wave counts 1.5/10 and speeds 3/3 rad/s; explicit saved coefficients retain precedence; zero displacement removes that component, zero speed freezes it, and negative speed reverses it. The existing sine approximation is not a faithful waterwaves port.",
       "steps": [
         {
           "do": "Use the same saved wallpaper, tints and audio settings as before the expansion/contraction rewrite. Play the same music and drag the High tint/Flash amount controls.",
@@ -2271,7 +2275,7 @@
           "expect": "Each mode restores its own Low/High endpoints. Omni applies source hues to both, while Single keeps authored colours. Audio processing does not change when switching tint mode."
         },
         {
-          "do": "Open Scene effects. Choose Tint mode → Single colour, choose Audio response → Manual, retain exponent 0.1 and play the website audio.",
+          "do": "Open Scene effects. Choose Tint mode → Single colour, choose Audio response → Manual, retain exponent 0.1 and turn System audio on and play music in another app.",
           "expect": "The direct source path is used; no palette loop or All calculation is compiled into Single. Selected colours is absent. Actual response/speed regression still requires user visual verification."
         },
         {
@@ -2287,12 +2291,8 @@
           "expect": "The image becomes static/original, then water/VHS movement returns. Camera and node coordinates stay unchanged."
         },
         {
-          "do": "Click Stop audio, then Play audio; also try Play before choosing a file.",
-          "expect": "Stop pauses/releases analysis and keeps the chosen file ready. Play restarts direct playback without a sharing prompt. With no file, status asks you to choose one."
-        },
-        {
-          "do": "Play a quiet audio file and inspect Audio input, then close/reopen the Scene controls without pressing Stop audio.",
-          "expect": "The input meter shows the signal, quiet audio can drive coloured light, and playback/analysis continues across the view closing. Stop ends it; subsequent playback reconnects safely."
+          "do": "Run the Windows helper, turn System audio on, and play quiet music in another app. Close/reopen Scene controls, then switch System audio off.",
+          "expect": "The input meter and effects respond, closing controls leaves audio connected, and switching off disconnects and pauses auto-start while retaining pairing."
         },
         {
           "do": "Enable system/browser reduced motion or hide the tab, then return.",
@@ -2305,6 +2305,14 @@
         {
           "do": "Apply a detailed image on a 2560-wide display. For a static comparison set Waves off, Distortion/Glitching 0, Audio Bounce 1 and Low tint white. Compare fine image lines with the original; resize, enable/disable scene glow, then clear the image.",
           "expect": "Wallpaper uses output pixels instead of the reduced graph buffer and bypasses graph AA/glow filtering. Graph/bloom buffers remain budgeted; clearing restores the original output budget. At larger/high-DPI dimensions the separate 4K-equivalent output cap can still reduce density."
+        },
+        {
+          "do": "Open Scene → Scene effects → Waves. Keep On checked, set Distortion and Glitching to 0 to isolate it, then drag horizontal and vertical displacement toward 0. Change wave counts and signed speeds; release, use Undo/Redo and reload.",
+          "expect": "The existing scene previews each wave setter while the section stays open. Zero displacement removes that axis; zero speed freezes it and negative speed reverses travel. Accepted values survive reload and settings export through the existing owner, including explicit zeros. Turning Waves off bypasses the deformation without deleting its tuning."
+        },
+        {
+          "do": "Open fresh/default Scene effects → Waves or inspect settings missing wave coefficients. Compare with an existing saved configuration.",
+          "expect": "Missing values use On, horizontal/vertical displacement .1%/.3%, wave count 1.5/10 and phase speed 3/3 rad/s. Existing explicit custom coefficients, zero and Waves off retain precedence."
         }
       ],
       "reference": "docs/SCENE_VFX.md",
@@ -2323,21 +2331,17 @@
         "src/sceneAppearance.ts",
         "tests/scene-native-wallpaper.browser.mjs"
       ],
-      "actions": [
-        "scene.audioConnect",
-        "scene.audioDisconnect",
-        "scene.audioFile"
-      ],
+      "actions": [],
       "gestures": [],
       "related": [
         "scene.manual",
         "scene.api"
       ],
       "status": "Earlier light baseline restored; user visual comparison pending",
-      "limits": "Selected colours is deliberately retired; old palette/range data stays archived only. Single/All and optional Image tint compile separately. Omni uses the adjustable shared Low tint and a source-coloured High tint with numeric strength; existing explicit brightness survives. Image tint is disabled by default and can intentionally recolour the full wallpaper. The reported Single freeze/slowdown is not visually verified repaired; local frame tests only prove changing uniforms at 0.1. Source FFT mapping remains approximate. Waves remains the rejected guessed deformation pending its actual shaders. No audio-input, exponent, smoothing or frame-pacing change was made. Existing native-resolution caps/capture-free file playback remain. Finite event shaping, extra peak gain and spatial glow are withdrawn. Expansion/contraction and richer midrange response remain unresolved. Four recent optics fields stay archived only. Native input requires the separately running Windows helper and an allowed website origin; its first build is a console executable, not a finished installer.",
+      "limits": "Selected colours is deliberately retired; old palette/range data stays archived only. Single/All and optional Image tint compile separately. Omni uses the adjustable shared Low tint and a source-coloured High tint with numeric strength; existing explicit brightness survives. Image tint is disabled by default and can intentionally recolour the full wallpaper. The reported Single freeze/slowdown is not visually verified repaired; local frame tests only prove changing uniforms at 0.1. Source FFT mapping remains approximate. Waves remains the rejected guessed deformation pending its actual shaders. No audio-input, exponent, smoothing or frame-pacing change was made. Existing native-resolution caps remain. Website file playback is retired; use the Windows helper for live input. Finite event shaping, extra peak gain and spatial glow are withdrawn. Expansion/contraction and richer midrange response remain unresolved. Four recent optics fields stay archived only. Native input requires the separately running Windows helper and an allowed website origin; its first build is a console executable, not a finished installer.",
       "verification": {
-        "automated": "Historical per-frequency response, bass release, source tint, serialization and native-image regressions retained. New archived-optics test checks roundtrip with no active setters. Required model/build/backend gate runs before publication.",
-        "browser": "No fresh browser run. The prior synthetic spatial-flare check covered the withdrawn implementation; this rollback needs the user’s wallpaper/music comparison."
+        "automated": "668 model/architecture tests, preview build/property contract and backend type-check command pass. Wave regressions cover setter round trips, historical absence defaults, bounded inputs, live wallpaper uniforms and unchanged motion/audio state. Browser/GPU appearance is not inferred. Current integration validation: all 679 model/architecture tests, self-contained preview build/type/property/capability checks, backend type checks and ten Python helper tests pass. Toggle/browser visual acceptance remains pending.",
+        "browser": "Wave appearance and physical slider acceptance remain user-owned preview checks; no browser suite run for this change."
       }
     },
     {
@@ -4291,6 +4295,56 @@
         "automated": "Existing 624-model suite, preview/type/property/capability build and backend checks are required by the source pre-push gate. No new test for removing a redundant transient UI control. Merge integration retains the correction/texture lifecycle checks through the audio-capable native wallpaper owner.",
         "browser": "No browser run for this control removal; on/off comparison uses the existing normalization toggle. User retains visual acceptance for the full-resolution shader path."
       }
+    },
+    {
+      "id": "paint.pattern",
+      "title": "Shared scene-colour pattern paint",
+      "where": "Master controller → Visuals → Pattern paint (Show all controls if inspecting a selection). Selective route: visual hierarchy socket → Color → Pattern paint.",
+      "behavior": "One shared pattern owns the scene-palette connection. Supported text, contours and UI surfaces inherit its colour pair and geometry without overwriting ordinary colours. Global application defaults off. Per-socket Inherit global / Use shared pattern / Solid/manual modes inherit through the existing hierarchy. Four editable presets are Ring + dot, Alternating dots, Checker and Stripes; shared controls set spacing, fill, text keyline and manual/fallback colours. Scene colour extraction follows normalization and resting low tint, excluding audio flashes. Existing settings previews, controller Apply/Discard, history and export own changes.",
+      "steps": [
+        {
+          "do": "Open Master controller → Visuals → Pattern paint. Choose Manual pair, set green and yellow, then turn on Apply pattern globally.",
+          "expect": "The pattern preview and supported UI text, surfaces and borders use both colours within each painted object, rather than assigning one colour per role."
+        },
+        {
+          "do": "Change Pattern preset, spacing and fill while keeping the section open.",
+          "expect": "Connected consumers update from the same edited source. Try all four presets; Text keyline affects text only."
+        },
+        {
+          "do": "Turn global application off; select a supported text or frame socket in the visual hierarchy and choose Color → Pattern paint → Use shared pattern.",
+          "expect": "The selected socket inherits the shared pattern while ordinary sockets retain their stored paint. Solid/manual opts it out; Inherit global restores inherited routing."
+        },
+        {
+          "do": "Choose Follow scene image and select a node with an imported scene. Change to another scene.",
+          "expect": "The preview reports inherited colours and connected sockets follow the new dominant/accent pair after palette analysis settles. No scene uses the labelled manual fallback."
+        },
+        {
+          "do": "Lock or bypass a socket’s colour, then turn pattern application off and use the existing Apply/Discard controls and reload.",
+          "expect": "Locked/bypassed sockets retain ordinary paint. Turning pattern off restores stored colours. Apply retains accepted settings; Discard restores the accepted controller state, and reload uses saved source/use settings."
+        }
+      ],
+      "reference": "docs/SCENE_PATTERN_PAINT.md",
+      "sources": [
+        "src/paint/pattern.ts",
+        "src/paint/pattern.function.ts",
+        "src/paint/routing.ts",
+        "src/paint/useScenePalette.ts",
+        "src/paint/PatternControls.tsx",
+        "src/appearance/Styles.tsx",
+        "src/appearance/registry.ts",
+        "tests/pattern-paint.test.mjs"
+      ],
+      "actions": [],
+      "gestures": [],
+      "status": "Implemented for PR/commit-pinned preview; not merged or production deployed.",
+      "limits": "Registered DOM text, contours and surfaces only. Native 3D, icons/emoji, raster art, individual characters and native placeholder/scrollbar pseudos have no pattern adapter. Border-image can square rounded corners and replace dashed geometry. Tiny text/borders may need spacing/contour adjustments. No local contrast guarantee, dynamic audio palette following, arbitrary Omnic pattern recipes or named saved presets. Colour locks opt out rather than freeze a multicolour snapshot. Older clients may drop unknown settings.",
+      "verification": {
+        "browser": "Awaiting user preview acceptance; no browser run authorized for this feature yet.",
+        "automated": "Five focused palette/source/routing/serialization/SVG tests pass within the 667-test model/architecture suite. Preview build, property contract and backend type-check command pass. Browser/visual acceptance is pending."
+      },
+      "related": [
+        "scene.manual"
+      ]
     }
   ]
 }

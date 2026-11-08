@@ -21,10 +21,7 @@ export const radialGroups = {
  * conflict policy and dispatch; components supply only availability and behavior. */
 const CORE_FEATURE_ACTIONS = [
   {id:'scene.audioForget',owner:'sceneAudio',scope:'global',category:'Scene',label:'Forget system audio',defaultKey:'',description:'Stop system audio and remove the remembered browser pairing and automatic connection preference.'},
-  {id:'scene.audioSystem',owner:'sceneAudio',scope:'global',category:'Scene',label:'Connect system audio',defaultKey:'',description:'Connect the local Omnium Audio Helper to analyse system playback without sharing a tab or replaying the captured sound.'},
-  {id:'scene.audioConnect',owner:'sceneAudio',scope:'global',category:'Scene',label:'Play audio',defaultKey:'',description:'Play the website audio player and use its signal for scene effects. Choose an audio file first; no tab or screen sharing.'},
-  {id:'scene.audioDisconnect',owner:'sceneAudio',scope:'global',category:'Scene',label:'Stop audio',defaultKey:'',description:'Disconnect system audio or stop website playback and release analysis; keep a chosen file ready to play again.'},
-  {id:'scene.audioFile',owner:'sceneAudio',scope:'global',category:'Scene',label:'Choose audio file',defaultKey:'',description:'Play a local audio file to drive scene effects. File and playback position are not saved or uploaded.'},
+  {id:'scene.audioSystem',owner:'sceneAudio',scope:'global',category:'Scene',label:'System audio',defaultKey:'',description:'Toggle the local audio helper connection. Off disconnects and pauses automatic reconnection; on uses remembered pairing. The helper must be running.'},
   {id:'world.navigatorCancel',owner:'worldNavigator',scope:'world',category:'World navigator',label:'Cancel node drive',defaultKey:'Esc',description:'Restore the driven node and its branch to their starting placements without saving the preview.'},
 
   {id:'world.navigatorDepthUp',owner:'worldNavigator',scope:'world',held:true,category:'World navigator',label:'Navigator forward (depth −)',defaultKey:'ArrowUp',description:'Move the active world navigator forward, one cell along camera-relative negative Z. Hold repeats through the bounded movement scheduler.'},

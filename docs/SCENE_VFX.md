@@ -192,12 +192,13 @@ change. Missing Image tint fields retain disabled/red defaults.
 
 ## Audio and rendering
 
-**Choose audio file → Play audio** uses direct website playback and analysis of
-the same media element. Stop audio ends playback/analysis and keeps the file ready;
-closing controls keeps playback running. The file input requests no browser capture. Optional Windows system input now uses
-Omnium Audio Helper; see [System audio](SYSTEM_AUDIO.md). It does not use browser
-tab/screen sharing or microphone input. Any captures
-still active in older preview pages must be stopped there/by closing those pages.
+**System audio** is a single on/off toggle for Omnium Audio Helper. On connects
+or retries; off cancels retries and disables automatic reconnection while retaining
+pairing. Closing controls leaves the app-owned connection running. First preview
+pairing appears only when needed; replacement pairing and Forget are under Audio
+connection settings. The file picker/player and separate Play/Stop controls are
+retired. See [System audio](SYSTEM_AUDIO.md). No browser tab/screen sharing or
+microphone input is requested. Older preview pages must be disconnected separately.
 
 The RMS Audio input meter and both bounce modes retain the app-owned audio session.
 Two stereo analyser taps supply Manual’s 16 log bands/channel or Automatic’s
@@ -248,7 +249,8 @@ The current base-image UV sine formula and extra multipliers are guessed. Matchi
 those numbers does not reproduce their original meaning or layer composition.
 The supplied pulse shader/header do not define Waves. Turn Waves off for an
 undistorted image; a faithful port needs the actual waterwaves effect/shaders and
-relevant project-layer setup. No wave behavior/default was changed in this repair.
+relevant project-layer setup. The six wave setters below expose the current
+approximation for tuning; they do not establish fidelity to the missing source.
 
 
 ## Restore the earlier light baseline
@@ -271,3 +273,36 @@ motion. Source pixels still use the native wallpaper output path.
 Model/build/backend checks validate restoration and compatibility; visual quality
 and music feel still require user comparison. The prior isolated spatial-GPU
 check applies to the rejected implementation, not this restoration.
+
+
+## Live Waves tuning
+
+Open **Scene → Scene effects → Waves**. Its existing On toggle is retained; the
+six previously hardcoded coefficients now use existing shared settings sliders,
+preview, commit, history and serialization. No separate experiment scene.
+
+| Setter | Range | Starting value |
+| --- | --- | --- |
+| Horizontal displacement (%) | 0–5 | .1 |
+| Vertical displacement (%) | 0–5 | .3 |
+| Horizontal wave count | 0–40 | 1.5 |
+| Vertical wave count | 0–40 | 10 |
+| Horizontal phase speed (rad/s) | −20–20 | 3 |
+| Vertical phase speed (rad/s) | −20–20 | 3 |
+
+Each count sets how many sine periods span the opposite driving axis: horizontal
+displacement varies along Y; vertical displacement varies along the already offset
+X, preserving the existing coupled approximation. Displacement uses screen UV
+percent before image-cover cropping. Speed controls phase per second: zero freezes
+that component, negative reverses it. Both displacements zero removes waves.
+Distortion/Glitching and bass zoom are independent: turn those down/off when
+comparing just waves. Reduced motion still bypasses wave animation/deformation.
+
+Dragging previews uniforms immediately without image decoding, shader recompilation,
+a new animation loop or resetting existing time/audio state. Release commits normally;
+Escape cancels the shared value preview. Export/reload uses `sceneVfx` through
+`normalizeSceneVfx` and the existing settings owner, not `functionValues` copies.
+Absent fields use the screenshot-selected defaults: Waves on, displacement
+.1% / .3%, counts 1.5 / 10, and speeds 3 / 3 rad/s. Existing explicit settings,
+including the earlier coefficients, Waves false and zeros remain authoritative. Appearance remains
+unverified by a browser check in this change.

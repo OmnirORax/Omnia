@@ -12,11 +12,11 @@ the unmodified upstream bridge on port 8985 is not compatible.
    Extract the artifact ZIP, then run `Omnium-Audio-Helper.exe`.
    Python is bundled; end users do not install dependencies or enter commands.
 2. Leave its console open. On **https://omnium.nexus**, after this frontend change
-   is deployed, choose **Scene → Scene effects → Connect system audio**.
+   is deployed, open **Scene → Scene effects** and switch **System audio** on.
    Local development served on `http://localhost:<port>` or
    `http://127.0.0.1:<port>` is also supported. Grant the browser's loopback-network
    permission if requested. For the GitHack preview, copy the 32-character code printed in the **new**
-   helper window into **Preview pairing code**, then connect **once**. No omnium.nexus
+   helper window into **Pairing code**, then connect **once**. No omnium.nexus
    login is needed. Use the **remembered pairing** helper build. The code is saved
    at `%LOCALAPPDATA%/Omnium/AudioHelper/pairing-code.txt`, surviving restarts and
    EXE updates. After a successful connection, this browser remembers it locally
@@ -29,16 +29,16 @@ the unmodified upstream bridge on port 8985 is not compatible.
 3. Play music in another app/tab through the Windows default output. Audio input
    and the current wallpaper effects should react. Capture isn't played back.
 4. Change headphones/output device: capture reopens automatically. Closing the
-   website's settings doesn't disconnect it. **Stop audio** disconnects and stops
-   capture; closing the helper exits it. **Stop audio** also disables automatic startup while retaining pairing.
-   **Connect system audio** re-enables it; **Forget system audio** stops capture
+   website's settings doesn't disconnect it. **System audio off** disconnects and stops
+   capture; closing the helper exits it. **System audio off** also disables automatic startup while retaining pairing.
+   **System audio on** re-enables it; **Audio connection settings → Forget system audio** stops capture
    and removes this browser’s remembered code. Closing the helper pauses capture,
    but does not reset its identity.
 
 This first delivery is a console executable, not the final signed installer or
 automatic startup/update flow. The helper captures only while an allowed website
 tab is connected. Up to 16 tabs receive the same audio independently from one capture stream.
-Connecting/closing/Stop in one tab does not disconnect other tabs. Capture stops
+Connecting/closing/switching off in one tab does not disconnect other tabs. Capture stops
 when the last tab disconnects. Each tab has a bounded six-packet queue. It does not listen on the LAN,
 save audio, use a microphone, upload samples or request browser screen sharing.
 
@@ -62,7 +62,7 @@ Capture uses the default WASAPI loopback, callbacks requested at 10 ms, and a
 six-packet bounded queue. Only capture/reconnection remains from the upstream
 approach; no numpy/scipy, LUFS history, Mel spectrum, oscilloscope or vectorscope
 work. The browser resamples a bounded PCM queue into a muted AudioWorklet and
-feeds the same analyser/response path as website file playback.
+feeds the same analyser/response path as the existing scene analyser.
 
 ## Protocol
 
@@ -106,11 +106,23 @@ browser or real Windows-device check was run for remembered connections.
 
 Rebuild/update the helper for Pages preview support. Open the Access-protected
 PR alias (for example `https://pr-61.omnia-web-bae.pages.dev`), then Scene →
-Scene effects → Preview pairing code. Paste the same helper code once and Connect
-system audio. Access login does not authorize local audio capture: pairing is still
+Scene effects → Preview pairing code. Paste the same helper code once and switch
+System audio on. Access login does not authorize local audio capture: pairing is still
 required. Use the stable PR alias to retain the remembered connection between
 uploads. Each deployment hash hostname is a separate browser origin and needs its
 own pairing. Stop and Forget retain their existing behavior. Existing GitHack
 connections remain supported. Local workspaces and preferences do not move between
 origins; export/import workspace content through the existing chooser. Pairing
 codes stay device-local and never enter exports or source provenance.
+
+### Minimal connection controls
+
+System audio is one on/off toggle. On connects or retries while the helper is
+running; off cancels retries and disables automatic reconnection without deleting
+pairing. The toggle represents requested connection, not whether PCM is arriving;
+status and Audio input show actual readiness. First pairing is shown only until
+saved. Replace pairing code and Forget are tucked into Audio connection settings;
+turn off/on to apply a replacement code. The file picker/player and separate
+Play/Stop actions are retired. Their old saved layout/shortcut references remain
+unavailable rather than being reassigned. Pairing preference v1 and helper identity
+files are unchanged. No audio files or samples were saved in workspace exports.

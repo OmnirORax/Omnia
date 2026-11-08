@@ -96,6 +96,12 @@ export function forgetSceneSystemAudio(){
  forgetSystemAudioPreference();stopSceneAudio();publish('System audio forgotten — pair once to remember it again');
 }
 
+/** Toggle connection intent, including a pending connection or reconnect. */
+export async function toggleSceneSystemAudio(code=readSystemAudioPreference()?.code??''){
+ if(inputKind==='system'){stopSceneAudio();return;}
+ await connectSceneSystemAudio(code);
+}
+
 /** Bounded FFT sampling: bass band 1 of a log-spaced 16-band approximation. */
 export function sampleSceneAudio(){
  if(!connected||!analyser||!context||context.state!=='running')return {active:false,bass:0,bassAmplitude:0,level:0};

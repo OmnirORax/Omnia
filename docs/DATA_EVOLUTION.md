@@ -1012,17 +1012,57 @@ keep website-file playback and do not connect to the helper. No capture permissi
 is inferred from saved settings; connection is explicit. Native packaging is a
 standalone Windows CI artifact with retained upstream/dependency licensing; final
 signed installer, auto-start and updates remain deferred. Native input only accepts
-omnium.nexus/localhost origins directly; raw.githack.com requires a per-run
-32-character pairing code copied from the helper console once. The new helper
+omnium.nexus/localhost origins directly; raw.githack.com and single-label previews of omnia-web-bae.pages.dev require a
+32-character per-install pairing code copied from the helper console once. The new helper
 persists its random per-install identity under LocalAppData, independently of EXE
 updates. Browser-local `omnium.system-audio.connection.v1` stores a strict version-1
 record {version:1, code, enabled} after successful handshake; older clients ignore
 it. It never enters workspace settings, exports, UI history or public artifacts.
 Unknown/unreadable versions remain untouched; explicit Forget removes the local
-record. Stop retains the identity and disables auto-start; choosing a file also
-pauses auto-start. Helper identity corruption is reported and preserved rather than
+record. System audio off retains the identity and disables auto-start. The file
+player and its separate Play/Stop commands are now retired (see below). Helper identity corruption is reported and preserved rather than
 overwritten. Startup reconnects from this preference, with user-gesture resume
 when required. Clearing browser storage/profile change requires pairing again;
 older ephemeral helper builds require re-pairing after restart, so this delivery
 needs the new remembered-pairing build. Up to 16 clients receive independent bounded copies of one capture stream;
 connecting or disconnecting one does not interrupt others. No audio samples are persisted.
+
+### Shared scene pattern paint (2026-11-08)
+
+Additive `paint.pattern` functionValues and per-socket `patternUse` reuse existing
+settings/controller version-1 formats, history and exports. Global application
+defaults off, preserving ordinary stored colours, explicit false/zero and bypass
+semantics. Live palette links and SVG tiles are transient, not copied into colour
+fields or private cloud derivatives. Original files, normalization, graph and
+backend formats are unaffected; no migration required. Older clients may ignore
+or drop new fields on rewrite. Locks opt out to ordinary paint, not a frozen
+multicolour snapshot. See [the owner map](SCENE_PATTERN_PAINT.md).
+
+### Live wave coefficients (2026-11-08)
+
+Six additive numeric sceneVfx fields use the existing parser/settings owner and
+export/history. Absence uses the shared current wave defaults listed below;
+explicit zero and negative speed survive. Saved Waves false remains authoritative.
+Normalization clamps finite values to declared ranges; invalid fields fall back
+without changing originals or graph/image/backend formats. No version migration
+is required. Older clients can drop the additional fields on rewrite. See
+[wave tuning](SCENE_VFX.md#live-waves-tuning).
+
+### System audio toggle and file-player retirement (2026-11-08)
+
+The System audio toggle reuses the existing device-local pairing preference v1.
+On connects/reconnects; off disconnects, cancels retries and pauses automatic startup
+without deleting pairing. First pairing appears when needed; replacement pairing
+and explicit Forget live under Audio connection settings. Forget remains deliberate
+removal of this browser-local credential. There is no new saved field or migration.
+Choose audio file, Play audio and the separate Stop action are retired UI commands;
+System audio off replaces Stop. Historical layout/shortcut references to retired
+commands remain unavailable-ID records and are not reassigned to another action.
+Chosen files/playback positions were transient and never entered workspace exports.
+The internal media analyser remains a regression fixture, not a user file-player
+entry point. Workspace/image/backend formats and original bytes are unchanged.
+
+Wave default update: user-selected absent values now use Waves on, displacement
+.1%/.3%, counts 1.5/10 and phase speed 3/3 rad/s. Explicit saved coefficients
+(including prior defaults, zero and negative speed) retain precedence; no rewrite
+or migration. Renderer initial uniforms and discovered setters share WAVE_CONTROLS.

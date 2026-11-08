@@ -892,3 +892,19 @@ Keep raw crossed endpoints and existing unordered-range interpretation; explicit
 saved values/zero/false remain authoritative. The min/max controls bound one range.
 
 The redundant scene.normalize.preview field and transient show-original state are removed. Original/corrected comparison uses the existing serialized normalization enabled toggle. Saved layout references to the retired field remain unavailable-ID records, not deleted organization. No image, graph, cache or normalization-setting conversion. No browser run needed for this UI removal.
+
+Shared pattern paint: the pattern owns its scene-palette connection, while UI
+sockets use/inherit/bypass that source through existing controller hierarchy.
+Never copy palette colours into each consumer or invent a second settings/theme
+store. Declare applicability only with a real renderer adapter. Current DOM
+text/background/contour support excludes 3D, icons, fine character paint and
+native pseudos. Preserve manual colours, locks/bypasses, private source guards
+and bounded palette/tile work. Read docs/SCENE_PATTERN_PAINT.md before extending.
+
+Waves tuning: six shared WAVE_CONTROLS own displacement/count/signed-speed
+metadata, validation, defaults and discovered scene.vfx setters. Wallpaper
+configure updates uniforms live without resetting time/audio. Keep the existing
+Waves toggle, reduced-motion bypass and explicit zero/negative persistence.
+User-selected missing defaults are displacement .1%/.3%, counts 1.5/10 and
+speeds 3/3 rad/s (Waves on); explicit saved values retain precedence;
+never claim a faithful waterwaves port without its missing shaders/layer setup.

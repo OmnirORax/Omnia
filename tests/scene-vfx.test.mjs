@@ -1,11 +1,11 @@
 import {PULSE_CONTROLS,RETIRED_FLARE_CONTROLS,referencePulse,referencePulseRGB,pulsePalette,sourcePulseTint,RETIRED_OMNI_BRIGHTNESS_CONTROLS,omniHighTintRGB,createAutomaticPulse} from '../src/scene/pulse.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {RETIRED_LIGHT_CONTROLS,DEFAULT_SCENE_VFX,normalizeSceneVfx,serializeSceneVfx,smoothAudio,followBass,createBassDynamics,audioScale,normalizeAudioLevel,nextVfxDeadline,SCENE_VFX_FPS} from '../src/scene/vfx.ts';
+import {WAVE_CONTROLS,RETIRED_LIGHT_CONTROLS,DEFAULT_SCENE_VFX,normalizeSceneVfx,serializeSceneVfx,smoothAudio,followBass,createBassDynamics,audioScale,normalizeAudioLevel,nextVfxDeadline,SCENE_VFX_FPS} from '../src/scene/vfx.ts';
 import {defaultSettings,normalizeSettings} from '../src/workspaceActions.ts';
 import {SETTINGS_PROPERTY_ADAPTERS} from '../src/properties/settingsAdapter.ts';
 test('scene effects serialize base controls plus requested light tuning, excluding session internals',()=>{
- const keys=['pulseRangeMode','pulseSensitivity','pulseDropContrast','audioBounce','audioLight','distortion','glitching','maxFps','waves','lightAllColors','lightModel','pulseTintLow','pulseTintHigh','pulseOmniTint','pulseOmniTintLow','pulseColorMode','pulseColors','pulseColorWidth','pulseAllBrightness','imageTintEnabled','imageTint',...PULSE_CONTROLS.map(c=>c.key),...RETIRED_FLARE_CONTROLS.map(c=>c.key),...RETIRED_OMNI_BRIGHTNESS_CONTROLS.map(c=>c.key),...RETIRED_LIGHT_CONTROLS.map(c=>c.key)].sort();
+ const keys=['pulseRangeMode','pulseSensitivity','pulseDropContrast','audioBounce','audioLight','distortion','glitching','maxFps','waves','lightAllColors','lightModel','pulseTintLow','pulseTintHigh','pulseOmniTint','pulseOmniTintLow','pulseColorMode','pulseColors','pulseColorWidth','pulseAllBrightness','imageTintEnabled','imageTint',...PULSE_CONTROLS.map(c=>c.key),...RETIRED_FLARE_CONTROLS.map(c=>c.key),...RETIRED_OMNI_BRIGHTNESS_CONTROLS.map(c=>c.key),...RETIRED_LIGHT_CONTROLS.map(c=>c.key),...WAVE_CONTROLS.map(c=>c.key)].sort();
  assert.deepEqual(Object.keys(JSON.parse(serializeSceneVfx({audioLight:'#aa3300',audioBounce:1.12,waves:true,distortion:.4,glitching:.3,frequency:99,source:'private',particles:true}))).sort(),keys);
  assert.deepEqual(normalizeSceneVfx(undefined),{...DEFAULT_SCENE_VFX,audioLight:'#aa3300',audioBounce:1.3,waves:true,distortion:.4,glitching:.3,maxFps:120});
  assert.deepEqual(defaultSettings().sceneVfx,DEFAULT_SCENE_VFX);
@@ -232,6 +232,11 @@ test('Single tint ticks remain live at exponent 0.1 while bounce works; colour v
   const expanded=u.bounce.value;ctx.nodes[0].value=120;ctx.nodes[1].value=ctx.nodes[2].value=0;
   {const [key,fn]=pending.entries().next().value;pending.delete(key);fn(now+=20);}assert.ok(u.bounce.value>1&&u.bounce.value<expanded,'bass motion should breathe out gently even with nonzero residual noise');
   for(let i=0;i<20;i++){const [key,fn]=pending.entries().next().value;pending.delete(key);fn(now+=20);}assert.ok(u.bounce.value<1.001);
+  const currentTime=u.time.value,currentBounce=u.bounce.value;
+  paper.configure({...settings,waves:true,waveAmplitudeX:0,waveAmplitudeY:1.25,waveFrequencyX:2,waveFrequencyY:3,waveSpeedX:-2,waveSpeedY:0});
+  for(const [key,value] of Object.entries({waveAmplitudeX:0,waveAmplitudeY:1.25,waveFrequencyX:2,waveFrequencyY:3,waveSpeedX:-2,waveSpeedY:0}))assert.equal(u[key].value,value);
+  assert.equal(u.time.value,currentTime);assert.equal(u.bounce.value,currentBounce,'tuning waves must not reset audio/motion');
+  paper.configure({...settings,waves:false});assert.equal(u.waves.value,0);assert.equal(u.time.value,currentTime);
   assert.equal(settings.pulseExponent,.1);assert.equal(settings.maxFps,DEFAULT_SCENE_VFX.maxFps);
  }finally{paper.dispose();T.TextureLoader.prototype.loadAsync=prior.load;globalThis.window=prior.window;globalThis.document=prior.document;globalThis.AudioContext=prior.AudioContext;globalThis.requestAnimationFrame=prior.raf;globalThis.cancelAnimationFrame=prior.cancel;}
 });
@@ -434,4 +439,24 @@ test('rejected spatial flare settings remain archived and cannot affect the rest
  const saved={...DEFAULT_SCENE_VFX,pulsePeakGain:16,pulseGlowStrength:16,pulseGlowReach:12,pulseGlowTravel:500};
  const roundtrip=normalizeSceneVfx(JSON.parse(serializeSceneVfx(saved)));
  for(const c of RETIRED_FLARE_CONTROLS){assert.equal(roundtrip[c.key],saved[c.key]);assert.ok(!SETTINGS_PROPERTY_ADAPTERS['scene.vfx'].channels[`scene.${c.key}`]);}
+});
+
+
+test('wave setters preserve zero, reverse speed and saved values with historical absence compatibility',()=>{
+ const channels=SETTINGS_PROPERTY_ADAPTERS['scene.vfx'].channels,base=defaultSettings();let settings=base;
+ for(const control of WAVE_CONTROLS){
+  const value=control.key.includes('Speed')?-2:0,channel=channels[`scene.${control.key}`];
+  assert.ok(channel);settings=channel.write(settings,value);assert.equal(channel.read(settings),value);
+ }
+ const restored=normalizeSettings(JSON.parse(JSON.stringify(settings)));
+ for(const control of WAVE_CONTROLS)assert.equal(restored.sceneVfx[control.key],control.key.includes('Speed')?-2:0);
+ assert.equal(restored.sceneVfx.pulseTintLow,base.sceneVfx.pulseTintLow);assert.equal(restored.sceneVfx.audioBounce,base.sceneVfx.audioBounce);
+ const old=normalizeSceneVfx({waves:false,waveAmplitudeX:Infinity,waveSpeedX:-999,waveFrequencyY:999});
+ assert.equal(old.waves,false);assert.equal(old.waveAmplitudeX,.1);assert.equal(old.waveAmplitudeY,.3);assert.equal(old.waveSpeedX,-20);assert.equal(old.waveFrequencyY,40);
+ // Screenshot-selected defaults apply to absent fields; older explicit coefficients survive.
+ const requested={waves:true,waveAmplitudeX:.1,waveAmplitudeY:.3,waveFrequencyX:1.5,waveFrequencyY:10,waveSpeedX:3,waveSpeedY:3};
+ for(const [key,value] of Object.entries(requested)){assert.equal(DEFAULT_SCENE_VFX[key],value);assert.equal(normalizeSceneVfx(undefined)[key],value);}
+ const authored={waves:false,waveAmplitudeX:.875,waveAmplitudeY:.5,waveFrequencyX:10,waveFrequencyY:10,waveSpeedX:5,waveSpeedY:-3.5};
+ const saved=normalizeSceneVfx(JSON.parse(serializeSceneVfx(authored)));
+ for(const [key,value] of Object.entries(authored))assert.equal(saved[key],value);
 });

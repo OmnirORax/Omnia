@@ -228,7 +228,7 @@ async def main():
     try:
         async with await serve(capture, preview_token=preview_token):
             capture.start()
-            print("Omnium Audio Helper (remembered pairing) is ready. In Omnium: Scene → Scene effects → Connect system audio.", flush=True)
+            print("Omnium Audio Helper (remembered pairing) is ready. In Omnium: Scene → Scene effects → System audio on.", flush=True)
             print("Leave this window open. Close it or press Ctrl+C to stop. No audio is recorded.", flush=True)
             print("One-time preview setup: paste this code into Preview pairing code:", flush=True)
             print(preview_token, flush=True)

@@ -1,3 +1,4 @@
+import {PatternControls} from '../paint/PatternControls.tsx';
 import { RENDER_BUDGET, subscribeUIEffectBudget, uiEffectBudgetSnapshot } from "../renderBudget";
 import { CopyPropertiesConfiguration } from "../properties/CopyPropertiesConfiguration";
 import { openActionConfiguration } from "../ui/shortcutConfiguration";
@@ -439,6 +440,7 @@ export function MasterController({ bindings, visualStatus, history, children: vi
       {bindings && !inspecting && <CoupledProperties bindings={bindings} />}
       <UISection id="master-category:visual" title="Visuals" reveal={inspecting} defaultExpanded={inspecting} expanded={ctx.location || inspecting ? true : undefined}>
       {visualStatus}
+      {bindings&&!inspecting&&<PatternControls bindings={bindings}/>}
 
       <EmbeddedGroup id={`section:${stableUIHash(originalParent ?? originalHome)}:appearance-targeting-sets`} title="Appearance targeting sets" className="ui-section" nativeTag="transparent">
         <div className="appearance-sets">

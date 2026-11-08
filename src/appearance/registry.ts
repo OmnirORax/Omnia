@@ -25,6 +25,7 @@ export type Binding = {
    * Target addressing edits the existing renderer consumer, not a DOM instance. */
   selection?: { selector: string; role: "background"; renderer: "scene"; address: "target" };
   selector?: string;
+  patternRole?:"text"|"background"|"contour";
   css?: string;
   legacy?: string;
   text?: boolean;
@@ -106,6 +107,9 @@ const part = (
     properties = [...properties, "textSize", "textWeight", "textSpacing"];
   if (id === "symbols.ui") properties = [...properties, "saturation"];
   if (id === "omnium.binders.path") properties = [...properties, "contourWidth"];
+  if(binding.selector&&!binding.selector.includes('::')&&(binding.text||binding.css==='background-color'||binding.css==='border-color')){
+    binding={...binding,patternRole:binding.text?'text':binding.css==='background-color'?'background':'contour'};properties=[...properties,'patternUse'];
+  }
   if (binding.animation) properties = [...properties, ...EFFECT_PROPERTIES];
   entries.push({
     id,
