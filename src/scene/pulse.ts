@@ -66,3 +66,21 @@ export function omniHighTintRGB(image:readonly number[],control:readonly number[
  const value=Math.max(...control),saturation=value?1-Math.min(...control)/value:0;
  return sourcePulseTint(image).map(c=>(1-saturation+saturation*c)*value);
 }
+
+
+/** Calibration controls gain only; emitted light has no envelope, hold or release tail. */
+export function createAutomaticPulse(){
+ let range=.03;
+ return {
+  reset(){range=.03;},
+  sample(signal:number,seconds:number,sensitivity:number,amount:number){
+   if(!(signal>0))return 0;
+   const input=Math.min(1,signal)*sensitivity;
+   // Soft knee preserves tiny details and headroom instead of flattening peaks at a threshold.
+   const output=Math.sqrt(input/(input+range))*amount;
+   const dt=Math.max(0,Math.min(.1,seconds));
+   range+=(Math.max(.01,Math.min(1,signal))-range)*(1-Math.exp(-dt/8));
+   return output;
+  },
+ };
+}

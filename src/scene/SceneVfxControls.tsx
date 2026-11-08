@@ -6,17 +6,18 @@ import {UISection} from '../ui/UISection';
 import {UIField} from '../ui/UIField';
 import {FunctionControl} from '../ui/UIWorkspace';
 import {useFeatureActions} from '../ui/useFeatureActions';
-import {playSceneAudio,loadSceneAudioFile,stopSceneAudio,sceneAudioSnapshot,subscribeSceneAudio,sampleSceneAudio,parkSceneAudioPlayer} from './audio';
+import {playSceneAudio,loadSceneAudioFile,stopSceneAudio,sceneAudioSnapshot,subscribeSceneAudio,sampleSceneAudio,scenePulseResponse,parkSceneAudioPlayer} from './audio';
 export function SceneVfxControls({bindings}:{bindings:PropertyBindings}){
- const file=useRef<HTMLInputElement>(null),host=useRef<HTMLDivElement>(null),meter=useRef<HTMLMeterElement>(null),[error,setError]=useState('');
+ const file=useRef<HTMLInputElement>(null),host=useRef<HTMLDivElement>(null),meter=useRef<HTMLMeterElement>(null),responseMeter=useRef<HTMLMeterElement>(null),[error,setError]=useState('');
  const mode=bindings.values['scene.vfx']?.[PROPERTY_REGISTRY.consumer('scene.vfx')!.channels['scene.pulseColorMode']];
+ const automatic=bindings.values['scene.vfx']?.[PROPERTY_REGISTRY.consumer('scene.vfx')!.channels['scene.pulseRangeMode']]==='auto';
  const tintEnabled=bindings.values['scene.vfx']?.[PROPERTY_REGISTRY.consumer('scene.vfx')!.channels['scene.imageTintEnabled']];
  const audio=useSyncExternalStore(subscribeSceneAudio,sceneAudioSnapshot);
  useLayoutEffect(()=>{
    const player=audio.player;if(!player||!host.current)return;
    host.current.appendChild(player);return()=>{parkSceneAudioPlayer(player);};
  },[audio.player]);
- useEffect(()=>{let frame=0,last=0;const tick=(now:number)=>{if(now-last>=100){last=now;if(meter.current)meter.current.value=sampleSceneAudio().level;}frame=requestAnimationFrame(tick);};frame=requestAnimationFrame(tick);return()=>cancelAnimationFrame(frame);},[]);
+ useEffect(()=>{let frame=0,last=0;const tick=(now:number)=>{if(now-last>=100){last=now;if(meter.current)meter.current.value=sampleSceneAudio().level;if(responseMeter.current)responseMeter.current.value=scenePulseResponse();}frame=requestAnimationFrame(tick);};frame=requestAnimationFrame(tick);return()=>cancelAnimationFrame(frame);},[]);
  const fail=(error:unknown)=>setError(error instanceof Error?error.message:'Audio connection failed');
  useFeatureActions('sceneAudio',{
  'scene.audioConnect':{enabled:true,run:()=>{setError('');void playSceneAudio().catch(fail);}},
@@ -27,8 +28,14 @@ export function SceneVfxControls({bindings}:{bindings:PropertyBindings}){
  <UISection id="scene-pulse" title="Wallpaper Engine pulse">
  <UIField id="scene.vfx.pulseTintLow" label="Low tint (base)" category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property="scene.pulseTintLow" label="Low tint (base)"/></UIField>
  <UIField id="scene.vfx.pulseColorMode" label="High tint type" category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property="scene.pulseColorMode" label="High tint type"/></UIField>
- {([{key:mode==='all'?'pulseOmniTint':'pulseTintHigh',label:mode==='all'?'High tint (Omni)':'High tint'},...PULSE_CONTROLS]).map(({key,label})=><UIField key={key} id={`scene.vfx.${key}`} label={label} category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property={`scene.${key}`} label={label}/></UIField>)}
+ {([{key:mode==='all'?'pulseOmniTint':'pulseTintHigh',label:mode==='all'?'High tint (Omni)':'High tint'}]).map(({key,label})=><UIField key={key} id={`scene.vfx.${key}`} label={label} category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property={`scene.${key}`} label={label}/></UIField>)}
  {mode==='all'&&<small>Omni uses the picker’s saturation and brightness for every image hue; the hue strip is ignored.</small>}
+ <UIField id="scene.vfx.pulseRangeMode" label="Audio response" category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property="scene.pulseRangeMode"/></UIField>
+ {automatic?<>
+ <UIField id="scene.vfx.pulseSensitivity" label="Sensitivity" category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property="scene.pulseSensitivity"/></UIField>
+ <UIField id="scene.vfx.pulseAmount" label="Flash amount" category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property="scene.pulseAmount" label="Flash amount"/></UIField>
+ </>:PULSE_CONTROLS.map(({key,label})=><UIField key={key} id={`scene.vfx.${key}`} label={label} category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property={`scene.${key}`} label={label}/></UIField>)}
+ <label>Light response<meter ref={responseMeter} aria-label="Light response" min={0} max={2} value={0}/></label>
  </UISection>
  <UISection id="scene-image-tint" title="Image tint" defaultExpanded={false}>
  <UIField id="scene.vfx.imageTintEnabled" label="Enable image tint" category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property="scene.imageTintEnabled" label="Enable image tint"/></UIField>

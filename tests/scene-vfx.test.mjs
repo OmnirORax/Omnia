@@ -1,11 +1,11 @@
-import {PULSE_CONTROLS,referencePulse,referencePulseRGB,pulsePalette,sourcePulseTint,RETIRED_OMNI_BRIGHTNESS_CONTROLS,omniHighTintRGB} from '../src/scene/pulse.ts';
+import {PULSE_CONTROLS,referencePulse,referencePulseRGB,pulsePalette,sourcePulseTint,RETIRED_OMNI_BRIGHTNESS_CONTROLS,omniHighTintRGB,createAutomaticPulse} from '../src/scene/pulse.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {RETIRED_LIGHT_CONTROLS,DEFAULT_SCENE_VFX,normalizeSceneVfx,serializeSceneVfx,smoothAudio,audioScale,normalizeAudioLevel,nextVfxDeadline,SCENE_VFX_FPS} from '../src/scene/vfx.ts';
 import {defaultSettings,normalizeSettings} from '../src/workspaceActions.ts';
 import {SETTINGS_PROPERTY_ADAPTERS} from '../src/properties/settingsAdapter.ts';
 test('scene effects serialize base controls plus requested light tuning, excluding session internals',()=>{
- const keys=['audioBounce','audioLight','distortion','glitching','maxFps','waves','lightAllColors','lightModel','pulseTintLow','pulseTintHigh','pulseOmniTint','pulseColorMode','pulseColors','pulseColorWidth','pulseAllBrightness','imageTintEnabled','imageTint',...PULSE_CONTROLS.map(c=>c.key),...RETIRED_OMNI_BRIGHTNESS_CONTROLS.map(c=>c.key),...RETIRED_LIGHT_CONTROLS.map(c=>c.key)].sort();
+ const keys=['pulseRangeMode','pulseSensitivity','audioBounce','audioLight','distortion','glitching','maxFps','waves','lightAllColors','lightModel','pulseTintLow','pulseTintHigh','pulseOmniTint','pulseColorMode','pulseColors','pulseColorWidth','pulseAllBrightness','imageTintEnabled','imageTint',...PULSE_CONTROLS.map(c=>c.key),...RETIRED_OMNI_BRIGHTNESS_CONTROLS.map(c=>c.key),...RETIRED_LIGHT_CONTROLS.map(c=>c.key)].sort();
  assert.deepEqual(Object.keys(JSON.parse(serializeSceneVfx({audioLight:'#aa3300',audioBounce:1.12,waves:true,distortion:.4,glitching:.3,frequency:99,source:'private',particles:true}))).sort(),keys);
  assert.deepEqual(normalizeSceneVfx(undefined),{...DEFAULT_SCENE_VFX,audioLight:'#aa3300',audioBounce:1.3,waves:true,distortion:.4,glitching:.3,maxFps:120});
  assert.deepEqual(defaultSettings().sceneVfx,DEFAULT_SCENE_VFX);
@@ -145,11 +145,11 @@ test('pulse audio reads both real splitter channels without duplicating audible 
  await audio.connectSceneAudioElement({pause(){},addEventListener(){},removeEventListener(){}});
  assert.equal(ctx.nodes.length,3);assert.deepEqual(ctx.splitter.links.map(l=>l.output),[0,1]);
  assert.equal(ctx.nodes[0].links[0].node,ctx.destination);assert.equal(ctx.nodes[1].links.length,0);assert.equal(ctx.nodes[2].links.length,0,'spectrum taps are never sent to speakers a second time');
- assert.equal(audio.sampleScenePulse(DEFAULT_SCENE_VFX),2);
+ assert.equal(audio.sampleScenePulse({...DEFAULT_SCENE_VFX,pulseRangeMode:'manual'}),2);
  ctx.nodes[1].value=0;const bands=new Float32Array(32);bands.fill(1,16);
- assert.equal(audio.sampleScenePulse(DEFAULT_SCENE_VFX),referencePulse(bands,14,15,.01,1,.1,2));
- ctx.nodes[2].value=0;assert.equal(audio.sampleScenePulse(DEFAULT_SCENE_VFX),0);
- audio.disconnectSceneAudio();assert.equal(audio.sampleScenePulse(DEFAULT_SCENE_VFX),0);
+ assert.equal(audio.sampleScenePulse({...DEFAULT_SCENE_VFX,pulseRangeMode:'manual'}),referencePulse(bands,14,15,.01,1,.1,2));
+ ctx.nodes[2].value=0;assert.equal(audio.sampleScenePulse({...DEFAULT_SCENE_VFX,pulseRangeMode:'manual'}),0);
+ audio.disconnectSceneAudio();assert.equal(audio.sampleScenePulse({...DEFAULT_SCENE_VFX,pulseRangeMode:'manual'}),0);
  }finally{audio.disposeSceneAudio();globalThis.AudioContext=previous;}
 });
 
@@ -216,7 +216,7 @@ test('Single tint ticks remain live at exponent 0.1 while bounce works; colour v
  class Node{connect(n){return n;}disconnect(){}}
  class Context{state='running';sampleRate=48000;destination={};nodes=[];constructor(){ctx=this;}resume(){return Promise.resolve();}close(){return Promise.resolve();}createMediaElementSource(){return new Node();}createChannelSplitter(){return new Node();}createAnalyser(){const node=Object.assign(new Node(),{frequencyBinCount:1024,value:255,getByteFrequencyData(b){b.fill(this.value);},getByteTimeDomainData(b){b.fill(140);}});this.nodes.push(node);return node;}}
  globalThis.AudioContext=Context;T.TextureLoader.prototype.loadAsync=async()=>new T.Texture({width:8,height:8});
- const scene=new T.Scene(),paper=createWallpaper(scene,()=>{},{setRenderTarget(){},render(){}}),settings={...DEFAULT_SCENE_VFX,waves:false,distortion:0,glitching:0,pulseExponent:.1,pulseColorMode:'tint'};
+ const scene=new T.Scene(),paper=createWallpaper(scene,()=>{},{setRenderTarget(){},render(){}}),settings={...DEFAULT_SCENE_VFX,waves:false,distortion:0,glitching:0,pulseExponent:.1,pulseRangeMode:'manual',pulseColorMode:'tint'};
  try{
   await audio.connectSceneAudioElement({pause(){},addEventListener(){},removeEventListener(){}});paper.configure(settings);await paper.setURL('disposable');
   const material=scene.children.find(o=>o.material?.uniforms?.light).material,u=material.uniforms,values=[];let now=0;
@@ -284,4 +284,49 @@ test('pale source hues receive the same fully saturated High tint as normal mode
   const saturated=omniHighTintRGB(image,[.7,0,0]);assert.equal(Math.min(...saturated),0);assert.equal(Math.max(...saturated),.7);
  }
  assert.deepEqual(sourcePulseTint([.4,.4,.4]),[1,1,1]);
+});
+
+
+test('automatic response follows every hit with no output hold, preserves quiet detail and stronger drops',()=>{
+ const pulse=createAutomaticPulse();
+ const quiet=pulse.sample(.00001,1/120,2,2);assert.ok(quiet>0&&quiet<.1);
+ assert.equal(pulse.sample(0,1/120,2,2),0);
+ const hits=[];for(const signal of [.01,0,.01,0,.01,0])hits.push(pulse.sample(signal,1/120,2,2));
+ for(const i of [0,2,4])assert.ok(hits[i]>quiet);for(const i of [1,3,5])assert.equal(hits[i],0);
+ const small=pulse.sample(.02,0,2,2),big=pulse.sample(.2,0,2,2),drop=pulse.sample(.8,0,2,2);
+ assert.ok(quiet<small&&small<big&&big<drop&&drop<2,'soft knee must retain headroom without clipping every louder hit to the same peak');
+ assert.equal(pulse.sample(0,1/120,2,2),0,'the loudest previous hit cannot hold the next frame');
+ assert.ok(pulse.sample(.02,0,4,2)>pulse.sample(.02,0,1,2));
+ assert.equal(pulse.sample(.02,0,2,0),0);
+ pulse.reset();assert.equal(pulse.sample(.00001,1/120,2,2),quiet);
+});
+
+test('automatic mode and sensitivity persist without rewriting legacy manual tuning',()=>{
+ const old={pulseAudioLow:.07,pulseAudioHigh:.3,pulseExponent:.1,pulseAmount:1.8,pulseFrequencyMin:7,pulseFrequencyMax:10};
+ const legacy=normalizeSceneVfx(old);assert.equal(legacy.pulseRangeMode,'manual');
+ for(const key of Object.keys(old))assert.equal(legacy[key],old[key]);
+ assert.equal(normalizeSceneVfx(undefined).pulseRangeMode,'auto');assert.equal(normalizeSceneVfx({pulseSensitivity:0}).pulseSensitivity,.25);assert.equal(normalizeSceneVfx({pulseSensitivity:99}).pulseSensitivity,8);
+ const channels=SETTINGS_PROPERTY_ADAPTERS['scene.vfx'].channels,base={...defaultSettings(),sceneVfx:legacy};
+ const auto=channels['scene.pulseRangeMode'].write(channels['scene.pulseSensitivity'].write(base,3),'auto');
+ const saved=normalizeSceneVfx(JSON.parse(serializeSceneVfx(auto.sceneVfx)));assert.equal(saved.pulseRangeMode,'auto');assert.equal(saved.pulseSensitivity,3);
+ for(const key of Object.keys(old))assert.equal(saved[key],old[key]);
+ const back=channels['scene.pulseRangeMode'].write(auto,'manual');assert.deepEqual(back.sceneVfx,{...legacy,pulseSensitivity:3});
+});
+
+test('automatic live sampler listens to bass and each transient with unsmoothed wide-range FFT; manual restores its source processing',async()=>{
+ const audio=await import('../src/scene/audio.ts'),prior=globalThis.AudioContext;let ctx;
+ class Node{connect(n){return n;}disconnect(){}}
+ class Context{state='running';sampleRate=48000;destination={};nodes=[];constructor(){ctx=this;}resume(){return Promise.resolve();}close(){return Promise.resolve();}createMediaElementSource(){return new Node();}createChannelSplitter(){return new Node();}createAnalyser(){const node=Object.assign(new Node(),{frequencyBinCount:1024,value:0,getByteFrequencyData(b){b.fill(0);b[2]=this.value;},getByteTimeDomainData(b){b.fill(128);}});this.nodes.push(node);return node;}}
+ globalThis.AudioContext=Context;
+ try{
+  await audio.connectSceneAudioElement({pause(){},addEventListener(){},removeEventListener(){}});
+  const settings={...DEFAULT_SCENE_VFX,pulseRangeMode:'auto'};
+  const values=[];for(const value of [80,0,100,0,180,0,240,0]){ctx.nodes[1].value=value;values.push(audio.sampleScenePulse(settings,1/120));}
+  assert.ok(values[0]>0&&values[0]<values[2]&&values[2]<values[4]&&values[4]<values[6]);
+  for(const i of [1,3,5,7])assert.equal(values[i],0);
+  assert.equal(ctx.nodes[1].smoothingTimeConstant,0);assert.equal(ctx.nodes[1].maxDecibels,0);
+  ctx.nodes[1].value=200;assert.equal(audio.sampleScenePulse({...settings,pulseRangeMode:'manual'}),0,'legacy high bands still exclude bass');
+  assert.equal(ctx.nodes[1].smoothingTimeConstant,.7);assert.equal(ctx.nodes[1].maxDecibels,-30);
+  audio.sampleScenePulse(settings);assert.ok(audio.scenePulseResponse()>0);audio.disconnectSceneAudio();assert.equal(audio.scenePulseResponse(),0);
+ }finally{audio.disconnectSceneAudio();globalThis.AudioContext=prior;}
 });

@@ -87,7 +87,7 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
     const audio=sampleSceneAudio();bass=smoothAudio(bass,audio.bass,dt);level=smoothAudio(level,audio.level,dt);
     material.uniforms.time.value=elapsed;
     material.uniforms.bounce.value=audioScale(bass,settings.audioBounce);
-    material.uniforms.light.value=sampleScenePulse(settings);
+    material.uniforms.light.value=sampleScenePulse(settings,dt);
     requestPaint();schedule();
   };
   const visibility=()=>{cancel();schedule();};

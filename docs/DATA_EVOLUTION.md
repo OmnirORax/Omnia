@@ -690,3 +690,21 @@ pixels within 0.000001 RGB delta retain neutral response because hue is undefine
 No saved field, default, conversion, ID, audio curve or backend contract changes.
 Saved Omni picker positions keep their meaning and now honor saturation without
 the unintended white bias. Older previews still render the former bias.
+
+
+### Automatic detailed audio response (2026-11-08)
+
+Add sceneVfx.pulseRangeMode (auto/manual) and pulseSensitivity (0.25–8, default 2)
+through shared function/property/settings/history/export owners. Brand-new defaults
+and an absent sceneVfx block use Automatic. An existing settings object missing a
+valid mode uses Manual, preserving its authored frequencies/thresholds/exponent and
+previous response. Explicit modes round-trip. Audio amount remains shared and
+retains its identity; Automatic ignores but preserves Manual-only parameters.
+Automatic changes only light analysis: unsmoothed full-spectrum stereo peak,
+−100..0 dB FFT range, linear-amplitude soft knee and slow transient gain calibration.
+Manual restores the existing FFT smoothing/range and source curve. Calibration
+resets at source reconnect/mode change and is not saved. Bounce/audio playback,
+colour settings, assets/identities/backend formats remain unchanged. Forty fields
+are serialized: 19 active, 21 archived. Older clients discard the two new fields
+and render Manual; retain a current export before using older previews. No eager
+save rewrite, capture permission, new media source or audio processing on playback.

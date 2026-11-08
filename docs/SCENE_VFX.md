@@ -11,7 +11,7 @@ high = image * tintHigh;
 result = max(vec3(0), mix(low, min(low + high, vec3(1)), pulse));
 ```
 
-There is no invented saturation/halo operator. The audio pulse averages selected
+There is no invented saturation/halo operator. Manual audio averages selected
 bands from both stereo channels, smoothsteps bounds, applies exponent and amount.
 Amount is not clamped to one after multiplying. Browser spectrum mapping remains
 an approximation of Wallpaper Engine's undocumented FFT bands/scaling/smoothing.
@@ -39,8 +39,40 @@ Audio amount above one still overdrives the blend; very strong settings can clip
 The separate Colour strength, Base brightness and Flash brightness sliders are
 removed. Their saved preferences remain in JSON for rollback. Single and Omni
 high tint choices are saved independently, while Low tint remains shared.
-Audio processing, exponent 0.1, timing, smoothing and bounce are unchanged.
+Manual audio processing, exponent 0.1 and bounce are unchanged. Automatic is
+a separate response path, described below.
 Selected colours remains removed. Image tint stays separate and off by default.
+
+## Detailed automatic audio response
+
+Open **Audio response → Automatic · detailed**. Existing saved settings keep
+Manual until you select Automatic; new settings default to Automatic. Use just:
+
+- **Sensitivity** (default 2, 0.25–8): makes quiet details register more strongly.
+- **Flash amount** (the existing Audio amount, default 2, 0–2): scales light output.
+
+Automatic listens across both channels, roughly 20 Hz–20 kHz/Nyquist. The strongest
+current FFT bin drives light; no averaged selected-band threshold puzzle. Its FFT
+smoothing is zero and dB range is −100 to 0 instead of Manual’s −100 to −30.
+A square-root soft knee lifts tiny signals and keeps louder hits distinguishable
+without hard-clamping them to one common maximum. True zero bins produce zero
+light immediately; every following hit is sampled independently. There is no added
+output envelope, peak hold or slow release. Browser FFT windowing still applies:
+2048 samples is about 43 ms at 48 kHz, so arbitrarily fast/sub-window sounds cannot
+be promised separate flashes. FFT floor, frame rate and display also limit detail.
+
+A slow 8-second calibration adjusts gain to changing music levels; it never holds
+light output. It starts at reference amplitude 0.03 and bottoms at 0.01; silence
+does not raise gain. Source reconnect or response-mode change resets calibration;
+colour edits and closing controls do not. All state is transient. No extra audio
+route, source permissions, or audible playback processing is added. Bounce retains
+its existing path. Automatic affects both Single and Omni light modes.
+
+**Light response** shows actual shader pulse input (0–2), sampled for display at
+10 Hz. It differs from the existing RMS Audio input meter. Switch to **Manual**
+to restore selected frequency bands, lower/upper thresholds and exponent exactly;
+Automatic ignores those values but retains them. Audio amount is shared across
+both modes. Shared settings/history/exports own mode and sensitivity.
 
 ## Optional Image tint
 
@@ -60,6 +92,8 @@ approximated as #ffe5e5 / #001438. Explicit older saved choices are preserved.
 
 | Saved field | Control | Default / bounds |
 | --- | --- | --- |
+| pulseRangeMode | Audio response | auto for new settings; manual for existing settings lacking mode |
+| pulseSensitivity | Sensitivity (Automatic) | 2; 0.25–8 |
 | pulseTintLow | Low tint | #ffe5e5 |
 | pulseTintHigh | High tint / Colour to add | #001438 |
 | pulseFrequencyMin | First frequency band | 14; integer 0–15 |
@@ -86,7 +120,7 @@ tint white, Bounce 1 and Waves/Distortion/Glitching off for original-file compar
 
 ## Compatibility and retirement
 
-The current serializer whitelists 38 fields: 17 active and 21 archived.
+The current serializer whitelists 40 fields: 19 active and 21 archived.
 Selected mode maps to Single; its palette/range remain archived. The earlier
 approximation fields and three superseded Omni sliders remain exportable without
 active controls/render paths. Existing Low/High tint choices are preserved.
@@ -114,8 +148,9 @@ capture or native bridge. Music in other apps/tabs is not an input. Any captures
 still active in older preview pages must be stopped there/by closing those pages.
 
 The RMS Audio input meter and bass bounce retain the app-owned audio session.
-Two stereo analyser taps supply 16 log bands/channel from 20 Hz to min(20 kHz,
-Nyquist), without connecting those taps back to speakers. Arrays are reused;
+Two stereo analyser taps supply Manual’s 16 log bands/channel or Automatic’s
+strongest-bin signal from 20 Hz to min(20 kHz, Nyquist), without connecting those
+taps back to speakers. Arrays are reused;
 there are no per-audio-frame React/settings writes. Source frequency calibration
 is not a claim of bit-identical Wallpaper Engine audio processing.
 
@@ -131,7 +166,9 @@ remain; actual rate depends on hardware. Waves/VHS are still approximate.
 Local regressions cover the direct source pulse and stereo analysis, changing
 light uniforms at exponent 0.1 with independent bounce, compile-variant switching,
 Selected retirement and preservation of inactive palette fields, Omni saturation/value hue independence and legacy preference conversion, Image tint opt-in/serialization, and existing native output/lifecycle.
-No fresh browser run was authorised for this picker. The numerical checks
+Automatic regressions cover repeated hits/silence with no output hold, quiet
+detail, increasing hit strength, bass coverage, FFT mode restoration and retained
+Manual settings. No fresh browser run was authorised for these changes. The numerical checks
 verify colour math and settings wiring, including normal-versus-Omni blend
 equality for pale gold/blue source hues; they do not verify GPU appearance. Test Omni
 with different saturation/brightness positions, then compare Single colour; actual brightness,
