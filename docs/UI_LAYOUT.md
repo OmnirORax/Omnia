@@ -129,3 +129,5 @@ Full-viewport world: .workbench > .workspace > .canvas is absolute inset 0 again
 Default world UI homes read --world-ui-* insets published by the existing DockWorkspace floating allocation. Only HUD/selection/navigation UI offsets use them; canvas dimensions, pointer projection and world rendering remain viewport-wide. Reuse its measured allocation/observer, never a second sidebar-size listener or hardcoded sidebar width.
 
 Native sidebar clearance is independent of explicit edge-dock activation. DockWorkspace uses clearNativeSidebar for UI/HUD allocation in both modes, bounded to the available area; do not reserve native sidebar space only when geometry.active. The full world host is unaffected.
+
+Top toolbar removal (2026-11-08): native toolbar instances and its chrome are retired, while the menu panel owners stay mounted to preserve user-moved tabs. Global registered commands, custom placements, shortcut bindings, workspace transfer and saved UI layouts retain their owners. No saved layout migration. Actual moved-tab rendering and user layout acceptance require browser verification.

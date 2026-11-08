@@ -1318,13 +1318,9 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
       <ScoreTracker bindings={propertyBindings} /><ShortcutConfiguration mouse={settings.mouse} bindings={propertyBindings} /><FrameResizeController bindings={propertyBindings} /><SearchController bindings={propertyBindings} /><FrameViewportSystem /><HistoryActionBridge history={actionHistory} />
       <input ref={themeTemplateInput} type="file" accept="application/json,.json" hidden aria-label="Import theme template file" onChange={event => void importTheme(event.target.files?.[0])} />
       <input ref={fontInput} type="file" accept=".woff2,.woff,.ttf,.otf" hidden aria-label="Import font file" onChange={event => void importFont(event.target.files?.[0])} />
-      <header className="toolbar">
-        <div className="brand">
-          <strong>Omnium</strong>
-          <span>Atlas workbench</span>
-        </div>
-        <div className="toolbar-actions">
-          <FunctionControl id="searchUI" />
+      {/* Keep native menu owners mounted so user-moved tabs and saved placements remain live. */}
+      <div hidden>
+        <div>
           {uiLayout.panels["@organized"] ? <>
           <UIFrameStrip id="@toolbarFrames">
           <UIPanel id="menu:file" title="File" menu>
@@ -1351,13 +1347,10 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
             {["settings", "shortcuts", "ui:devMode", "ui:arrange", "ui:createFrame", "ui:select", "ui:compact", "ui:align", "ui:undo", "ui:redo", "ui:reset"].map(id => <FunctionControl id={id} key={id} />)}
           </UIPanel>
           </UIFrameStrip>
-          <div className="primary-charting-actions" role="toolbar" aria-label="Charting actions">
-            {["newNode", "newChild", "connect", "compactAll", "undo", "redo"].map(id => <FunctionControl id={id} key={id} />)}
-          </div>
           </> : <>
             <FunctionControl id="ui:view" /><FunctionControl id="ui:viewRule" />
             {layoutRule === "flow" && flowType && <><FunctionControl id="ui:flowType" /><FunctionControl id="ui:flowFrom" /><FunctionControl id="ui:flowTo" /></>}
-            {["ui:newView", "newNode", "compactAll", "ui:snap", "settings", "shortcuts", "undo", "redo", "ui:export", "ui:saveTemplate", "ui:import", "ui:loadTemplate"].map(id => <FunctionControl id={id} key={id} />)}
+            {["ui:newView", "ui:snap", "settings", "shortcuts", "ui:export", "ui:saveTemplate", "ui:import", "ui:loadTemplate"].map(id => <FunctionControl id={id} key={id} />)}
             <UIArrangeButtons /><FunctionControl id="ui:reset" />
           </>}
           {transfer&&<WorkspaceTransferDialog workspace={workspace} source={transfer.source} onApply={applyTransfer} onClose={()=>setTransfer(null)}/>}
@@ -1380,10 +1373,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
             }}
           />
         </div>
-        <span className="save-status" role="status">
-          {saveStatus} · {atlas.nodes.length} nodes · {atlas.relationships.length} relationships
-        </span>
-      </header>
+      </div>
       {error && (
         <div className="error" role="alert">
           {error}
