@@ -6,7 +6,7 @@ import {UISection} from '../ui/UISection';
 import {UIField} from '../ui/UIField';
 import {FunctionControl} from '../ui/UIWorkspace';
 import {useFeatureActions} from '../ui/useFeatureActions';
-import {playSceneAudio,loadSceneAudioFile,stopSceneAudio,sceneAudioSnapshot,subscribeSceneAudio,sampleSceneAudio,scenePulseResponse,parkSceneAudioPlayer} from './audio';
+import {connectSceneSystemAudio,playSceneAudio,loadSceneAudioFile,stopSceneAudio,sceneAudioSnapshot,subscribeSceneAudio,sampleSceneAudio,scenePulseResponse,parkSceneAudioPlayer} from './audio';
 export function SceneVfxControls({bindings}:{bindings:PropertyBindings}){
  const file=useRef<HTMLInputElement>(null),host=useRef<HTMLDivElement>(null),meter=useRef<HTMLMeterElement>(null),responseMeter=useRef<HTMLMeterElement>(null),[error,setError]=useState('');
  const mode=bindings.values['scene.vfx']?.[PROPERTY_REGISTRY.consumer('scene.vfx')!.channels['scene.pulseColorMode']];
@@ -20,6 +20,7 @@ export function SceneVfxControls({bindings}:{bindings:PropertyBindings}){
  useEffect(()=>{let frame=0,last=0;const tick=(now:number)=>{if(now-last>=100){last=now;if(meter.current)meter.current.value=sampleSceneAudio().level;if(responseMeter.current)responseMeter.current.value=scenePulseResponse();}frame=requestAnimationFrame(tick);};frame=requestAnimationFrame(tick);return()=>cancelAnimationFrame(frame);},[]);
  const fail=(error:unknown)=>setError(error instanceof Error?error.message:'Audio connection failed');
  useFeatureActions('sceneAudio',{
+ 'scene.audioSystem':{enabled:true,run:()=>{setError('');void connectSceneSystemAudio().catch(fail);}},
  'scene.audioConnect':{enabled:true,run:()=>{setError('');void playSceneAudio().catch(fail);}},
  'scene.audioDisconnect':{enabled:true,run:()=>{stopSceneAudio();setError('');}},
  'scene.audioFile':{enabled:true,run:()=>file.current?.click()},
@@ -42,11 +43,11 @@ export function SceneVfxControls({bindings}:{bindings:PropertyBindings}){
  {tintEnabled&&<UIField id="scene.vfx.imageTint" label="Image tint colour" category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property="scene.imageTint" label="Image tint colour"/></UIField>}
  </UISection>
  {([['scene.audioBounce','Audio Bounce','bounce'],['scene.waves','Waves','waves'],['scene.distortion','Distortion','distortion'],['scene.glitching','Glitching','glitching'],['scene.maxFps','Max FPS','maxFps']] as const).map(([property,label,key])=><UIField key={key} id={`scene.vfx.${key}`} label={label} category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property={property} label={label}/></UIField>)}
- <FunctionControl id="scene.audioFile"/><FunctionControl id="scene.audioConnect"/><FunctionControl id="scene.audioDisconnect"/>
+ <FunctionControl id="scene.audioSystem"/><FunctionControl id="scene.audioFile"/><FunctionControl id="scene.audioConnect"/><FunctionControl id="scene.audioDisconnect"/>
  <input ref={file} type="file" accept="audio/*" hidden onChange={event=>{const selected=event.target.files?.[0];event.target.value='';if(selected){setError('');loadSceneAudioFile(selected);}}}/>
  <div ref={host}/>
  <label>Audio input<meter ref={meter} aria-label="Audio input level" min={0} max={1} value={0}/></label>
  <small role="status">{error||audio.status}</small>
- <small>Choose an audio file and press Play. The input meter shows what reaches the effects. Audio continues when these controls close; Stop audio stops it.</small>
+ <small>Connect system audio with Omnium Audio Helper running, or choose a file and press Play. The input meter shows what reaches the effects. Closing controls keeps the connection; Stop audio disconnects it.</small>
  </UISection>;
 }

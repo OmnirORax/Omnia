@@ -152,3 +152,12 @@ sharing indicators. Choose audio file → Play audio uses the existing app-owned
 media/analyser session; closing Scene controls keeps it playing. Stop audio ends
 playback/analysis. This is not AI music generation, a streaming-provider integration
 or a native system-audio bridge. See SCENE_VFX.md for defaults, limits and evidence.
+
+
+System input implementation (2026-11-08): optional Windows Omnium Audio Helper,
+adapted from Manuel-1312/minimeters-bridge, now supplies default-output WASAPI PCM
+through an explicit local connection. The existing analyser/light/bounce equations
+are reused, with muted output and bounded buffers. No screen-sharing/microphone,
+cloud audio, paid MiniMeters/Spicetify or audio storage. First CI build is a console
+executable; final signed installer/autostart remains deferred. See SYSTEM_AUDIO.md
+for supported origins, protocol, scope and actual validation limits.

@@ -194,8 +194,9 @@ change. Missing Image tint fields retain disabled/red defaults.
 
 **Choose audio file → Play audio** uses direct website playback and analysis of
 the same media element. Stop audio ends playback/analysis and keeps the file ready;
-closing controls keeps playback running. There is no tab/screen/system/microphone
-capture or native bridge. Music in other apps/tabs is not an input. Any captures
+closing controls keeps playback running. The file input requests no browser capture. Optional Windows system input now uses
+Omnium Audio Helper; see [System audio](SYSTEM_AUDIO.md). It does not use browser
+tab/screen sharing or microphone input. Any captures
 still active in older preview pages must be stopped there/by closing those pages.
 
 The RMS Audio input meter and both bounce modes retain the app-owned audio session.

@@ -979,3 +979,20 @@ the display texture and no graph/source/account contract changes. Retired
 adaptiveBlend* settings remain archive-only; new orange sphere defaults remain.
 Combined source, normalization, VFX, archive and settings regressions are required
 before publication. Merging current master changes no production branch here.
+
+
+### Transient Windows system audio input (2026-11-08)
+
+The app-owned scene/audio.ts session adds an explicit system source alongside file
+playback. A separately running Windows helper adapted from MiniMeters Bridge
+captures default-output WASAPI PCM only while one allowed website is connected.
+Versioned OMA1 packets, queues, socket retry, device state and AudioWorklet buffers
+are transient. Audio stays local; no source, samples or connection defaults enter
+WorkspaceSettings, atlas data, recovery/history, exports or backend formats. The
+existing 46 VFX fields/response equations remain unchanged. Source switching/Stop
+releases both transport and WebAudio through the existing owner. Older clients
+keep website-file playback and do not connect to the helper. No capture permission
+is inferred from saved settings; connection is explicit. Native packaging is a
+standalone Windows CI artifact with retained upstream/dependency licensing; final
+signed installer, auto-start and updates remain deferred. Native input only accepts
+omnium.nexus/localhost origins; shared public preview origins are excluded.
