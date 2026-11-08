@@ -1747,7 +1747,7 @@ export function UIWorkspace({
         }}
       >
         {Object.entries(layout.items)
-          .filter(([id, i]) => !i.hidden && !i.home && !i.anchorId && !ownerOf(layout, `function:${id}`))
+          .filter(([id, i]) => !(layout.panels["@workspaceOnly"] && id === "settings") && !i.hidden && !i.home && !i.anchorId && !ownerOf(layout, `function:${id}`))
           .map(([id, placement]) => (
             <FreeFunction
               key={id} id={id}

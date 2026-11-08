@@ -62,14 +62,14 @@ export function ShortcutDisplay({
       <p>Click a function to run it. Click its binding, then press a key or mouse button to rebind; Esc cancels. Hover a row for its context.</p>
       {Array.from(new Set(ACTIONS.map((a) => a.category))).map((category) => (
         <UISection legacyTag="SECTION" key={category} id={`shortcuts-${category}`} title={category}>
-          {ACTIONS.filter((a) => a.category === category && !!functionShortcutBinding(a.id, settings.bindings)).map((a) => (
+          {ACTIONS.filter((a) => a.category === category).map((a) => (
             <FunctionControl key={a.id} id={`shortcut:${a.id}`} />
           ))}
           <ShortcutGestures category={category} />
         </UISection>
       ))}
-      {Object.keys(settings.bindings).some(id => id.startsWith("button:") && !!settings.bindings[id]) && <UISection legacyTag="SECTION" id="button-shortcuts" title="Button shortcuts">
-        {Object.keys(settings.bindings).filter(id => id.startsWith("button:") && !!settings.bindings[id]).map(id => <FunctionControl key={id} id={`shortcut:${id}`} />)}
+      {Object.keys(settings.bindings).some(id => id.startsWith("button:")) && <UISection legacyTag="SECTION" id="button-shortcuts" title="Button shortcuts">
+        {Object.keys(settings.bindings).filter(id => id.startsWith("button:")).map(id => <FunctionControl key={id} id={`shortcut:${id}`} />)}
       </UISection>}
       <UISection legacyTag="SECTION" id="mouse-gestures" title="Mouse & gestures">
         <p title="Single-click opens the node options and variants; double-click toggles ordinary contents.">

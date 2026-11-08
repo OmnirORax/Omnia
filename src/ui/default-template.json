@@ -193,7 +193,7 @@
         "y": 64,
         "width": 680,
         "height": 760,
-        "collapsed": false,
+        "collapsed": true,
         "pinned": false,
         "layoutMode": "stacked",
         "members": [
@@ -317,11 +317,6 @@
       }
     },
     "items": {
-      "settings": {
-        "home": false,
-        "x": 24,
-        "y": 24
-      },
       "panel:reuse": {
         "x": 0,
         "y": 0,
@@ -371,7 +366,8 @@
       "@organized": true,
       "@theme": true,
       "@workspaceOnly": true,
-      "@settings": false
+      "@settings": true,
+      "@workspaceSettingsSingle": true
     },
     "assets": [],
     "nativeOrders": {

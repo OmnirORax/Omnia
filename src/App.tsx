@@ -195,6 +195,12 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
     return revealSearchPath(revealed, searchReveal);
   }, [savedUILayout, searchReveal, masterInspection, dismissedInspection]);
   useEffect(() => {
+    if (!savedUILayout.panels["@workspaceOnly"] || savedUILayout.panels["@workspaceSettingsSingle"]) return;
+    updateUI(layout => ({...layout, panels:{...layout.panels,"@settings":true,"@workspaceSettingsSingle":true},
+      windows:{...layout.windows,settings:{...layout.windows.settings,collapsed:true}},
+      labels:layout.labels?.["function:settings"] && !layout.labels?.["window:settings"] ? {...layout.labels,"window:settings":layout.labels["function:settings"]} : layout.labels}));
+  }, [savedUILayout, updateUI]);
+  useEffect(() => {
     window.document.documentElement.toggleAttribute("data-workspace-settings-only", !!uiLayout.panels["@workspaceOnly"]);
     return () => window.document.documentElement.removeAttribute("data-workspace-settings-only");
   }, [uiLayout.panels["@workspaceOnly"]]);
@@ -297,8 +303,9 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
   const [frameQuestion, setFrameQuestion] = useState("");
   const [entityLookup, setEntityLookup] = useState("");
   const [frameLookup, setFrameLookup] = useState("");
-  const settingsOpen = uiLayout.panels["@settings"] ?? false;
-  const setSettingsOpen = (value: boolean) => updateUI(layout => value ? reopenContainer(layout, "window:settings") : { ...layout, panels: { ...layout.panels, "@settings": false } });
+  const settingsVisible = uiLayout.panels["@settings"] ?? false;
+  const settingsOpen = settingsVisible && (!uiLayout.panels["@workspaceOnly"] || !uiLayout.windows.settings?.collapsed);
+  const setSettingsOpen = (value: boolean) => updateUI(layout => value ? reopenContainer(layout, "window:settings") : layout.panels["@workspaceOnly"] ? {...layout, windows:{...layout.windows, settings:{...layout.windows.settings,collapsed:true}}} : { ...layout, panels: { ...layout.panels, "@settings": false } });
   const themeOpen = (uiLayout.panels["@theme"] ?? true) || (!!masterInspection && masterInspection !== dismissedInspection);
   const setThemeOpen = (value: boolean, confirmed = false) => {
     if (!value && appearancePending && !confirmed) { setAppearanceExit("close"); return false; }
@@ -1276,10 +1283,10 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
   for(const entry of UI_FIELD_CATALOG)uiFunctions.push({...entry,control:true,available:false,element:<p>Select the relevant node, relationship or investigation to edit {entry.label.toLowerCase()}.</p>});
   const replaceFunction = (id: string, label: string, element: React.ReactElement, control = false) => { const index = uiFunctions.findIndex((f) => f.id === id); const value = { id, label, element, control, category: uiFunctions[index]?.category ?? (control ? "Settings" : id.startsWith("panel:") ? "Panels" : "Workspace") }; if (index >= 0) uiFunctions[index] = value; else uiFunctions.push(value); };
   const field = (id: string, label: string, element: React.ReactElement) => { const entry=UI_FIELD_CATALOG.find(f=>f.id===id);replaceFunction(id, entry?.label??label, element, true);if(entry)uiFunctions.find(f=>f.id===id)!.category=entry.category; return <FunctionControl id={id} key={id} />; };
-  for(const action of ACTIONS){replaceFunction(`shortcut:${action.id}`,`${action.label} shortcut`,<div className="binding-row" title={FEATURE_ACTIONS.find(feature => feature.id === action.id)?.description}><FunctionControl id={action.id} palette/><button aria-label={`Rebind ${action.label}`} title="Click, then press a key or mouse button" onClick={()=>setCapturing(action.id)}>{capturing===action.id?'Press a key or mouse button…':functionShortcutBinding(action.id, settings.bindings)||'Unassigned'}</button><button aria-label={`Clear shortcut ${action.label}`} onClick={()=>setSettings(s=>({...s,bindings:{...s.bindings,[action.id]:''}}))}>×</button></div>,true);uiFunctions.find(f=>f.id===`shortcut:${action.id}`)!.category='Shortcuts';}
+  for(const action of ACTIONS){replaceFunction(`shortcut:${action.id}`,`${action.label} shortcut`,<div className="binding-row" title={FEATURE_ACTIONS.find(feature => feature.id === action.id)?.description}><FunctionControl id={action.id} palette/>{(!!functionShortcutBinding(action.id, settings.bindings)||capturing===action.id)&&<><button aria-label={`Rebind ${action.label}`} title="Click, then press a key or mouse button" onClick={()=>setCapturing(action.id)}>{capturing===action.id?'Press a key or mouse button…':functionShortcutBinding(action.id, settings.bindings)||'Unassigned'}</button><button aria-label={`Clear shortcut ${action.label}`} onClick={()=>setSettings(s=>({...s,bindings:{...s.bindings,[action.id]:''}}))}>×</button></>}</div>,true);uiFunctions.find(f=>f.id===`shortcut:${action.id}`)!.category='Shortcuts';}
   for (const [id, key] of Object.entries(settings.bindings).filter(([id]) => id.startsWith("button:"))) {
     const label = settings.buttonLabels[id] ?? id.slice(7);
-    replaceFunction(`shortcut:${id}`, `${label} shortcut`, <div className="binding-row"><button onClick={() => window.dispatchEvent(new CustomEvent("omnium:invoke-button", { detail: id }))}>{label}</button><button aria-label={`Rebind ${label}`} onClick={() => { captureLabel.current = label; setCapturing(id); }}>{capturing === id ? "Press a key…" : key || "Unassigned"}</button><button aria-label={`Clear shortcut ${label}`} onClick={() => setSettings(s => ({ ...s, bindings: { ...s.bindings, [id]: "" } }))}>×</button></div>, true);
+    replaceFunction(`shortcut:${id}`, `${label} shortcut`, <div className="binding-row"><button onClick={() => window.dispatchEvent(new CustomEvent("omnium:invoke-button", { detail: id }))}>{label}</button>{(!!key||capturing===id)&&<><button aria-label={`Rebind ${label}`} onClick={() => { captureLabel.current = label; setCapturing(id); }}>{capturing === id ? "Press a key…" : key || "Unassigned"}</button><button aria-label={`Clear shortcut ${label}`} onClick={() => setSettings(s => ({ ...s, bindings: { ...s.bindings, [id]: "" } }))}>×</button></>}</div>, true);
     uiFunctions.find(f => f.id === `shortcut:${id}`)!.category = "Shortcuts";
   }
 
@@ -2221,7 +2228,10 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
         </EmbeddedGroup>
         </MasterController>
       </FloatingWindow>}
-      {settingsOpen && <FloatingWindow id="settings" title="Workspace settings" width={520} height={640} onClose={() => setSettingsOpen(false)}>
+      {settingsVisible && <FloatingWindow id="settings" title="Workspace settings" width={520} height={640} onClose={() => {
+        if (uiLayout.panels["@workspaceOnly"]) { updateUI(layout => ({...layout,windows:{...layout.windows,settings:{...layout.windows.settings,collapsed:true}}})); return false; }
+        setSettingsOpen(false);
+      }}>
         {!uiLayout.panels["@workspaceOnly"] && <UISection id="workspace-interface-tools" title="Workspace interface tools">
           {["ui:devMode", "shortcuts", "ui:arrange", "ui:createFrame", "ui:select", "ui:compact", "ui:align", "ui:undo", "ui:redo"].map(id => <FunctionControl key={id} id={id} mirror />)}
         </UISection>}
@@ -2240,14 +2250,14 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
           <ShortcutPicker id="workspace-shortcut-search" settings={settings} capturing={capturing} onCapture={(id,label) => { captureLabel.current=label; setCapturing(id); }} />
           {ACTIONS.some(action => keyConflict(settings.bindings, action.id, settings.bindings[action.id])) && <p role="alert">Some bindings conflict. Reassign or clear the duplicate keys.</p>}
           {Array.from(new Set(ACTIONS.map(action => action.category))).map(category => <UISection key={category} id={`shortcuts-${category}`} title={category} className="settings-category">
-            {ACTIONS.filter(action => action.category === category && !!functionShortcutBinding(action.id, settings.bindings)).map(action => <FunctionControl key={action.id} id={`shortcut:${action.id}`} />)}
+            {ACTIONS.filter(action => action.category === category).map(action => <FunctionControl key={action.id} id={`shortcut:${action.id}`} />)}
             <ShortcutGestures category={category} />
           </UISection>)}
-          {Object.keys(settings.bindings).some(id => id.startsWith("button:") && !!settings.bindings[id]) && <UISection id="workspace-button-shortcuts" title="Button shortcuts">
-            {Object.keys(settings.bindings).filter(id => id.startsWith("button:") && !!settings.bindings[id]).map(id => <FunctionControl key={id} id={`shortcut:${id}`} />)}
+          {Object.keys(settings.bindings).some(id => id.startsWith("button:")) && <UISection id="workspace-button-shortcuts" title="Button shortcuts">
+            {Object.keys(settings.bindings).filter(id => id.startsWith("button:")).map(id => <FunctionControl key={id} id={`shortcut:${id}`} />)}
           </UISection>}
         </UISection>
-        <div className="dialog-actions">{!uiLayout.panels["@workspaceOnly"] && <FunctionControl id="ui:reset" palette />}<button title="Reset mouse, keybindings and spatial preferences" onClick={() => { setSettings(old => ({ ...defaultSettings(), appearance: old.appearance })); setCapturing(null); }}>Reset controls</button><button onClick={() => { setSettingsOpen(false); setCapturing(null); }}>Close</button></div>
+        <div className="dialog-actions">{!uiLayout.panels["@workspaceOnly"] && <FunctionControl id="ui:reset" palette />}<button title="Reset mouse, keybindings and spatial preferences" onClick={() => { setSettings(old => ({ ...defaultSettings(), appearance: old.appearance })); setCapturing(null); }}>Reset controls</button><button onClick={() => { if (uiLayout.panels["@workspaceOnly"]) updateUI(layout => ({...layout,windows:{...layout.windows,settings:{...layout.windows.settings,collapsed:true}}})); else setSettingsOpen(false); setCapturing(null); }}>Close</button></div>
       </FloatingWindow>}
     </div><WindowSparkles source={renderSource} appearance={renderedAppearance} /></UIWorkspace></>
   );

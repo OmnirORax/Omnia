@@ -110,8 +110,9 @@ test('website default keeps one settings entry and embeds each live panel once',
  const {containers,residentKey}=await import('../src/ui/layout.ts');
  const layout=validateUILayout(JSON.parse(await readFile(new URL('../src/ui/default-template.json',import.meta.url),'utf8')).layout);
  assert.equal(layout.panels['@workspaceOnly'],true);
- assert.equal(layout.panels['@settings'],false);
- assert.equal(layout.items.settings.home,false);
+ assert.equal(layout.panels['@settings'],true);
+ assert.equal(layout.windows.settings.collapsed,true);
+ assert.equal(layout.items.settings,undefined);
  assert.equal(ownerOf(layout,'function:settings'),undefined);
  assert.equal(layout.windows.settings.layoutMode,'stacked');
  const panels=['menu:workspace','menu:file','menu:create','menu:view','menu:infinity','reuse','frames','hierarchy','inspector','relationships','scene'].map(id=>`window:panel:${id}`);
