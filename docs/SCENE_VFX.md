@@ -16,29 +16,29 @@ bands from both stereo channels, smoothsteps bounds, applies exponent and amount
 Amount is not clamped to one after multiplying. Browser spectrum mapping remains
 an approximation of Wallpaper Engine's undocumented FFT bands/scaling/smoothing.
 
-## Colour activation
+## Low and high tints
 
-Only **Single tint** and **All colours** remain. The user rejected Selected colours;
-its menu option, editors, actions, palette shader loop and runtime response helper
-are removed. Older selected mode maps to Single tint. Palette data/range remain
-inactive in saved JSON for rollback, not as a current rendering option.
+Both modes retain **Low tint (base)** as an adjustable resting level. **High tint
+type** chooses **Single colour** or **Omni (all colours)**. Omni changes the high
+response only; it does not replace both tints or force a white lower endpoint.
 
-**Single tint** directly calls the original source equation using Low tint and
-High tint. It is compiled separately from All; no palette loop, hue matching or
-All-colour calculation runs in its program. Audio processing, exponent 0.1,
-frequency selection, smoothing, frame pacing and bounce were not changed by this
-repair. A regression drives the actual renderer tick with changing stereo signals
-and verifies varying light uniforms at 0.1 while bounce remains active. This is not
-a claim of verified GPU appearance or measured recovery of the reported slowdown.
+Single colour uses the ordinary **High tint** picker and the direct source pulse
+equation. It compiles without palette or Omni calculations. Selected colours is
+removed; old Selected settings fall back to Single and retain their palette data
+only for rollback. Audio processing, exponent 0.1, timing, smoothing and bounce are
+unchanged. A local renderer-frame test verifies changing light uniforms at 0.1;
+actual GPU response and the reported slowdown remain user testing.
 
-**All colours** derives its response tint from each image region and uses an
-untinted original-image rest base. It ignores both Low/High tint pickers, which are
-hidden in this mode. **All-colour brightness** is a numeric strength control,
-independent of the tint colours. Existing explicit brightness survives; absent
-brightness uses the fixed default (56/255), not the selected tint's channels.
-Neutral image regions stay neutral. The saved Single tint colours remain intact
-when switching back. The source-region extension remains an approximation beyond
-the original supplied single-tint shader.
+Omni derives the high response colour from each source region. **Omni high tint
+strength** sets its value. Low tint remains visible and feeds the same source
+blend, establishing the base from which the light rises. Use a dim neutral Low
+when you want an untinted, darker rest image with room for the pulse to brighten.
+A coloured Low intentionally colours the resting image, as in the source effect.
+Neutral regions receive a neutral Omni response.
+
+The ordinary High tint is saved when switching to Omni; the numeric Omni strength
+is saved when returning to Single. Both modes share Low and the same audio curve.
+The optional Image tint filter remains separate and disabled by default.
 
 ## Optional Image tint
 
@@ -66,8 +66,8 @@ approximated as #ffe5e5 / #001438. Explicit older saved choices are preserved.
 | pulseAudioHigh | Audio upper threshold | 1; 0–1 |
 | pulseExponent | Audio exponent | 0.1; 0–4 |
 | pulseAmount | Audio amount | 2; 0–2 |
-| pulseColorMode | Colour activation | tint; tint / all |
-| pulseAllBrightness | All-colour brightness | fixed default 56/255; 0–1 |
+| pulseColorMode | High tint type | tint; Single colour / Omni |
+| pulseAllBrightness | Omni high tint strength | fixed default 56/255; 0–1 |
 | imageTintEnabled | Enable image tint | false |
 | imageTint | Image tint colour | #c20000 |
 | audioBounce | Audio Bounce | 1.3; 1–1.5 |
@@ -126,8 +126,7 @@ remain; actual rate depends on hardware. Waves/VHS are still approximate.
 
 Local regressions cover the direct source pulse and stereo analysis, changing
 light uniforms at exponent 0.1 with independent bounce, compile-variant switching,
-Selected retirement and preservation of inactive palette fields, independent
-All brightness, Image tint opt-in/serialization, and existing native output/lifecycle.
+Selected retirement and preservation of inactive palette fields, Omni High strength, Image tint opt-in/serialization, and existing native output/lifecycle.
 No fresh browser run was authorised. The user reported Single tint looked frozen
 and slowed after the shared palette change; this repair restores its direct shader
 path without changing audio.ts or response settings. GPU response/speed recovery

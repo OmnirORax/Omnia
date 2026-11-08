@@ -620,3 +620,17 @@ fields: 17 active and 18 archived. Older clients may discard the two new fields 
 still expose Selected mode; retained palette values allow rollback inspection.
 No image bytes, atlas/schema/backend, capture ownership or frame pacing changes.
 Frame-model regression confirms live uniforms at 0.1, not actual GPU appearance.
+
+
+### Omni as the high tint, with a shared low tint (2026-11-08)
+
+The user clarified that Omni belongs to the high tint while Low tint must remain
+an adjustable resting endpoint. UI labels now read High tint type → Single colour
+or Omni (all colours). The existing pulseColorMode tint/all values, pulseTintLow
+and pulseAllBrightness fields keep their identity. Omni now supplies pulseTintLow
+to the original source blend instead of fixed white. No new settings or default
+changes; 35 whitelisted fields remain. Ordinary High tint remains saved for Single
+colour, while pulseAllBrightness controls Omni High strength. Image tint stays a
+separate optional filter. Audio input, exponent/curve, smoothing, frame rate and
+Single-colour shader calculation are unchanged. Earlier clients may render Omni
+with their former fixed-white low semantics; no image/atlas/backend conversion.

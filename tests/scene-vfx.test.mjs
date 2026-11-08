@@ -197,7 +197,7 @@ test('screenshot defaults and remaining Single/All controls use shared settings/
 });
 
 
-test('Selected colours is retired; All brightness no longer depends on either tint',()=>{
+test('Selected colours is retired; Omni high strength is independent of picker brightness',()=>{
  const v=normalizeSceneVfx({pulseColorMode:'selected',pulseColors:'#0044ff,#ff8800',pulseColorWidth:45});
  assert.equal(v.pulseColorMode,'tint');assert.equal(v.pulseColors,'#0044ff,#ff8800');assert.equal(v.pulseColorWidth,45);
  const channels=SETTINGS_PROPERTY_ADAPTERS['scene.vfx'].channels;assert.equal(channels['scene.pulseColors'],undefined);assert.equal(channels['scene.pulseColorWidth'],undefined);
@@ -237,4 +237,17 @@ test('optional Image tint is saved independently of audio colours and disabled b
  const color=channels['scene.imageTint'].write(base,'#c20000'),enabled=channels['scene.imageTintEnabled'].write(color,true);
  assert.equal(enabled.sceneVfx.pulseTintLow,base.sceneVfx.pulseTintLow);assert.equal(enabled.sceneVfx.pulseExponent,base.sceneVfx.pulseExponent);
  assert.equal(normalizeSceneVfx(JSON.parse(serializeSceneVfx(enabled.sceneVfx))).imageTintEnabled,true);assert.equal(normalizeSceneVfx(JSON.parse(serializeSceneVfx(enabled.sceneVfx))).imageTint,'#c20000');assert.equal(normalizeSceneVfx({}).imageTintEnabled,false);
+});
+
+
+test('Omni retains the adjustable low tint and runs the same two-tint pulse equation',()=>{
+ const image=[.08,.15,.8],low=[.2,.2,.2],omni=sourcePulseTint(image).map(c=>c*.7);
+ const rest=referencePulseRGB(image,low,omni,0),middle=referencePulseRGB(image,low,omni,.5),peak=referencePulseRGB(image,low,omni,1);
+ assert.deepEqual(rest,image.map(v=>v*.2));assert.ok(rest[2]<middle[2]&&middle[2]<peak[2]);
+ assert.equal(middle[0],rest[0],'the Omni high tint remains blue in a blue region');
+ const otherLow=referencePulseRGB(image,[.5,.5,.5],omni,0);assert.ok(otherLow[2]>rest[2]);
+ const base=defaultSettings(),changed=SETTINGS_PROPERTY_ADAPTERS['scene.vfx'].channels['scene.pulseTintLow'].write(base,'#333333');
+ const selected=SETTINGS_PROPERTY_ADAPTERS['scene.vfx'].channels['scene.pulseColorMode'].write(changed,'all');
+ assert.equal(selected.sceneVfx.pulseTintLow,'#333333');assert.equal(selected.sceneVfx.pulseExponent,base.sceneVfx.pulseExponent);
+ assert.equal(normalizeSceneVfx(JSON.parse(serializeSceneVfx(selected.sceneVfx))).pulseTintLow,'#333333');
 });

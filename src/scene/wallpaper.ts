@@ -44,7 +44,7 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
         vec3 color = texture2D(image, clamp(coverUV + 0.5,vec2(.001),vec2(.999))).rgb;
         vec3 visible=displayColour(color);
         #if PULSE_ALL_COLORS
-        vec3 pulsed=referencePulse(visible,vec3(1.0),pulseSourceTint(visible)*pulseAllBrightness,light);
+        vec3 pulsed=referencePulse(visible,pulseTintLow,pulseSourceTint(visible)*pulseAllBrightness,light);
         #else
         vec3 pulsed=referencePulse(visible,pulseTintLow,pulseTintHigh,light);
         #endif
