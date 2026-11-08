@@ -1,15 +1,16 @@
-import {PULSE_CONTROLS} from './pulse.ts';
+import {PULSE_CONTROLS,OMNI_BRIGHTNESS_CONTROLS} from './pulse.ts';
 import {defineFunction} from '../properties/function.ts';
 import type {WorkspaceSettings} from '../workspaceActions';
 import {DEFAULT_SCENE_VFX, MIN_SCENE_VFX_FPS, MAX_SCENE_VFX_FPS, type SceneVfx} from './vfx.ts';
 const category={id:'scene',label:'Scene'};
 const write=(settings:WorkspaceSettings,key:keyof SceneVfx,value:string|number|boolean)=>({...settings,sceneVfx:{...settings.sceneVfx,[key]:value}});
 export default defineFunction<WorkspaceSettings>({
- id:'scene.vfx',label:'Scene effects',owner:'settings',group:[category],controls:['scene.vfx.imageTintEnabled','scene.vfx.imageTint','scene.vfx.pulseAllBrightness','scene.vfx.pulseColorMode','scene.vfx.pulseTintLow','scene.vfx.pulseTintHigh',...PULSE_CONTROLS.map(c=>`scene.vfx.${c.key}`),'scene.vfx.bounce','scene.vfx.waves','scene.vfx.distortion','scene.vfx.glitching','scene.vfx.maxFps'],inputs:{
+ id:'scene.vfx',label:'Scene effects',owner:'settings',group:[category],controls:['scene.vfx.imageTintEnabled','scene.vfx.imageTint',...OMNI_BRIGHTNESS_CONTROLS.map(c=>`scene.vfx.${c.key}`),'scene.vfx.pulseColorMode','scene.vfx.pulseTintLow','scene.vfx.pulseTintHigh',...PULSE_CONTROLS.map(c=>`scene.vfx.${c.key}`),'scene.vfx.bounce','scene.vfx.waves','scene.vfx.distortion','scene.vfx.glitching','scene.vfx.maxFps'],inputs:{
  'scene.imageTintEnabled':{definition:{id:'scene.imageTintEnabled',label:'Enable image tint',kind:'toggle',initial:false,category},read:s=>s.sceneVfx.imageTintEnabled,write:(s,v)=>write(s,'imageTintEnabled',v)},
  'scene.imageTint':{definition:{id:'scene.imageTint',label:'Image tint colour',kind:'color',channelOf:'color',initial:DEFAULT_SCENE_VFX.imageTint,category},read:s=>s.sceneVfx.imageTint,write:(s,v)=>write(s,'imageTint',v)},
  'scene.pulseColorMode':{definition:{id:'scene.pulseColorMode',label:'High tint type',kind:'select',initial:'tint',options:[{id:'tint',label:'Single colour'},{id:'all',label:'Omni (all colours)'}],category},read:s=>s.sceneVfx.pulseColorMode,write:(s,v)=>write(s,'pulseColorMode',v)},
- 'scene.pulseAllBrightness':{definition:{id:'scene.pulseAllBrightness',label:'Omni high tint strength',kind:'number',min:0,max:1,step:.01,initial:DEFAULT_SCENE_VFX.pulseAllBrightness,category},read:s=>s.sceneVfx.pulseAllBrightness,write:(s,v)=>write(s,'pulseAllBrightness',v)},
+ ...Object.fromEntries(OMNI_BRIGHTNESS_CONTROLS.map(({key,label,initial,min,max,step})=>[`scene.${key}`,{
+ definition:{id:`scene.${key}`,label,kind:'number' as const,initial,min,max,step,category},read:(s:WorkspaceSettings)=>s.sceneVfx[key],write:(s:WorkspaceSettings,v:string|number|boolean)=>write(s,key,v)}])),
  ...Object.fromEntries(['pulseTintLow','pulseTintHigh'].map(key=>[`scene.${key}`,{
  definition:{id:`scene.${key}`,label:key==='pulseTintLow'?'Low tint':'High tint',kind:'color' as const,channelOf:'color',initial:DEFAULT_SCENE_VFX[key as 'pulseTintLow'|'pulseTintHigh'],category},read:(s:WorkspaceSettings)=>s.sceneVfx[key as 'pulseTintLow'|'pulseTintHigh'],write:(s:WorkspaceSettings,v:string|number|boolean)=>write(s,key as 'pulseTintLow'|'pulseTintHigh',v)}])),
  ...Object.fromEntries(PULSE_CONTROLS.map(({key,label,initial,min,max,step,integer})=>[`scene.${key}`,{

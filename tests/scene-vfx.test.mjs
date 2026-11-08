@@ -1,11 +1,11 @@
-import {PULSE_CONTROLS,referencePulse,referencePulseRGB,pulsePalette,sourcePulseTint} from '../src/scene/pulse.ts';
+import {PULSE_CONTROLS,referencePulse,referencePulseRGB,pulsePalette,OMNI_BRIGHTNESS_CONTROLS,omniBrightness} from '../src/scene/pulse.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {RETIRED_LIGHT_CONTROLS,DEFAULT_SCENE_VFX,normalizeSceneVfx,serializeSceneVfx,smoothAudio,audioScale,normalizeAudioLevel,nextVfxDeadline,SCENE_VFX_FPS} from '../src/scene/vfx.ts';
 import {defaultSettings,normalizeSettings} from '../src/workspaceActions.ts';
 import {SETTINGS_PROPERTY_ADAPTERS} from '../src/properties/settingsAdapter.ts';
 test('scene effects serialize base controls plus requested light tuning, excluding session internals',()=>{
- const keys=['audioBounce','audioLight','distortion','glitching','maxFps','waves','lightAllColors','lightModel','pulseTintLow','pulseTintHigh','pulseColorMode','pulseColors','pulseColorWidth','pulseAllBrightness','imageTintEnabled','imageTint',...PULSE_CONTROLS.map(c=>c.key),...RETIRED_LIGHT_CONTROLS.map(c=>c.key)].sort();
+ const keys=['audioBounce','audioLight','distortion','glitching','maxFps','waves','lightAllColors','lightModel','pulseTintLow','pulseTintHigh','pulseColorMode','pulseColors','pulseColorWidth','pulseAllBrightness','imageTintEnabled','imageTint',...PULSE_CONTROLS.map(c=>c.key),...OMNI_BRIGHTNESS_CONTROLS.map(c=>c.key),...RETIRED_LIGHT_CONTROLS.map(c=>c.key)].sort();
  assert.deepEqual(Object.keys(JSON.parse(serializeSceneVfx({audioLight:'#aa3300',audioBounce:1.12,waves:true,distortion:.4,glitching:.3,frequency:99,source:'private',particles:true}))).sort(),keys);
  assert.deepEqual(normalizeSceneVfx(undefined),{...DEFAULT_SCENE_VFX,audioLight:'#aa3300',audioBounce:1.3,waves:true,distortion:.4,glitching:.3,maxFps:120});
  assert.deepEqual(defaultSettings().sceneVfx,DEFAULT_SCENE_VFX);
@@ -186,7 +186,7 @@ test('native wallpaper composition restores visibility and shader inputs after r
 test('screenshot defaults and remaining Single/All controls use shared settings/history serialization',()=>{
  const v=normalizeSceneVfx(undefined);assert.equal(v.pulseFrequencyMin,14);assert.equal(v.pulseFrequencyMax,15);assert.equal(v.pulseAudioLow,.01);assert.equal(v.pulseAudioHigh,1);assert.equal(v.pulseExponent,.1);assert.equal(v.pulseAmount,2);assert.equal(v.audioBounce,1.3);
  const channels=SETTINGS_PROPERTY_ADAPTERS['scene.vfx'].channels;
- for(const [key,value]of [['pulseColorMode','all'],['pulseAllBrightness',.4]]){
+ for(const [key,value]of [['pulseColorMode','all'],['pulseOmniLowBrightness',.2],['pulseOmniHighBrightness',1.8]]){
   const settings=defaultSettings(),changed=channels[`scene.${key}`].write(settings,value);
   assert.equal(changed.sceneVfx[key],value);assert.equal(changed.appearance,settings.appearance);
   assert.equal(normalizeSceneVfx(JSON.parse(serializeSceneVfx(changed.sceneVfx)))[key],value);
@@ -197,14 +197,13 @@ test('screenshot defaults and remaining Single/All controls use shared settings/
 });
 
 
-test('Selected colours is retired; Omni high strength is independent of picker brightness',()=>{
- const v=normalizeSceneVfx({pulseColorMode:'selected',pulseColors:'#0044ff,#ff8800',pulseColorWidth:45});
+test('Selected colours and former Omni strength remain archived without active controls',()=>{
+ const v=normalizeSceneVfx({pulseColorMode:'selected',pulseColors:'#0044ff,#ff8800',pulseColorWidth:45,pulseAllBrightness:.4});
  assert.equal(v.pulseColorMode,'tint');assert.equal(v.pulseColors,'#0044ff,#ff8800');assert.equal(v.pulseColorWidth,45);
- const channels=SETTINGS_PROPERTY_ADAPTERS['scene.vfx'].channels;assert.equal(channels['scene.pulseColors'],undefined);assert.equal(channels['scene.pulseColorWidth'],undefined);
- assert.equal(normalizeSceneVfx({pulseTintLow:'#ff0000',pulseTintHigh:'#000000'}).pulseAllBrightness,DEFAULT_SCENE_VFX.pulseAllBrightness);
- assert.equal(normalizeSceneVfx({pulseAllBrightness:0}).pulseAllBrightness,0);
- const blue=[.08,.15,.8],tint=sourcePulseTint(blue).map(c=>c*.3),response=referencePulseRGB(blue,[1,1,1],tint,1.2);
- assert.equal(response[0],blue[0]);assert.ok(response[2]>blue[2]);assert.deepEqual(sourcePulseTint([.4,.4,.4]),[1,1,1]);
+ assert.equal(JSON.parse(serializeSceneVfx(v)).pulseAllBrightness,.4);
+ const channels=SETTINGS_PROPERTY_ADAPTERS['scene.vfx'].channels;
+ for(const key of ['pulseColors','pulseColorWidth','pulseAllBrightness'])assert.equal(channels[`scene.${key}`],undefined);
+ assert.equal(v.pulseOmniLowBrightness,.5);assert.equal(v.pulseOmniHighBrightness,1.5);
 });
 
 
@@ -226,7 +225,7 @@ test('Single tint ticks remain live at exponent 0.1 while bounce works; colour v
   }
   for(let i=1;i<5;i++)assert.ok(values[i]>values[i-1],'light must follow changing signal at 0.1 without retuning');assert.equal(values[5],0);assert.ok(u.bounce.value>1,'bounce can remain active while light returns to zero');
   assert.equal(material.defines.PULSE_ALL_COLORS,0);assert.equal(material.defines.IMAGE_TINT,0);
-  paper.configure({...settings,pulseColorMode:'all',pulseTintLow:'#ff0000'});assert.equal(material.defines.PULSE_ALL_COLORS,1);assert.equal(material.defines.IMAGE_TINT,0);
+  paper.configure({...settings,pulseColorMode:'all',pulseOmniLowBrightness:.2,pulseOmniHighBrightness:1.8});assert.equal(u.pulseOmniLowBrightness.value,.2);assert.equal(u.pulseOmniHighBrightness.value,1.8);assert.equal(material.defines.PULSE_ALL_COLORS,1);assert.equal(material.defines.IMAGE_TINT,0);
   paper.configure({...settings,imageTintEnabled:true,imageTint:'#c20000'});assert.equal(material.defines.PULSE_ALL_COLORS,0);assert.equal(material.defines.IMAGE_TINT,1);
   assert.equal(settings.pulseExponent,.1);assert.equal(settings.maxFps,DEFAULT_SCENE_VFX.maxFps);
  }finally{paper.dispose();T.TextureLoader.prototype.loadAsync=prior.load;globalThis.window=prior.window;globalThis.document=prior.document;globalThis.AudioContext=prior.AudioContext;globalThis.requestAnimationFrame=prior.raf;globalThis.cancelAnimationFrame=prior.cancel;}
@@ -240,14 +239,19 @@ test('optional Image tint is saved independently of audio colours and disabled b
 });
 
 
-test('Omni retains the adjustable low tint and runs the same two-tint pulse equation',()=>{
- const image=[.08,.15,.8],low=[.2,.2,.2],omni=sourcePulseTint(image).map(c=>c*.7);
- const rest=referencePulseRGB(image,low,omni,0),middle=referencePulseRGB(image,low,omni,.5),peak=referencePulseRGB(image,low,omni,1);
- assert.deepEqual(rest,image.map(v=>v*.2));assert.ok(rest[2]<middle[2]&&middle[2]<peak[2]);
- assert.equal(middle[0],rest[0],'the Omni high tint remains blue in a blue region');
- const otherLow=referencePulseRGB(image,[.5,.5,.5],omni,0);assert.ok(otherLow[2]>rest[2]);
- const base=defaultSettings(),changed=SETTINGS_PROPERTY_ADAPTERS['scene.vfx'].channels['scene.pulseTintLow'].write(base,'#333333');
- const selected=SETTINGS_PROPERTY_ADAPTERS['scene.vfx'].channels['scene.pulseColorMode'].write(changed,'all');
- assert.equal(selected.sceneVfx.pulseTintLow,'#333333');assert.equal(selected.sceneVfx.pulseExponent,base.sceneVfx.pulseExponent);
- assert.equal(normalizeSceneVfx(JSON.parse(serializeSceneVfx(selected.sceneVfx))).pulseTintLow,'#333333');
+test('Omni brightness endpoints scale intensity independently, preserve chroma and allow source pulse overdrive',()=>{
+ assert.equal(omniBrightness(.2,1.4,0),.2);assert.ok(Math.abs(omniBrightness(.2,1.4,.5)-.8)<1e-12);
+ assert.equal(omniBrightness(.2,1.4,1),1.4);assert.ok(Math.abs(omniBrightness(.2,1.4,2)-2.6)<1e-12);
+ assert.equal(omniBrightness(1,0,2),0);assert.equal(omniBrightness(.7,.7,2),.7);
+ for(const image of [[.02,.1,.3],[.3,.1,.02],[.2,.2,.2]]){
+  const gain=omniBrightness(.2,1.4,.5),scaled=image.map(v=>v*gain);
+  for(let i=0;i<3;i++)assert.ok(Math.abs(scaled[i]/image[i]-gain)<1e-12);
+ }
+ const v=normalizeSceneVfx({pulseOmniLowBrightness:0,pulseOmniHighBrightness:99});
+ assert.equal(v.pulseOmniLowBrightness,0);assert.equal(v.pulseOmniHighBrightness,4);
+ const base=defaultSettings(),channels=SETTINGS_PROPERTY_ADAPTERS['scene.vfx'].channels;
+ const changed=channels['scene.pulseOmniHighBrightness'].write(channels['scene.pulseOmniLowBrightness'].write(base,.3),1.9);
+ assert.equal(changed.sceneVfx.pulseTintLow,base.sceneVfx.pulseTintLow);assert.equal(changed.sceneVfx.pulseTintHigh,base.sceneVfx.pulseTintHigh);
+ for(const c of PULSE_CONTROLS)assert.equal(changed.sceneVfx[c.key],base.sceneVfx[c.key]);
+ assert.equal(normalizeSceneVfx(JSON.parse(serializeSceneVfx(changed.sceneVfx))).pulseOmniHighBrightness,1.9);
 });

@@ -634,3 +634,18 @@ colour, while pulseAllBrightness controls Omni High strength. Image tint stays a
 separate optional filter. Audio input, exponent/curve, smoothing, frame rate and
 Single-colour shader calculation are unchanged. Earlier clients may render Omni
 with their former fixed-white low semantics; no image/atlas/backend conversion.
+
+
+### Independent Omni exposure endpoints (2026-11-08)
+
+User requested two brightness sliders rather than chroma strength. The existing
+sceneVfx owner adds pulseOmniLowBrightness (0–2, default 0.5) and
+pulseOmniHighBrightness (0–4, default 1.5). Omni interpolates scalar linear RGB
+exposure with the unchanged audio pulse, including amount overdrive above one.
+Single Low/High tint and the audio pipeline retain their meaning. Old
+pulseAllBrightness remains archived and serialized, with no active setter or
+renderer use; it is not converted heuristically into exposure. Missing new fields
+receive their defaults. Explicit zeros survive. Total whitelist: 37 fields,
+18 active and 19 archived. Older clients can discard the new fields on resave and
+render their former Omni behavior; retain a current export before rollback.
+Image bytes, assignments, backend formats and audio-session ownership are unchanged.

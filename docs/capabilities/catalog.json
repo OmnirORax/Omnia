@@ -2079,15 +2079,15 @@
       "id": "scene.vfx",
       "title": "Source-based Wallpaper Engine pulse and scene audio effects",
       "where": "Scene → Scene effects. Import/apply an image through the existing Scene image workflow.",
-      "behavior": "Both light modes now keep two adjustable tints. Low tint (base) defines the resting image in both. High tint type chooses Single colour (ordinary High tint picker) or Omni (all colours), deriving the reactive high colour from each source region with numeric Omni high tint strength. Both use the same supplied source pulse equation. No fixed-white lower endpoint; no audio/exponent/timing change. Selected remains removed, Single retains its direct compiled path, and whole-image Image tint stays a separate optional filter.",
+      "behavior": "Single colour retains the original Low/High tint blend. High tint type → Omni (all colours) exposes Base brightness and Flash brightness: independent scalar linear RGB exposure endpoints that retain source colours before display clipping. Defaults 0.5/1.5, bounds 0–2/0–4. Audio processing, exponent 0.1, timing and bounce are unchanged. Selected remains removed; optional Image tint stays separate.",
       "steps": [
         {
-          "do": "Open Scene effects → Low tint (base); choose a dim neutral value. Under High tint type choose Omni (all colours), then set Omni high tint strength and play audio.",
-          "expect": "Low tint sets the resting/base level; the coloured Omni High contribution follows audio through the original two-tint equation. Both low and high levels remain adjustable. Choosing a coloured Low intentionally colours the resting image."
+          "do": "Open Scene → Scene effects → Wallpaper Engine pulse → High tint type → Omni (all colours). Set Base brightness and Flash brightness, then play audio.",
+          "expect": "Base controls pulse-zero intensity; Flash controls pulse-one intensity. Zero is black, one original intensity. Audio amount above one overdrives beyond Flash; high gains can clip. Equal sliders remain constant."
         },
         {
           "do": "Switch High tint type to Single colour, then back to Omni.",
-          "expect": "Single uses its saved ordinary High tint. Omni uses source-region colours and its saved numeric high strength. Shared Low tint is preserved; exponent, audio input, smoothing and frame rate do not change."
+          "expect": "Single restores saved Low/High tint pickers. Omni restores both saved brightness sliders. Audio input, exponent, smoothing and frame rate are unchanged."
         },
         {
           "do": "Open Scene effects. Choose High tint type → Single colour, retain exponent 0.1 and play the website audio.",
@@ -2099,7 +2099,7 @@
         },
         {
           "do": "Load prior Selected colours settings and inspect/export settings.",
-          "expect": "Mode falls back to Single; palette/range values remain inactive in JSON. Serializer preserves 35 whitelisted fields, including 18 archived preferences. No selected renderer/editor/actions remain."
+          "expect": "Mode falls back to Single; palette/range and former Omni strength remain archived in JSON. Serializer preserves 37 fields, including 19 archived preferences."
         },
         {
           "do": "Turn Waves off and set Distortion/Glitching to zero with no audio connected. Restore their defaults.",
@@ -2152,11 +2152,11 @@
         "scene.manual",
         "scene.api"
       ],
-      "status": "Shared Low tint and Omni High response implemented; visual acceptance pending",
+      "status": "Two Omni brightness sliders implemented; visual acceptance pending",
       "limits": "Selected colours is deliberately retired; old palette/range data stays archived only. Single/All and optional Image tint compile separately. Omni uses the adjustable shared Low tint and a source-coloured High tint with numeric strength; existing explicit brightness survives. Image tint is disabled by default and can intentionally recolour the full wallpaper. The reported Single freeze/slowdown is not visually verified repaired; local frame tests only prove changing uniforms at 0.1. Source FFT mapping remains approximate. Waves remains the rejected guessed deformation pending its actual shaders. No audio-input, exponent, smoothing or frame-pacing change was made. Existing native-resolution caps/capture-free file playback remain.",
       "verification": {
-        "browser": "No fresh browser run. The user rejected Selected and reported Single frozen/slow with unchanged settings; model/build checks do not establish GPU response or performance recovery. The new direct Single path and independent All/Image tint require visual verification.",
-        "automated": "Frame regression drives changing stereo signals through actual wallpaper ticks at exponent 0.1 and checks light changes while bounce remains active. Variant flags, Selected retirement/archived data, independent All brightness and separate Image tint shared setters/save round trips are checked. Source pulse, stereo, no-capture and native-output/lifecycle regressions remain. Two-tint Omni regression verifies low/rest and rising middle/peak outputs, neutral Low edits, and saved shared Low/Omni choices without changing the exponent."
+        "automated": "Model tests cover endpoint interpolation, overdrive, chroma ratios before clipping, bounds, zero values, shared settings roundtrip and renderer uniforms; full local checks required before delivery.",
+        "browser": "No new browser run; visual response and highlight clipping await user acceptance."
       }
     },
     {
