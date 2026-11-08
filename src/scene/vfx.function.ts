@@ -1,11 +1,12 @@
-import {PULSE_CONTROLS} from './pulse.ts';
+import {PULSE_CONTROLS,FLARE_CONTROLS} from './pulse.ts';
 import {defineFunction} from '../properties/function.ts';
 import type {WorkspaceSettings} from '../workspaceActions';
 import {DEFAULT_SCENE_VFX, MIN_SCENE_VFX_FPS, MAX_SCENE_VFX_FPS, type SceneVfx} from './vfx.ts';
 const category={id:'scene',label:'Scene'};
 const write=(settings:WorkspaceSettings,key:keyof SceneVfx,value:string|number|boolean)=>({...settings,sceneVfx:{...settings.sceneVfx,[key]:value}});
 export default defineFunction<WorkspaceSettings>({
- id:'scene.vfx',label:'Scene effects',owner:'settings',group:[category],controls:['scene.vfx.pulseRangeMode','scene.vfx.pulseSensitivity','scene.vfx.pulseDropContrast','scene.vfx.pulseOmniTint','scene.vfx.pulseOmniTintLow','scene.vfx.imageTintEnabled','scene.vfx.imageTint','scene.vfx.pulseColorMode','scene.vfx.pulseTintLow','scene.vfx.pulseTintHigh',...PULSE_CONTROLS.map(c=>`scene.vfx.${c.key}`),'scene.vfx.bounce','scene.vfx.waves','scene.vfx.distortion','scene.vfx.glitching','scene.vfx.maxFps'],inputs:{
+ id:'scene.vfx',label:'Scene effects',owner:'settings',group:[category],controls:[...FLARE_CONTROLS.map(c=>`scene.vfx.${c.key}`),'scene.vfx.pulseRangeMode','scene.vfx.pulseSensitivity','scene.vfx.pulseDropContrast','scene.vfx.pulseOmniTint','scene.vfx.pulseOmniTintLow','scene.vfx.imageTintEnabled','scene.vfx.imageTint','scene.vfx.pulseColorMode','scene.vfx.pulseTintLow','scene.vfx.pulseTintHigh',...PULSE_CONTROLS.map(c=>`scene.vfx.${c.key}`),'scene.vfx.bounce','scene.vfx.waves','scene.vfx.distortion','scene.vfx.glitching','scene.vfx.maxFps'],inputs:{
+ ...Object.fromEntries(FLARE_CONTROLS.map(({key,label,initial,min,max,step})=>[`scene.${key}`,{definition:{id:`scene.${key}`,label,kind:'number' as const,initial,min,max,step,category},read:(s:WorkspaceSettings)=>s.sceneVfx[key],write:(s:WorkspaceSettings,v:string|number|boolean)=>write(s,key,v)}])),
  'scene.pulseRangeMode':{definition:{id:'scene.pulseRangeMode',label:'Audio response',kind:'select',initial:DEFAULT_SCENE_VFX.pulseRangeMode,options:[{id:'auto',label:'Automatic · detailed'},{id:'manual',label:'Manual'}],category},read:s=>s.sceneVfx.pulseRangeMode,write:(s,v)=>write(s,'pulseRangeMode',v)},
  'scene.pulseDropContrast':{definition:{id:'scene.pulseDropContrast',label:'Drop contrast',kind:'number',initial:DEFAULT_SCENE_VFX.pulseDropContrast,min:1,max:4,step:.05,category},read:s=>s.sceneVfx.pulseDropContrast,write:(s,v)=>write(s,'pulseDropContrast',v)},
  'scene.pulseSensitivity':{definition:{id:'scene.pulseSensitivity',label:'Sensitivity',kind:'number',initial:DEFAULT_SCENE_VFX.pulseSensitivity,min:.25,max:8,step:.05,category},read:s=>s.sceneVfx.pulseSensitivity,write:(s,v)=>write(s,'pulseSensitivity',v)},

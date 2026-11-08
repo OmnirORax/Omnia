@@ -1,11 +1,11 @@
-import {PULSE_CONTROLS,referencePulse,referencePulseRGB,pulsePalette,sourcePulseTint,RETIRED_OMNI_BRIGHTNESS_CONTROLS,omniHighTintRGB,createAutomaticPulse} from '../src/scene/pulse.ts';
+import {PULSE_CONTROLS,FLARE_CONTROLS,referencePulse,referencePulseRGB,pulsePalette,sourcePulseTint,RETIRED_OMNI_BRIGHTNESS_CONTROLS,omniHighTintRGB,createAutomaticPulse} from '../src/scene/pulse.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {RETIRED_LIGHT_CONTROLS,DEFAULT_SCENE_VFX,normalizeSceneVfx,serializeSceneVfx,smoothAudio,followBass,createBassDynamics,audioScale,normalizeAudioLevel,nextVfxDeadline,SCENE_VFX_FPS} from '../src/scene/vfx.ts';
 import {defaultSettings,normalizeSettings} from '../src/workspaceActions.ts';
 import {SETTINGS_PROPERTY_ADAPTERS} from '../src/properties/settingsAdapter.ts';
 test('scene effects serialize base controls plus requested light tuning, excluding session internals',()=>{
- const keys=['pulseRangeMode','pulseSensitivity','pulseDropContrast','audioBounce','audioLight','distortion','glitching','maxFps','waves','lightAllColors','lightModel','pulseTintLow','pulseTintHigh','pulseOmniTint','pulseOmniTintLow','pulseColorMode','pulseColors','pulseColorWidth','pulseAllBrightness','imageTintEnabled','imageTint',...PULSE_CONTROLS.map(c=>c.key),...RETIRED_OMNI_BRIGHTNESS_CONTROLS.map(c=>c.key),...RETIRED_LIGHT_CONTROLS.map(c=>c.key)].sort();
+ const keys=['pulseRangeMode','pulseSensitivity','pulseDropContrast','audioBounce','audioLight','distortion','glitching','maxFps','waves','lightAllColors','lightModel','pulseTintLow','pulseTintHigh','pulseOmniTint','pulseOmniTintLow','pulseColorMode','pulseColors','pulseColorWidth','pulseAllBrightness','imageTintEnabled','imageTint',...PULSE_CONTROLS.map(c=>c.key),...FLARE_CONTROLS.map(c=>c.key),...RETIRED_OMNI_BRIGHTNESS_CONTROLS.map(c=>c.key),...RETIRED_LIGHT_CONTROLS.map(c=>c.key)].sort();
  assert.deepEqual(Object.keys(JSON.parse(serializeSceneVfx({audioLight:'#aa3300',audioBounce:1.12,waves:true,distortion:.4,glitching:.3,frequency:99,source:'private',particles:true}))).sort(),keys);
  assert.deepEqual(normalizeSceneVfx(undefined),{...DEFAULT_SCENE_VFX,audioLight:'#aa3300',audioBounce:1.3,waves:true,distortion:.4,glitching:.3,maxFps:120});
  assert.deepEqual(defaultSettings().sceneVfx,DEFAULT_SCENE_VFX);
@@ -322,7 +322,7 @@ test('live Automatic sampler shapes graded flares, returns to base, restores Man
  globalThis.AudioContext=Context;
  const media={paused:false,pause(){this.paused=true;},addEventListener(){},removeEventListener(){}};
  try{
-  await audio.connectSceneAudioElement(media);const settings={...DEFAULT_SCENE_VFX,pulseRangeMode:'auto',pulseSensitivity:8,pulseDropContrast:1,pulseAmount:1};
+  await audio.connectSceneAudioElement(media);const settings={...DEFAULT_SCENE_VFX,pulseRangeMode:'auto',pulseSensitivity:8,pulseDropContrast:1,pulseAmount:1,pulsePeakGain:1};
   const hit=(v)=>{const out=[];for(let i=0;i<24;i++){ctx.nodes[1].value=i<2?v:0;out.push(audio.sampleScenePulse(settings,1/120));}assert.equal(out[0],0);assert.ok(out.slice(14).every(v=>v===0));return Math.max(...out);};
   const peaks=[150,180,220,245].map(hit);for(let i=1;i<peaks.length;i++)assert.ok(peaks[i]>peaks[i-1]);assert.ok(peaks[1]>.05&&peaks[1]<.5);
   assert.equal(ctx.nodes[0].smoothingTimeConstant,.15);assert.equal(ctx.nodes[0].maxDecibels,0);assert.equal(ctx.nodes[1].fftSize,1024);assert.equal(ctx.nodes[1].smoothingTimeConstant,0);
@@ -339,7 +339,7 @@ test('live Automatic sampler shapes graded flares, returns to base, restores Man
 });
 
 
-function spectralFrame(p,b,sensitivity=8,contrast=1){const dt=1/120,m=p.spectrum(b,0,1,b.length,dt);return p.sample(m.level,dt,sensitivity,1,m.change,contrast);}
+function spectralFrame(p,b,sensitivity=8,contrast=1){const dt=1/120,m=p.spectrum(b,0,1,b.length,dt);return p.sample(m.level,dt,sensitivity,1,m.change,contrast,1);}
 test('dense changing frequencies cannot hold the light high or keep firing micro-flares',()=>{
  const p=createAutomaticPulse(),b=new Uint8Array(512),out=[];let seed=123;
  for(let t=0;t<600;t++){
@@ -351,7 +351,7 @@ test('dense changing frequencies cannot hold the light high or keep firing micro
 });
 
 
-function isolatedFlare(level,sensitivity=8,contrast=1){const p=createAutomaticPulse(),out=[];for(let i=0;i<24;i++)out.push(p.sample(i===0?level:0,1/120,sensitivity,1,i===0?level:0,contrast));return Math.max(...out);}
+function isolatedFlare(level,sensitivity=8,contrast=1){const p=createAutomaticPulse(),out=[];for(let i=0;i<24;i++)out.push(p.sample(i===0?level:0,1/120,sensitivity,1,i===0?level:0,contrast,1));return Math.max(...out);}
 test('Sensitivity changes event admission without turning admitted heights into binary peaks',()=>{
  const levels=[.002,.004,.008,.016,.032,.064],counts=[.25,.5,1,2,4,8].map(s=>levels.filter(a=>isolatedFlare(a,s)>0).length);
  assert.deepEqual(counts,[1,2,3,4,5,6]);
@@ -436,4 +436,42 @@ test('nearby spectral changes coalesce into one flare without extending its dead
  for(let i=0;i<24;i++){const flux=i===0?.02:i===2?.03:i===4?.025:i===6?.03:0;out.push(p.sample(.1,1/120,8,1,flux,1));}
  let runs=0;for(let i=0;i<out.length;i++)if(out[i]>0&&!(out[i-1]>0))runs++;
  assert.equal(runs,1);assert.ok(out.slice(12).every(v=>v===0));
+});
+
+
+test('flare gain boosts weak peaks without changing admission or core duration',()=>{
+ const trace=(gain)=>{const p=createAutomaticPulse(),out=[];for(let i=0;i<24;i++)out.push(p.sample(i===0?.05:0,1/120,8,1,i===0?.05:0,1,gain));return out;};
+ const low=trace(1),high=trace(4);assert.ok(Math.abs(Math.max(...high)-Math.max(...low)*2.5)<1e-9);assert.ok(high.slice(12).every(v=>v===0));
+ assert.deepEqual(low.map(v=>v>0),high.map(v=>v>0),'gain must not add more events or extend their deadlines');
+});
+
+test('spatial fields grow outward then contract through visible intermediate radii',()=>{
+ const p=createAutomaticPulse(),steps=[];let now=0;
+ for(const time of [0,.02,.04,.08,.12,.16]){p.sample(time===0?.4:0,time-now,8,1,time===0?.4:0,1,4);now=time;steps.push(p.fields(.15,1).map(f=>({...f})));}
+ const radius=steps.map(fs=>Math.max(...fs.map(f=>f.reach)));
+ assert.equal(radius[0],0);assert.ok(radius[1]>0&&radius[1]<radius[2]);assert.ok(radius[2]>radius[3]&&radius[3]>radius[4]&&radius[4]>0);assert.equal(radius[5],0);
+ p.reset();assert.ok(p.fields(.15,1).every(f=>f.energy===0&&f.reach===0));
+});
+
+test('Flare light controls share normal settings setters, bounds and roundtrip',()=>{
+ const channels=SETTINGS_PROPERTY_ADAPTERS['scene.vfx'].channels;
+ for(const c of FLARE_CONTROLS){const base=defaultSettings(),value=c.min+(c.max-c.min)*.5,changed=channels[`scene.${c.key}`].write(base,value);assert.equal(changed.sceneVfx[c.key],value);assert.equal(normalizeSceneVfx(JSON.parse(serializeSceneVfx(changed.sceneVfx)))[c.key],value);assert.equal(normalizeSceneVfx({[c.key]:-99})[c.key],c.min);}
+});
+
+
+test('wallpaper glow caches bounded Gaussian fields and restores the renderer target on failure',async()=>{
+ const T=await import('three'),{createWallpaperGlow}=await import('../src/scene/wallpaperGlow.ts');
+ const canvas=new EventTarget(),previous={name:'graph'},sizes=[];let target=previous,calls=0,fail=false;
+ const renderer={domElement:canvas,extensions:{has:()=>true},getRenderTarget:()=>target,setRenderTarget(t){target=t;if(t&&typeof t.width==='number')sizes.push([t.width,t.height]);},render(){calls++;if(fail)throw Error('GPU unavailable');}};
+ const glow=createWallpaperGlow(renderer),image=new T.Texture({width:2560,height:1440}),fields=[{reach:1,energy:1}];
+ try{
+  glow.configure(DEFAULT_SCENE_VFX);glow.setImage(image);glow.configure(DEFAULT_SCENE_VFX);
+  assert.equal(glow.render(fields,true),true);assert.equal(target,previous);assert.equal(calls,12,'one extraction, ten cached Gaussian passes, one animated field');
+  assert.ok(sizes.every(([w,h])=>w<=512&&h<=512));
+  calls=0;assert.equal(glow.render(fields,true),true);assert.equal(calls,1,'changing radius must not rebuild the source pyramid');
+  glow.configure({...DEFAULT_SCENE_VFX,pulseTintHigh:'#ff8800'});fail=true;assert.equal(glow.render(fields,true),false);assert.equal(target,previous);
+  calls=0;assert.equal(glow.render(fields,true),false);assert.equal(calls,0,'a failed target must not retry every frame');
+  fail=false;canvas.dispatchEvent(new Event('webglcontextrestored'));assert.equal(glow.render(fields,true),true);assert.equal(target,previous);
+  glow.setImage(null);assert.equal(glow.render(fields,true),false);
+ }finally{glow.dispose();image.dispose();}
 });

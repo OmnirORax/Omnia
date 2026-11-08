@@ -11,7 +11,7 @@ high = image * tintHigh;
 result = max(vec3(0), mix(low, min(low + high, vec3(1)), pulse));
 ```
 
-There is no invented saturation/halo operator. Manual audio averages selected
+The source core blend is retained; Automatic adds a separate spatial glow described below. Manual audio averages selected
 bands from both stereo channels, smoothsteps bounds, applies exponent and amount.
 Amount is not clamped to one after multiplying. Browser spectrum mapping remains
 an approximation of Wallpaper Engine's undocumented FFT bands/scaling/smoothing.
@@ -67,8 +67,7 @@ late tail. Zero pulse means the chosen Low tint baseline, not a black wallpaper.
 - **Sensitivity** controls attack prominence above the learned background. It
   changes admission, not the duration or brightness of every accepted event.
 - **Drop contrast** shapes the height of the event. At 1, its calibrated amplitude
-  is linear, preserving intermediate strengths instead of pushing most of them
-  close to the maximum. Higher settings favour stronger drops.
+  follows the calibrated, gain-adjusted amplitude. Higher settings favour stronger drops.
 - **Flash amount** scales the resulting envelope as before.
 
 Peak calibration has a 0.25 reference floor, an eight-second reference decay and
@@ -82,8 +81,8 @@ pulse progress so rendering/config restarts cannot stretch the tail.
 
 Automatic retains its unsmoothed 1024-sample stereo FFT (about 21 ms at 48 kHz)
 and −100..0 dB range. Manual retains its original 2048-sample band/threshold/
-exponent path. The existing tint/spatial rendering is unchanged: this flare is a
-temporal envelope. Frame/display rate, FFT windowing and coalescing limit very
+exponent path. Core tint uses that temporal envelope; the added spatial field has
+its own travel time. Frame/display rate, FFT windowing and coalescing limit very
 rapid event separation; new events within one flare can be grouped deliberately.
 
 **Light response** shows actual shader pulse input (0–2), sampled for display at
@@ -92,6 +91,36 @@ Manual-only parameters. Audio amount remains shared across modes. Shared setting
 history and exports own the existing mode/sensitivity/contrast/amount fields.
 Requested RGB/default values and the current bass-bounce behavior are unchanged.
 Shared sliders apply on release; committing an edit no longer restarts a flare.
+
+## Expanding and contracting flare light
+
+In **Automatic · detailed → Flare light**, adjust:
+
+- **Flare gain** (4; 0.25–16): raises admitted peaks with a soft shoulder before
+  Drop contrast. Gain 4 takes a 20% peak to 50%; gain 1 restores previous heights.
+  It does not change attack admission or core timing.
+- **Glow strength** (6; 0–16): scales the added emission; zero disables it.
+- **Glow reach (%)** (4; 0–12): maximum spatial reach relative to image width/height's
+  longer dimension. Stronger events spread farther; zero disables it.
+- **Glow travel (ms)** (100; 75–500): outward and inward travel independent of the
+  unchanged 75 ms core tint envelope. Longer travel can intentionally overlap hits.
+
+Existing bright local features in the image source the light automatically; there
+is no single-point picker. The field grows through intermediate radii, then shrinks
+back toward those features while its energy falls. It uses the selected Single
+High tint or source-hue Omni High endpoint. Low tint remains the resting baseline.
+The requested RGB, Sensitivity 8, Drop contrast 1 and Flash amount 1.7 remain.
+
+A cached, separable Gaussian emission pyramid has a maximum edge of 512 pixels.
+Only the emission is blurred; the base image stays native and sharp. Tint/image
+changes rebuild the cache; each active frame projects at most eight transient
+flare fields, combining overlaps by maximum rather than accumulating persistent
+haze. Native wallpaper composition adds the field before graph/UI compositing.
+Half-float rendering requires EXT_color_buffer_float; unsupported/failed targets
+fall back to core tint. Context restoration retries the cache. Manual and reduced
+motion do not use spatial glow. Actual performance and music appearance need user
+acceptance; this is not a claim of Wallpaper Engine parity or guaranteed 120 FPS.
+Shared controls commit on release and inherit history, persistence and exports.
 
 ## Continuous bass bounce with less delay
 
@@ -142,6 +171,10 @@ ignored, as above. Existing explicit saved values are retained.
 | pulseRangeMode | Audio response | auto for new settings; manual for existing settings lacking mode |
 | pulseSensitivity | Sensitivity (Automatic) | 8; 0.25–8 |
 | pulseDropContrast | Drop contrast (Automatic) | 1; 1–4 |
+| pulsePeakGain | Flare gain | 4; 0.25–16 |
+| pulseGlowStrength | Glow strength | 6; 0–16 |
+| pulseGlowReach | Glow reach (%) | 4; 0–12 |
+| pulseGlowTravel | Glow travel (ms) | 100; 75–500 |
 | pulseTintLow | Low tint | #faf0f0 |
 | pulseTintHigh | High tint / Colour to add | #3d0000 |
 | pulseFrequencyMin | First frequency band | 14; integer 0–15 |
@@ -169,7 +202,7 @@ tint white, Bounce 1 and Waves/Distortion/Glitching off for original-file compar
 
 ## Compatibility and retirement
 
-The current serializer whitelists 42 fields: 21 active and 21 archived.
+The current serializer whitelists 46 fields: 25 active and 21 archived.
 Selected mode maps to Single; its palette/range remain archived. The earlier
 approximation fields and three superseded Omni sliders remain exportable without
 active controls/render paths. Existing Low/High tint choices are preserved.
@@ -185,6 +218,10 @@ low/high values remain untouched. The former exposure multipliers are retained b
 requested the High tint blend instead. This is an intentional rendering change,
 not a claim of equivalent output to the abandoned exposure model. Normalization
 is idempotent; no eager storage writes are added.
+
+Missing Flare light fields use the new defaults; explicit values are preserved and
+bounded through the shared normalizer. Older clients discard these four fields
+and render their previous response; export before rollback.
 
 Older clients can drop the new picker field and render their old Omni semantics
 when resaving. Retain a current export before rollback. No image bytes,
@@ -208,7 +245,7 @@ is not a claim of bit-identical Wallpaper Engine audio processing.
 
 The native wallpaper composition remains: 2560×1440/1600 at DPR 1 gets native
 output, bounded at 8,294,400 pixels / DPR 2. Graph targets stay at 1.5 million pixels;
-graph AA/glow does not filter the wallpaper. There is no palette detection or synthetic halo work. Single/All and optional
+graph AA/glow does not filter the wallpaper. The new wallpaper-only Gaussian emission cache does not filter the base image. Single/All and optional
 Image tint are separate compiled shader variants; changing ordinary colour/response
 values does not recompile their variant. Hidden/reduced-motion suspension and saved FPS cap
 remain; actual rate depends on hardware. Waves/VHS are still approximate.
@@ -227,7 +264,12 @@ Live sampler checks cover the same dense-background case, Manual restoration,
 pause/resume and audio-clock progress even when render dt is reset. Renderer
 checks ensure colour edits preserve a live pulse. Existing colour/serialization,
 source blend, defaults, bass-bounce/noise release and native-output cases remain.
-No new browser run was authorised. Real flare appearance, musical event grouping,
+An explicitly approved synthetic bright-point GPU check passed: Single/Omni shader
+compilation, default spatial expansion/contraction, unchanged one-pixel base detail
+and exact rest-frame return. Kernel RMS radius grew 3.9 → 38.8 pixels and shrank
+back to 3.9 at constant energy; the integrated tail contracted to 8.9 pixels before
+returning to baseline. See tests/scene-spatial-flare.browser.mjs. These are isolated
+synthetic measurements, not real-music acceptance. Real flare appearance, musical event grouping,
 midrange richness, perceived timing and clipping need user acceptance.
 
 ## Waves fidelity limit

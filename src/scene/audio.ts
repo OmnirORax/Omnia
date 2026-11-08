@@ -6,6 +6,7 @@ let context:AudioContext|null=null,analyser:AnalyserNode|null=null,source:AudioN
 let splitter:ChannelSplitterNode|null=null,stereo:AnalyserNode[]=[];
 const automaticPulse=createAutomaticPulse();let fftMode='',pulseResponse=0,pulseSampling=false;let lastPulseTime:number|null=null;
 export const scenePulseResponse=()=>pulseResponse;
+export const sceneFlareField=(settings:SceneVfx)=>automaticPulse.fields(settings.pulseGlowTravel/1000,settings.pulseAmount);
 const spectrumBytes=[new Uint8Array(1024),new Uint8Array(1024)],bands=new Float32Array(32);
 let activeMedia:HTMLMediaElement|null=null;
 let cleanupMedia:(()=>void)|undefined;
@@ -60,7 +61,7 @@ export function sampleScenePulse(settings:SceneVfx,seconds=1/60){
  pulseSampling=true;
  // Colour/config edits may restart rendering; audio time must not restart the flare.
  if(Number.isFinite(context.currentTime)){
-  const now=context.currentTime;seconds=lastPulseTime===null?0:Math.max(0,Math.min(.1,now-lastPulseTime));lastPulseTime=now;
+  const now=context.currentTime;seconds=lastPulseTime===null?0:Math.max(0,now-lastPulseTime);lastPulseTime=now;
  }
  const auto=settings.pulseRangeMode==='auto';
  if(fftMode!==settings.pulseRangeMode){
@@ -85,7 +86,7 @@ export function sampleScenePulse(settings:SceneVfx,seconds=1/60){
    let value=0;for(let i=low;i<high;i++)value+=buffer[i]/255;bands[channel*16+band]=value/(high-low);
   }
  }
- pulseResponse=auto?automaticPulse.sample(peak,seconds,settings.pulseSensitivity,settings.pulseAmount,onset,settings.pulseDropContrast):referencePulse(bands,settings.pulseFrequencyMin,settings.pulseFrequencyMax,settings.pulseAudioLow,settings.pulseAudioHigh,settings.pulseExponent,settings.pulseAmount);
+ pulseResponse=auto?automaticPulse.sample(peak,seconds,settings.pulseSensitivity,settings.pulseAmount,onset,settings.pulseDropContrast,settings.pulsePeakGain):referencePulse(bands,settings.pulseFrequencyMin,settings.pulseFrequencyMax,settings.pulseAudioLow,settings.pulseAudioHigh,settings.pulseExponent,settings.pulseAmount);
  return pulseResponse;
 }
 

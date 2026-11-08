@@ -835,3 +835,24 @@ migrations: 42 fields, 21 active and 21 archived. Manual, bass bounce, requested
 RGB/defaults and spatial tint blending remain. Older previews render the former
 curve; exports retain their normal compatibility limits. No assets, identities,
 backend formats, sources or permissions change.
+
+
+### Spatial flare optics and peak gain (2026-11-08)
+
+SceneVfx's shared normalizer, properties and settings/history/export owner add
+pulsePeakGain (4, .25–16), pulseGlowStrength (6, 0–16), pulseGlowReach (4 percent,
+0–12) and pulseGlowTravel (100 ms, 75–500). Absence uses these defaults; explicit
+finite values survive within bounds. The whitelist is now 46 fields: 25 active,
+21 archived. No eager storage conversion or write is added. Older clients discard
+these additive fields and render the former response; retain a current export
+before rollback. Explicit RGB/Sensitivity/Drop contrast/Flash presets stay intact.
+Gain intentionally raises admitted Automatic peaks with a soft shoulder (gain 1
+restores previous heights), without changing admission or core duration. Manual
+and bass bounce remain unchanged. Runtime trails and Gaussian targets are transient,
+not a second persistence owner. pulse.ts owns timing/projected fields;
+wallpaperGlow.ts owns cached emission optics; wallpaper.ts integrates them without
+resampling the native base image. No atlas identities, media bytes, backend schema,
+source permissions or asset lifecycle changes. Model tests cover absent/default
+and explicit bounded roundtrips, shared setters, timing and cache recovery. The
+approved synthetic GPU check covers expansion/contraction and native rest detail;
+real music and performance remain user acceptance.
