@@ -312,7 +312,7 @@
       "id": "history.global",
       "title": "Chronological undo/redo and filtering",
       "where": "MC → History; Shift plus the configured Undo/Redo trigger. Check current bindings in Shortcuts.",
-      "behavior": "Recent uses chronological actions across owners; Context limits actions to the active context; Selective uses categories. Configure steps and a retained maximum of 10. MS selection has a separate transient timeline.",
+      "behavior": "Recent uses chronological actions across owners; Context limits actions to the active context; Selective uses categories. Configure steps and a retained maximum of 10. MS selection has a separate transient timeline. Configured MB4/MB5 keep their website actions. The app cancels browser-history defaults on mouse press, pointer/mouse release and auxiliary click throughout the website; release does not invoke an action again.",
       "steps": [
         {
           "do": "Change a visual property, then move a UI frame. Invoke normal Undo twice.",
@@ -325,12 +325,17 @@
         {
           "do": "Redo, then switch atlases and undo a knowledge edit.",
           "expect": "The shared workspace is restored safely; the edit is not applied to an unrelated atlas."
+        },
+        {
+          "do": "With MB4/MB5 assigned to Undo/Redo, make an edit and press/release each side button over the canvas and UI. Also try Shift configuration.",
+          "expect": "The bound website action runs once and the tab remains on Omnium. Native browser-chrome buttons are unaffected; hardware emitting separate browser commands may require mouse-driver remapping."
         }
       ],
       "reference": "docs/SHORTCUTS.md",
       "sources": [
         "src/ui/actionHistory.ts",
-        "src/ui/ContextualHistoryController.tsx"
+        "src/ui/ContextualHistoryController.tsx",
+        "src/App.tsx"
       ],
       "actions": [
         "ui:undo",
@@ -339,7 +344,7 @@
         "redo",
         "history.configure"
       ],
-      "limits": "Browser acceptance has not been recorded for this guide.",
+      "limits": "Physical MB4/MB5/browser navigation acceptance remains user-owned. Separate OS/mouse-driver browser commands cannot be guaranteed cancellable by page JavaScript.",
       "status": "Implemented; browser verification pending",
       "verification": {
         "browser": "Not recorded",
@@ -1136,7 +1141,7 @@
       "id": "camera.navigation",
       "title": "Camera versus object rotation, trackball and axis lock",
       "where": "World canvas → configured navigation drag (MB2 by default); Shift opens its MC settings.",
-      "behavior": "Direct node drag turns the object. Empty space with a selection orbits the selected branch; without selection it turns the camera in place. Ctrl locks the initial rotation axis. Context choices persist for the session. Plain node/empty-slot clicks now mount or park the world navigator with the camera fixed. Preview motion stays in the fixed current view including mount/park clicks. Camera follow is retired: mounting, parking, empty clicks and Ctrl-click positioning change only navigator/node state, never camera position or target. Use explicit Frame selected front-on or navigation controls to move the camera. The world renderer occupies the full viewport behind the toolbar, sidebar and floating/docked UI. UI layout allocates UI residents without shrinking the world. Transparent UI paint reveals the same scene underneath. UI retains input ownership; transparency does not imply click-through. Existing ResizeObserver updates camera aspect and wallpaper size for the full world host. Native sidebar clearance now applies even when no explicit edge docks exist. The zoom/compass and default world UI homes use the same bounded allocation, keeping them beside the sidebar rather than over its contents.",
+      "behavior": "Direct node drag turns the object. Empty space with a selection orbits the selected branch; without selection it turns the camera in place. Ctrl locks the initial rotation axis. Context choices persist for the session. Plain node/empty-slot clicks now mount or park the world navigator with the camera fixed. Preview motion stays in the fixed current view including mount/park clicks. Camera follow is retired: mounting, parking, empty clicks and Ctrl-click positioning change only navigator/node state, never camera position or target. Use explicit Frame selected front-on or navigation controls to move the camera. The world renderer occupies the full viewport behind the toolbar, sidebar and floating/docked UI. UI layout allocates UI residents without shrinking the world. Transparent UI paint reveals the same scene underneath. UI retains input ownership; transparency does not imply click-through. Existing ResizeObserver updates camera aspect and wallpaper size for the full world host. Native sidebar clearance now applies even when no explicit edge docks exist. The zoom/compass and default world UI homes use the same bounded allocation, keeping them beside the sidebar rather than over its contents. The Camera & rotation compass panel uses a shared embedded UI frame, so its complete panel participates in UI selection, frame movement/docking, context actions, rigidity and window-surface appearance. The legacy ui:cameraGuide field identity and controls remain available; the payload no longer paints a separate hardcoded background.",
       "steps": [
         {
           "do": "Drag near a node center, then tangentially near its rim.",
@@ -1161,13 +1166,18 @@
         {
           "do": "Show the native left sidebar without creating edge docks, then open an edge dock and resize the browser.",
           "expect": "The zoom/compass and selection HUD remain outside the sidebar in both cases. Scene remains full-viewport; saved UI arrangement is not rewritten."
+        },
+        {
+          "do": "At the lower-left compass, use the Camera & rotation frame handle to move/dock the panel or open its context menu. Change UI window background in MS → Visuals.",
+          "expect": "The complete panel behaves and styles as a UI frame. Camera readings and rotation/navigation controls remain live. Existing field customizations are retained; no camera or node coordinates change from arranging the UI."
         }
       ],
       "reference": "docs/WORLD_NAVIGATION.md",
       "sources": [
         "src/SpatialWorkspace.tsx",
         "src/navigation/transforms.ts",
-        "src/workbench.css"
+        "src/workbench.css",
+        "src/CameraGuide.tsx"
       ],
       "actions": [
         "world.navigate"
@@ -1176,7 +1186,7 @@
       "status": "Implemented; browser verification pending",
       "verification": {
         "browser": "Full-viewport scene and UI overlay/input acceptance await user preview test; no browser suite run.",
-        "automated": "See subsystem tests and PR checks; not proof of usability Regression covers native-only and combined dock/sidebar clearance, absent sidebar and narrow bounds."
+        "automated": "See subsystem tests and PR checks; not proof of usability Regression covers native-only and combined dock/sidebar clearance, absent sidebar and narrow bounds. Camera panel now composes the existing EmbeddedGroup and retains the legacy UIField; required type/model/build gates apply. No new browser acceptance inferred."
       },
       "related": [
         "world.navigator"
@@ -1989,24 +1999,28 @@
     {
       "id": "library.persistence",
       "title": "Local workspace autosave, portability and recovery",
-      "where": "Library → Export workspace / Import workspace / Recover previous workspace; File → Import/Export JSON for individual atlases.",
-      "behavior": "IndexedDB autosaves the workspace locally. Export workspace now downloads one versioned workspace-backup file containing all atlases, saved glyph definitions/lexicon/library plus the current UI layout, shortcuts, settings, appearance, embedded UI icons and referenced custom fonts. Import validates both parts before replacement and preserves the previous workspace/UI pair in one local recovery record. Recover previous workspace restores both when that record includes UI. Historical workspace-only exports leave current UI unchanged. Standalone Save UI template and ordinary atlas export remain available. Cloud snapshots remain workspace-only. Workspace and UI retain separate existing undo owners; use Recover previous workspace to restore the pair together.",
+      "where": "File → Export JSON / Import JSON; Library → Export workspace / Import workspace opens the same parts chooser. Recover previous workspace remains in Library.",
+      "behavior": "One shared chooser defaults to Entire workspace. Export individual/all atlases, the shared definitions/Omnic library, UI layout, and settings/shortcuts/appearance independently. Required canonical dependencies accompany chosen atlases, including archived Omnic references and glyph text. Import lists only parts present in the file. Complete content can explicitly Replace entire workspace; otherwise content adds independent copies and preserves existing atlases. Multiple imported atlases share one remapped definition pool. Only checked UI/settings parts apply. All restoration uses the existing validated font preparation, current-work guards and paired local recovery owner. No saved workspace is changed while choosing or cancelling. Cloud snapshots remain workspace-only.",
       "steps": [
         {
-          "do": "Customize a shortcut and UI layout; create two atlases and saved glyphs/lexicon mappings. Choose Omnic library → Export workspace.",
-          "expect": "One omnium-workspace-backup.json file contains both workspace and UI; current custom fonts referenced by the appearance are embedded."
+          "do": "File → Export JSON; leave Entire workspace checked and Export selected.",
+          "expect": "One omnium-workspace-transfer.json contains all atlases, definitions/library, UI layout, settings/shortcuts/appearance and referenced custom fonts."
         },
         {
-          "do": "Change the UI and workspace, then Import workspace using that combined file.",
-          "expect": "Both saved workspace and UI return. Referenced custom fonts are prepared before replacement; changes during asynchronous preparation abort the restore."
+          "do": "Uncheck Entire workspace; choose one atlas without the library or UI/settings.",
+          "expect": "Only that atlas and required canonical dependencies are included, not unrelated atlas content or UI settings."
         },
         {
-          "do": "Choose Recover previous workspace.",
-          "expect": "The pre-import workspace and UI return together. An ordinary workspace-only/cloud replacement creates a workspace-only recovery record and cannot revive stale UI from an earlier import."
+          "do": "Export only UI layout, only settings, or only the definitions/library.",
+          "expect": "Unselected parts are absent; referenced custom fonts accompany settings. Library-only exports have no user atlas selected."
         },
         {
-          "do": "Import an old omnium-workspace v1 file, or try a damaged/unsupported newer combined file.",
-          "expect": "A valid old workspace replaces workspace only. A damaged or unsupported component rejects the combined import before replacing either domain."
+          "do": "File → Import JSON, inspect the parts present, and uncheck UI/settings before importing content.",
+          "expect": "Only chosen content is added as independent copies. Existing atlases/UI/settings stay in place; imported atlases retain shared definitions. Full content permits explicit Replace entire workspace instead."
+        },
+        {
+          "do": "Import a historical workspace-only, combined v1 backup, atlas-only JSON or v3 UI template; try an unsupported newer transfer.",
+          "expect": "Supported old files open the same chooser without inventing absent parts. Unknown/newer or malformed files reject before replacement; cancellation changes nothing. Recover previous workspace restores the pre-import workspace/UI pair."
         }
       ],
       "reference": "docs/OMNIC_LIBRARY.md",
@@ -2017,18 +2031,20 @@
         "src/omnic/Library.tsx",
         "src/App.tsx",
         "tests/fixtures/workspace-v1.json",
-        "tests/fixtures/workspace-backup-v1.json"
+        "tests/fixtures/workspace-backup-v1.json",
+        "src/omnic/workspaceTransfer.ts",
+        "src/omnic/WorkspaceTransferDialog.tsx"
       ],
       "actions": [
         "omnic.workspace.recover",
         "omnic.workspace.export",
         "omnic.workspace.import"
       ],
-      "limits": "Workspace and cloud snapshots retain the 8 MB budget; UI uses the existing 15 MiB font allowance plus 5 MB template allowance. The combined envelope has their summed byte budget plus 1 KB overhead. Individual atlases retain 5 MB limits. This is workspace plus current UI, not a complete environment archive: unsaved Composer drafts, all saved theme presets, unreferenced fonts, authentication/session data, undo history and private cloud media bytes are not included. Save shared before exporting Composer work. Browser profile/origin recovery slots are not independent backups. New combined files require a current importer; older apps reject their format. UI persistence and workspace persistence retain their existing owners and failure messages.",
-      "status": "Implemented; browser verification pending",
+      "limits": "Workspace content retains the 8 MB bound; UI/font allowance remains unchanged. Maximum 32 atlases and existing library budgets apply; exceeding them rejects unchanged. Full replacement is available only when complete content is present and selected. The shared definitions/library option includes the canonical entity pool and organization; necessary definitions are included with atlas-only exports. Unsaved Composer drafts, all saved theme presets, unreferenced fonts, device pairing/authentication, undo history and private media bytes are excluded. New transfer format/version requires this importer; old clients reject it safely. Cloud snapshots are unchanged.",
+      "status": "Implemented for preview; selective UI/browser acceptance pending",
       "verification": {
-        "browser": "Combined cross-profile restore, custom font decoding and storage-denied usability are pending user/browser acceptance; no browser success inferred from model/build checks.",
-        "automated": "Model checks cover combined round trip, explicit cleared/rebound shortcuts, frozen workspace-v1 compatibility, unsupported/damaged components, size limits, source preservation and paired recovery in IndexedDB/local fallback. Required model/build/backend gates run before publication."
+        "browser": "No browser suite run for this chooser. Selective restore, physical checkbox/action interaction and font decoding remain user acceptance.",
+        "automated": "Model tests cover selective dependency closure, independent shared-ID remapping across multiple atlases, library/layout/settings-only exports, legacy combined/workspace compatibility and damaged/unsupported envelopes. Existing import/remapping, recovery and backup tests remain. Required type/property/build/backend gates run before publication."
       },
       "related": [],
       "gestures": []
@@ -2160,24 +2176,24 @@
     {
       "id": "scene.systemAudio",
       "title": "Windows system audio through Omnium Audio Helper",
-      "where": "Scene → Scene effects → Connect system audio; run the Windows helper first. Website file playback stays under Choose audio file / Play audio.",
-      "behavior": "The Windows helper uses WASAPI default-output loopback, adapted from MiniMeters Bridge, and sends bounded short PCM blocks over one localhost WebSocket. An inline AudioWorklet resamples them into the existing stereo/mono analyser graph; a zero-gain output keeps capture inaudible. Existing light/bounce settings and response equations are unchanged. One explicitly connected tab captures at a time; closing controls retains the connection, Stop disconnects and halts helper capture. Lost connections retry with bounded backoff; output-device changes reopen capture. Nothing is recorded, uploaded or saved to workspace/history.",
+      "where": "Scene → Scene effects → Preview pairing code (once per preview origin), Connect system audio, Stop audio and Forget system audio. Run the Windows helper first.",
+      "behavior": "Windows WASAPI helper feeds bounded PCM to the existing muted analyser graph. The remembered-pairing build keeps a random per-install identity across restarts/EXE updates. Pair once; a successful handshake saves a versioned browser-local connection preference shared across GitHack preview URLs/PRs. Updated previews reconnect without opening settings; browser autoplay may require one click anywhere. Stop pauses automatic startup but retains pairing; Connect re-enables it; choosing a file pauses auto-start; Forget stops capture and removes browser pairing. Up to 16 tabs receive audio simultaneously from one capture stream, with independent bounded queues. Connecting or stopping one tab does not interrupt the others; capture stops when the last disconnects. Live audio stays transient, local and inaudible. Existing light/bounce processing is unchanged. Private Pages previews under a single-label omnia-web-bae.pages.dev alias also require pairing. Update the helper and enter its existing code once per preview origin; use the stable PR alias to retain the remembered connection between uploads. Access login and local audio pairing are separate. Other Pages projects and suffix lookalikes remain rejected.",
       "steps": [
         {
-          "do": "Download the Windows audio-helper workflow artifact, extract its ZIP and run Omnium-Audio-Helper.exe. Open the updated site at https://omnium.nexus or localhost development.",
-          "expect": "The helper reports ready and waits without capturing. Users do not install Python; it is bundled in the executable. Shared GitHack preview origins are not supported. The first build has a console window; signed installer/autostart/updater are future work."
+          "do": "Close the old helper, extract/run the remembered-pairing build. Copy its code into Preview pairing code and Connect system audio once.",
+          "expect": "The console identifies remembered pairing. Browser remembers the code only after an accepted connection; the field clears. Input drives the existing light/bounce path without a sharing bar."
         },
         {
-          "do": "Choose Scene → Scene effects → Connect system audio. Grant browser loopback-network permission if requested, then play ordinary audio through the Windows default output.",
-          "expect": "Status becomes System audio connected, Audio input moves and existing light/bounce controls respond. No screen/tab-sharing picker or sharing bar is requested; captured sound is not replayed."
+          "do": "Leave helper running and open another updated GitHack preview/PR in the same browser profile. Click anywhere if needed. Restart the helper and play music again.",
+          "expect": "No code entry or Scene-panel opening is needed; the helper identity survives restart/update. All connected tabs receive the same audio without takeover; stopping/closing one leaves the others connected."
         },
         {
-          "do": "Change output device or restart the helper, leaving the website connection active. Close/reopen Scene controls.",
-          "expect": "Capture or the local socket reconnects, pending PCM is bounded and old audio does not accumulate. The connection survives settings-panel closure. Real Windows driver/browser behavior still needs validation."
+          "do": "Press Stop audio; reload. Then Connect again. Choose a file or use Forget system audio.",
+          "expect": "Stop and file selection disable automatic startup; Connect re-enables it using saved pairing. Forget removes browser pairing and stops capture. New pairing is required after Forget/storage clearing/profile changes."
         },
         {
-          "do": "Press Stop audio, then connect again. Switch to a website audio file.",
-          "expect": "Stop cancels retries, clears PCM and closes analysis. Reconnecting starts a fresh session; choosing/playing a file replaces system input through the existing owner. Effects settings remain intact."
+          "do": "Update the helper, open the private PR alias through Access, then enter its existing code in Scene → Scene effects → Preview pairing code and Connect. Reload after another upload to the same PR alias.",
+          "expect": "Audio connects after pairing and the stable PR origin remembers it. A different deployment hostname needs pairing again; workspace content must be transferred separately with export/import."
         }
       ],
       "reference": "docs/SYSTEM_AUDIO.md",
@@ -2190,20 +2206,22 @@
         "native/audio-helper/build.ps1",
         "native/audio-helper/test_bridge.py",
         "tests/system-audio.test.mjs",
-        ".github/workflows/audio-helper.yml"
+        ".github/workflows/audio-helper.yml",
+        "src/scene/systemAudioPreference.ts"
       ],
       "actions": [
-        "scene.audioSystem"
+        "scene.audioSystem",
+        "scene.audioForget"
       ],
       "gestures": [],
       "related": [
         "scene.vfx"
       ],
       "status": "Implemented for first Windows validation; standalone build produced by CI; final installer deferred",
-      "limits": "Windows WASAPI default-output capture only. ASIO/exclusive or separately routed outputs may not be captured. Mono/stereo supported; first two channels used for multichannel input. One tab at a time. Browser AudioWorklet/user gesture and local-network permission are required. Native helper accepts only omnium.nexus and explicit localhost development origins; shared GitHack hosts are excluded. Source wire protocol differs from unmodified MiniMeters Bridge. Helper/website origin is fixed; no device/network scanning. Windows capture and packaged-driver behavior need user validation.",
+      "limits": "Windows default-output WASAPI only; helper must run. Console prototype, no autostart/signed installer yet. Browser local-network permission and initial user activation may be needed. GitHack is a shared origin: remembered access is shared across that host, so use trusted previews only. Browser storage/profile clearing requires pairing again. Production/localhost stay direct and have separate preferences. Up to 16 concurrent consumers, each with a bounded six-packet queue; extra connections are rejected without disconnecting existing tabs. Real Windows driver and browser activation behavior need user validation.",
       "verification": {
-        "automated": "Protocol validation, bounded resampling/mono/stereo/underrun, native graph mute/Stop, socket retry/sequence, Python real-loopback WebSocket transfer/origin rejection and mocked WASAPI default-device reopening are covered. No real user audio is used. Required source/build/backend gate runs before publication. Six helper tests also pass against pinned websockets 15.0.1; exact Python 3.12 Windows dependency wheels exist. Suspended worklets discard new PCM and clear their queue on resume. The Windows build job must still compile/package the executable.",
-        "browser": "User-approved focused local compiled-browser check passed on 2026-11-08: synthetic stereo PCM over the real localhost helper socket reached the built AudioWorklet and existing analyser/light/bass paths; silence cleared input; Stop and reconnect succeeded. 180 samples included 58 zero-input samples. No real Windows capture/driver or packaged executable was tested on this Linux executor."
+        "automated": "Seven frontend tests cover PCM, bounded queues, muted graph, remembered credentials, startup/gesture resume, Stop/Forget, unknown preference preservation and retry. Ten Python tests cover real localhost transfer/origin pairing, persistent identity/corruption, simultaneous PCM fan-out and independent disconnect and mocked output recovery. Required model/type/property/build/backend gates run before publication. No real audio devices are opened. Pages origin regressions pass in the seven frontend and ten Python tests; arbitrary Pages projects and suffix/port/HTTP lookalikes are rejected. Private Pages Windows/browser acceptance remains pending.",
+        "browser": "User-approved focused local compiled-browser check passed on 2026-11-08: synthetic stereo PCM over the real localhost helper socket reached the built AudioWorklet and existing analyser/light/bass paths; silence cleared input; Stop and reconnect succeeded. 180 samples included 58 zero-input samples. No real Windows capture/driver or packaged executable was tested on this Linux executor. Remembered setup/multi-tab delivery/autoplay fallback have model/socket coverage only; no new browser run."
       }
     },
     {

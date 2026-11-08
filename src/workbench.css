@@ -394,7 +394,7 @@ textarea:focus-visible {
 .spatial-controls { position: absolute; top: 14px; right: 14px; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 5px; max-width: 410px; }
 .spatial-controls button { background: #eaf1fae8; }
 .camera-guide-home { position: absolute; left: 14px; bottom: 14px; max-width: min(260px, calc(100% - 28px)); }
-.camera-guide { width: 246px; max-width: 100%; box-sizing: border-box; padding: 9px; border: 1px solid #607c96; border-radius: 8px; color: #dce9fa; background: #122336ef; font-size: 11px; font-variant-numeric: tabular-nums; }
+.camera-guide { width: 246px; max-width: 100%; box-sizing: border-box; padding: 9px; font-size: 11px; font-variant-numeric: tabular-nums; }
 .camera-guide-heading, .camera-guide-body, .camera-guide-actions { display: flex; align-items: center; gap: 6px; }
 .camera-guide-heading { justify-content: space-between; }
 .camera-guide-heading output { font-weight: 600; font-size: 13px; }
@@ -655,7 +655,7 @@ button.active,
 :root[data-omnium-theme="neon"] :is(h2, .brand span, .save-status) { font-family: var(--omnium-font, system-ui, sans-serif); }
 :root[data-omnium-theme="neon"] :is(p, label, .brand span, .save-status, .relationship-list small, .camera-guide dt, .camera-guide small) { color: var(--omnium-muted); }
 :root[data-omnium-theme="neon"] :is(section, .primary-charting-actions, .spatial-fields, .proposal-preview) { border-color: var(--omnium-soft-border); }
-:root[data-omnium-theme="neon"] :is(.floating-window:not(.is-collapsed) > .floating-window-content, .ui-menu-panel > .ui-panel-body, .ui-background-menu, .workspace-dialog, .spatial-menu, .camera-guide, .node-options, .operation-banner, .ui-selection-tools) {
+:root[data-omnium-theme="neon"] :is(.floating-window:not(.is-collapsed) > .floating-window-content, .ui-menu-panel > .ui-panel-body, .ui-background-menu, .workspace-dialog, .spatial-menu, .node-options, .operation-banner, .ui-selection-tools) {
   color: var(--omnium-ink);
   background: var(--omnium-panel);
   border-color: var(--omnium-border);
@@ -713,7 +713,7 @@ button.active,
 :root[data-omnium-theme="neon"] .spatial-loading { background: var(--omnium-base, #030c15); }
 :root[data-omnium-theme="neon"] .menu-empty-slot { color: var(--omnium-muted); background: color-mix(in srgb, var(--omnium-accent) 10%, transparent); border-color: var(--omnium-border); }
 /* Panel alpha changes backgrounds only: text, icons and hit targets stay readable. */
-:root[data-omnium-theme] :is(.floating-window:not(.is-collapsed) > .floating-window-content, .ui-menu-panel > .ui-panel-body, .ui-background-menu, .workspace-dialog, .spatial-menu, .camera-guide, .node-options, .operation-banner, .ui-selection-tools) {
+:root[data-omnium-theme] :is(.floating-window:not(.is-collapsed) > .floating-window-content, .ui-menu-panel > .ui-panel-body, .ui-background-menu, .workspace-dialog, .spatial-menu, .node-options, .operation-banner, .ui-selection-tools) {
   background: var(--omnium-panel);
   backdrop-filter: blur(var(--omnium-blur, 10px));
 }
@@ -738,7 +738,7 @@ button.active,
 :root[data-omnium-theme="neon"] :is(button, input, select, textarea):focus-visible { outline-color: var(--omnium-accent); }
 :root[data-omnium-theme="neon"] .ui-menu-panel > .frame-chrome > .ui-frame-tools > .ui-frame-handle { background: transparent; }
 :root[data-omnium-theme="neon"][data-omnium-motion="on"] .brand strong { animation: omnium-breathe 7s ease-in-out infinite; }
-:root[data-omnium-theme="neon"] :is(.floating-window:not(.is-collapsed) > .floating-window-content, .ui-menu-panel > .ui-panel-body, .camera-guide, .ui-frame-handle) { box-shadow: 0 0 12px color-mix(in srgb, var(--omnium-accent) calc(var(--omnium-glow, .22) * 65%), transparent); }
+:root[data-omnium-theme="neon"] :is(.floating-window:not(.is-collapsed) > .floating-window-content, .ui-menu-panel > .ui-panel-body, .ui-frame-handle) { box-shadow: 0 0 12px color-mix(in srgb, var(--omnium-accent) calc(var(--omnium-glow, .22) * 65%), transparent); }
 :root[data-omnium-theme="neon"] .brand strong { text-shadow: 0 0 12px color-mix(in srgb, var(--omnium-accent) calc(var(--omnium-glow, .22) * 80%), transparent); }
 @keyframes omnium-breathe {
   0%, 100% { text-shadow: var(--omnium-text-shadow, 0 0 0 transparent), 0 0 8px color-mix(in srgb, var(--omnium-accent) calc(var(--omnium-motion) * var(--omnium-glow, .22) * 35%), transparent); }

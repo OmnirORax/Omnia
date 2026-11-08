@@ -7,22 +7,57 @@ import asyncio
 from collections import deque
 from http import HTTPStatus
 import json
+import os
+from pathlib import Path
 import re
+import secrets
 import struct
 import sys
 import threading
 import time
+from urllib.parse import urlsplit, parse_qs
 
 HOST, PORT, PATH = "127.0.0.1", 8986, "/omnium/audio-v1"
 HEADER = struct.Struct("<4sIHHI")
 
 
-def allowed_origin(origin):
-    # Shared public preview origins aren't trusted to access local system audio.
-    return origin == "https://omnium.nexus" or bool(
+def allowed_origin(origin, token=None, preview_token=None):
+    trusted = origin == "https://omnium.nexus" or bool(
         isinstance(origin, str)
         and re.fullmatch(r"http://(?:localhost|127\.0\.0\.1):[0-9]{1,5}", origin)
     )
+    # Shared preview hosting requires an explicitly paired installation capability.
+    # The website can remember it locally after a successful connection.
+    preview = origin == "https://raw.githack.com" or bool(
+        isinstance(origin, str) and re.fullmatch(
+            r"https://[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.omnia-web-bae\.pages\.dev", origin))
+    paired = (preview and isinstance(token, str)
+              and re.fullmatch(r"[A-Za-z0-9_-]{32}", token) is not None
+              and isinstance(preview_token, str) and len(preview_token) == 32
+              and secrets.compare_digest(token, preview_token))
+    return trusted or paired
+
+
+def load_pairing_token(path=None):
+    """Per-install identity survives helper updates/restarts; never bundle a shared secret."""
+    if path is None:
+        path = Path(os.environ.get('LOCALAPPDATA', str(Path.home()))) / 'Omnium' / 'AudioHelper' / 'pairing-code.txt'
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError:
+        try:
+            token = path.read_text(encoding='ascii').strip()
+        except UnicodeError as error:
+            raise OSError('Saved pairing identity is unreadable; preserve or remove pairing-code.txt') from error
+        if not re.fullmatch(r"[A-Za-z0-9_-]{32}", token):
+            raise OSError('Saved pairing identity is invalid; preserve or remove pairing-code.txt before pairing again')
+        return token
+    token = secrets.token_urlsafe(24)
+    with os.fdopen(descriptor, 'w', encoding='ascii') as output:
+        output.write(token)
+    return token
 
 
 def pcm_packet(data, rate, channels, sequence):
@@ -127,23 +162,27 @@ class Capture:
             self.thread.join(timeout=3)
 
 
-async def serve(capture, port=PORT):
+async def serve(capture, port=PORT, preview_token=None):
     from websockets.asyncio.server import serve as websocket_server
-    occupied = False
+    clients = {}
 
     async def check(connection, request):
-        if request.path != PATH:
+        url = urlsplit(request.path)
+        if url.path != PATH:
             return connection.respond(HTTPStatus.NOT_FOUND, "Unknown audio protocol\n")
-        if not allowed_origin(request.headers.get("Origin")):
-            return connection.respond(HTTPStatus.FORBIDDEN, "Use omnium.nexus or localhost development\n")
+        tokens = parse_qs(url.query).get('pair', [])
+        token = tokens[0] if len(tokens) == 1 else None
+        if not allowed_origin(request.headers.get("Origin"), token, preview_token):
+            return connection.respond(HTTPStatus.FORBIDDEN, "Preview pairing required\n")
 
     async def handler(socket):
-        nonlocal occupied
-        if occupied:
-            await socket.close(1013, "Another Omnium tab is connected; disconnect it first")
+        if len(clients) >= 16:
+            await socket.close(1013, "Audio helper supports up to 16 connected tabs")
             return
-        occupied = True
-        capture.pull()
+        if not clients:
+            capture.pull()
+        queue = deque(maxlen=6)
+        clients[socket] = queue
         capture.active.set()
         previous, heartbeat = None, 0
         try:
@@ -152,7 +191,14 @@ async def serve(capture, port=PORT):
                 if state != previous or time.monotonic() - heartbeat >= 1:
                     await asyncio.wait_for(socket.send(json.dumps({"type": "status", "state": state[0], "message": state[1]})), .5)
                     previous, heartbeat = state, time.monotonic()
-                packets = capture.pull()
+                # Pull each producer packet once, fan it out without awaiting,
+                # and give each tab its own bounded queue. Slow tabs cannot steal
+                # samples from or accumulate a backlog for other consumers.
+                for packet in capture.pull():
+                    for pending in clients.values():
+                        pending.append(packet)
+                packets = list(queue)
+                queue.clear()
                 for packet in packets:
                     await asyncio.wait_for(socket.send(packet), .25)
                 await asyncio.sleep(.005)
@@ -160,9 +206,10 @@ async def serve(capture, port=PORT):
             # A disconnected/slow peer is dropped; capture never queues indefinitely.
             pass
         finally:
-            capture.active.clear()
-            capture.pull()
-            occupied = False
+            clients.pop(socket, None)
+            if not clients:
+                capture.active.clear()
+                capture.pull()
             await socket.close()
 
     return await websocket_server(handler, HOST, port, process_request=check,
@@ -177,11 +224,15 @@ async def main():
     # worker-thread CoInitialize/CoUninitialize pair.
     __import__("comtypes")
     capture = Capture()
+    preview_token = load_pairing_token()
     try:
-        async with await serve(capture):
+        async with await serve(capture, preview_token=preview_token):
             capture.start()
-            print("Omnium Audio Helper is ready. In Omnium: Scene → Scene effects → Connect system audio.", flush=True)
+            print("Omnium Audio Helper (remembered pairing) is ready. In Omnium: Scene → Scene effects → Connect system audio.", flush=True)
             print("Leave this window open. Close it or press Ctrl+C to stop. No audio is recorded.", flush=True)
+            print("One-time preview setup: paste this code into Preview pairing code:", flush=True)
+            print(preview_token, flush=True)
+            print("This code stays the same after restart/update. The website remembers it. Only use trusted Omnium previews.", flush=True)
             await asyncio.Future()
     finally:
         capture.close()

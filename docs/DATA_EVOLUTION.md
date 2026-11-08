@@ -1,5 +1,22 @@
 # Data evolution and compatibility contract
 
+Selective workspace transfer (2026-11-08): `workspaceTransfer.ts` owns the additive
+`omnium-workspace-transfer` version 1 envelope. Optional validated workspace,
+layout and settings parts plus atlas IDs/library/complete markers express presence;
+absence never synthesizes a replacement. Workspace snapshots retain format/version.
+Atlas slices retain transitive canonical dependencies; shared definitions/library
+includes the canonical pool and organization. Partial import adds fresh identities
+using one map across atlases, remapping recipes, pinned role addresses, glyph text,
+binder visuals and library membership. Unselected current data remains intact.
+Complete selected content offers explicit full replacement. Layout and settings
+are independently overlaid through the existing font/guard/paired-recovery owner.
+Historical workspace, combined-backup v1, atlas and UI-template v3 files are read
+into the same chooser; old clients reject the new envelope without migration.
+Export never modifies originals. Unknown/newer or malformed parts reject before
+replacement, even when a user would leave that part unchecked. Byte/budget and
+normal data validation remain authoritative. No cloud/backend format change,
+credential transfer, complete environment archive or browser acceptance is implied.
+
 Adopted 2026-11-04. This is a project-wide development requirement. It applies to
 browser saves, recovery slots, drafts, exports/imports, cloud snapshots, database
 schemas, assets and saved settings. Developers own compatibility as part of each
@@ -995,4 +1012,17 @@ keep website-file playback and do not connect to the helper. No capture permissi
 is inferred from saved settings; connection is explicit. Native packaging is a
 standalone Windows CI artifact with retained upstream/dependency licensing; final
 signed installer, auto-start and updates remain deferred. Native input only accepts
-omnium.nexus/localhost origins; shared public preview origins are excluded.
+omnium.nexus/localhost origins directly; raw.githack.com requires a per-run
+32-character pairing code copied from the helper console once. The new helper
+persists its random per-install identity under LocalAppData, independently of EXE
+updates. Browser-local `omnium.system-audio.connection.v1` stores a strict version-1
+record {version:1, code, enabled} after successful handshake; older clients ignore
+it. It never enters workspace settings, exports, UI history or public artifacts.
+Unknown/unreadable versions remain untouched; explicit Forget removes the local
+record. Stop retains the identity and disables auto-start; choosing a file also
+pauses auto-start. Helper identity corruption is reported and preserved rather than
+overwritten. Startup reconnects from this preference, with user-gesture resume
+when required. Clearing browser storage/profile change requires pairing again;
+older ephemeral helper builds require re-pairing after restart, so this delivery
+needs the new remembered-pairing build. Up to 16 clients receive independent bounded copies of one capture stream;
+connecting or disconnecting one does not interrupt others. No audio samples are persisted.

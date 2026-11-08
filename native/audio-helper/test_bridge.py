@@ -2,6 +2,8 @@ import asyncio
 import struct
 import sys
 import types
+import tempfile
+from pathlib import Path
 import unittest
 from unittest.mock import patch
 
@@ -9,6 +11,16 @@ import bridge
 
 
 class PacketTests(unittest.TestCase):
+    def test_pairing_identity_survives_restart_and_update_without_overwriting_bad_data(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'settings' / 'pairing-code.txt'
+            code = bridge.load_pairing_token(path)
+            self.assertRegex(code, r'^[A-Za-z0-9_-]{32}$')
+            self.assertEqual(bridge.load_pairing_token(path), code)
+            path.write_text('unsupported identity', encoding='ascii')
+            with self.assertRaises(OSError): bridge.load_pairing_token(path)
+            self.assertEqual(path.read_text(), 'unsupported identity')
+
     def test_header_payload_and_sequence_wrap(self):
         pcm = struct.pack('<4f', .1, -.2, .3, -.4)
         packet = bridge.pcm_packet(pcm, 48000, 2, 0x100000003)
@@ -31,6 +43,17 @@ class PacketTests(unittest.TestCase):
             self.assertTrue(bridge.allowed_origin(origin))
         for origin in [None, 'null', 'https://raw.githack.com', 'https://omnium.nexus.evil.test', 'http://192.168.1.2:5173', 'http://localhost.evil.test:1234']:
             self.assertFalse(bridge.allowed_origin(origin))
+
+    def test_pages_previews_require_pairing_and_exact_project_suffix(self):
+        code = 'a' * 32
+        for origin in ['https://pr-61.omnia-web-bae.pages.dev', 'https://a1234567.omnia-web-bae.pages.dev']:
+            self.assertFalse(bridge.allowed_origin(origin))
+            self.assertFalse(bridge.allowed_origin(origin, 'b' * 32, code))
+            self.assertTrue(bridge.allowed_origin(origin, code, code))
+        for origin in ['https://other.pages.dev', 'https://pr-61.omnia-web-bae.pages.dev.evil.test',
+                       'http://pr-61.omnia-web-bae.pages.dev', 'https://a.b.omnia-web-bae.pages.dev',
+                       'https://pr-61.omnia-web-bae.pages.dev:443', 'https://omnia-web-bae.pages.dev']:
+            self.assertFalse(bridge.allowed_origin(origin, code, code))
 
     def test_wasapi_reopens_on_default_change_without_restarting_sequence(self):
         capture = bridge.Capture()
@@ -69,7 +92,8 @@ class PacketTests(unittest.TestCase):
 class LocalConnectionTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.capture = bridge.Capture()
-        self.server = await bridge.serve(self.capture, port=0)
+        self.code = 'a' * 32
+        self.server = await bridge.serve(self.capture, port=0, preview_token=self.code)
         self.url = f'ws://127.0.0.1:{self.server.sockets[0].getsockname()[1]}{bridge.PATH}'
 
     async def asyncTearDown(self):
@@ -95,4 +119,41 @@ class LocalConnectionTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(InvalidStatus):
             async with connect(self.url, origin='https://unrelated.example'):
                 self.fail('Unauthorized peer was accepted')
+        self.assertFalse(self.capture.active.is_set())
+
+    async def test_preview_requires_current_code_and_correct_origin(self):
+        from websockets.asyncio.client import connect
+        from websockets.exceptions import InvalidStatus
+        for suffix, origin in [('', 'https://raw.githack.com'),
+                               ('?pair=' + 'b' * 32, 'https://raw.githack.com'),
+                               ('?pair=' + self.code + '&pair=' + self.code, 'https://raw.githack.com'),
+                               ('?pair=' + self.code, 'https://unrelated.example')]:
+            with self.assertRaises(InvalidStatus):
+                async with connect(self.url + suffix, origin=origin):
+                    self.fail('Unpaired preview accepted')
+            self.assertFalse(self.capture.active.is_set())
+        async with connect(self.url + '?pair=' + self.code, origin='https://raw.githack.com') as client:
+            await asyncio.wait_for(client.recv(), 1)
+            self.assertTrue(self.capture.active.is_set())
+            packet = bridge.pcm_packet(struct.pack('<2f', .2, -.2), 48000, 2, 1)
+            self.capture.queue.append(packet)
+            self.assertEqual(await asyncio.wait_for(client.recv(), 1), packet)
+
+    async def test_tabs_receive_identical_pcm_and_disconnect_independently(self):
+        from websockets.asyncio.client import connect
+        async with connect(self.url, origin='http://localhost:5173') as first:
+            await first.recv()
+            async with connect(self.url + '?pair=' + self.code, origin='https://raw.githack.com') as second:
+                await second.recv()
+                packet = bridge.pcm_packet(struct.pack('<2f', .1, -.1), 48000, 2, 2)
+                self.capture.queue.append(packet)
+                self.assertEqual(await asyncio.wait_for(first.recv(), 1), packet)
+                self.assertEqual(await asyncio.wait_for(second.recv(), 1), packet)
+                self.assertIsNone(first.close_code)
+            await asyncio.sleep(.03)
+            self.assertTrue(self.capture.active.is_set())
+            packet = bridge.pcm_packet(struct.pack('<2f', .3, -.3), 48000, 2, 3)
+            self.capture.queue.append(packet)
+            self.assertEqual(await asyncio.wait_for(first.recv(), 1), packet)
+        await asyncio.sleep(.03)
         self.assertFalse(self.capture.active.is_set())

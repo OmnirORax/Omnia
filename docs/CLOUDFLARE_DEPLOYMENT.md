@@ -252,7 +252,64 @@ to the production/development origins documented above. PR UI/prompt preview wor
 API generation still needs its own backend rollout/credentials.
 
 
-## GitHack visual preview (baseline delivery workflow)
+## Fast local private previews (2026-11-08)
+
+For this private-preview setup, use direct Cloudflare uploads instead of publishing
+new public GitHack artifacts. Existing public artifacts and repository visibility
+are unchanged. Continue implementation on `codex/system-audio-helper`, PR #61.
+
+```sh
+# Read-only project/host inventory and Access verification; no build/upload.
+node --run preview:cloudflare -- pr-61 --check
+# Commit the source, then build and upload only the private PR preview.
+node --run preview:cloudflare -- pr-61
+```
+
+Requires Node 24, the existing dependencies, `CLOUDFLARE_API_TOKEN`,
+`CLOUDFLARE_ACCOUNT_ID`, and the existing public Vite backend configuration.
+Secrets belong in environment settings, never in chat or source. The command uses
+Node's environment proxy support. Allow `api.cloudflare.com`, `omnium.nexus`,
+`omnia-web-bae.pages.dev` and `*.omnia-web-bae.pages.dev`; npm needs its registry
+for the cached, pinned Wrangler 4.152.0 tool. Access login is performed by the user
+in their browser; probes never follow authentication redirects.
+
+The command accepts only `pr-<positive number>` branches, checks the existing
+project/production branch and full deployment host inventory, and requires Access
+login redirects before and after upload. A fresh wildcard probe checks future
+aliases. It builds the self-contained preview with existing type/property/catalog
+gates and uploads only `index.html`, `favicon.svg` and `source.json` from a temporary
+directory. Provenance records the clean source SHA. npm/Wrangler caches persist in
+the temporary directory tree to avoid reinstalling every upload. No GitHub push,
+CI wait, production upload, Access policy mutation or visibility change occurs in
+this command. Source PR checks still apply; run applicable tests before delivery.
+The production workflow and its legacy-hosting preflight remain unchanged.
+
+Use **https://pr-61.omnia-web-bae.pages.dev** as the stable browser origin.
+Cloudflare also creates a deployment-specific URL. Each new hostname has separate
+browser-local storage; neither Access nor an upload migrates workspaces, UI settings
+or remembered audio pairing. Export/import desired workspace parts through the
+existing chooser. Backend CORS stays exact and unchanged; this preview does not
+enable cloud operations on a new origin.
+
+The updated audio helper permits single-label previews of this exact Pages
+project **only with its existing per-install pairing code**. Update the Windows
+helper, then follow [Switching to private Pages previews](SYSTEM_AUDIO.md#switching-to-private-pages-previews).
+Stable PR aliases retain pairing across uploads. Other Pages projects, nested
+subdomains, HTTP/port variants and suffix lookalikes remain rejected. Existing
+production, localhost and paired GitHack connections retain their behavior.
+No saved format changes: browser preference v1 and helper identity files remain
+unchanged; preferences and workspace data are never copied into preview artifacts.
+
+Live read-only checks found the token active and the expected existing Direct
+Upload project (`master`, no Git source). Account-level Access application listing
+returned no applications; that does not enumerate Pages-managed policy or prove
+identity restrictions. Unauthenticated host checks establish login protection;
+allowed/denied identity behavior and Windows capture still require user acceptance.
+If a post-upload check fails, a preview already exists: investigate protection
+immediately and do not weaken Access or retry blindly. No rollback/deletion or
+production changes are performed automatically.
+
+## GitHack visual preview (historical baseline delivery workflow)
 
 On 2026-10-28 the user explicitly confirmed that updating an open PR and giving
 them its GitHack preview is the standing baseline workflow. Routine authorized
