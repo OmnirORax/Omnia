@@ -497,3 +497,18 @@ test('registered modifier-click intent captures its node before renderer changes
  const drag=registry.beginPointer(root,{x:0,y:0},'toggle');assert.deepEqual(drag({x:10,y:10}).after,['node']);assert.equal(calls,1);
  const stale=registry.beginPointer(root,{x:0,y:0},'toggle');context='replacement';assert.equal(stale({x:1,y:0}),undefined);assert.equal(calls,1);
 });
+
+test('MS cursor may remain over controller chrome without changing other tool cursor blocking',async()=>{
+ const {cursorApplies}=await import('../src/ui/toolCursorModel.ts');
+ assert.equal(cursorApplies({zone:'*',allowController:true},undefined,true,true),true);
+ assert.equal(cursorApplies({zone:'*'},undefined,true,true),false);
+ assert.equal(cursorApplies({zone:'*',allowController:true},undefined,true,false),false);
+});
+
+test('inactive MS yields Escape while active settings and unfinished gestures can cancel',async()=>{
+ const {selectorCanCancel}=await import('../src/appearance/selectionRange.ts');
+ assert.equal(selectorCanCancel('off'),false);
+ assert.equal(selectorCanCancel('aim'),true);
+ assert.equal(selectorCanCancel('configure'),true);
+ assert.equal(selectorCanCancel('off',true),true);
+});

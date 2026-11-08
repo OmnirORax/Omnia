@@ -1066,3 +1066,7 @@ Wave default update: user-selected absent values now use Waves on, displacement
 .1%/.3%, counts 1.5/10 and phase speed 3/3 rad/s. Explicit saved coefficients
 (including prior defaults, zero and negative speed) retain precedence; no rewrite
 or migration. Renderer initial uniforms and discovered setters share WAVE_CONTROLS.
+
+### MS lock retirement (2026-11-08)
+
+MS phase, accepted membership and selection history remain transient. No saved format changes. Historical layout references to selector.lock remain unavailable IDs. Its obsolete shortcut binding is deliberately dropped by existing settings normalization and no longer reserves Ctrl+MB3; original exported backup bytes remain untouched. Opening-shortcut exit retains accepted membership; active-only Esc/clear and borrowed-reference restoration keep their existing owner. No authored workspace or appearance data is removed.
