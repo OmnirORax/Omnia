@@ -131,3 +131,8 @@ dist-preview
 .pnp.*
 
 .DS_Store
+# Local native-helper build products and Python bytecode.
+native/audio-helper/dist/
+native/audio-helper/build/
+native/audio-helper/*.spec
+**/__pycache__/

@@ -1,3 +1,5 @@
+import {pcmWorkletSource,systemAudioOriginSupported} from './nativePcm.ts';
+import {createNativeAudioTransport} from './nativeAudioTransport.ts';
 import {referencePulse,createAutomaticPulse} from './pulse.ts';
 import type {SceneVfx} from './vfx.ts';
 import {normalizeAudioLevel} from './vfx.ts';
@@ -9,22 +11,25 @@ export const scenePulseResponse=()=>pulseResponse;
 const spectrumBytes=[new Uint8Array(1024),new Uint8Array(1024)],bands=new Float32Array(32);
 let activeMedia:HTMLMediaElement|null=null;
 let cleanupMedia:(()=>void)|undefined;
+let cleanupNative:(()=>void)|undefined;
+type InputKind='file'|'system'|null;
+let inputKind:InputKind=null;
 let bytes=new Uint8Array(0),epoch=0,status='No audio connected',connected=false;
 let player:HTMLAudioElement|null=null,playerURL='',parking:HTMLDivElement|null=null;
-let snapshot:{status:string;player:HTMLAudioElement|null}={status,player};
+let snapshot:{status:string;player:HTMLAudioElement|null;kind:InputKind}={status,player,kind:inputKind};
 const listeners=new Set<()=>void>();
-const publish=(message:string)=>{status=message;snapshot={status,player};listeners.forEach(fn=>fn());};
+const publish=(message:string)=>{status=message;snapshot={status,player,kind:inputKind};listeners.forEach(fn=>fn());};
 export const isSceneAudioConnected=()=>connected;
 export const sceneAudioStatus=()=>status;
 export const sceneAudioSnapshot=()=>snapshot;
 export const subscribeSceneAudio=(fn:()=>void)=>{listeners.add(fn);return()=>{listeners.delete(fn);};};
 export function disconnectSceneAudio(){
- automaticPulse.reset();fftMode='';pulseResponse=0;epoch++;activeMedia?.pause();activeMedia=null;cleanupMedia?.();cleanupMedia=undefined;connected=false;source?.disconnect();source=null;analyser?.disconnect();analyser=null;
+ automaticPulse.reset();fftMode='';pulseResponse=0;epoch++;cleanupNative?.();cleanupNative=undefined;inputKind=null;activeMedia?.pause();activeMedia=null;cleanupMedia?.();cleanupMedia=undefined;connected=false;source?.disconnect();source=null;analyser?.disconnect();analyser=null;
  splitter?.disconnect();splitter=null;stereo.forEach(a=>a.disconnect());stereo=[];bands.fill(0);
  if(context)void context.close().catch(()=>{});context=null;bytes=new Uint8Array(0);publish('No audio connected');
 }
 function analysis(ctx:AudioContext){context=ctx;
- ctx.addEventListener?.('statechange',()=>{if(context!==ctx||!connected)return;if(ctx.state==='suspended')publish('Audio suspended — press Play to resume');else if(ctx.state==='running')publish('Audio file connected');});analyser=ctx.createAnalyser();analyser.fftSize=2048;analyser.smoothingTimeConstant=.7;bytes=new Uint8Array(analyser.frequencyBinCount);return analyser;}
+ ctx.addEventListener?.('statechange',()=>{if(context!==ctx||!connected)return;if(ctx.state==='suspended')publish('Audio suspended — reconnect or press Play to resume');else if(ctx.state==='running')publish(inputKind==='system'?'System audio connected':'Audio file connected');});analyser=ctx.createAnalyser();analyser.fftSize=2048;analyser.smoothingTimeConstant=.7;bytes=new Uint8Array(analyser.frequencyBinCount);return analyser;}
 export async function connectSceneAudioElement(element:HTMLMediaElement){
  if(activeMedia===element&&connected&&context){void context.resume().catch(()=>publish('Press Play to enable browser audio'));return;}
  disconnectSceneAudio();const token=epoch;const ctx=new AudioContext();context=ctx;
@@ -32,9 +37,44 @@ export async function connectSceneAudioElement(element:HTMLMediaElement){
  if(ctx.createChannelSplitter){splitter=ctx.createChannelSplitter(2);source.connect(splitter);stereo=[ctx.createAnalyser(),ctx.createAnalyser()];stereo.forEach((a,i)=>{a.fftSize=2048;a.smoothingTimeConstant=.7;splitter!.connect(a,i);});}
  const resume=()=>{if(token===epoch)void ctx.resume().catch(()=>{if(token===epoch)publish('Press Play to enable browser audio');});};
  element.addEventListener('play',resume);cleanupMedia=()=>element.removeEventListener('play',resume);
- activeMedia=element;connected=true;publish('Audio file connected');resume();}
+ activeMedia=element;inputKind='file';connected=true;publish('Audio file connected');resume();}
  catch(error){if(token===epoch)disconnectSceneAudio();throw error;}
 }
+/** System PCM takes the same analyser graph as website playback, through a muted
+ * output so capture is never replayed to the speakers or captured twice. */
+export async function connectSceneSystemAudio(){
+ if(!systemAudioOriginSupported(window.location.origin))throw Error('System audio requires omnium.nexus or localhost development; shared preview hosts are not supported.');
+ disconnectSceneAudio();const token=epoch;inputKind='system';publish('Connecting to Omnium Audio Helper…');
+ const ctx=new AudioContext({latencyHint:'interactive'});context=ctx;
+ let moduleURL='';
+ try{
+  await ctx.resume(); // Called within the explicit user gesture.
+  if(token!==epoch)return;
+  if(!ctx.audioWorklet||typeof AudioWorkletNode==='undefined')throw Error('System audio needs a browser with AudioWorklet support.');
+  moduleURL=URL.createObjectURL(new Blob([pcmWorkletSource()],{type:'text/javascript'}));
+  await ctx.audioWorklet.addModule(moduleURL);if(token!==epoch)return;
+  const node=new AudioWorkletNode(ctx,'omnium-system-pcm',{numberOfInputs:0,numberOfOutputs:1,outputChannelCount:[2]});source=node;
+  const mute=ctx.createGain();mute.gain.value=0;node.connect(analysis(ctx));analyser!.connect(mute);mute.connect(ctx.destination);
+  splitter=ctx.createChannelSplitter(2);node.connect(splitter);stereo=[ctx.createAnalyser(),ctx.createAnalyser()];
+  stereo.forEach((a,i)=>{a.fftSize=2048;a.smoothingTimeConstant=.7;splitter!.connect(a,i);});
+  let suspended=true;
+  const sink={postMessage:(message:unknown,transfer:Transferable[]=[])=>{
+   // A suspended worklet doesn't drain its MessagePort. Never enqueue minutes
+   // of PCM there; resume with a fresh queue and the current capture only.
+   if(ctx.state!=='running'){suspended=true;return;}
+   if(suspended){node.port.postMessage({clear:true});suspended=false;}
+   node.port.postMessage(message,transfer);
+  }};
+  const transport=createNativeAudioTransport(sink,(ready,message)=>{
+   if(token!==epoch)return;
+   if(connected!==ready){automaticPulse.reset();fftMode='';pulseResponse=0;}
+   connected=ready;publish(message);
+  });
+  cleanupNative=()=>{transport.stop();node.port.close();mute.disconnect();};
+ }catch(error){if(token!==epoch)return;disconnectSceneAudio();publish(error instanceof Error?error.message:'System audio connection failed');throw error;}
+ finally{if(moduleURL)URL.revokeObjectURL(moduleURL);}
+}
+
 /** Bounded FFT sampling: bass band 1 of a log-spaced 16-band approximation. */
 export function sampleSceneAudio(){
  if(!connected||!analyser||!context||context.state!=='running')return {active:false,bass:0,bassAmplitude:0,level:0};
