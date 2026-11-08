@@ -2031,7 +2031,7 @@
       "id": "scene.manual",
       "title": "Node-linked scenes from imported images and copied prompts",
       "where": "Scene panel; select an Omnium node.",
-      "behavior": "A saved prompt resolves selected-node label/notes into one named variable. Copy it for external ChatGPT use, then import the returned image. Assignments and image bytes stay local and separate from atlas exports.",
+      "behavior": "A saved prompt resolves selected-node label/notes into one named variable. Copy it for external ChatGPT use, then import the returned image. Assignments and image bytes stay local and separate from atlas exports. Applied wallpaper now renders at an independent output density after graph-only AA/glow: native 2560×1440/1600 at DPR 1, capped at 8,294,400 pixels / DPR 2. Graph targets retain their 1.5-million-pixel budget. Import bytes, crop, effects, selection feedback and saved settings remain unchanged.",
       "steps": [
         {
           "do": "Select a node, choose a prompt using {{subject}}, then Copy resolved prompt.",
@@ -2044,11 +2044,18 @@
         {
           "do": "Download the original, Clear scene, then Undo.",
           "expect": "The file can be backed up; Undo restores the assignment. Permanent image deletion is separate."
+        },
+        {
+          "do": "Apply a detailed image on a 2560-wide display. For a static comparison set Waves off, Distortion/Glitching 0, Audio Bounce 1 and Low tint white. Compare fine image lines with the original; resize, enable/disable scene glow, then clear the image.",
+          "expect": "Wallpaper uses output pixels instead of the reduced graph buffer and bypasses graph AA/glow filtering. Graph/bloom buffers remain budgeted; clearing restores the original output budget. At larger/high-DPI dimensions the separate 4K-equivalent output cap can still reduce density."
         }
       ],
       "reference": "docs/SCENE_GENERATION.md",
       "sources": [
-        "src/scene/ScenePanel.tsx"
+        "src/scene/ScenePanel.tsx",
+        "src/renderBudget.ts",
+        "src/sceneAppearance.ts",
+        "tests/scene-native-wallpaper.browser.mjs"
       ],
       "actions": [
         "scene.copyPrompt",
@@ -2059,11 +2066,11 @@
         "scene.deleteLocal",
         "scene.clear"
       ],
-      "limits": "Clipboard reading may need browser permission. Atlas/workspace exports do not include local scene bytes/assignments; download images separately.",
+      "limits": "Clipboard reading may need browser permission. Atlas/workspace exports do not include local scene bytes/assignments; download images separately. Native wallpaper output is bounded at 8,294,400 pixels and DPR 2. Larger displays can still downscale; source resolution, cover crop and enabled UV effects also affect detail. Offscreen-composite failure uses direct rendering at output density and may raise graph cost. No image rewrite or new saved field. Actual sharpness/compositing/performance remain user-tested.",
       "status": "Implemented; browser verification pending",
       "verification": {
-        "browser": "Not recorded",
-        "automated": "See subsystem tests and PR checks; not proof of usability"
+        "browser": "Not recorded No fresh browser run for native-detail composition; prepared opt-in scene-native-wallpaper.browser.mjs checks one-pixel detail through glow/no-glow and image clearing.",
+        "automated": "See subsystem tests and PR checks; not proof of usability Resolution regression covers native 2560, high-DPI scaling, 4K-equivalent output cap, unchanged graph/bloom budgets and restoration without wallpaper."
       },
       "related": [],
       "gestures": []
@@ -2072,7 +2079,7 @@
       "id": "scene.vfx",
       "title": "Source-based Wallpaper Engine pulse and scene audio effects",
       "where": "Scene → Scene effects. Import/apply an image through the existing Scene image workflow.",
-      "behavior": "Light model defaults to Wallpaper Engine pulse, ported from the supplied pulse.vert/pulse.frag/common_blending.h (mode 9). It averages selected stereo spectrum bands, smoothsteps thresholds, applies exponent/amount and blends image×low tint toward min(image×low tint + image×high tint,1), retaining pulse above 1. Defaults are bands 0–15, bounds 0.01–1, exponent 4, amount 1.2, low #a8a8a8 and high white. Low tint intentionally dims at rest. No invented hue/saturation/halo layer is added. Earlier approximation remains selectable with all prior saved controls. Direct website playback, bounce, waves/VHS, FPS cap, shared editing/history and capture-free input remain.",
+      "behavior": "Light model defaults to Wallpaper Engine pulse, ported from the supplied pulse.vert/pulse.frag/common_blending.h (mode 9). It averages selected stereo spectrum bands, smoothsteps thresholds, applies exponent/amount and blends image×low tint toward min(image×low tint + image×high tint,1), retaining pulse above 1. Defaults are bands 0–15, bounds 0.01–1, exponent 4, amount 1.2, low #a8a8a8 and high white. Low tint intentionally dims at rest. No invented hue/saturation/halo layer is added. Earlier approximation remains selectable with all prior saved controls. Direct website playback, bounce, waves/VHS, FPS cap, shared editing/history and capture-free input remain. Applied wallpaper now renders at an independent output density after graph-only AA/glow: native 2560×1440/1600 at DPR 1, capped at 8,294,400 pixels / DPR 2. Graph targets retain their 1.5-million-pixel budget. Import bytes, crop, effects, selection feedback and saved settings remain unchanged.",
       "steps": [
         {
           "do": "Open Scene → Scene effects; select Light model → Wallpaper Engine pulse. Choose audio file → Play audio.",
@@ -2113,6 +2120,10 @@
         {
           "do": "Set Scene effects → Max FPS to 60, then 144; use Undo/Redo and reload.",
           "expect": "The selected cap persists and restores through shared settings history. Values below 60 clamp to 60. Old settings default to 120; audio and other effect settings stay unchanged."
+        },
+        {
+          "do": "Apply a detailed image on a 2560-wide display. For a static comparison set Waves off, Distortion/Glitching 0, Audio Bounce 1 and Low tint white. Compare fine image lines with the original; resize, enable/disable scene glow, then clear the image.",
+          "expect": "Wallpaper uses output pixels instead of the reduced graph buffer and bypasses graph AA/glow filtering. Graph/bloom buffers remain budgeted; clearing restores the original output budget. At larger/high-DPI dimensions the separate 4K-equivalent output cap can still reduce density."
         }
       ],
       "reference": "docs/SCENE_VFX.md",
@@ -2128,7 +2139,10 @@
         "tests/scene-light-emission.browser.mjs",
         "src/scene/wallpaperLight.ts",
         "src/scene/pulse.ts",
-        "tests/scene-pulse.browser.mjs"
+        "tests/scene-pulse.browser.mjs",
+        "src/renderBudget.ts",
+        "src/sceneAppearance.ts",
+        "tests/scene-native-wallpaper.browser.mjs"
       ],
       "actions": [
         "scene.audioConnect",
@@ -2141,10 +2155,10 @@
         "scene.api"
       ],
       "status": "Source pulse port implemented; GPU/visual acceptance pending",
-      "limits": "The pulse/blend calculation comes from supplied source, but Wallpaper Engine FFT boundaries, spectrum scaling/smoothing, target colour space and active user tint overrides were not supplied. Browser stereo spectrum uses 16 log bands per channel over 20 Hz–20 kHz/Nyquist and may need threshold calibration. Low tint defaults intentionally darken at rest. Tints use existing 8-bit colour controls. No synthetic bloom is added in reference mode; full-scene equivalence is unverified. Earlier approximation is retained, with its All colours and tuning controls applying only there. Direct playback remains file-based; no external-app/system audio detection or browser capture. No new browser run; visual/performance acceptance remains user testing.",
+      "limits": "The pulse/blend calculation comes from supplied source, but Wallpaper Engine FFT boundaries, spectrum scaling/smoothing, target colour space and active user tint overrides were not supplied. Browser stereo spectrum uses 16 log bands per channel over 20 Hz–20 kHz/Nyquist and may need threshold calibration. Low tint defaults intentionally darken at rest. Tints use existing 8-bit colour controls. No synthetic bloom is added in reference mode; full-scene equivalence is unverified. Earlier approximation is retained, with its All colours and tuning controls applying only there. Direct playback remains file-based; no external-app/system audio detection or browser capture. No new browser run; visual/performance acceptance remains user testing. Native wallpaper output is bounded at 8,294,400 pixels and DPR 2. Larger displays can still downscale; source resolution, cover crop and enabled UV effects also affect detail. Offscreen-composite failure uses direct rendering at output density and may raise graph cost. No image rewrite or new saved field. Actual sharpness/compositing/performance remain user-tested.",
       "verification": {
-        "browser": "No browser run authorised for this port. Prepared opt-in tests/scene-pulse.browser.mjs compares shader pixels against the supplied source equation through the normal bloom/output pipeline. Earlier visual passes do not validate the new port or actual music calibration.",
-        "automated": "Model regressions cover the supplied stereo averaging/threshold/exponent/amount and mode-9 equation, pulse above one, zero/equal/reversed inputs, stereo analyser routing without doubled playback, shared new setters/serialization and preservation of all earlier tuning. Existing playback/settings/cache checks remain. Full local delivery gate runs before push; model/build success does not establish GPU or visual fidelity."
+        "browser": "No browser run authorised for this port. Prepared opt-in tests/scene-pulse.browser.mjs compares shader pixels against the supplied source equation through the normal bloom/output pipeline. Earlier visual passes do not validate the new port or actual music calibration. No fresh browser run for native-detail composition; prepared opt-in scene-native-wallpaper.browser.mjs checks one-pixel detail through glow/no-glow and image clearing.",
+        "automated": "Model regressions cover the supplied stereo averaging/threshold/exponent/amount and mode-9 equation, pulse above one, zero/equal/reversed inputs, stereo analyser routing without doubled playback, shared new setters/serialization and preservation of all earlier tuning. Existing playback/settings/cache checks remain. Full local delivery gate runs before push; model/build success does not establish GPU or visual fidelity. Resolution regression covers native 2560, high-DPI scaling, 4K-equivalent output cap, unchanged graph/bloom budgets and restoration without wallpaper."
       }
     },
     {

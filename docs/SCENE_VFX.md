@@ -76,6 +76,31 @@ bloom/output against the source equation. It has not been run: no new browser ch
 was authorised. Actual wallpaper appearance, music calibration and performance await
 user testing. Earlier browser passes do not establish this port's fidelity.
 
+## Wallpaper resolution
+
+The wallpaper no longer inherits the graph's 1.5-million-pixel buffer or graph edge
+AA/glow filtering. With an applied image, the output canvas uses a separate budget
+of 8,294,400 pixels and DPR at most 2: 2560×1440/1600 at DPR 1 is rendered at its
+actual display dimensions. Browser zoom/DPR is included within that limit. Larger
+outputs can still be reduced by the documented cap; 120 fps is not guaranteed.
+
+The graph renders onto transparent black at its original budget; the wallpaper is
+hidden for those passes. A native-size final draw samples the original image and
+combines it with the linear graph texture (premultiplied RGB plus additive glow),
+then performs output conversion once. Colour/pulse/UV effects and selection feedback
+remain in the wallpaper shader, but graph AA cannot filter the image. No second
+WebGL context, image re-encode or native-size graph glow targets are introduced.
+Clearing/replacing images, viewport resizing and mode changes share existing
+invalidation/disposal. Without an image the old output budget returns. If offscreen
+composition fails, direct rendering remains the fallback at output resolution,
+which can raise graph cost in that fallback.
+
+A model regression covers native 2560 output, high-DPI cases, the 4K-equivalent cap
+and unchanged graph/bloom budgets. Prepared opt-in
+`tests/scene-native-wallpaper.browser.mjs` checks one-pixel detail with/without glow
+and clearing the image; it has not been run, with no new browser approval. Image
+sharpness, graph compositing and interactive performance remain user acceptance.
+
 ## Earlier approximation (retained)
 
 The following controls and description apply only to **Light model → Earlier

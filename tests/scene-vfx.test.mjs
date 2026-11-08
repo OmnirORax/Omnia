@@ -210,3 +210,32 @@ test('pulse audio reads both real splitter channels without duplicating audible 
  audio.disconnectSceneAudio();assert.equal(audio.sampleScenePulse(DEFAULT_SCENE_VFX),0);
  }finally{audio.disposeSceneAudio();globalThis.AudioContext=previous;}
 });
+
+
+test('wallpaper output preserves 2560-native detail without raising the graph or bloom budgets',async()=>{
+ const {sceneOutputPixelRatio,budgetPixelRatio,RENDER_BUDGET,bloomSize}=await import('../src/renderBudget.ts');
+ for(const [w,h,dpr]of [[2560,1440,1],[2560,1600,1],[2560,1080,1],[1280,720,2],[3840,2160,1]]){
+  const output=sceneOutputPixelRatio(w,h,dpr,true),graph=budgetPixelRatio(w,h,dpr,RENDER_BUDGET.scenePixels,RENDER_BUDGET.maxSceneDpr);
+  assert.equal(output,dpr,`${w}×${h} at DPR ${dpr} must not upscale a low-resolution wallpaper`);
+  assert.ok(w*h*graph*graph<=1_500_000+.001);assert.ok(bloomSize(w,h).width<=512);
+  assert.equal(sceneOutputPixelRatio(w,h,dpr,false),graph,'removing wallpaper restores the existing output budget');
+ }
+ const capped=sceneOutputPixelRatio(5120,2880,2,true);assert.ok(5120*2880*capped*capped<=RENDER_BUDGET.wallpaperPixels+.001);
+});
+
+test('native wallpaper composition restores visibility and shader inputs after render failures',async()=>{
+ const T=await import('three'),{createWallpaper}=await import('../src/scene/wallpaper.ts');
+ const priorWindow=globalThis.window,priorDocument=globalThis.document,priorLoad=T.TextureLoader.prototype.loadAsync;
+ globalThis.window={matchMedia:()=>({matches:false,addEventListener(){},removeEventListener(){}})};
+ globalThis.document=Object.assign(new EventTarget(),{hidden:true});
+ const texture=new T.Texture({width:8,height:8}),world=new T.Texture();T.TextureLoader.prototype.loadAsync=async()=>texture;
+ let scene=new T.Scene(),material;
+ const renderer={setRenderTarget(){},render(mesh){material=mesh.material;assert.equal(material.uniforms.compositeWorld.value,1);assert.equal(material.uniforms.worldLayer.value,world);throw Error('draw failed');}};
+ const paper=createWallpaper(scene,()=>{},renderer);
+ try{
+  await paper.setURL('disposable');assert.equal(paper.visible,true);
+  assert.throws(()=>paper.without(()=>{assert.equal(paper.visible,false);throw Error('graph failed');}),/graph failed/);assert.equal(paper.visible,true);
+  assert.throws(()=>paper.renderComposite(world),/draw failed/);assert.equal(material.uniforms.compositeWorld.value,0);assert.equal(material.uniforms.worldLayer.value,null);
+  await paper.setURL(null);assert.equal(paper.visible,false);
+ }finally{paper.dispose();world.dispose();T.TextureLoader.prototype.loadAsync=priorLoad;globalThis.window=priorWindow;globalThis.document=priorDocument;}
+});

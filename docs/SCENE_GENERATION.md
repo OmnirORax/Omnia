@@ -84,12 +84,20 @@ without generating again. Existing backend permissions/quotas are unchanged.
   imports are browser data, not an account-private cloud store. Object URLs and
   Three.js textures are released when replaced; reference/account checks suppress
   stale display on navigation. Image bytes do not enter embedded atlas/icon stores.
-- `src/scene/wallpaper.ts` draws one static screen-space texture in the existing
-  Three.js scene with cover cropping, selection feedback and disposal. It is not
-  pickable. Theme background remains the fallback; safe UI mode hides wallpaper.
-  The direct WebGL canvas has CSS width/height 100%; its budgeted drawing-buffer
-  resolution must never determine its visible size. No animated inference,
-  per-pointer scans or progress ticks in the app root.
+- `src/scene/wallpaper.ts` loads the original texture and draws the wallpaper at
+  the output resolution after graph-only post-processing. SpatialWorkspace uses
+  separate graph/output pixel budgets: ordinary 2560×1440/1600 at DPR 1 is native,
+  wallpaper output is capped at 8,294,400 pixels / DPR 2, and graph targets retain
+  1.5 million pixels with existing glow limits. The wallpaper is excluded from the
+  graph render/AA/glow passes; its final shader combines the image with the linear
+  premultiplied graph layer and applies output colour conversion once. Cover crop,
+  selection feedback and image disposal are retained. Theme remains the fallback;
+  removing the image restores the original output budget. If offscreen composition
+  fails, the existing direct renderer is the fallback at the selected output size,
+  which may increase graph cost. Actual sharpness/performance await user testing.
+  The canvas has CSS width/height 100%; physical pixel dimensions never determine
+  its visible CSS size. Imports retain original accepted file bytes, with no resize
+  or recompression. No new storage, per-pointer scans or app-root progress ticks.
 - Scene assignment currently uses the selected placement, not semantic parent,
   camera focus or zoom. Ancestor defaults/inheritance, semantic environment/mood/
   scale rules, multiple bindings, image editing, music and animated scenes remain

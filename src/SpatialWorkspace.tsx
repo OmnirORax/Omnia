@@ -29,7 +29,7 @@ import { frontOnPose } from "./navigation/model";
 import { createNavigationGesture } from "./navigation/gesture";
 import { MODES, navigationOptions, navigationConstraint, type NavigationOptions } from "./navigation/options";
 import type { Rotation } from "./navigation/transforms";
-import { RENDER_BUDGET, budgetPixelRatio } from "./renderBudget";
+import { RENDER_BUDGET, budgetPixelRatio,sceneOutputPixelRatio } from "./renderBudget";
 import { selectorSurfaceStrength } from "./appearance/selectorSurface";
 import { isNudgeAction, type NudgeActionId } from "./workspaceActions";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -287,11 +287,14 @@ export default function SpatialWorkspace(props: Props) {
         const navigatorAppearance=callbacks.current.settings.appearance,navigatorStyle=navigatorAppearance.renderDefaults?.['omnium.selection'];
         navigatorMarker.update(navigator.position,navigator.orientation,pitch(),navigatorVisible,drive.valid,{color:brightHex(String(navigatorStyle?.color??navigatorAppearance.accent),Number(navigatorStyle?.brightness??1)),opacity:Number(navigatorStyle?.opacity??.85)*navigatorAppearance.opacity,glow:Number(navigatorStyle?.glow??navigatorAppearance.nodes.glow)});
         latticeFieldRef.current?.update(navigator.initialized?navigator.position:controls.target,camera,host.clientWidth,host.clientHeight,navigator.orientation);
+        const outputRatio=sceneOutputPixelRatio(host.clientWidth,host.clientHeight,window.devicePixelRatio,wallpaper.visible);
+        if(renderer.getPixelRatio()!==outputRatio){renderer.setPixelRatio(outputRatio);appearance.resize(Math.max(1,host.clientWidth),Math.max(1,host.clientHeight));}
         appearance.render();
       });
     };
     const requestRender = () => scheduleRender(true);
     const wallpaper = createWallpaper(scene, () => scheduleRender(false), renderer);
+    appearance.setWallpaper(wallpaper);
     const hierarchyPulse = createGraphHierarchyPulse();
     let hierarchyBackground: number | null = null;
     let selectedBackground: { paint: SceneSelectionPaint; strength: number } | undefined;
@@ -463,7 +466,7 @@ export default function SpatialWorkspace(props: Props) {
     stateRef.current = { navigator, scene, camera, controls, renderer, content, appearance, faceSelection, requestRender, requestPaint: () => scheduleRender(false), focus: (kind, id) => { stopAnimation(); const before = readView(); focus(kind, id); if (animation) pendingViewBefore = before; else recordView(before); }, wallpaper };
     const resize = () => {
       camera.aspect = Math.max(1, host.clientWidth) / Math.max(1, host.clientHeight);
-      camera.updateProjectionMatrix(); renderer.setPixelRatio(budgetPixelRatio(host.clientWidth, host.clientHeight, window.devicePixelRatio, RENDER_BUDGET.scenePixels, RENDER_BUDGET.maxSceneDpr)); renderer.setSize(Math.max(1, host.clientWidth), Math.max(1, host.clientHeight), false); requestRender();
+      camera.updateProjectionMatrix(); renderer.setPixelRatio(sceneOutputPixelRatio(host.clientWidth,host.clientHeight,window.devicePixelRatio,wallpaper.visible)); renderer.setSize(Math.max(1, host.clientWidth), Math.max(1, host.clientHeight), false); requestRender();
       appearance.resize(Math.max(1, host.clientWidth), Math.max(1, host.clientHeight));
       wallpaper.resize(Math.max(1, host.clientWidth), Math.max(1, host.clientHeight));
     };

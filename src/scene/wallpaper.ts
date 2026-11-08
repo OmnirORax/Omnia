@@ -1,15 +1,17 @@
-import {REFERENCE_PULSE_GLSL} from './pulse';
-import {SCENE_LIGHT_CONTROLS,normalizeSceneVfx,smoothAudio,audioScale,nextVfxDeadline,type SceneVfx} from './vfx';
-import {sampleSceneAudio,sampleScenePulse,isSceneAudioConnected,subscribeSceneAudio,disposeSceneAudio} from './audio';
+import {REFERENCE_PULSE_GLSL} from './pulse.ts';
+import {SCENE_LIGHT_CONTROLS,normalizeSceneVfx,smoothAudio,audioScale,nextVfxDeadline,type SceneVfx} from './vfx.ts';
+import {sampleSceneAudio,sampleScenePulse,isSceneAudioConnected,subscribeSceneAudio,disposeSceneAudio} from './audio.ts';
 import * as THREE from 'three';
-import {createWallpaperLight,wallpaperColourGLSL,wallpaperLightUniformGLSL,wallpaperLightUniforms} from './wallpaperLight';
+import {FullScreenQuad} from 'three/addons/postprocessing/Pass.js';
+export interface WallpaperComposite {readonly visible:boolean;without<T>(render:()=>T):T;renderComposite(world:THREE.Texture):void;}
+import {createWallpaperLight,wallpaperColourGLSL,wallpaperLightUniformGLSL,wallpaperLightUniforms} from './wallpaperLight.ts';
 
 /** A screen-space image behind the existing scene, with the same selection feedback. */
 export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, renderer: THREE.WebGLRenderer) {
   const spatialLight=createWallpaperLight(renderer);
   const material = new THREE.ShaderMaterial({
     depthTest: false, depthWrite: false, toneMapped: false,
-    uniforms: { ...wallpaperLightUniforms(),image: { value: null }, imageAspect: { value: 1 }, viewportAspect: { value: 1 },
+    uniforms: { worldLayer:{value:null},compositeWorld:{value:0},...wallpaperLightUniforms(),image: { value: null }, imageAspect: { value: 1 }, viewportAspect: { value: 1 },
       pulseModel:{value:1},pulseTintLow:{value:new THREE.Vector3(168/255,168/255,168/255)},pulseTintHigh:{value:new THREE.Vector3(1,1,1)},nearLight:{value:null},farLight:{value:null},sceneGlowPass:{value:0}, time: {value:0}, bounce:{value:1}, light:{value:0}, lightHue:{value:.05},lightSaturation:{value:1},lightAllColors:{value:0},
       waves:{value:1}, distortion:{value:.4}, glitching:{value:.3},
       feedbackColor: { value: new THREE.Color() }, feedbackStrength: { value: 0 } },
@@ -19,6 +21,7 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
       uniform float waves; uniform float distortion; uniform float glitching;
       uniform float pulseModel;uniform vec3 pulseTintLow;uniform vec3 pulseTintHigh;
       ${REFERENCE_PULSE_GLSL}
+      uniform sampler2D worldLayer;uniform float compositeWorld;
       uniform sampler2D nearLight;uniform sampler2D farLight;
       float hash(float n){return fract(sin(n*127.1)*43758.5453);}
       ${wallpaperLightUniformGLSL}
@@ -56,10 +59,16 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
           if(pulse>0.0)enhanced=linearColour(mix(visible,radiance,pulse));
         }
         vec3 outputColor=mix(enhanced,feedbackColor,feedbackStrength);
+        if(compositeWorld>.5){
+          vec4 world=texture2D(worldLayer,imageUV);
+          // Graph RGB is premultiplied over transparent black; bloom is additive.
+          outputColor=outputColor*(1.0-clamp(world.a,0.0,1.0))+world.rgb;
+        }
         gl_FragColor = vec4(outputColor, 1.0);
         #include <colorspace_fragment>
       }`,
   });
+  const compositeQuad=new FullScreenQuad(material);
   const geometry = new THREE.PlaneGeometry(2, 2), mesh = new THREE.Mesh(geometry, material);
   mesh.userData.glowIntensity = 0; mesh.frustumCulled = false; mesh.renderOrder = -100000; mesh.visible = false; mesh.raycast = () => {};
   scene.add(mesh);
@@ -94,6 +103,13 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
   const stopAudio=subscribeSceneAudio(schedule);
   document.addEventListener('visibilitychange',visibility);reduced.addEventListener('change',motion);
   return {
+    get visible(){return mesh.visible;},
+    without<T>(render:()=>T){const visible=mesh.visible;mesh.visible=false;try{return render();}finally{mesh.visible=visible;}},
+    renderComposite(world:THREE.Texture){
+      material.uniforms.worldLayer.value=world;material.uniforms.compositeWorld.value=1;
+      try{renderer.setRenderTarget(null);compositeQuad.render(renderer);}
+      finally{material.uniforms.worldLayer.value=null;material.uniforms.compositeWorld.value=0;}
+    },
     configure(value:SceneVfx){
       settings=normalizeSceneVfx(value);
       material.uniforms.pulseModel.value=Number(settings.lightModel==='pulse');
@@ -129,6 +145,6 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
     feedback(color: THREE.Color, strength: number) {
       material.uniforms.feedbackColor.value.copy(color); material.uniforms.feedbackStrength.value = strength;
     },
-    dispose() { alive = false;cancel();stopAudio();disposeSceneAudio();document.removeEventListener('visibilitychange',visibility);reduced.removeEventListener('change',motion); epoch++; texture?.dispose();spatialLight.dispose(); scene.remove(mesh); material.dispose(); geometry.dispose(); },
+    dispose() { alive = false;cancel();stopAudio();disposeSceneAudio();document.removeEventListener('visibilitychange',visibility);reduced.removeEventListener('change',motion); epoch++; texture?.dispose();spatialLight.dispose(); scene.remove(mesh);compositeQuad.dispose(); material.dispose(); geometry.dispose(); },
   };
 }

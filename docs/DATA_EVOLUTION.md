@@ -541,3 +541,16 @@ masks are transient. Reference mode allocates no synthetic halo buffers. Images,
 assignments, atlas identities and backend formats stay unchanged. Unit/model
 checks cover shared setters, defaults, round trips and retained legacy tuning;
 new GPU/browser validation remains unrun, with no inferred appearance acceptance.
+
+
+### Native-detail wallpaper composition (2026-11-08)
+
+Render-only change: the applied image is drawn after graph post-processing at its
+own output density (8,294,400 pixels / DPR 2 cap). The graph/bloom targets retain
+their original budgets. No saved preferences/defaults, 29-field sceneVfx format,
+image bytes, references, assignments, atlas/backend contracts or history behavior
+change; no migration is required. Clearing the wallpaper restores the former
+output budget. Older clients render the same image/preferences through their prior
+lower-resolution path. Offscreen-composite failure falls back to direct rendering
+at output density, with potentially increased graph cost. No browser appearance or
+performance acceptance is inferred from resolution-model/build checks.
