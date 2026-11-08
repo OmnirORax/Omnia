@@ -312,7 +312,7 @@
       "id": "history.global",
       "title": "Chronological undo/redo and filtering",
       "where": "MC → History; Shift plus the configured Undo/Redo trigger. Check current bindings in Shortcuts.",
-      "behavior": "Recent uses chronological actions across owners; Context limits actions to the active context; Selective uses categories. Configure steps and a retained maximum of 10. MS selection has a separate transient timeline.",
+      "behavior": "Recent uses chronological actions across owners; Context limits actions to the active context; Selective uses categories. Configure steps and a retained maximum of 10. MS selection has a separate transient timeline. Configured MB4/MB5 keep their website actions. The app cancels browser-history defaults on mouse press, pointer/mouse release and auxiliary click throughout the website; release does not invoke an action again.",
       "steps": [
         {
           "do": "Change a visual property, then move a UI frame. Invoke normal Undo twice.",
@@ -325,12 +325,17 @@
         {
           "do": "Redo, then switch atlases and undo a knowledge edit.",
           "expect": "The shared workspace is restored safely; the edit is not applied to an unrelated atlas."
+        },
+        {
+          "do": "With MB4/MB5 assigned to Undo/Redo, make an edit and press/release each side button over the canvas and UI. Also try Shift configuration.",
+          "expect": "The bound website action runs once and the tab remains on Omnium. Native browser-chrome buttons are unaffected; hardware emitting separate browser commands may require mouse-driver remapping."
         }
       ],
       "reference": "docs/SHORTCUTS.md",
       "sources": [
         "src/ui/actionHistory.ts",
-        "src/ui/ContextualHistoryController.tsx"
+        "src/ui/ContextualHistoryController.tsx",
+        "src/App.tsx"
       ],
       "actions": [
         "ui:undo",
@@ -339,7 +344,7 @@
         "redo",
         "history.configure"
       ],
-      "limits": "Browser acceptance has not been recorded for this guide.",
+      "limits": "Physical MB4/MB5/browser navigation acceptance remains user-owned. Separate OS/mouse-driver browser commands cannot be guaranteed cancellable by page JavaScript.",
       "status": "Implemented; browser verification pending",
       "verification": {
         "browser": "Not recorded",

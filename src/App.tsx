@@ -1217,14 +1217,19 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
         if (event.type === "click" || event.type === "auxclick") consumedShortcutPress.current = null;
       } else if (event.button === 3 || event.button === 4) event.preventDefault();
     };
+    // Browser Back/Forward may be a release default (not an auxclick default).
+    // Cancel side-button releases globally without re-running their bound action.
+    const preventHistoryRelease = (event: MouseEvent) => { if (event.button === 3 || event.button === 4) event.preventDefault(); };
     const preventRecordedMenu = (event: MouseEvent) => { if (recordedShortcutTail(event)) { event.preventDefault(); event.stopImmediatePropagation(); } };
     window.addEventListener("pointerdown", mouseHistory, true);
     window.addEventListener("mousedown", preventMouseNavigation, true);
+    window.addEventListener("pointerup", preventHistoryRelease, true);
+    window.addEventListener("mouseup", preventHistoryRelease, true);
     window.addEventListener("auxclick", preventMouseNavigation, true);
     window.addEventListener("click", preventMouseNavigation, true);
     window.addEventListener("contextmenu", preventRecordedMenu, true);
     window.addEventListener("keydown", keydown); window.addEventListener("keyup", keyup);
-    return () => { window.removeEventListener("keydown", keydown); window.removeEventListener("keyup", keyup); window.removeEventListener("pointerdown", mouseHistory, true); window.removeEventListener("mousedown", preventMouseNavigation, true); window.removeEventListener("auxclick", preventMouseNavigation, true); window.removeEventListener("click", preventMouseNavigation, true); window.removeEventListener("contextmenu", preventRecordedMenu, true); };
+    return () => { window.removeEventListener("keydown", keydown); window.removeEventListener("keyup", keyup); window.removeEventListener("pointerdown", mouseHistory, true); window.removeEventListener("mousedown", preventMouseNavigation, true); window.removeEventListener("pointerup", preventHistoryRelease, true); window.removeEventListener("mouseup", preventHistoryRelease, true); window.removeEventListener("auxclick", preventMouseNavigation, true); window.removeEventListener("click", preventMouseNavigation, true); window.removeEventListener("contextmenu", preventRecordedMenu, true); };
   });
   useEffect(() => {
     heldNudges.stop();
