@@ -41,7 +41,7 @@ Audio amount above one still overdrives the blend; very strong settings can clip
 The separate Colour strength, Base brightness and Flash brightness sliders are
 removed. Their saved preferences remain in JSON for rollback. Single and Omni
 low/high tint choices are saved independently.
-Manual audio processing, exponent 0.1 and bounce are unchanged. Automatic is
+Manual audio processing, exponent 0.1 and Manual bounce are unchanged. Automatic is
 a separate response path, described below.
 Selected colours remains removed. Image tint stays separate and off by default.
 
@@ -50,9 +50,9 @@ Selected colours remains removed. Image tint stays separate and off by default.
 Open **Audio response → Automatic · detailed**. Existing saved settings keep
 Manual until you select Automatic; new settings default to Automatic. Use just:
 
-- **Sensitivity** (default 2, 0.25–8): sets which attacks trigger. Lower it to reject tiny fluctuations; raise it to admit quiet details.
-- **Drop contrast** (default 2, 1–4): widens the strength gap between little hits and big drops. Higher values favour stronger drops.
-- **Flash amount** (the existing Audio amount, default 2, 0–2): scales light output.
+- **Sensitivity** (default 8, 0.25–8): sets which attacks trigger. Lower it to reject tiny fluctuations; raise it to admit quiet details.
+- **Drop contrast** (default 1, 1–4): widens the strength gap between little hits and big drops. Higher values favour stronger drops.
+- **Flash amount** (the existing Audio amount, default 1.7, 0–2): scales light output.
 
 Automatic listens across both channels and detects upward changes separately in
 each frequency bin. A loud continuous tone cannot hide an admitted quieter hit in a
@@ -83,14 +83,26 @@ A slow 8-second calibration adjusts gain to changing music levels; it never hold
 light output. It starts at reference amplitude 0.03 and bottoms at 0.01; silence
 does not raise gain. Source reconnect or response-mode change resets calibration;
 colour edits and closing controls do not. All state is transient. No extra audio
-route, source permissions, or audible playback processing is added. Bounce retains
-its existing path. Automatic affects both Single and Omni light modes.
+route, source permissions, or audible playback processing is added. Automatic bounce follows the refined bass path below; Manual retains its
+existing path. Automatic affects both Single and Omni light modes.
 
 **Light response** shows actual shader pulse input (0–2), sampled for display at
 10 Hz. It differs from the existing RMS Audio input meter. Switch to **Manual**
 to restore selected frequency bands, lower/upper thresholds and exponent exactly;
 Automatic ignores those values but retains them. Audio amount is shared across
 both modes. Shared settings/history/exports own mode, sensitivity and Drop contrast.
+
+## Refined Automatic bounce
+
+Automatic bounce reads bass-bin rises (through 180 Hz, subject to FFT resolution)
+from the same unsmoothed stereo sampling and local profiles as the light response.
+The shared **Sensitivity** admits/rejects its attacks. It returns directly to its
+baseline on zero bass input, bypassing the old additional bounce smoothing.
+**Audio Bounce** remains the maximum image scale, default 1.3. Flash amount and
+Drop contrast affect light only; they do not scale bounce. Gain calibration is
+advanced once per frame, with no second analyser read or playback processing.
+Manual retains its earlier bass band and smoothing. Actual motion feel needs
+user acceptance; renderer tests verify silence reset and light/motion independence.
 
 ## Optional Image tint
 
@@ -104,26 +116,27 @@ history, save/reload and exports. The tint shader code is compiled only when on.
 
 ## Current defaults and controls
 
-The new defaults follow the user's 2026-11-08 screenshot. Numeric values are read
-directly; without exact hex values, the pale pink and dark blue swatches are
-approximated as #ffe5e5 / #001438. Explicit older saved choices are preserved.
+Defaults match the user’s explicit RGB/numeric request: base 250/240/240
+(#faf0f0), high 61/0/0 (#3d0000), Sensitivity 8, Drop contrast 1, Flash amount 1.7.
+Both Single and Omni endpoint defaults use these swatches. In Omni their hue is
+ignored, as above. Existing explicit saved values are retained.
 
 | Saved field | Control | Default / bounds |
 | --- | --- | --- |
 | pulseRangeMode | Audio response | auto for new settings; manual for existing settings lacking mode |
-| pulseSensitivity | Sensitivity (Automatic) | 2; 0.25–8 |
-| pulseDropContrast | Drop contrast (Automatic) | 2; 1–4 |
-| pulseTintLow | Low tint | #ffe5e5 |
-| pulseTintHigh | High tint / Colour to add | #001438 |
+| pulseSensitivity | Sensitivity (Automatic) | 8; 0.25–8 |
+| pulseDropContrast | Drop contrast (Automatic) | 1; 1–4 |
+| pulseTintLow | Low tint | #faf0f0 |
+| pulseTintHigh | High tint / Colour to add | #3d0000 |
 | pulseFrequencyMin | First frequency band | 14; integer 0–15 |
 | pulseFrequencyMax | Last frequency band | 15; integer 0–15 |
 | pulseAudioLow | Audio lower threshold | 0.01; 0–1 |
 | pulseAudioHigh | Audio upper threshold | 1; 0–1 |
 | pulseExponent | Audio exponent | 0.1; 0–4 |
-| pulseAmount | Audio amount | 2; 0–2 |
+| pulseAmount | Audio amount | 1.7; 0–2 |
 | pulseColorMode | Tint mode | tint; Single colour / Omni |
-| pulseOmniTint | High tint (Omni); only HSV saturation/value used | #380000 (S 1, V 56/255) |
-| pulseOmniTintLow | Low tint (Omni); only HSV saturation/value used | #ffe5e5 |
+| pulseOmniTint | High tint (Omni); only HSV saturation/value used | #3d0000 (S 1, V 61/255) |
+| pulseOmniTintLow | Low tint (Omni); only HSV saturation/value used | #faf0f0 |
 | imageTintEnabled | Enable image tint | false |
 | imageTint | Image tint colour | #c20000 |
 | audioBounce | Audio Bounce | 1.3; 1–1.5 |
@@ -145,10 +158,11 @@ Selected mode maps to Single; its palette/range remain archived. The earlier
 approximation fields and three superseded Omni sliders remain exportable without
 active controls/render paths. Existing Low/High tint choices are preserved.
 
-If pulseOmniTint is absent, the compatibility reader encodes the saved old
-pulseAllBrightness as a fully saturated reference red of the same value (rounded
-to the native picker’s 8-bit precision). Its hue is ignored. The default is
-#380000. Explicit picker colours, including black, take precedence and round-trip
+If pulseOmniTint is absent and a valid saved pulseAllBrightness exists, the
+compatibility reader encodes it as fully saturated reference red at the same value
+(rounded to native 8-bit precision). Its hue is ignored. Without a saved legacy
+strength, it uses the current #3d0000 default. Explicit picker colours, including
+black, take precedence and round-trip
 unchanged. Missing pulseOmniTintLow inherits the saved Single Low tint’s hex,
 using only its saturation/value in Omni; explicit new Low values win. Single
 low/high values remain untouched. The former exposure multipliers are retained but not applied: the user
@@ -169,7 +183,7 @@ closing controls keeps playback running. There is no tab/screen/system/microphon
 capture or native bridge. Music in other apps/tabs is not an input. Any captures
 still active in older preview pages must be stopped there/by closing those pages.
 
-The RMS Audio input meter and bass bounce retain the app-owned audio session.
+The RMS Audio input meter and both bounce modes retain the app-owned audio session.
 Two stereo analyser taps supply Manual’s 16 log bands/channel or Automatic’s
 strongest-bin signal from 20 Hz to min(20 kHz, Nyquist), without connecting those
 taps back to speakers. Arrays are reused;
@@ -199,7 +213,9 @@ quiet responses, and preserve the earlier cadence/settling checks.
 Latest regressions check actual admission counts across Sensitivity, rejection
 of continuous micro-fluctuations with strong drops retained, stronger amplitude
 response, Omni Low/High hue handling, preserved Single endpoints and renderer
-uniform wiring. No fresh browser run was authorised for these changes. The numerical checks
+uniform wiring. Bounce checks additionally cover bass-only admission, zero-input baseline return,
+Flash amount independence and renderer selection of the direct Automatic path.
+No fresh browser run was authorised for these changes. The numerical checks
 verify colour math and settings wiring, including normal-versus-Omni blend
 equality for pale gold/blue source hues; they do not verify GPU appearance. Test Omni
 with different saturation/brightness positions, then compare Single colour; actual brightness,

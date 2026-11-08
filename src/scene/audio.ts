@@ -4,8 +4,9 @@ import {normalizeAudioLevel} from './vfx.ts';
 /** Ephemeral, explicitly connected browser audio. Nothing here is persisted. */
 let context:AudioContext|null=null,analyser:AnalyserNode|null=null,source:AudioNode|null=null;
 let splitter:ChannelSplitterNode|null=null,stereo:AnalyserNode[]=[];
-const automaticPulse=createAutomaticPulse();let fftMode='',pulseResponse=0;
+const automaticPulse=createAutomaticPulse();let fftMode='',pulseResponse=0,bounceResponse=0;
 export const scenePulseResponse=()=>pulseResponse;
+export const sceneBounceResponse=()=>bounceResponse;
 const spectrumBytes=[new Uint8Array(1024),new Uint8Array(1024)],bands=new Float32Array(32);
 let activeMedia:HTMLMediaElement|null=null;
 let cleanupMedia:(()=>void)|undefined;
@@ -19,7 +20,7 @@ export const sceneAudioStatus=()=>status;
 export const sceneAudioSnapshot=()=>snapshot;
 export const subscribeSceneAudio=(fn:()=>void)=>{listeners.add(fn);return()=>{listeners.delete(fn);};};
 export function disconnectSceneAudio(){
- automaticPulse.reset();fftMode='';pulseResponse=0;epoch++;activeMedia?.pause();activeMedia=null;cleanupMedia?.();cleanupMedia=undefined;connected=false;source?.disconnect();source=null;analyser?.disconnect();analyser=null;
+ automaticPulse.reset();fftMode='';pulseResponse=bounceResponse=0;epoch++;activeMedia?.pause();activeMedia=null;cleanupMedia?.();cleanupMedia=undefined;connected=false;source?.disconnect();source=null;analyser?.disconnect();analyser=null;
  splitter?.disconnect();splitter=null;stereo.forEach(a=>a.disconnect());stereo=[];bands.fill(0);
  if(context)void context.close().catch(()=>{});context=null;bytes=new Uint8Array(0);publish('No audio connected');
 }
@@ -52,21 +53,22 @@ export function sampleSceneAudio(){
 /** Manual retains 16 log bands/channel; Automatic follows frequency-local rises
  * across both channels, retaining a short analysis window rather than sustained loudness. */
 export function sampleScenePulse(settings:SceneVfx,seconds=1/60){
- if(!connected||!context||context.state!=='running'||stereo.length!==2||activeMedia?.paused===true){pulseResponse=0;return 0;}
+ if(!connected||!context||context.state!=='running'||stereo.length!==2||activeMedia?.paused===true){pulseResponse=bounceResponse=0;return 0;}
  const auto=settings.pulseRangeMode==='auto';
  if(fftMode!==settings.pulseRangeMode){
   fftMode=settings.pulseRangeMode;automaticPulse.reset();
   for(const node of stereo){node.fftSize=auto?1024:2048;node.smoothingTimeConstant=auto?0:.7;node.minDecibels=-100;node.maxDecibels=auto?0:-30;}
  }
- let peak=0,onset=0,onsetLevel=0;
+ let peak=0,onset=0,onsetLevel=0,bassOnset=0,bassLevel=0;
  const hz=context.sampleRate/(auto?1024:2048),upper=Math.min(20000,context.sampleRate/2);
  for(let channel=0;channel<2;channel++){
   const buffer=spectrumBytes[channel];stereo[channel].getByteFrequencyData(buffer);
   if(auto){
    const first=Math.max(1,Math.floor(20/hz)),last=Math.min(buffer.length,stereo[channel].frequencyBinCount,Math.ceil(upper/hz));
-   const measure=automaticPulse.spectrum(buffer,channel,first,last,seconds);
+   const measure=automaticPulse.spectrum(buffer,channel,first,last,seconds,Math.floor(180/hz)+1);
    peak=Math.max(peak,measure.level);
    if(measure.change>onset){onset=measure.change;onsetLevel=measure.changeLevel;}
+   if(measure.bassChange>bassOnset){bassOnset=measure.bassChange;bassLevel=measure.bassChangeLevel;}
    continue;
   }
   for(let band=0;band<16;band++){
@@ -76,6 +78,8 @@ export function sampleScenePulse(settings:SceneVfx,seconds=1/60){
   }
  }
  pulseResponse=auto?automaticPulse.sample(peak,seconds,settings.pulseSensitivity,settings.pulseAmount,onset,onsetLevel,settings.pulseDropContrast):referencePulse(bands,settings.pulseFrequencyMin,settings.pulseFrequencyMax,settings.pulseAudioLow,settings.pulseAudioHigh,settings.pulseExponent,settings.pulseAmount);
+ // Read the shared calibrated response without advancing calibration again. Flash amount does not scale motion.
+ bounceResponse=auto?automaticPulse.sample(peak,0,settings.pulseSensitivity,1,bassOnset,bassLevel,1):0;
  return pulseResponse;
 }
 

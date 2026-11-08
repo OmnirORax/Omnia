@@ -761,3 +761,23 @@ becomes Tint mode, keeping the existing pulseColorMode ID. Whitelist: 42 fields,
 21 active, 21 archived. Older clients discard Omni Low and render their old base
 and sensitivity behavior; retain a current export before rollback. No asset,
 identity, atlas/backend-format or source-permission migration applies.
+
+
+### User-chosen defaults and shared-sensitivity Automatic bounce (2026-11-08)
+
+Set missing/new endpoint defaults in both Single and Omni to base RGB 250/240/240
+(#faf0f0), high RGB 61/0/0 (#3d0000); Sensitivity 8, Drop contrast 1, shared Audio/
+Flash amount 1.7. Shared numeric metadata and normalizer fallbacks use these same
+values. Explicit authored values, including black/zero, are retained. Missing
+Omni High inherits an explicitly saved valid legacy strength when present; without
+one it uses the current high default. Omni Low still inherits saved Single Low.
+No eager saved-setting rewrite or new field; whitelist stays 42 (21 active and 21 archived).
+
+Automatic bounce now consumes bass rises through 180 Hz from the same FFT/local
+profiles and shared Sensitivity gate as light. No duplicate FFT read or extra
+calibration advancement; no old bounce smoothing on this path. Audio Bounce keeps
+its identity/bounds/default as maximum scale. Flash amount/Drop contrast do not
+scale motion. Manual keeps its previous bass processing/smoothing. No new settings,
+media source, capture permission, asset/identity/backend-format changes. Older
+previews retain old defaults and old Automatic bounce behavior; exported explicit
+settings still round-trip through the normal compatibility limits.

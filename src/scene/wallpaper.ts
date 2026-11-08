@@ -1,6 +1,6 @@
 import {REFERENCE_PULSE_GLSL,PULSE_COLOUR_GLSL} from './pulse.ts';
 import {normalizeSceneVfx,smoothAudio,audioScale,nextVfxDeadline,type SceneVfx} from './vfx.ts';
-import {sampleSceneAudio,sampleScenePulse,isSceneAudioConnected,subscribeSceneAudio,disposeSceneAudio} from './audio.ts';
+import {sampleSceneAudio,sampleScenePulse,sceneBounceResponse,isSceneAudioConnected,subscribeSceneAudio,disposeSceneAudio} from './audio.ts';
 import * as THREE from 'three';
 import {FullScreenQuad} from 'three/addons/postprocessing/Pass.js';
 export interface WallpaperComposite {readonly visible:boolean;without<T>(render:()=>T):T;renderComposite(world:THREE.Texture):void;}
@@ -86,8 +86,8 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
     const dt=last?Math.min(.1,(now-last)/1000):0;last=now;elapsed+=dt;
     const audio=sampleSceneAudio();bass=smoothAudio(bass,audio.bass,dt);level=smoothAudio(level,audio.level,dt);
     material.uniforms.time.value=elapsed;
-    material.uniforms.bounce.value=audioScale(bass,settings.audioBounce);
     material.uniforms.light.value=sampleScenePulse(settings,dt);
+    material.uniforms.bounce.value=audioScale(settings.pulseRangeMode==='auto'?sceneBounceResponse():bass,settings.audioBounce);
     requestPaint();schedule();
   };
   const visibility=()=>{cancel();schedule();};

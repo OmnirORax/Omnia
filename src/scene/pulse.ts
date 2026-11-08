@@ -6,7 +6,7 @@ export const PULSE_CONTROLS=[
  {key:'pulseAudioLow',label:'Audio lower threshold',initial:.01,min:0,max:1,step:.01,integer:false},
  {key:'pulseAudioHigh',label:'Audio upper threshold',initial:1,min:0,max:1,step:.01,integer:false},
  {key:'pulseExponent',label:'Audio exponent',initial:.1,min:0,max:4,step:.1,integer:false},
- {key:'pulseAmount',label:'Audio amount',initial:2,min:0,max:2,step:.05,integer:false},
+ {key:'pulseAmount',label:'Audio amount',initial:1.7,min:0,max:2,step:.05,integer:false},
 ] as const;
 export type PulseKey=typeof PULSE_CONTROLS[number]['key'];
 export function referencePulse(bands:ArrayLike<number>,min:number,max:number,low:number,high:number,power:number,amount:number){
@@ -73,23 +73,24 @@ const AUTOMATIC_AMPLITUDES=Float32Array.from({length:256},(_,i)=>i?Math.pow(10,(
 /** Frequency-local rises drive flashes; sustained energy calibrates gain only. */
 export function createAutomaticPulse(){
  let range=.03;
- const profiles=new Float32Array(2048),measurement={level:0,change:0,changeLevel:0};
+ const profiles=new Float32Array(2048),measurement={level:0,change:0,changeLevel:0,bassChange:0,bassChangeLevel:0};
  return {
   reset(){range=.03;profiles.fill(0);},
   /** Reuses one result object. Consume it before reading the other channel. */
-  spectrum(buffer:ArrayLike<number>,channel:number,first:number,last:number,seconds:number){
+  spectrum(buffer:ArrayLike<number>,channel:number,first:number,last:number,seconds:number,bassEnd=0){
    const blend=1-Math.exp(-Math.max(1/1000,Math.min(.1,seconds))/.02);
-   measurement.level=measurement.change=measurement.changeLevel=0;
+   measurement.level=measurement.change=measurement.changeLevel=measurement.bassChange=measurement.bassChangeLevel=0;
    for(let i=first;i<last;i++){
     const value=AUTOMATIC_AMPLITUDES[buffer[i]],index=channel*1024+i;
     measurement.level=Math.max(measurement.level,value);
     const rise=value-profiles[index];
     if(rise>measurement.change){measurement.change=rise;measurement.changeLevel=value;}
+    if(i<bassEnd&&rise>measurement.bassChange){measurement.bassChange=rise;measurement.bassChangeLevel=value;}
     profiles[index]+=(value-profiles[index])*blend;
    }
    return measurement;
   },
-  sample(signal:number,seconds:number,sensitivity:number,amount:number,onset=signal,onsetLevel=signal,dropContrast=2){
+  sample(signal:number,seconds:number,sensitivity:number,amount:number,onset=signal,onsetLevel=signal,dropContrast=1){
    const dt=Math.max(0,Math.min(.1,seconds));
    const change=onset;
    const level=onsetLevel;

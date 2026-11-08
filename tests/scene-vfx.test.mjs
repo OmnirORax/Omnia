@@ -145,11 +145,11 @@ test('pulse audio reads both real splitter channels without duplicating audible 
  await audio.connectSceneAudioElement({pause(){},addEventListener(){},removeEventListener(){}});
  assert.equal(ctx.nodes.length,3);assert.deepEqual(ctx.splitter.links.map(l=>l.output),[0,1]);
  assert.equal(ctx.nodes[0].links[0].node,ctx.destination);assert.equal(ctx.nodes[1].links.length,0);assert.equal(ctx.nodes[2].links.length,0,'spectrum taps are never sent to speakers a second time');
- assert.equal(audio.sampleScenePulse({...DEFAULT_SCENE_VFX,pulseRangeMode:'manual'}),2);
+ assert.equal(audio.sampleScenePulse({...DEFAULT_SCENE_VFX,pulseRangeMode:'manual',pulseAmount:2}),2);
  ctx.nodes[1].value=0;const bands=new Float32Array(32);bands.fill(1,16);
- assert.equal(audio.sampleScenePulse({...DEFAULT_SCENE_VFX,pulseRangeMode:'manual'}),referencePulse(bands,14,15,.01,1,.1,2));
- ctx.nodes[2].value=0;assert.equal(audio.sampleScenePulse({...DEFAULT_SCENE_VFX,pulseRangeMode:'manual'}),0);
- audio.disconnectSceneAudio();assert.equal(audio.sampleScenePulse({...DEFAULT_SCENE_VFX,pulseRangeMode:'manual'}),0);
+ assert.equal(audio.sampleScenePulse({...DEFAULT_SCENE_VFX,pulseRangeMode:'manual',pulseAmount:2}),referencePulse(bands,14,15,.01,1,.1,2));
+ ctx.nodes[2].value=0;assert.equal(audio.sampleScenePulse({...DEFAULT_SCENE_VFX,pulseRangeMode:'manual',pulseAmount:2}),0);
+ audio.disconnectSceneAudio();assert.equal(audio.sampleScenePulse({...DEFAULT_SCENE_VFX,pulseRangeMode:'manual',pulseAmount:2}),0);
  }finally{audio.disposeSceneAudio();globalThis.AudioContext=previous;}
 });
 
@@ -184,7 +184,7 @@ test('native wallpaper composition restores visibility and shader inputs after r
 
 
 test('screenshot defaults and remaining Single/All controls use shared settings/history serialization',()=>{
- const v=normalizeSceneVfx(undefined);assert.equal(v.pulseFrequencyMin,14);assert.equal(v.pulseFrequencyMax,15);assert.equal(v.pulseAudioLow,.01);assert.equal(v.pulseAudioHigh,1);assert.equal(v.pulseExponent,.1);assert.equal(v.pulseAmount,2);assert.equal(v.audioBounce,1.3);
+ const v=normalizeSceneVfx(undefined);assert.equal(v.pulseFrequencyMin,14);assert.equal(v.pulseFrequencyMax,15);assert.equal(v.pulseAudioLow,.01);assert.equal(v.pulseAudioHigh,1);assert.equal(v.pulseExponent,.1);assert.equal(v.pulseAmount,1.7);assert.equal(v.audioBounce,1.3);assert.equal(v.pulseTintLow,'#faf0f0');assert.equal(v.pulseTintHigh,'#3d0000');assert.equal(v.pulseOmniTintLow,'#faf0f0');assert.equal(v.pulseOmniTint,'#3d0000');assert.equal(v.pulseSensitivity,8);assert.equal(v.pulseDropContrast,1);
  const channels=SETTINGS_PROPERTY_ADAPTERS['scene.vfx'].channels;
  for(const [key,value]of [['pulseColorMode','all'],['pulseOmniTint','#330f00']]){
   const settings=defaultSettings(),changed=channels[`scene.${key}`].write(settings,value);
@@ -227,6 +227,9 @@ test('Single tint ticks remain live at exponent 0.1 while bounce works; colour v
   assert.equal(material.defines.PULSE_ALL_COLORS,0);assert.equal(material.defines.IMAGE_TINT,0);
   paper.configure({...settings,pulseColorMode:'all',pulseOmniTint:'#330f00',pulseOmniTintLow:'#003300'});assert.ok(Math.abs(u.pulseOmniTintLow.value.y-.2)<1e-5);assert.equal(u.pulseOmniTintLow.value.x,0);assert.ok(Math.abs(u.pulseOmniTint.value.x-.2)<1e-5);assert.ok(Math.abs(u.pulseOmniTint.value.y-15/255)<1e-5);assert.equal(material.defines.PULSE_ALL_COLORS,1);assert.equal(material.defines.IMAGE_TINT,0);
   paper.configure({...settings,imageTintEnabled:true,imageTint:'#c20000'});assert.equal(material.defines.PULSE_ALL_COLORS,0);assert.equal(material.defines.IMAGE_TINT,1);
+  paper.configure({...settings,pulseRangeMode:'auto',pulseAmount:0});ctx.nodes[1].value=ctx.nodes[2].value=255;
+  {const [key,fn]=pending.entries().next().value;pending.delete(key);fn(now+=20);}assert.ok(u.bounce.value>1);assert.equal(u.light.value,0);
+  ctx.nodes[1].value=ctx.nodes[2].value=0;{const [key,fn]=pending.entries().next().value;pending.delete(key);fn(now+=20);}assert.equal(u.bounce.value,1,'Automatic must return to baseline without the old bounce smoothing tail');
   assert.equal(settings.pulseExponent,.1);assert.equal(settings.maxFps,DEFAULT_SCENE_VFX.maxFps);
  }finally{paper.dispose();T.TextureLoader.prototype.loadAsync=prior.load;globalThis.window=prior.window;globalThis.document=prior.document;globalThis.AudioContext=prior.AudioContext;globalThis.requestAnimationFrame=prior.raf;globalThis.cancelAnimationFrame=prior.cancel;}
 });
@@ -320,16 +323,19 @@ test('automatic live sampler listens to bass and each transient with unsmoothed 
  globalThis.AudioContext=Context;
  try{
   await audio.connectSceneAudioElement({pause(){},addEventListener(){},removeEventListener(){}});
-  const settings={...DEFAULT_SCENE_VFX,pulseRangeMode:'auto'};
-  const values=[];for(const value of [150,0,180,0,220,0,245,0]){ctx.nodes[1].value=value;values.push(audio.sampleScenePulse(settings,1/120));}
-  assert.ok(values[0]>0&&values[0]<values[2]&&values[2]<values[4]&&values[4]<values[6]);
+  const settings={...DEFAULT_SCENE_VFX,pulseRangeMode:'auto',pulseSensitivity:2,pulseDropContrast:2,pulseAmount:2};
+  const values=[];for(const value of [150,0,180,0,220,0,245,0]){ctx.nodes[1].value=value;values.push(audio.sampleScenePulse(settings,1/120));if(value===0)assert.equal(audio.sceneBounceResponse(),0);else assert.ok(audio.sceneBounceResponse()>0);}
+  assert.ok(values[0]>0&&values[0]<values[2]&&values[2]<values[4]&&values[4]<values[6],JSON.stringify(values));
   for(const i of [1,3,5,7])assert.equal(values[i],0);
   assert.equal(ctx.nodes[1].fftSize,1024);assert.equal(ctx.nodes[1].smoothingTimeConstant,0);assert.equal(ctx.nodes[1].maxDecibels,0);
   ctx.nodes[1].value=0;ctx.nodes[1].bed=230;for(let i=0;i<120;i++)audio.sampleScenePulse(settings,1/120);
   for(const hit of [170,195,220]){ctx.nodes[1].value=hit;assert.ok(audio.sampleScenePulse(settings,1/120)>.002);ctx.nodes[1].value=0;assert.ok(audio.sampleScenePulse(settings,1/120)<.0001);for(let i=0;i<12;i++)audio.sampleScenePulse(settings,1/120);}
   ctx.nodes[1].value=200;assert.equal(audio.sampleScenePulse({...settings,pulseRangeMode:'manual'}),0,'legacy high bands still exclude bass');
   assert.equal(ctx.nodes[1].fftSize,2048);assert.equal(ctx.nodes[1].smoothingTimeConstant,.7);assert.equal(ctx.nodes[1].maxDecibels,-30);
-  audio.sampleScenePulse(settings);assert.ok(audio.scenePulseResponse()>0);audio.disconnectSceneAudio();assert.equal(audio.scenePulseResponse(),0);
+  audio.sampleScenePulse(settings);assert.ok(audio.scenePulseResponse()>0);ctx.nodes[1].value=0;audio.sampleScenePulse(settings);assert.equal(audio.sceneBounceResponse(),0);
+  ctx.nodes[1].value=150;audio.sampleScenePulse({...settings,pulseSensitivity:.25});assert.equal(audio.sceneBounceResponse(),0);
+  ctx.nodes[1].value=0;audio.sampleScenePulse(settings);ctx.nodes[1].value=220;assert.equal(audio.sampleScenePulse({...settings,pulseSensitivity:8,pulseAmount:0}),0);assert.ok(audio.sceneBounceResponse()>0,'Flash amount must not disable motion');
+  audio.disconnectSceneAudio();assert.equal(audio.scenePulseResponse(),0);assert.equal(audio.sceneBounceResponse(),0);
  }finally{audio.disconnectSceneAudio();globalThis.AudioContext=prior;}
 });
 
@@ -364,7 +370,7 @@ test('maximum sensitivity does not turn the short onset window into a long flash
 test('quiet-detail sensitivity cannot make small hits nearly equivalent to big drops',()=>{
  const pulse=createAutomaticPulse();
  for(const sensitivity of [.25,.5,1,2,4,8]){
-  const small=pulse.sample(.003,0,sensitivity,2),drop=pulse.sample(.3,0,sensitivity,2);
+  const small=pulse.sample(.003,0,sensitivity,2,.003,.003,2),drop=pulse.sample(.3,0,sensitivity,2,.3,.3,2);
   assert.ok(small>=0);assert.ok(drop>small*10,`drop must remain much stronger at sensitivity ${sensitivity}`);
  }
  const smallBefore=pulse.sample(.003,0,8,2,.003,.003,1),bigBefore=pulse.sample(.3,0,8,2,.3,.3,1);
@@ -378,7 +384,7 @@ test('Drop contrast inherits shared settings, bounds and persistence without edi
  const changed=channels['scene.pulseDropContrast'].write(base,3.2);
  assert.deepEqual(changed.sceneVfx,{...base.sceneVfx,pulseDropContrast:3.2});assert.equal(changed.appearance,base.appearance);
  const saved=normalizeSceneVfx(JSON.parse(serializeSceneVfx(changed.sceneVfx)));assert.equal(saved.pulseDropContrast,3.2);
- assert.equal(normalizeSceneVfx({}).pulseDropContrast,2);assert.equal(normalizeSceneVfx({pulseDropContrast:0}).pulseDropContrast,1);assert.equal(normalizeSceneVfx({pulseDropContrast:9}).pulseDropContrast,4);
+ assert.equal(normalizeSceneVfx({}).pulseDropContrast,1);assert.equal(normalizeSceneVfx({pulseDropContrast:0}).pulseDropContrast,1);assert.equal(normalizeSceneVfx({pulseDropContrast:9}).pulseDropContrast,4);
 });
 
 
