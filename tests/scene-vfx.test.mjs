@@ -461,3 +461,14 @@ test('wave setters preserve zero, reverse speed and saved values with historical
  const saved=normalizeSceneVfx(JSON.parse(serializeSceneVfx(authored)));
  for(const [key,value] of Object.entries(authored))assert.equal(saved[key],value);
 });
+
+test('default background covers no selection and unassigned nodes while explicit assignments and clears win',async()=>{
+ const {resolveBackgroundReference}=await import('../src/scene/backgroundReference.ts');
+ const fallback={localId:'default'},node={localId:'node'},nodes={assigned:node,cleared:null};
+ assert.equal(resolveBackgroundReference(nodes,fallback,null),fallback);
+ assert.equal(resolveBackgroundReference(nodes,fallback,'new'),fallback);
+ assert.equal(resolveBackgroundReference(nodes,fallback,'assigned'),node);
+ assert.equal(resolveBackgroundReference(nodes,fallback,'cleared'),null);
+ assert.equal(resolveBackgroundReference(nodes,null,'new'),null);
+ assert.deepEqual(nodes,{assigned:node,cleared:null});
+});

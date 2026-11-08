@@ -353,3 +353,5 @@ contours and surfaces. The pattern owns the colour connection; consumers opt in
 globally or through hierarchy use modes without copying colours. See
 [Shared scene pattern paint](SCENE_PATTERN_PAINT.md) for controls, resting-tint
 semantics, renderer limits and data ownership.
+
+Default background (2026-11-08): Scene → Image belongs to → Default background permits local image import/paste or applying imported images without node selection. Uses existing omnia.scene.background.v2 fallback reference/history; local bytes stay in existing IndexedDB library. Unassigned nodes now inherit fallback; explicit node references and null clears override it. No stored format change or image copying. Selecting Default background when clearing affects only fallback. Node-based prompt/API generation remains node-bound. Same-origin local persistence only; these bytes/references are not added to workspace/settings exports.

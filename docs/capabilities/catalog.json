@@ -2140,7 +2140,7 @@
       "id": "scene.manual",
       "title": "Node-linked scenes from imported images and copied prompts",
       "where": "Scene panel; select an Omnium node.",
-      "behavior": "A saved prompt resolves selected-node label/notes into one named variable. Copy it for external ChatGPT use, then import the returned image. Assignments and image bytes stay local and separate from atlas exports. Applied wallpaper now renders at an independent output density after graph-only AA/glow: native 2560×1440/1600 at DPR 1, capped at 8,294,400 pixels / DPR 2. Graph targets retain their 1.5-million-pixel budget. Import bytes, crop, effects, selection feedback and saved settings remain unchanged.",
+      "behavior": "A saved prompt resolves selected-node label/notes into one named variable. Copy it for external ChatGPT use, then import the returned image. Assignments and image bytes stay local and separate from atlas exports. Applied wallpaper now renders at an independent output density after graph-only AA/glow: native 2560×1440/1600 at DPR 1, capped at 8,294,400 pixels / DPR 2. Graph targets retain their 1.5-million-pixel budget. Import bytes, crop, effects, selection feedback and saved settings remain unchanged. Image belongs to → Default background supports choosing/pasting or applying an imported image without a selected node. It uses the existing saved fallback slot. Nodes without an explicit assignment inherit it; explicit node assignments or null clears override it. Prompt copy and API generation still require a node.",
       "steps": [
         {
           "do": "Select a node, choose a prompt using {{subject}}, then Copy resolved prompt.",
@@ -2157,6 +2157,10 @@
         {
           "do": "Apply a detailed image on a 2560-wide display. For a static comparison set Waves off, Distortion/Glitching 0, Audio Bounce 1 and Low tint white. Compare fine image lines with the original; resize, enable/disable scene glow, then clear the image.",
           "expect": "Wallpaper uses output pixels instead of the reduced graph buffer and bypasses graph AA/glow filtering. Graph/bloom buffers remain budgeted; clearing restores the original output budget. At larger/high-DPI dimensions the separate 4K-equivalent output cap can still reduce density."
+        },
+        {
+          "do": "Open Scene without selecting a node. Set Image belongs to → Default background and choose/paste an image, or apply an imported image. Reload.",
+          "expect": "The default background saves and restores without a node. Unassigned nodes inherit it; explicit node backgrounds/clears remain authoritative. Clear with Default background selected removes the fallback only."
         }
       ],
       "reference": "docs/SCENE_GENERATION.md",
@@ -2178,8 +2182,8 @@
       "limits": "Clipboard reading may need browser permission. Atlas/workspace exports do not include local scene bytes/assignments; download images separately. Native wallpaper output is bounded at 8,294,400 pixels and DPR 2. Larger displays can still downscale; source resolution, cover crop and enabled UV effects also affect detail. Offscreen-composite failure uses direct rendering at output density and may raise graph cost. No image rewrite or new saved field. Actual sharpness/compositing/performance remain user-tested.",
       "status": "Implemented; browser verification pending",
       "verification": {
-        "browser": "Not recorded No fresh browser run for native-detail composition; prepared opt-in scene-native-wallpaper.browser.mjs checks one-pixel detail through glow/no-glow and image clearing.",
-        "automated": "See subsystem tests and PR checks; not proof of usability Resolution regression covers native 2560, high-DPI scaling, 4K-equivalent output cap, unchanged graph/bloom budgets and restoration without wallpaper."
+        "browser": "Default background workflow awaits user acceptance; existing recorded evidence does not establish this change.",
+        "automated": "See subsystem tests and PR checks; not proof of usability Resolution regression covers native 2560, high-DPI scaling, 4K-equivalent output cap, unchanged graph/bloom budgets and restoration without wallpaper. Default-background change passes all 682 model tests and preview/type/property checks. Resolver regression covers no node, unassigned node, explicit override, explicit null clear and non-mutation."
       },
       "related": [],
       "gestures": []
