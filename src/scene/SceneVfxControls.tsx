@@ -31,7 +31,7 @@ export function SceneVfxControls({bindings}:{bindings:PropertyBindings}){
  return <UISection id="scene-vfx" title="Scene effects">
  <UISection id="scene-pulse" title="Wallpaper Engine pulse">
  <UIField id="scene.vfx.pulseColorMode" label="Colour activation" category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property="scene.pulseColorMode" label="Colour activation"/></UIField>
- {([{key:'pulseTintLow',label:'Low tint'},...(mode==='all'?[]:[{key:'pulseTintHigh',label:mode==='selected'?'Colour to add':'High tint'}]),...PULSE_CONTROLS.filter(c=>c.key!=='pulseColorWidth'||mode==='selected')]).map(({key,label})=><UIField key={key} id={`scene.vfx.${key}`} label={label} category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property={`scene.${key}`} label={label}/></UIField>)}
+ {([{key:'pulseTintLow',label:'Low tint'},...(mode==='all'?[]:[{key:'pulseTintHigh',label:mode==='selected'?'Colour to add':'High tint'}]),...(mode==='all'?[{key:'pulseAllBrightness',label:'All-colour brightness'}]:[]),...PULSE_CONTROLS.filter(c=>c.key!=='pulseColorWidth'||mode==='selected')]).map(({key,label})=><UIField key={key} id={`scene.vfx.${key}`} label={label} category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property={`scene.${key}`} label={label}/></UIField>)}
  {mode==='selected'&&<>
  <UIField id="scene.vfx.pulseColors" label="Selected colours (#hex)" category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property="scene.pulseColors" label="Selected colours (#hex)"/></UIField>
  <FunctionControl id="scene.pulseColorAdd"/><FunctionControl id="scene.pulseColorClear"/>

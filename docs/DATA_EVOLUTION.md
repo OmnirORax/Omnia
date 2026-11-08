@@ -580,3 +580,21 @@ defaults. Assets/image bytes, assignments, atlas/backend schemas and audio-sourc
 ownership do not change. Palette/All modes extend the pulse by selecting source
 hue families and using untinted image-channel contributions, not by remapping the
 archived legacy colour settings. Browser acceptance remains unverified.
+
+
+### Independent coloured pulse correction (2026-11-08)
+
+The user clarified that palette and All modes mean independent coloured responses,
+not an untinted white pulse. Palette entries now retain their RGB/brightness and
+are evaluated separately through the source blend, with matching/overlap weights
+combining completed responses. All derives a chromatic tint per source region;
+neutral regions remain neutral. Single tint is unchanged. Existing palette/mode
+values retain identity; no asset or graph changes.
+
+pulseAllBrightness is additive (0–1). If absent it derives from the saved High tint
+maximum channel, rather than the former full-white strength; explicit zero survives.
+It uses the same shared property/history/settings/export owner. The serializer now
+whitelists 33 fields, including 16 inactive archived approximation fields. Older
+clients may drop this brightness preference on resave and still render the earlier
+white-pulse semantics. No saved tint/palette is overwritten. GPU appearance remains
+unverified; source-response isolation/brightness migration have model coverage.

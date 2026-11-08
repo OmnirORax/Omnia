@@ -1,11 +1,11 @@
-import {PULSE_CONTROLS,referencePulse,referencePulseRGB,pulsePalette,pulseColorWeight} from '../src/scene/pulse.ts';
+import {PULSE_CONTROLS,referencePulse,referencePulseRGB,pulsePalette,pulseColorWeight,sourcePulseTint,combinePulseResponses} from '../src/scene/pulse.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {RETIRED_LIGHT_CONTROLS,DEFAULT_SCENE_VFX,normalizeSceneVfx,serializeSceneVfx,smoothAudio,audioScale,normalizeAudioLevel,nextVfxDeadline,SCENE_VFX_FPS} from '../src/scene/vfx.ts';
 import {defaultSettings,normalizeSettings} from '../src/workspaceActions.ts';
 import {SETTINGS_PROPERTY_ADAPTERS} from '../src/properties/settingsAdapter.ts';
 test('scene effects serialize base controls plus requested light tuning, excluding session internals',()=>{
- const keys=['audioBounce','audioLight','distortion','glitching','maxFps','waves','lightAllColors','lightModel','pulseTintLow','pulseTintHigh','pulseColorMode','pulseColors',...PULSE_CONTROLS.map(c=>c.key),...RETIRED_LIGHT_CONTROLS.map(c=>c.key)].sort();
+ const keys=['audioBounce','audioLight','distortion','glitching','maxFps','waves','lightAllColors','lightModel','pulseTintLow','pulseTintHigh','pulseColorMode','pulseColors','pulseAllBrightness',...PULSE_CONTROLS.map(c=>c.key),...RETIRED_LIGHT_CONTROLS.map(c=>c.key)].sort();
  assert.deepEqual(Object.keys(JSON.parse(serializeSceneVfx({audioLight:'#aa3300',audioBounce:1.12,waves:true,distortion:.4,glitching:.3,frequency:99,source:'private',particles:true}))).sort(),keys);
  assert.deepEqual(normalizeSceneVfx(undefined),{...DEFAULT_SCENE_VFX,audioLight:'#aa3300',audioBounce:1.3,waves:true,distortion:.4,glitching:.3,maxFps:120});
  assert.deepEqual(defaultSettings().sceneVfx,DEFAULT_SCENE_VFX);
@@ -212,4 +212,21 @@ test('new screenshot defaults and palette controls use shared settings/history s
  assert.equal(normalizeSceneVfx({...v,pulseColors:''}).pulseColors,'');
  assert.equal(normalizeSceneVfx({...v,pulseColorMode:'garbage'}).pulseColorMode,'tint');
  assert.equal(normalizeSceneVfx({...v,pulseColors:'#0044FF invalid #ff8800'}).pulseColors,'#0044ff,#ff8800');
+});
+
+
+test('palette responses keep the exact chosen tint and strength; All follows source hue rather than white',()=>{
+ const low=[1,.9,.9],blue=[.08,.15,.8],orange=[.8,.35,.03],blueTint=[0,.05,.3],orangeTint=[1,.45,0],pulse=1.2;
+ assert.deepEqual(combinePulseResponses(blue,low,[{rgb:blueTint,weight:1}],pulse),referencePulseRGB(blue,low,blueTint,pulse));
+ assert.deepEqual(combinePulseResponses(orange,low,[{rgb:blueTint,weight:0},{rgb:orangeTint,weight:1}],pulse),referencePulseRGB(orange,low,orangeTint,pulse));
+ assert.deepEqual(combinePulseResponses(blue,low,[{rgb:blueTint,weight:1},{rgb:orangeTint,weight:0}],pulse),referencePulseRGB(blue,low,blueTint,pulse));
+ assert.deepEqual(combinePulseResponses(blue,low,[{rgb:blueTint,weight:1},{rgb:blueTint,weight:1}],pulse),referencePulseRGB(blue,low,blueTint,pulse));
+ assert.deepEqual(combinePulseResponses(blue,low,[],pulse),referencePulseRGB(blue,low,blueTint,0));
+ const allTint=sourcePulseTint(blue).map(c=>c*.3),all=referencePulseRGB(blue,low,allTint,pulse),white=referencePulseRGB(blue,low,[.3,.3,.3],pulse);
+ assert.equal(all[0],blue[0]*low[0],'blue-region light does not indiscriminately raise the red channel');assert.ok(white[0]>all[0]);assert.ok(all[2]>blue[2]*low[2]);
+ assert.deepEqual(sourcePulseTint([.4,.4,.4]),[1,1,1],'neutral regions do not acquire an arbitrary hue');
+ assert.equal(normalizeSceneVfx({pulseTintHigh:'#224466'}).pulseAllBrightness,102/255);
+ assert.equal(normalizeSceneVfx({pulseTintHigh:'#224466',pulseAllBrightness:0}).pulseAllBrightness,0);
+ const settings=defaultSettings(),changed=SETTINGS_PROPERTY_ADAPTERS['scene.vfx'].channels['scene.pulseAllBrightness'].write(settings,.4);
+ assert.equal(normalizeSceneVfx(JSON.parse(serializeSceneVfx(changed.sceneVfx))).pulseAllBrightness,.4);
 });

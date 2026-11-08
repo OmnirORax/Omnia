@@ -12,7 +12,7 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
   const material = new THREE.ShaderMaterial({
     depthTest: false, depthWrite: false, toneMapped: false,
     uniforms: { worldLayer:{value:null},compositeWorld:{value:0},image: { value: null }, imageAspect: { value: 1 }, viewportAspect: { value: 1 },
-      pulseColorMode:{value:0},pulsePaletteCount:{value:0},pulsePalette:{value:Array.from({length:MAX_PULSE_COLORS},()=>new THREE.Vector3())},pulseColorWidth:{value:30},
+      pulseColorMode:{value:0},pulseAllBrightness:{value:initial.pulseAllBrightness},pulsePaletteRGB:{value:Array.from({length:MAX_PULSE_COLORS},()=>new THREE.Vector3())},pulsePaletteCount:{value:0},pulsePalette:{value:Array.from({length:MAX_PULSE_COLORS},()=>new THREE.Vector3())},pulseColorWidth:{value:30},
       pulseTintLow:{value:tint(initial.pulseTintLow)},pulseTintHigh:{value:tint(initial.pulseTintHigh)},sceneGlowPass:{value:0},time:{value:0},bounce:{value:1},light:{value:0},
       waves:{value:1}, distortion:{value:.4}, glitching:{value:.3},
       feedbackColor: { value: new THREE.Color() }, feedbackStrength: { value: 0 } },
@@ -29,7 +29,8 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
       void main() {
         if(sceneGlowPass!=0.0){gl_FragColor=vec4(0.0,0.0,0.0,1.0);return;}
         vec2 uv=(imageUV-.5)/bounce+.5;
-        // Reference water-wave scale 10, speed 5, strength .025; fixed internals.
+        // Approximation only: original waterwaves shader/project-layer setup is missing.
+        // Extracted numbers do not establish equivalent UV displacement.
         uv.x+=waves*.025*sin(uv.y*62.83185+time*5.0)*.35;
         uv.y+=waves*.025*sin(uv.x*62.83185-time*3.5)*.2;
         // One shared VHS pass: slow bending plus brief horizontal tracking bands.
@@ -42,9 +43,7 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
         else coverUV.x *= viewportAspect / imageAspect;
         vec3 color = texture2D(image, clamp(coverUV + 0.5,vec2(.001),vec2(.999))).rgb;
         vec3 visible=displayColour(color);
-        vec3 high=pulseColorMode==0?pulseTintHigh:vec3(1.0);
-        float pulse=light>0.0?light*pulseSelection(visible):0.0;
-        vec3 enhanced=linearColour(referencePulse(visible,pulseTintLow,high,pulse));
+        vec3 enhanced=linearColour(colouredPulse(visible,pulseTintLow,pulseTintHigh,light));
         vec3 outputColor=mix(enhanced,feedbackColor,feedbackStrength);
         if(compositeWorld>.5){
           vec4 world=texture2D(worldLayer,imageUV);
@@ -100,11 +99,13 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
       const palette=pulsePalette(settings.pulseColors);
       material.uniforms.pulseColorMode.value=settings.pulseColorMode==='selected'?1:settings.pulseColorMode==='all'?2:0;
       material.uniforms.pulseColorWidth.value=settings.pulseColorWidth;
+      material.uniforms.pulseAllBrightness.value=settings.pulseAllBrightness;
       material.uniforms.pulsePaletteCount.value=palette.length;
       palette.forEach((color,i)=>{
         const selected=new THREE.Color(color),rgb=selected.getRGB({r:0,g:0,b:0},THREE.SRGBColorSpace),hsl=selected.getHSL({h:0,s:0,l:0},THREE.SRGBColorSpace);
         const peak=Math.max(rgb.r,rgb.g,rgb.b),saturation=peak?(peak-Math.min(rgb.r,rgb.g,rgb.b))/peak:0;
         material.uniforms.pulsePalette.value[i].set(hsl.h,saturation,0);
+        material.uniforms.pulsePaletteRGB.value[i].set(rgb.r,rgb.g,rgb.b);
       });
       motion();
     },

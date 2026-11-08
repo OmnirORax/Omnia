@@ -51,15 +51,38 @@ export const PULSE_COLOUR_GLSL=`
   float d=q.x-min(q.w,q.y),e=1.e-10;
   return vec3(abs(q.z+(q.w-q.y)/(6.0*d+e)),d/(q.x+e),q.x);
  }
+ vec3 pulseSourceTint(vec3 image){
+  float hi=max(image.r,max(image.g,image.b)),lo=min(image.r,min(image.g,image.b));
+  vec3 chroma=(image-vec3(lo))/max(hi-lo,.000001);
+  return mix(vec3(1.0),chroma,smoothstep(.03,.2,(hi-lo)/max(hi,.000001)));
+ }
  uniform int pulseColorMode;uniform int pulsePaletteCount;
- uniform vec3 pulsePalette[${MAX_PULSE_COLORS}];uniform float pulseColorWidth;
- float pulseSelection(vec3 image){
-  if(pulseColorMode!=1)return 1.0;
-  vec3 source=pulseHSV(image);float result=0.0,outer=max(1.0,pulseColorWidth)/360.0;
+ uniform vec3 pulsePalette[${MAX_PULSE_COLORS}];uniform vec3 pulsePaletteRGB[${MAX_PULSE_COLORS}];
+ uniform float pulseColorWidth;uniform float pulseAllBrightness;
+ vec3 colouredPulse(vec3 image,vec3 low,vec3 high,float pulse){
+  if(pulseColorMode==0)return referencePulse(image,low,high,pulse);
+  if(pulseColorMode==2)return referencePulse(image,low,pulseSourceTint(image)*pulseAllBrightness,pulse);
+  vec3 rest=referencePulse(image,low,high,0.0),source=pulseHSV(image),sum=vec3(0.0);
+  float total=0.0,activation=0.0,outer=max(1.0,pulseColorWidth)/360.0;
   for(int i=0;i<${MAX_PULSE_COLORS};i++){
    if(i>=pulsePaletteCount)break;
    vec3 color=pulsePalette[i];float d=abs(source.x-color.x);d=min(d,1.0-d);
    float w=color.y<.05?1.0-smoothstep(.03,.2,source.y):(1.0-smoothstep(outer*.5,outer,d))*smoothstep(.03,.2,source.y);
-   result=max(result,w);
-  }return result;
+   // Evaluate each actual tint independently, retaining its RGB/brightness.
+   sum+=(referencePulse(image,low,pulsePaletteRGB[i],pulse)-rest)*w;
+   total+=w;activation=max(activation,w);
+  }
+  // Feather/overlap blends complete coloured responses, never a white multiplier.
+  return rest+sum/max(total,.000001)*activation;
  }`;
+
+/** Numerical contract for independent coloured responses and source-hue All. */
+export function sourcePulseTint(image:readonly number[]):number[]{
+ const hi=Math.max(...image),lo=Math.min(...image),s=hi?(hi-lo)/hi:0,t=Math.max(0,Math.min(1,(s-.03)/.17)),w=t*t*(3-2*t);
+ return image.map(c=>1-w+w*(c-lo)/Math.max(hi-lo,.000001));
+}
+export function combinePulseResponses(image:readonly number[],low:readonly number[],colors:readonly {rgb:readonly number[];weight:number}[],pulse:number){
+ const rest=referencePulseRGB(image,low,[0,0,0],0),total=colors.reduce((s,c)=>s+c.weight,0),activation=Math.max(0,...colors.map(c=>c.weight));
+ const sum=[0,0,0];for(const c of colors){const response=referencePulseRGB(image,low,c.rgb,pulse);for(let i=0;i<3;i++)sum[i]+=(response[i]-rest[i])*c.weight;}
+ return rest.map((c,i)=>c+sum[i]/Math.max(total,.000001)*activation);
+}
