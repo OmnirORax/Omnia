@@ -905,5 +905,6 @@ Waves tuning: six shared WAVE_CONTROLS own displacement/count/signed-speed
 metadata, validation, defaults and discovered scene.vfx setters. Wallpaper
 configure updates uniforms live without resetting time/audio. Keep the existing
 Waves toggle, reduced-motion bypass and explicit zero/negative persistence.
-Current defaults retain the old approximation pending user-selected values;
+User-selected missing defaults are displacement .1%/.3%, counts 1.5/10 and
+speeds 3/3 rad/s (Waves on); explicit saved values retain precedence;
 never claim a faithful waterwaves port without its missing shaders/layer setup.

@@ -22,12 +22,12 @@ export const RETIRED_LIGHT_CONTROLS = [
 /** Current sine-wave approximation: exposed independently for live user tuning.
  * Displacement is percent of viewport UV span; frequency is cycles across its driving axis. */
 export const WAVE_CONTROLS = [
- {key:'waveAmplitudeX',label:'Horizontal displacement (%)',initial:.875,min:0,max:5,step:.025},
- {key:'waveAmplitudeY',label:'Vertical displacement (%)',initial:.5,min:0,max:5,step:.025},
- {key:'waveFrequencyX',label:'Horizontal wave count',initial:10,min:0,max:40,step:.25},
+ {key:'waveAmplitudeX',label:'Horizontal displacement (%)',initial:.1,min:0,max:5,step:.025},
+ {key:'waveAmplitudeY',label:'Vertical displacement (%)',initial:.3,min:0,max:5,step:.025},
+ {key:'waveFrequencyX',label:'Horizontal wave count',initial:1.5,min:0,max:40,step:.25},
  {key:'waveFrequencyY',label:'Vertical wave count',initial:10,min:0,max:40,step:.25},
- {key:'waveSpeedX',label:'Horizontal phase speed (rad/s)',initial:5,min:-20,max:20,step:.05},
- {key:'waveSpeedY',label:'Vertical phase speed (rad/s)',initial:-3.5,min:-20,max:20,step:.05},
+ {key:'waveSpeedX',label:'Horizontal phase speed (rad/s)',initial:3,min:-20,max:20,step:.05},
+ {key:'waveSpeedY',label:'Vertical phase speed (rad/s)',initial:3,min:-20,max:20,step:.05},
 ] as const;
 export type WaveKey=typeof WAVE_CONTROLS[number]['key'];
 const WAVE_DEFAULTS=Object.fromEntries(WAVE_CONTROLS.map(({key,initial})=>[key,initial])) as Record<WaveKey,number>;

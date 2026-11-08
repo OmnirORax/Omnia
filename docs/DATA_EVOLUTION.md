@@ -1041,7 +1041,7 @@ multicolour snapshot. See [the owner map](SCENE_PATTERN_PAINT.md).
 ### Live wave coefficients (2026-11-08)
 
 Six additive numeric sceneVfx fields use the existing parser/settings owner and
-export/history. Absence preserves the former hardcoded UV wave coefficients;
+export/history. Absence uses the shared current wave defaults listed below;
 explicit zero and negative speed survive. Saved Waves false remains authoritative.
 Normalization clamps finite values to declared ranges; invalid fields fall back
 without changing originals or graph/image/backend formats. No version migration
@@ -1061,3 +1061,8 @@ commands remain unavailable-ID records and are not reassigned to another action.
 Chosen files/playback positions were transient and never entered workspace exports.
 The internal media analyser remains a regression fixture, not a user file-player
 entry point. Workspace/image/backend formats and original bytes are unchanged.
+
+Wave default update: user-selected absent values now use Waves on, displacement
+.1%/.3%, counts 1.5/10 and phase speed 3/3 rad/s. Explicit saved coefficients
+(including prior defaults, zero and negative speed) retain precedence; no rewrite
+or migration. Renderer initial uniforms and discovered setters share WAVE_CONTROLS.

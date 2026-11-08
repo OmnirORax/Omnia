@@ -283,12 +283,12 @@ preview, commit, history and serialization. No separate experiment scene.
 
 | Setter | Range | Starting value |
 | --- | --- | --- |
-| Horizontal displacement (%) | 0–5 | .875 |
-| Vertical displacement (%) | 0–5 | .5 |
-| Horizontal wave count | 0–40 | 10 |
+| Horizontal displacement (%) | 0–5 | .1 |
+| Vertical displacement (%) | 0–5 | .3 |
+| Horizontal wave count | 0–40 | 1.5 |
 | Vertical wave count | 0–40 | 10 |
-| Horizontal phase speed (rad/s) | −20–20 | 5 |
-| Vertical phase speed (rad/s) | −20–20 | −3.5 |
+| Horizontal phase speed (rad/s) | −20–20 | 3 |
+| Vertical phase speed (rad/s) | −20–20 | 3 |
 
 Each count sets how many sine periods span the opposite driving axis: horizontal
 displacement varies along Y; vertical displacement varies along the already offset
@@ -302,8 +302,7 @@ Dragging previews uniforms immediately without image decoding, shader recompilat
 a new animation loop or resetting existing time/audio state. Release commits normally;
 Escape cancels the shared value preview. Export/reload uses `sceneVfx` through
 `normalizeSceneVfx` and the existing settings owner, not `functionValues` copies.
-Absent fields reproduce the current .025×.35 / .025×.2 amplitudes, counts 10 and
-speeds 5 / −3.5. Existing explicit Waves false and new zero values are preserved.
-These are starting values, not new user-approved visual defaults. The user will
-choose replacement defaults after tuning the actual scene. Appearance remains
+Absent fields use the screenshot-selected defaults: Waves on, displacement
+.1% / .3%, counts 1.5 / 10, and speeds 3 / 3 rad/s. Existing explicit settings,
+including the earlier coefficients, Waves false and zeros remain authoritative. Appearance remains
 unverified by a browser check in this change.

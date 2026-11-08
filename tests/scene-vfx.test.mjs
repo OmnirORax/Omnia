@@ -452,10 +452,11 @@ test('wave setters preserve zero, reverse speed and saved values with historical
  for(const control of WAVE_CONTROLS)assert.equal(restored.sceneVfx[control.key],control.key.includes('Speed')?-2:0);
  assert.equal(restored.sceneVfx.pulseTintLow,base.sceneVfx.pulseTintLow);assert.equal(restored.sceneVfx.audioBounce,base.sceneVfx.audioBounce);
  const old=normalizeSceneVfx({waves:false,waveAmplitudeX:Infinity,waveSpeedX:-999,waveFrequencyY:999});
- assert.equal(old.waves,false);assert.equal(old.waveAmplitudeX,.875);assert.equal(old.waveAmplitudeY,.5);assert.equal(old.waveSpeedX,-20);assert.equal(old.waveFrequencyY,40);
- // Default controls retain the earlier two offsets (within its rounded pi constant).
- const uv={x:.3,y:.7},time=.4,dx=DEFAULT_SCENE_VFX.waveAmplitudeX*.01*Math.sin(uv.y*2*Math.PI*DEFAULT_SCENE_VFX.waveFrequencyX+time*DEFAULT_SCENE_VFX.waveSpeedX);
- const dy=DEFAULT_SCENE_VFX.waveAmplitudeY*.01*Math.sin((uv.x+dx)*2*Math.PI*DEFAULT_SCENE_VFX.waveFrequencyY+time*DEFAULT_SCENE_VFX.waveSpeedY);
- assert.ok(Math.abs(dx-.025*Math.sin(uv.y*62.83185+time*5)*.35)<1e-7);
- assert.ok(Math.abs(dy-.025*Math.sin((uv.x+dx)*62.83185-time*3.5)*.2)<1e-7);
+ assert.equal(old.waves,false);assert.equal(old.waveAmplitudeX,.1);assert.equal(old.waveAmplitudeY,.3);assert.equal(old.waveSpeedX,-20);assert.equal(old.waveFrequencyY,40);
+ // Screenshot-selected defaults apply to absent fields; older explicit coefficients survive.
+ const requested={waves:true,waveAmplitudeX:.1,waveAmplitudeY:.3,waveFrequencyX:1.5,waveFrequencyY:10,waveSpeedX:3,waveSpeedY:3};
+ for(const [key,value] of Object.entries(requested)){assert.equal(DEFAULT_SCENE_VFX[key],value);assert.equal(normalizeSceneVfx(undefined)[key],value);}
+ const authored={waves:false,waveAmplitudeX:.875,waveAmplitudeY:.5,waveFrequencyX:10,waveFrequencyY:10,waveSpeedX:5,waveSpeedY:-3.5};
+ const saved=normalizeSceneVfx(JSON.parse(serializeSceneVfx(authored)));
+ for(const [key,value] of Object.entries(authored))assert.equal(saved[key],value);
 });
