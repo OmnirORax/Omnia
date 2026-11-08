@@ -197,3 +197,65 @@ passed. The existing large-chunk warning remains. The user performs clipboard/
 file import, per-node restore, reload, clear/undo and image rendering checks. No
 browser suite or actual image generation was run for this local flow. Backend
 code, provider secrets, hosted settings and deployment workflows are unchanged.
+
+## Non-destructive image normalization
+
+Scene → **Image normalization** defaults on globally. It applies during local
+Choose image/Paste image import and when viewing existing scene images. Originals
+are committed to the existing library first and never rewritten; download still
+returns the encoded source. The active world uses a disposable corrected PNG when
+ready, or the original while processing/on failure. **Preview original** switches
+that same world between before/after without moving its camera or creating a
+separate comparator. That preview switch is transient; the enabled setting and
+constraints use discovered settings inputs, existing settings persistence/history,
+Master Controller and normal movable UIField/CoupledField controls.
+
+Preferred ranges are soft constraints, not a filter preset or matching one image's
+histogram. Initial ranges are mean encoded-sRGB weighted luma .12–.55, p95−p05 luma
+contrast .35–.98, mean HSV saturation .25–.88 and neutral colour imbalance ≤.08.
+These broad starting ranges reflect the user's diverse dark, daylight and warm
+references qualitatively; they are not measurements learned from those files.
+The individual images should retain their palettes/moods. Change all ranges and
+maximum correction bounds in **Preferred ranges and correction limits**. Reversed
+endpoints are treated as an unordered interval. Default bounds: exposure ±.75 EV
+(a log-odds luminance adjustment), contrast gain 1±.25, saturation gain 1±.25 and
+neutral-channel gains 1±.06. Exposure EV labels the bounded tone adjustment, not a
+physical camera exposure simulation.
+
+A portable deterministic search evaluates small bounded corrections against
+measured range violations plus an identity penalty. Already acceptable images
+are unchanged. Colour balance uses only low-saturation midtone pixels, and needs
+at least 2% neutral coverage plus 32 weighted samples; dominant artistic casts are
+preserved without that evidence. Saturation/balance adjustments are searched only
+when their respective output constraints are violated. Tone mapping preserves
+black/white endpoints, neutral correction retains linear luminance, and chroma is
+compressed to gamut instead of clipping channels. Quantization never introduces a
+new 0/255 channel endpoint; alpha and fully transparent pixels are preserved.
+Original clipping cannot be reconstructed. The worker remeasures its actual output
+sample before lossless PNG encoding and reports remaining violations rather than
+claiming success at the bounds. Metrics use up to 16,384 regularly sampled pixels;
+protection applies to every transformed pixel, not just that sample. This is a
+global correction, not semantic relighting, local dodging or style transfer.
+
+Pixel correction runs in an inline worker, without a new dependency or render pass.
+Existing 4096px/12MP limits apply. Decoding/canvas readback/PNG encoding still use
+browser APIs and may cost time; no hardware performance claim is made. Constraint
+or source changes cancel obsolete display work, close decoded bitmaps, terminate
+workers and revoke derived URLs. Original/derivative display uses the existing
+reference/account guard. The same actual texture feeds wallpaper and adaptive
+sphere blending, so the latter samples the image being displayed.
+
+Disposable local derivatives and reports use a separate IndexedDB cache keyed by
+SHA-256 source bytes, algorithm version and all constraints. It retains at most
+8 results / 32 MiB with LRU eviction; oversized derivatives work but are uncached.
+Identity results cache only a report. Preference changes reprocess from the source,
+not a previous derivative. Cache failure cannot reject an import or overwrite an
+original. Source deletion purges its derivative keys before source removal; if
+purging fails deletion reports failure and retains the original. Private cloud
+scene derivatives stay transient and are not persisted in this cache. Settings
+travel with existing settings/UI exports; scene bytes, references and cache remain
+outside those exports. No backend schema/deployment or graph migration is needed.
+Older clients may retain numeric/boolean unknown function values but do not apply
+normalization. Cache version changes invalidate disposable results; originals
+remain authoritative. Browser import/toggle/cache/visual/performance acceptance is
+user-owned; model/build success does not establish it.

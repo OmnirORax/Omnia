@@ -75,6 +75,7 @@ Use disposable work for tests; export your workspace first. Each numbered step i
 | [World navigator, compass, positioning and click-to-drive nodes](#world-navigator) | Implemented for review; production and user browser acceptance pending | Omnium world canvas → move mouse → left-click a node to drive it → mouse and Up/Down → click an empty slot to park; Esc cancels. Ctrl/Meta-click a node to position the navigator without mounting. |
 | [Live adaptive sphere blending](#render-adaptiveComparison) | Live implementation for review; off by default; user visual acceptance pending | MS / Master controller → Visuals → Omnium → Nodes → Sphere / geometric body → Adaptive blending → On, Blend mode, Blend strength and Body coverage. Updates the actual atlas and paint previews. |
 | [Adjust the transparent centre of sphere nodes](#render-radialTranslucency) | Implemented for preview review; visual acceptance pending | MS / Master controller → Visuals → Omnium → Nodes → Sphere / geometric body → Translucency → Translucency radius. |
+| [Non-destructive scene image normalization](#scene-normalization) | Implemented for preview review; browser acceptance pending | Scene → Image normalization. Enable Normalize scene images; expand Preferred ranges and correction limits. Preview original compares in the actual world. |
 
 <a id="guidance-catalog"></a>
 ## Capability guide and automatic coverage checks
@@ -1829,6 +1830,30 @@ Translucency sets centre transmission; Translucency radius (0–1) sets how far 
 **Details:** [subsystem guide](ATLAS_LATTICE.md). **Implementation:** [src/properties/catalog.ts](../src/properties/catalog.ts), [src/appearance/propertyTree.ts](../src/appearance/propertyTree.ts), [src/appearance/registry.ts](../src/appearance/registry.ts), [src/atomicCarrier.ts](../src/atomicCarrier.ts), [src/textScene.ts](../src/textScene.ts), [src/SpatialWorkspace.tsx](../src/SpatialWorkspace.tsx), [tests/appearance.test.mjs](../tests/appearance.test.mjs), [src/properties/sphereVisualDefaults.ts](../src/properties/sphereVisualDefaults.ts).
 
 **Related:** [Shared atlas lattice, scale experiment and empty-cell field](#graph-lattice), [Live adaptive sphere blending](#render-adaptiveComparison).
+
+<a id="scene-normalization"></a>
+## Non-destructive scene image normalization
+
+**ID:** `scene.normalization` · **Status:** Implemented for preview review; browser acceptance pending
+
+**Where:** Scene → Image normalization. Enable Normalize scene images; expand Preferred ranges and correction limits. Preview original compares in the actual world.
+
+Global constraint-driven normalization defaults on. Original encoded files and node assignments remain unchanged; image imports prepare a disposable derivative, and older imported images are prepared when viewed. Configurable preferred mean encoded-sRGB luminance, p95−p05 luma contrast, average HSV saturation and neutral-pixel colour-balance tolerance drive a bounded deterministic search. Values already within ranges remain byte-identical. Broad initial ranges preserve dark/night, daylight, saturated fantasy and warm interior moods; they are starting values, not a learned calibration from the supplied references. Exposure, contrast, saturation and colour-balance correction limits are independent. Neutral balance needs sufficient low-saturation midtone evidence; dominant artistic palettes are not neutralized. Near-endpoint tone curves and chroma compression protect highlights/shadows; per-channel quantization introduces no new endpoint clipping and alpha is preserved. Output pixels are remeasured. Unreachable targets remain reported instead of forcing stronger correction.
+
+**Minimal working test**
+
+1. Select a node and import an image using Choose image or Paste image. Open Scene → Image normalization. **Expected:** The original is saved first. While enabled, measurement and correction run in a worker; current scenes use the corrected image when ready. The report shows sampled before/after metrics, cached state and any unmet constraints. Already acceptable images can remain unchanged.
+2. Toggle Preview original while looking at the world, then switch Normalize scene images off and on. **Expected:** The same scene and camera compare original/corrected; off displays original bytes. No separate comparator or graph edits. The preview switch is transient; the global enabled setting persists.
+3. Change preferred ranges and correction limits, including a zero limit. **Expected:** Only permitted corrections are searched. Changing constraints invalidates the derivative key. Reversed range endpoints are interpreted as an unordered interval. Neutral-poor images keep their cast; unmet ranges remain explicit.
+4. Reload, select that node again, download the image, or delete the local source. **Expected:** Settings survive through existing settings serialization/history; local cached results are reused where available. Download returns original bytes. Deleting the source purges all cached derivatives for its content hash before deleting it.
+
+**Limits / unavailable behavior:** A bounded global statistical correction, not semantic relighting, local dodging, style transfer, reference matching or detail recovery from clipped originals. Metrics use at most 16,384 regularly sampled pixels; clipping protection itself applies to every processed channel. Single-image worker processing is bounded by existing 4096px/12MP decode limits. Local derivative cache is LRU-limited to 8 results/32 MiB; oversized outputs are usable but uncached. Private cloud derivatives remain transient and are not persisted in the local cache. Failure leaves originals available; unsupported worker/canvas/crypto or quota problems can prevent processing/caching. Settings export with existing UI settings; images, cache and scene assignments remain outside atlas/UI backups. Browser visual/Apply-reload/performance acceptance is pending.
+
+**Verification:** browser — No new browser suite or hardware profiling. User-owned live import, toggle/preview, cache, cancellation, controls and visual acceptance pending.. Automated — All 618 model/architecture tests, preview/type/property/capability build and backend checks pass. Focused models cover bounded improvement, identity/disabled/zero limits, unchanged originals/alpha, no new channel endpoint clipping, neutral evidence gating, key/default/range normalization, settings round trips and the actual worker bridge/output remeasurement. These do not establish live browser cache/UI/visual acceptance..
+
+**Details:** [subsystem guide](SCENE_GENERATION.md). **Implementation:** [src/scene/normalization.ts](../src/scene/normalization.ts), [src/scene/normalization.function.ts](../src/scene/normalization.function.ts), [src/scene/normalization.worker.ts](../src/scene/normalization.worker.ts), [src/scene/normalizationCache.ts](../src/scene/normalizationCache.ts), [src/scene/useNormalizedScene.ts](../src/scene/useNormalizedScene.ts), [src/scene/NormalizationPanel.tsx](../src/scene/NormalizationPanel.tsx), [src/scene/library.ts](../src/scene/library.ts), [src/scene/background.ts](../src/scene/background.ts), [src/App.tsx](../src/App.tsx), [tests/scene-normalization.test.mjs](../tests/scene-normalization.test.mjs).
+
+**Related:** [Node-linked scenes from imported images and copied prompts](#scene-manual), [Optional API scene generation](#scene-api), [Live adaptive sphere blending](#render-adaptiveComparison).
 
 ## Exact registered command inventory
 

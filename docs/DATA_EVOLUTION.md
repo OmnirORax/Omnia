@@ -413,3 +413,18 @@ Whole-node blending adds version-1 controller properties adaptiveBlendMode (abse
 Sphere translucency radius adds the version-1 controller property translucencyRadius (absent/neutral 1, explicit 0 retained), applicable only to omnium.nodes.body. Radius 1 preserves historical alpha semantics, including fully clear Translucency 1. Explicitly reducing radius changes Translucency to centre transmission with a smooth stronger shell; Opacity remains authoritative over the entire sphere. Existing shared validation/settings Apply/Discard/history owns serialization. No graph/image/backend format migration or destructive data conversion. Older clients may ignore/drop the radius and render the historical profile; preserve a current export before older-client editing.
 
 User-selected sphere defaults supersede previous absent/default values: shared sphereVisualDefaults defines orange #ffb000 (approximate screenshot match), Glow .35, Opacity 1, Translucency .70 and Translucency radius .76. Fresh workspace node style, MS base resolution and actual/preview carrier fallbacks inherit this definition. Saved explicit styles/controller values, including zeros and radius 1, remain authoritative; missing transmission fields intentionally pick up the new defaults. Radius 1 still selects historical all-surface transmission. UI translucency and adaptive blending defaults are unchanged. No graph/schema migration or browser acceptance is inferred.
+
+Scene normalization adds settings functionValues['scene.normalize'] entries through
+existing discovered property adapters (enabled, preferred metric ranges and bounded
+correction limits). Absence resolves global enabled=true and documented broad
+starting ranges; explicit false/zero is retained. No settings/schema version change
+or graph/image-reference conversion. Existing original scene blobs remain untouched.
+Disposable normalization results/reports use a new local IndexedDB cache, keyed by
+source SHA-256 + algorithm version + constraints, bounded to 8 results/32 MiB. Cache
+failure falls back to originals; algorithm/key changes recompute from originals.
+Private cloud derivatives are transient only. Original deletion purges derived
+keys first and retains the source if purge fails. Original downloads/assignments
+and existing auth guards remain the authorities. Settings use existing UI exports;
+local images/cache/scene assignments are still not included in atlas/UI backups.
+Older clients do not apply these controls and may drop unknown settings on rewrite.
+No hosted migration, paid generation or new cloud persistence is introduced.

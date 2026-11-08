@@ -848,3 +848,15 @@ Whole-node blend controls supersede the brightness-only fixed-alpha rule above: 
 Radial sphere transmission: Translucency → Translucency radius is a shared sphere-body-only numeric property (0–1, absent/neutral 1). Radius 1 preserves previous all-surface transmission; below 1, centre transmission remains authored inside that projected radial fraction and smoothly falls to zero at the silhouette. Shared base/bloom coverage uses an authored-opacity uniform so fully clear centres can retain shells; zero authored opacity clears everything. Adaptive blending uses local transmission. Actual nodes/live theme updates/paint factories inherit the same radius. No UI transmission radius, physical refraction, backing mask or new pass. Existing controller Apply/Discard/history owns persistence; preview acceptance stays user-owned.
 
 User-selected sphere defaults supersede previous absent/default values: shared sphereVisualDefaults defines orange #ffb000 (approximate screenshot match), Glow .35, Opacity 1, Translucency .70 and Translucency radius .76. Fresh workspace node style, MS base resolution and actual/preview carrier fallbacks inherit this definition. Saved explicit styles/controller values, including zeros and radius 1, remain authoritative; missing transmission fields intentionally pick up the new defaults. Radius 1 still selects historical all-surface transmission. UI translucency and adaptive blending defaults are unchanged. No graph/schema migration or browser acceptance is inferred.
+
+Scene normalization is owned by scene/normalization.ts (portable metrics/bounded
+search), normalization.function.ts (shared serialized settings), inline worker,
+normalizationCache and the existing scene import/background owners. Never overwrite
+originals, normalize an already-derived image, persist private cloud derivatives,
+or create a separate comparator. Initial broad ranges are qualitative starting
+values, not learned reference calibration. Neutral evidence gates colour balance;
+output measurements and unmet constraints must remain visible. Source/preference
+changes cancel obsolete display work. Cache is disposable, SHA/version/constraint
+keyed and bounded to 8/32MiB; local source deletion purges matching derivatives first.
+Existing settings/UI/history, original-download, account guards and graph ownership
+remain authoritative. User owns browser/visual/performance acceptance.
