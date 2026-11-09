@@ -497,3 +497,13 @@ test('wave presets set all six wave properties through existing settings adapter
   assert.equal(saved.sceneVfx.pulseAmount,defaultSettings().sceneVfx.pulseAmount);
  }
 });
+
+test('custom wave presets preserve saved values, on state, and unreadable records',async()=>{
+ const {appendWavePreset,readWavePresets,WAVE_PRESETS_OWNER}=await import('../src/scene/wavePresets.ts');
+ const values=Object.fromEntries(WAVE_CONTROLS.map(control=>[control.key,control.initial]));
+ const raw={preset3:'unreadable'};const next=appendWavePreset(raw,false,values);
+ assert.equal(next.preset3,'unreadable');assert.equal(raw.preset4,undefined);
+ const restored=normalizeSettings({functionValues:{[WAVE_PRESETS_OWNER]:next}}).functionValues[WAVE_PRESETS_OWNER];
+ const presets=readWavePresets(restored);assert.equal(presets.length,1);assert.equal(presets[0].label,'Preset 4');assert.equal(presets[0].waves,false);assert.deepEqual(presets[0].values,values);
+ assert.throws(()=>appendWavePreset({},true,{...values,waveAmplitudeX:Infinity}));
+});

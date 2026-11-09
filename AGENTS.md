@@ -926,3 +926,5 @@ Workspace-only layout (2026-11-08): for the user's supplied layout, use the exis
 The user chose the consolidated website default rather than JSON delivery or a new import feature. Ship the canonical layout in default-template.json, with one free Workspace settings entry and the real panels docked inside it. Existing saved arrangements retain precedence; use the existing Reset to default to apply the template. Do not publish the user export or add consolidation-import UI.
 
 Waves presets (2026-11-09): two controls apply the existing six wave values and enable Waves in one shared property/history transaction. Preset 1 is the missing-field default; explicit saved values remain authoritative. No extra persisted preset identity. User visual acceptance is pending.
+
+Custom Waves presets: + preset beside the built-ins captures the current Waves toggle and six values, stored as compact validated slots in existing settings functionValues. New slots never overwrite unknown/unreadable records. Existing settings history and settings transfer own persistence. Browser acceptance remains pending.

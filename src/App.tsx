@@ -1,3 +1,4 @@
+import {appendWavePreset,WAVE_PRESETS_OWNER} from './scene/wavePresets.ts';
 import {shouldRevealInspection} from './ui/inspectionReveal.ts';
 import {NODE_ACCESS_ACTIONS} from './nodeContextActions.ts';
 import {restoreHiddenUI} from './ui/interfaceVisibility.ts';
@@ -2122,7 +2123,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
             </UIPanel>
           }
           <UIPanel id="scene" title="Scene">
-            <ScenePanel normalization={imagePreferences} normalizationState={normalizedScene} node={selectedNode && selectedEntity ? { id: selectedNode.id, label: selectedEntity.label, notes: selectedEntity.notes } : null}
+            <ScenePanel customWavePresets={settings.functionValues[WAVE_PRESETS_OWNER] ?? {}} onSaveWavePreset={(waves,values)=>setSettings(old=>({...old,functionValues:{...old.functionValues,[WAVE_PRESETS_OWNER]:appendWavePreset(old.functionValues[WAVE_PRESETS_OWNER],waves,values)}}))} normalization={imagePreferences} normalizationState={normalizedScene} node={selectedNode && selectedEntity ? { id: selectedNode.id, label: selectedEntity.label, notes: selectedEntity.notes } : null}
               revision={document.revision} bindings={propertyBindings} onApply={sceneBackground.apply}
               hasBackground={!!sceneBackground.reference} backgroundError={sceneBackground.error} backgroundKey={sceneReferenceKey(sceneBackground.reference)}
               onForgetLocal={sceneBackground.forgetLocal} nodeExists={id => sceneNodeIdsRef.current.has(id)} />

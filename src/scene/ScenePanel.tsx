@@ -13,8 +13,9 @@ import { useFeatureActions } from '../ui/useFeatureActions';
 import type { SceneReference } from './background';
 import { deleteLocalScene, downloadScene, importLocalScene, listLocalScenes, loadCopiedPrompt, localSceneBlob, saveCopiedPrompt, type LocalScene, type ScenePromptSnapshot } from './library';
 
-export function ScenePanel({ normalization,normalizationState,node, revision, bindings, onApply, hasBackground, backgroundError, backgroundKey, onForgetLocal, nodeExists }: {
+export function ScenePanel({ normalization,normalizationState,node, revision, bindings, onApply, hasBackground, backgroundError, backgroundKey, onForgetLocal, nodeExists, customWavePresets, onSaveWavePreset }: {
   normalization:NormalizationPreferences;normalizationState:NormalizationState;
+  customWavePresets:Record<string,import("../appearance/model.ts").Value>;onSaveWavePreset:(waves:boolean,values:Record<import("./vfx.ts").WaveKey,number>)=>void;
   node: SceneNode | null; revision: number; bindings: PropertyBindings;
   onApply: (value: SceneReference | null, targetNodeId?: string | null) => void;
   onForgetLocal: (id: string) => void; nodeExists: (id: string) => boolean; hasBackground: boolean; backgroundError: string; backgroundKey?: string;
@@ -227,7 +228,7 @@ export function ScenePanel({ normalization,normalizationState,node, revision, bi
     } },
   });
   return <div className="scene-panel">
-    <SceneVfxControls bindings={bindings}/>
+    <SceneVfxControls bindings={bindings} customPresets={customWavePresets} onSavePreset={onSaveWavePreset}/>
     <UIField id="scene.prompt" label="Image prompt" category="Scene"><CoupledField bindings={bindings} consumer="scene.generate" property="scene.prompt" /></UIField>
     <div className="scene-input-row">
       <UIField id="scene.variable" label="Prompt variable" category="Scene"><CoupledField bindings={bindings} consumer="scene.generate" property="scene.variable" /></UIField>

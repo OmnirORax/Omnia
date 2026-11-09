@@ -1,4 +1,6 @@
-import {WAVE_CONTROLS,WAVE_PRESETS} from './vfx.ts';
+import {WAVE_CONTROLS,WAVE_PRESETS,type WaveKey} from './vfx.ts';
+import {readWavePresets,type SavedWavePreset} from './wavePresets.ts';
+import type {Value} from '../appearance/model.ts';
 import {preparePropertyChanges} from '../properties/registry.ts';
 import {UIAction} from '../ui/UIAction';
 import {PROPERTY_REGISTRY} from '../appearance/registry';
@@ -12,7 +14,7 @@ import {FunctionControl} from '../ui/UIWorkspace';
 import {useFeatureActions} from '../ui/useFeatureActions';
 import {systemAudioRequiresPairing} from './nativePcm';
 import {toggleSceneSystemAudio,forgetSceneSystemAudio,sceneAudioSnapshot,subscribeSceneAudio,sampleSceneAudio,scenePulseResponse} from './audio';
-export function SceneVfxControls({bindings}:{bindings:PropertyBindings}){
+export function SceneVfxControls({bindings,customPresets,onSavePreset}:{bindings:PropertyBindings;customPresets:Record<string,Value>;onSavePreset:(waves:boolean,values:Record<WaveKey,number>)=>void}){
  const meter=useRef<HTMLMeterElement>(null),responseMeter=useRef<HTMLMeterElement>(null),[error,setError]=useState('');
  const mode=bindings.values['scene.vfx']?.[PROPERTY_REGISTRY.consumer('scene.vfx')!.channels['scene.pulseColorMode']];
  const automatic=bindings.values['scene.vfx']?.[PROPERTY_REGISTRY.consumer('scene.vfx')!.channels['scene.pulseRangeMode']]==='auto';
@@ -21,6 +23,9 @@ export function SceneVfxControls({bindings}:{bindings:PropertyBindings}){
  const [pairingCode,setPairingCode]=useState(''),pairing=systemAudioRequiresPairing(window.location.origin);
  useEffect(()=>{let frame=0,last=0;const tick=(now:number)=>{if(now-last>=100){last=now;if(meter.current)meter.current.value=sampleSceneAudio().level;if(responseMeter.current)responseMeter.current.value=scenePulseResponse();}frame=requestAnimationFrame(tick);};frame=requestAnimationFrame(tick);return()=>cancelAnimationFrame(frame);},[]);
  const fail=(error:unknown)=>setError(error instanceof Error?error.message:'Audio connection failed');
+ const savedPresets=readWavePresets(customPresets);
+ const applyWavePreset=(waves:boolean,values:Record<WaveKey,number>)=>bindings.commit([...preparePropertyChanges(PROPERTY_REGISTRY,'scene.waves',waves,['scene.vfx']),...WAVE_CONTROLS.flatMap(({key})=>preparePropertyChanges(PROPERTY_REGISTRY,`scene.${key}`,values[key],['scene.vfx']))]);
+ const saveWavePreset=()=>{try{const consumer=PROPERTY_REGISTRY.consumer('scene.vfx')!, state=bindings.values['scene.vfx'];const values=Object.fromEntries(WAVE_CONTROLS.map(({key})=>[key,state[consumer.channels[`scene.${key}`]]])) as Record<WaveKey,number>;const waves=state[consumer.channels['scene.waves']];if(typeof waves!=='boolean')throw Error('Waves state is unavailable.');onSavePreset(waves,values);setError('');}catch(e){setError(e instanceof Error?e.message:'Could not save preset');}};
  const actions=useFeatureActions('sceneAudio',{
  'scene.audioForget':{enabled:true,run:()=>{forgetSceneSystemAudio();setPairingCode('');setError('');}},
  'scene.audioSystem':{enabled:true,run:()=>{setError('');const code=pairingCode||readSystemAudioPreference()?.code||'';void toggleSceneSystemAudio(code).catch(fail);}},
@@ -45,7 +50,9 @@ export function SceneVfxControls({bindings}:{bindings:PropertyBindings}){
  {([['scene.audioBounce','Audio Bounce','bounce'],['scene.maxFps','Max FPS','maxFps']] as const).map(([property,label,key])=><UIField key={key} id={`scene.vfx.${key}`} label={label} category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property={property} label={label}/></UIField>)}
  <UISection id="scene-waves" title="Waves" defaultExpanded={false}>
  <UIField id="scene.vfx.waves" label="Waves enabled" category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property="scene.waves" label="On"/></UIField>
- {WAVE_PRESETS.map((preset,index)=><UIAction key={preset.label} id={`scene.vfx.wavePreset${index+1}`} label={preset.label} category="Scene" onClick={()=>bindings.commit([...preparePropertyChanges(PROPERTY_REGISTRY,'scene.waves',true,['scene.vfx']),...WAVE_CONTROLS.flatMap(({key})=>preparePropertyChanges(PROPERTY_REGISTRY,`scene.${key}`,preset[key],['scene.vfx']))])} />)}
+ {WAVE_PRESETS.map((preset,index)=><UIAction key={preset.label} id={`scene.vfx.wavePreset${index+1}`} label={preset.label} category="Scene" onClick={()=>applyWavePreset(true,preset)} />)}
+ <UIAction id="scene.vfx.addWavePreset" label="+ preset" category="Scene" onClick={saveWavePreset}/>
+ {savedPresets.map((preset:SavedWavePreset)=><UIAction key={preset.id} id={`scene.vfx.${preset.id}`} label={preset.label} category="Scene" onClick={()=>applyWavePreset(preset.waves,preset.values)}/>)}
  {WAVE_CONTROLS.map(({key,label})=><UIField key={key} id={`scene.vfx.${key}`} label={label} category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property={`scene.${key}`}/></UIField>)}
  <small>Displacement is a percentage of the view. Each wave count controls bands across the opposite axis. Speed 0 freezes that component; negative speed reverses it. Set both displacements to 0 for no wave deformation. Values preview live and save on release.</small>
  </UISection>

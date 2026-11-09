@@ -314,3 +314,5 @@ Correction (2026-11-08): Empty lattice cells is fully retired: control/property/
 Waves audio response is temporarily disabled (2026-11-08): authored Waves settings and animation remain, while audio level and Sensitivity no longer affect wave displacement. Other audio effects and their controls are unchanged; no saved settings migrate.
 
 Waves presets: two built-in choices set the existing six wave values and enable Waves in one shared property/history commit. Preset 1 supplies new/missing defaults; existing explicit wave settings remain unchanged. No preset identity or new settings format is stored. Browser and visual acceptance are pending.
+
+The + preset action beside the built-in wave presets saves the current toggle and six values as the next numbered preset. Compact per-preset records live in the existing settings functionValues owner and travel with settings export/import and history. Invalid records are retained and not shown or overwritten; there are at most 97 numbered slots. Browser acceptance is pending.
