@@ -1,4 +1,6 @@
-import {WAVE_CONTROLS} from './vfx.ts';
+import {WAVE_CONTROLS,WAVE_PRESETS} from './vfx.ts';
+import {preparePropertyChanges} from '../properties/registry.ts';
+import {UIAction} from '../ui/UIAction';
 import {PROPERTY_REGISTRY} from '../appearance/registry';
 import {PULSE_CONTROLS} from './pulse';
 import {useEffect,useRef,useState,useSyncExternalStore} from 'react';
@@ -43,6 +45,7 @@ export function SceneVfxControls({bindings}:{bindings:PropertyBindings}){
  {([['scene.audioBounce','Audio Bounce','bounce'],['scene.maxFps','Max FPS','maxFps']] as const).map(([property,label,key])=><UIField key={key} id={`scene.vfx.${key}`} label={label} category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property={property} label={label}/></UIField>)}
  <UISection id="scene-waves" title="Waves" defaultExpanded={false}>
  <UIField id="scene.vfx.waves" label="Waves enabled" category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property="scene.waves" label="On"/></UIField>
+ {WAVE_PRESETS.map((preset,index)=><UIAction key={preset.label} id={`scene.vfx.wavePreset${index+1}`} label={preset.label} category="Scene" onClick={()=>bindings.commit([...preparePropertyChanges(PROPERTY_REGISTRY,'scene.waves',true,['scene.vfx']),...WAVE_CONTROLS.flatMap(({key})=>preparePropertyChanges(PROPERTY_REGISTRY,`scene.${key}`,preset[key],['scene.vfx']))])} />)}
  {WAVE_CONTROLS.map(({key,label})=><UIField key={key} id={`scene.vfx.${key}`} label={label} category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property={`scene.${key}`}/></UIField>)}
  <small>Displacement is a percentage of the view. Each wave count controls bands across the opposite axis. Speed 0 freezes that component; negative speed reverses it. Set both displacements to 0 for no wave deformation. Values preview live and save on release.</small>
  </UISection>

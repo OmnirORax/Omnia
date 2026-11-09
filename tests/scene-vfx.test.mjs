@@ -1,7 +1,7 @@
 import {PULSE_CONTROLS,RETIRED_FLARE_CONTROLS,referencePulse,referencePulseRGB,pulsePalette,sourcePulseTint,RETIRED_OMNI_BRIGHTNESS_CONTROLS,omniHighTintRGB,createAutomaticPulse} from '../src/scene/pulse.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {WAVE_CONTROLS,RETIRED_LIGHT_CONTROLS,DEFAULT_SCENE_VFX,normalizeSceneVfx,serializeSceneVfx,smoothAudio,followBass,createBassDynamics,audioScale,normalizeAudioLevel,nextVfxDeadline,SCENE_VFX_FPS,waveAudioGain} from '../src/scene/vfx.ts';
+import {WAVE_PRESETS,WAVE_CONTROLS,RETIRED_LIGHT_CONTROLS,DEFAULT_SCENE_VFX,normalizeSceneVfx,serializeSceneVfx,smoothAudio,followBass,createBassDynamics,audioScale,normalizeAudioLevel,nextVfxDeadline,SCENE_VFX_FPS,waveAudioGain} from '../src/scene/vfx.ts';
 import {defaultSettings,normalizeSettings} from '../src/workspaceActions.ts';
 import {SETTINGS_PROPERTY_ADAPTERS} from '../src/properties/settingsAdapter.ts';
 test('scene effects serialize base controls plus requested light tuning, excluding session internals',()=>{
@@ -459,9 +459,9 @@ test('wave setters preserve zero, reverse speed and saved values with historical
  for(const control of WAVE_CONTROLS)assert.equal(restored.sceneVfx[control.key],control.key.includes('Speed')?-2:0);
  assert.equal(restored.sceneVfx.pulseTintLow,base.sceneVfx.pulseTintLow);assert.equal(restored.sceneVfx.audioBounce,base.sceneVfx.audioBounce);
  const old=normalizeSceneVfx({waves:false,waveAmplitudeX:Infinity,waveSpeedX:-999,waveFrequencyY:999});
- assert.equal(old.waves,false);assert.equal(old.waveAmplitudeX,.1);assert.equal(old.waveAmplitudeY,.3);assert.equal(old.waveSpeedX,-20);assert.equal(old.waveFrequencyY,40);
+ assert.equal(old.waves,false);assert.equal(old.waveAmplitudeX,.25);assert.equal(old.waveAmplitudeY,.3);assert.equal(old.waveSpeedX,-20);assert.equal(old.waveFrequencyY,40);
  // Screenshot-selected defaults apply to absent fields; older explicit coefficients survive.
- const requested={waves:true,waveAmplitudeX:.1,waveAmplitudeY:.3,waveFrequencyX:1.5,waveFrequencyY:10,waveSpeedX:3,waveSpeedY:3};
+ const requested={waves:true,waveAmplitudeX:.25,waveAmplitudeY:.3,waveFrequencyX:4,waveFrequencyY:10,waveSpeedX:2,waveSpeedY:3};
  for(const [key,value] of Object.entries(requested)){assert.equal(DEFAULT_SCENE_VFX[key],value);assert.equal(normalizeSceneVfx(undefined)[key],value);}
  const authored={waves:false,waveAmplitudeX:.875,waveAmplitudeY:.5,waveFrequencyX:10,waveFrequencyY:10,waveSpeedX:5,waveSpeedY:-3.5};
  const saved=normalizeSceneVfx(JSON.parse(serializeSceneVfx(authored)));
@@ -482,4 +482,18 @@ test('default background covers no selection and unassigned nodes while explicit
 test('audio wave gain is finite, bounded and leaves authored waves unchanged at silence',()=>{
  assert.equal(waveAudioGain(0),1);assert.equal(waveAudioGain(.5),2);assert.equal(waveAudioGain(99),3);assert.equal(waveAudioGain(1,0),1);assert.equal(waveAudioGain(1,4),2);assert.equal(waveAudioGain(1,8),3);
  assert.equal(waveAudioGain(-1),1);assert.equal(waveAudioGain(NaN),1);assert.equal(waveAudioGain(Infinity),1);
+});
+
+
+test('wave presets set all six wave properties through existing settings adapters',()=>{
+ const channels=SETTINGS_PROPERTY_ADAPTERS['scene.vfx'].channels;
+ for(const {key} of WAVE_CONTROLS)assert.equal(DEFAULT_SCENE_VFX[key],WAVE_PRESETS[0][key]);
+ for(const preset of WAVE_PRESETS){
+  let settings=defaultSettings();settings=channels['scene.waves'].write(settings,true);
+  for(const {key} of WAVE_CONTROLS)settings=channels[`scene.${key}`].write(settings,preset[key]);
+  const saved=normalizeSettings(JSON.parse(JSON.stringify(settings)));
+  assert.equal(saved.sceneVfx.waves,true);
+  for(const {key} of WAVE_CONTROLS)assert.equal(saved.sceneVfx[key],preset[key]);
+  assert.equal(saved.sceneVfx.pulseAmount,defaultSettings().sceneVfx.pulseAmount);
+ }
 });
