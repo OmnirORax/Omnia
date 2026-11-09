@@ -1,3 +1,4 @@
+import {shouldRevealInspection} from './ui/inspectionReveal.ts';
 import {NODE_ACCESS_ACTIONS} from './nodeContextActions.ts';
 import {restoreHiddenUI} from './ui/interfaceVisibility.ts';
 import {PATTERN_FUNCTION,patternSettings,resolvePattern} from './paint/pattern.ts';
@@ -190,7 +191,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
       const path: string[] = [], seen = new Set<string>();
       let owner: string | undefined = "window:theme";
       while (owner && !seen.has(owner)) { seen.add(owner); path.unshift(owner); owner = ownerOf(savedUILayout, owner); }
-      revealed = revealSearchPath(revealed, { path });
+      if (shouldRevealInspection(revealed, path)) revealed = revealSearchPath(revealed, { path });
     }
     return revealSearchPath(revealed, searchReveal);
   }, [savedUILayout, searchReveal, masterInspection, dismissedInspection]);
@@ -2228,8 +2229,8 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
         </EmbeddedGroup>
         </MasterController>
       </FloatingWindow>}
-      {settingsVisible && <FloatingWindow id="settings" title="Workspace settings" width={520} height={640} onClose={() => {
-        if (uiLayout.panels["@workspaceOnly"]) { updateUI(layout => ({...layout,windows:{...layout.windows,settings:{...layout.windows.settings,collapsed:true}}})); return false; }
+      {settingsVisible && <FloatingWindow id="settings" title="Workspace settings" width={520} height={640} openAtCursor={!uiLayout.panels["@workspaceOnly"]} onClose={() => {
+        if (uiLayout.panels["@workspaceOnly"]) { updateUI(layout => ({...layout,windows:{...layout.windows,settings:{...layout.windows.settings,collapsed:true}}})); return true; }
         setSettingsOpen(false);
       }}>
         {!uiLayout.panels["@workspaceOnly"] && <UISection id="workspace-interface-tools" title="Workspace interface tools">

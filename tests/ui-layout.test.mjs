@@ -534,3 +534,14 @@ test('workspace-only presentation is opt-in and survives layout export',()=>{
   assert.equal(validateUILayout(JSON.parse(JSON.stringify(layout))).panels['@workspaceOnly'],true);
   assert.deepEqual(old.windows,layout.windows,'presentation flag does not move saved residents');
 });
+
+test('automatic inspection respects a collapsed Workspace settings tab',async()=>{
+ const {shouldRevealInspection}=await import('../src/ui/inspectionReveal.ts');
+ const frame={x:0,y:0,width:300,height:300,collapsed:true,pinned:false};
+ const layout=validateUILayout({...emptyUILayout(),panels:{'@workspaceOnly':true,'@settings':true},windows:{settings:{...frame,members:[{kind:'window',id:'theme'}]},theme:{...frame}}});
+ const path=['window:settings','window:theme'];
+ assert.equal(shouldRevealInspection(layout,path),false,'inspection cannot reopen a closed tab');
+ assert.equal(shouldRevealInspection(layout,['window:theme']),true,'unrelated inspection remains available');
+ const opened={...layout,windows:{...layout.windows,settings:{...layout.windows.settings,collapsed:false}}};
+ assert.equal(shouldRevealInspection(opened,path),true,'inspection still reveals the controller within an open tab');
+});
