@@ -50,9 +50,11 @@ export function SceneVfxControls({bindings,customPresets,onSavePreset}:{bindings
  {([['scene.audioBounce','Audio Bounce','bounce'],['scene.maxFps','Max FPS','maxFps']] as const).map(([property,label,key])=><UIField key={key} id={`scene.vfx.${key}`} label={label} category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property={property} label={label}/></UIField>)}
  <UISection id="scene-waves" title="Waves" defaultExpanded={false}>
  <UIField id="scene.vfx.waves" label="Waves enabled" category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property="scene.waves" label="On"/></UIField>
- {WAVE_PRESETS.map((preset,index)=><UIAction key={preset.label} id={`scene.vfx.wavePreset${index+1}`} label={preset.label} category="Scene" onClick={()=>applyWavePreset(true,preset)} />)}
- <UIAction id="scene.vfx.addWavePreset" label="+ preset" category="Scene" onClick={saveWavePreset}/>
- {savedPresets.map((preset:SavedWavePreset)=><UIAction key={preset.id} id={`scene.vfx.${preset.id}`} label={preset.label} category="Scene" onClick={()=>applyWavePreset(preset.waves,preset.values)}/>)}
+ <div className="scene-input-row" aria-label="Wave presets"><span>Presets:</span>
+ <UIAction id="scene.vfx.addWavePreset" label="Add wave preset" symbol="+" category="Scene" onClick={saveWavePreset}/>
+ {WAVE_PRESETS.map((preset,index)=><UIAction key={preset.label} id={`scene.vfx.wavePreset${index+1}`} label={preset.label} symbol={String(index+1)} category="Scene" onClick={()=>applyWavePreset(true,preset)} />)}
+ {savedPresets.map((preset:SavedWavePreset)=><UIAction key={preset.id} id={`scene.vfx.${preset.id}`} label={preset.label} symbol={preset.label.replace('Preset ','')} category="Scene" onClick={()=>applyWavePreset(preset.waves,preset.values)}/>)}
+ </div>
  {WAVE_CONTROLS.map(({key,label})=><UIField key={key} id={`scene.vfx.${key}`} label={label} category="Scene"><CoupledField bindings={bindings} consumer="scene.vfx" property={`scene.${key}`}/></UIField>)}
  <small>Displacement is a percentage of the view. Each wave count controls bands across the opposite axis. Speed 0 freezes that component; negative speed reverses it. Set both displacements to 0 for no wave deformation. Values preview live and save on release.</small>
  </UISection>
