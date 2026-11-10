@@ -1,4 +1,0 @@
-websockets==15.0.1
-PyAudioWPatch==0.2.12.7; sys_platform == 'win32'
-pycaw==20251023; sys_platform == 'win32'
-comtypes==1.4.10; sys_platform == 'win32'

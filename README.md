@@ -1,153 +1,76 @@
-# Omnium 
-
-> **[Capabilities and user guide](docs/CAPABILITIES.md)** — what exists, where to
-> find it, how it works, and minimal tests with expected results. Command/gesture
-> names and defaults regenerate from the app; deployment and verification status
-> are recorded separately. Contributors: [guide authoring](docs/capabilities/README.md).
-
-A local, interactive 3D atlas for charting systems. React, TypeScript, Three.js and Vite Plus power the current workbench. Its version-2 JSON document is independent of the renderer and provisional English labels. [PROJECT_DIRECTION.md](PROJECT_DIRECTION.md) records the long-term constraints.
-
-## For new workers
-
-Start with [the worker onboarding guide](docs/WORKER_ONBOARDING.md) and
-[AGENTS.md](AGENTS.md). The guide explains the product, shared systems and state
-boundaries without requiring a source-code tour. The shared property/coupling core and its incremental consumer migration are
-documented in [Shared properties](docs/SHARED_PROPERTIES.md).
-
-## Run and verify
-
-The optional backend foundation provides private workspaces and image storage;
-the atlas continues saving locally. Start with [the backend guide](docs/BACKEND.md)
-for local setup, security contracts, and hosted deployment prerequisites.
-
-Use Node 24 and Yarn 4.18.1, then run `yarn install --immutable` and `yarn dev`. In the prepared Codex cloud environment, Yarn is at `/workspace/.tools/yarn/node_modules/.bin/yarn`; existing dependencies are installed. Verify with `yarn test`, `yarn typecheck`, `yarn build`, `yarn test:browser`, and `yarn test:3d`. Browser checks require the dev server and Chromium (default `/usr/bin/chromium`; override with `CHROMIUM_PATH`).
-
-For GitHack previews, run `yarn build:preview` and publish **dist-preview**, rather than the production `dist` directory. Its `index.html` embeds the application, styles, built-in font, icon catalog and dynamic modules in one response, avoiding the preview host's per-asset rate limiting. Normal GitHub Pages builds retain code splitting. A failed 3D module/render now shows a reload panel inside the canvas while the surrounding editor stays mounted; it does not reset saved data.
-
-The app opens directly in 3D at the world origin. Nodes are world-oriented text bars centered on their placement anchors; full names wrap without ellipses. Left-drag empty space to pan, right-drag to orbit, scroll to zoom, and drag a name to move it. Single-click a name for its option bar and owned variants; double-click for normal structural expansion/collapse. Shift-drag one structural name onto another to add authored containment. Right-click a name or empty space for charting actions. Selection, editing, expansion, creation, import and layout changes leave the camera in place: use **Focus selected** (F), **Fit local system**, **Fit entire atlas**, and **Back** explicitly. Snapping checks a conservative text footprint plus expanded subsystem bounds. Workspace settings contain keybindings, mouse actions, minimum clearance radius, snap spacing, and clearance. Zooming changes apparent size naturally: it never pushes nodes sideways or spreads endpoints to make room for annotations. Flat labels/icons use world XY planes and can tilt, become edge-on, mirror from behind or appear upside down when the view is rolled.
-
-The **zoom/camera guide** shows a percentage, signed XYZ compass, viewing direction, camera/orbit-target coordinates and the selected node's world XYZ. The workspace has no colored origin lines; the guide retains its compass. **100%** resets the default viewing scale at the current target; the percentage uses the default camera distance/FOV as a fixed reference, including after Focus. **Origin** returns to the origin view. **↶/↷ 90°** roll the camera; two clicks turn the view upside down. Back also restores roll. Move the guide using its field edges, or find it in the UI library under View. The guide and its actions participate in normal UI organization. No graph data migration is needed.
-
-All graph edits autosave in this browser under `omnium.atlas.v2`; export JSON for a portable backup. Version-1 saves/imports migrate into version 2 without overwriting `omnium.atlas.v1`. Existing 2D coordinates remain as legacy layout fields and an XYZ fallback. Atlas exports include saved graph layout views, node/binder appearance, and binder annotations. UI templates are separate and do not replace graph knowledge.
-
-## Arrange the interface
-
-Every window, docked panel, custom frame and context-action frame has a **magnifier** beside its handle. Click it to search that frame's UI controls by name, including icon-only buttons and controls inside nested frames. Results show their nested frame path; select one (or use Up/Down and Enter) to open its enclosing frames, scroll to it, focus it and briefly highlight it. Selecting a search result does not execute the action. Escape or clicking outside closes search. Queries are temporary; authored item positions and memberships are preserved. This searches local UI control labels rather than indexing canonical knowledge or field values.
-
-In Neon, **Appearance → Mode: Global → Color** supplies the UI accent for button/field fills, borders, headers, muted lettering, scrollbars and interaction markers. These derive from the selected accent and background rather than a fixed blue palette. Shared/category-specific VFX colors in Animations affect animation layers independently; All text color can separately override lettering.
-
-The **Master controller** groups shared controls into **Visuals** and **Spatial**. Open Visuals for the appearance property tree, target hierarchy, theme tools and templates; Spatial contains coupled placement controls. Categories are generated as properties are registered. MB3 opens the selector; its Mouse button selects the logical mouse and reveals Mouse trail properties. Function input modules are discovered automatically, with no second consumer list. Consumers keep independent values, and authored node/binder overrides retain their existing precedence.
-
-Use **Master controller → Visuals → Font** to change graph labels, binder lettering/symbols and interface text together. Options include System, Sans serif, Serif, Monospace and the bundled **Rubik Glitch — electric** face. The font loads locally, and theme/UI templates preserve the choice. Rubik Glitch is a static electric-style typeface; combine it with the separate Lightning effect for animated crackles. Missing glyphs use system fallbacks; imported image/3D assets retain their own appearance. Font changes redraw label textures without modifying canonical text or authored positions. The bundled face's [SIL Open Font License](public/fonts/OFL-RubikGlitch.txt) ships with the preview.
-
-**Import your own font:** choose **Import font** beside All text font, then select a WOFF2, WOFF, TTF or OTF file (maximum 10 MB). A successfully decoded font is selected immediately and remains available in the selector after reload. Files are stored once in this browser's IndexedDB font library, independently of graph knowledge, settings and undo history. Reimporting the same bytes reuses the existing font. Theme and UI JSON exports embed only the selected custom font; importing them restores it into the receiving browser's library before applying the settings. Local theme presets retain references to that library rather than copying font files into every preset. Clearing browser site data removes the local library, so export a theme or UI template to back it up.
-
-In **Master controller**, the shared property tree includes **Animation**. Choose targets through the visual hierarchy and adjust supported effects using the shared controls. Color, intensity, density and speed use the same target capabilities, protections and appearance draft. See [Appearance controller](docs/APPEARANCE_CONTROLLER.md) for the current workflow; the older separate category/shared-settings editor has been superseded.
-
-**All text color**, directly beneath All text font, applies one displayed color to UI lettering, node names, binder text and character-based symbols. It preserves authored graph colors and leaves node shapes, image/3D assets and binder lines unchanged. **Original colors** removes the override. Text glow follows the displayed text color; separately configured VFX colors still control their animation layer. Both appearance modes and template formats retain this setting.
-
-**Bars and sliders glow** adds a shared, adjustable halo to native color swatches, sliders and progress/meter controls. Each swatch keeps its selected color, and sliders use their own accent color independently of text color. The controls retain native input, keyboard and resizing behavior. Zero restores their normal rendering; no continuously running animation is added. Dynamic controls and color changes are handled automatically, and the setting persists in theme/UI templates.
-
-**All text glow** in Appearance adds a shared, color-matched glow to interface lettering, node names and binder text. It is independent of the Global / Nodes / Binders mode, graph bloom and animation targets, works in Neon and Classic, and persists in theme/UI templates. Zero disables the added text glow without changing existing glow preferences.
-
-**Lightning text / icons** in Animations replaces the glyph/icon interior with moving electric ink: dim colored strokes, jagged bright channels and white-hot cores, clipped to the current font or flat icon's alpha mask. It is separate from Lightning outlines. Choose the desired category, enable it and uncheck Use shared settings to customize its VFX color, intensity, density, speed and bolt length. Graph glyphs use a shared small GPU texture per category; UI lettering uses cached masks and a bounded canvas pass. Fonts remain editable, imported fonts are supported, and window backgrounds, positions and canonical text stay unchanged. Backgrounds and GLB models have no glyphs to fill. Zero speed/reduced motion keeps a static energized appearance; Off restores normal lettering. Effects still require Neon.
-
-**Lightning outlines** traces actual text and transparent SVG/PNG icon contours, including holes in glyphs, with traveling crackles, brief flashes and occasional bridges between nearby strokes of the same representation. Its **Bolt length** control adjusts the traced span. Nodes, binder symbols/text, UI text/icons and optional background forks use the existing category controls. Full GLB mesh-surface lightning is not implemented; opaque image backgrounds produce rectangular contours. Outlines are cached, offscreen/tiny graph visuals are skipped, and line counts are bounded. Effects remain pointer-transparent, respect reduced motion, pause in hidden tabs and never change graph facts or saved positions. Zero speed leaves a still pattern; Off or zero density/intensity disables a category.
-
-**Insert frames between frames:** drag a frame/window handle toward a neighbor's left/right edge in the toolbar, or top/bottom edge in the sidebar. A blue insertion line and “Insert … before/after …” preview indicates sibling placement. This also works on the edges of frame/window residents inside other frames, where intersecting neighbors shift to open the slot. The center of a handle still means **Add to** (nesting). Pinned containers/affected neighbors reject moves. Placement and ordering persist in UI templates and can be undone with Shift+MB4. Existing menu/sidebar order is retained; graph data is unaffected.
-
-The **Master controller** window opens by default and can be reopened through View, Workspace settings or the UI library. Choose Neon/Classic, accent/background colors, graph glow, Stars (default), Falling stars / snow, Dust, Sparks, Lightning or Off, effect intensity/density, animation intensity, window opacity and blur. Reset appearance restores the supplied values without changing graph data or UI arrangement. Panel transparency affects backgrounds, not text or controls. Settings persist locally and travel with UI templates; authored node/binder colors take precedence. Attached particles drift/twinkle gently at up to 30 fps, pause in hidden tabs and respect reduced-motion preferences. Set animation to zero for a still view; zero glow bypasses post-processing. Effects use the existing Three.js addons, with no new library. Classic retains the earlier palette and disables scene effects.
-
-New nodes and variants start unnamed as smooth spheres, 0.2 world units across (radius 0.1). Entering a name replaces the sphere with its text box. Choosing an asset replaces the sphere with that asset, optionally alongside nonempty text. Clearing the name or disabling Show text removes the box completely; no Untitled placeholder is drawn in 3D. Names/aliases/IDs remain independently inspectable. Visual size adjusts spheres and assets. Geometry, collision footprints, sphere connector endpoints and framing use the displayed dimensions. Icon hover/selection uses rings with fully invisible picking volumes; icons retain a gentle bloom controlled by Graph glow. Binders use antialiased screen-width lines and multisampled post-processing targets.
-
-Open **UI library** (Ctrl+Alt+U) to find functions and settings under File, Edit, View, Create, Nodes, Relationships, Investigations, AI, Settings, Shortcuts and Interface. Search by name or category. Click an action to run it, click a setting to open its editor, or drag a library entry into the workspace. The library includes context-specific defaults even when no node or relationship is selected; these explain the context needed to edit them. Ctrl+Alt+U still opens the library if its button was moved or hidden. Drag action buttons onto one another to create a named, initially collapsed UI frame. **Create UI frame** creates an empty slot. Right-click a function to choose text or an icon button, circle/square/triangle geometry, or pinning. Hover an icon to see its name.
-
-Drag window/frame handles to move them, resize their edges or bottom-right handle, and click the handle to collapse/expand. Right-click the handle or frame background for pin/unpin, close/remove, naming and arrangement settings. There are no separate collapse/pin/close icons. Sidebar sections have an undock arrow; closing an undocked section returns it to the sidebar. Pinned frames cannot move, resize, or change membership until unpinned. Node/selection/empty-space context menus use the same free-hand/snap arrangement surface and measured contours; drag their actions to rearrange them. Actions stay owned by that menu, and reopening it uses the newly clicked target. Omnium suppresses Chrome's native right-click menu throughout the app.
-
-Frames and existing windows can themselves be inserted into frames: drag their attached handle for a placement preview. Backgrounds and drag bounds follow the measured button/field shapes, with a faded tab around the identifying handle. The saved wrapping width does not reserve a phantom rectangle or prevent small groups from reaching the screen edge. Drag the faded background to move contents together while the identifying handle stays fixed. Move a field using its edge; label and input stay together, and editing the input does not drag it. Right-click a frame for placement mode, handle icon/geometry, undocking and local reset. Nested frames cannot form cycles. Default action entries and library rows use compact text buttons.
-
-**Compact all** changes actual saved XYZ positions, reducing gaps independently rather than uniformly scaling the atlas. Each child keeps its direction from its parent, and whole branches move with their contents. A close pair no longer stops other branches from compacting. Root groups move toward a stable existing root near their center; fixed/unselected placements remain obstacles. With a selection the button becomes **Compact selection**. Hierarchy, knowledge, label/asset sizes and legacy 2D coordinates stay unchanged. One Undo restores the previous layout. Clear the selection (Esc) to compact all; the separate subsystem/frame actions retain their scopes. Snap spacing does not affect compaction. Coincident nodes cannot be separated without choosing a new direction.
-
-**Focus context only** beside the camera controls hides unrelated nodes and binders when you explicitly focus a node. Select a node and press F (or Focus): its currently revealed subtree and ancestor path remain visible and are framed together. Ancestors do not bring their other sibling branches back into view. Focusing multiple selected nodes keeps their subtrees and parent paths. Existing investigative-frame, collapse and variant filters still apply. Toggling isolation can update the current selection's scope without moving the camera. Back restores the previous camera/context; Fit entire atlas shows everything within the active investigative frame again. Turn the toggle off to remove isolation without moving the camera. This is temporary view filtering, not deletion, collapse or changes to knowledge. The toggle is saved locally and can be moved/rebound through the UI library and shortcuts.
-
-**UI multi-selection:** Ctrl/Cmd-click function buttons to select them without executing them. Alternatively, turn on **Select UI buttons** and drag a selection rectangle anywhere; Ctrl/Cmd-drag a frame/toolbar background also selects UI. Drag any selected button to move the set together, into another expanded frame, or into free workspace space. Group snapping preserves relative offsets. Right-click a selection for **Compact selected UI**, or use that toolbar/library action. Compact packs actual button sizes with a small gap, treats unselected controls as obstacles, and retains existing frame membership. A completed group move or compact is one UI Undo. Esc cancels a move, or clears UI selection; selection is not saved. Inputs remain editable, context actions stay within their menu, and pinned UI cannot be moved. Drag release does not execute the button; the next deliberate press remains usable.
-
-**Align UI** is beside Compact UI and is also available in the UI library and selection menu. Select buttons, click Align UI, then hover/click an unselected button's left, right, top or bottom boundary. The highlighted edge determines alignment; the other coordinate and button sizes stay unchanged. The preview explains invalid overlaps or off-screen positions. Frame membership is preserved, including alignment across frames. The target stays fixed and is not pressed. Esc cancels; Shift+MB4 undoes the entire alignment.
-
-**Reset to default** restores the bundled organization: File/Create/View/Workspace menus, everyday charting actions in the toolbar, Hierarchy and Inspector first in the sidebar, and advanced sections collapsed. Open it from Workspace, the UI library or settings; existing layouts also expose a reset action in the toolbar. New users start with this layout. Existing saved layouts remain until you reset. The reset is one UI Undo and keeps graph data, shortcut bindings and mouse/spatial preferences. **Reset controls** is a separate settings action. Menus, panels, fields and buttons still use ordinary drag/dock customization, and templates preserve their arrangement. Click a section title to collapse/expand; drag its handle to float or dock it. Panel actions reveal the existing panel rather than opening a duplicate. The default is stored in `src/ui/default-template.json` for later replacement with a user-authored template.
-
-**Alt+MB4 / Alt+MB5** undo/redo up to five graph steps. Combine **Shift+Alt+MB4/MB5** for five UI steps. Without Alt, mouse history remains one step. Histories stay separate and stop at their available endpoints. Shortcuts lists these gestures; Select UI buttons and Compact selected UI are also rebindable actions.
-
-Grab any of a field's four edges to move its label/input together. Drop near another native inspector/settings/shortcut field for a blue before/after insertion marker. Fields remain siblings rather than becoming nested frames. Aim at a frame's handle to add a field explicitly to that frame; custom frame contents continue to follow their selected Free-hand/Snap mode. Shortcut rows include the action, key editor and clear control and remain live when moved out of the shortcut window.
-
-New children start at the nearest clear local grid position, trying positive X first for equal-distance candidates. Wide labels can use a closer direction instead of forcing a long horizontal binder. With snapping off, children start at the parent's text footprint plus clearance. Existing authored coordinates are preserved. SVG assets retain their original portable source; their Three.js display textures are rasterized for reliable WebGL rendering, including binder icons.
-
-**UI placement** chooses Free-hand or Snap across workspace frames and floating controls. Snap prompts you to click an existing icon/handle as anchor; its position and dimensions establish the grid in every direction. Occupied cells are reserved, larger fields occupy several cells, and neighbors stay in place. Existing controls are not repositioned when you choose a mode. Right-click a frame to choose a separate mode/anchor for its contents. Choose anchor again to redefine a grid; Esc cancels a pending anchor or drag. **Shift+MB4 / Shift+MB5** undo/redo UI layout and workspace settings; ordinary MB4/MB5 retain graph undo/redo. Both histories keep up to 50 snapshots for the session. Mouse history assignments remain editable in Shortcuts. Version-1 UI arrangements migrate while preserving function references and authored row breaks.
-
-**Save UI template** exports version 3: interface arrangement, function icons, windows, menus, and workspace settings only. Loading it preserves the recipient's graph. Browser UI layout is stored separately as `omnium.ui.layout.v1`. Old version-1/2 combined templates still import through the existing confirmation flow. To recover a hidden control, open Arrange UI with Ctrl+Alt+U and return it to its default location, or reset only the UI arrangement. Details and the replaceable website default are documented in [docs/UI_LAYOUT.md](docs/UI_LAYOUT.md). Run `yarn test:ui` against the running dev server for the browser regression check.
-
-## Authoring
-
-- **+ Node** creates a structural identity and its first placement. **+ Child node** additionally charts structural containment. A placement's **Visual parent** only changes visual nesting; **Structural container** edits the authored composition fact separately. Shift-dragging onto another name adds a canonical composition fact without removing existing charted containment.
-- **Reuse identity** finds an existing identity by ID, label or alias and adds another placement. Its original knowledge and internals are not copied. Expanding a subsystem reference adds child placements that point to its existing charted components. The inspector shows identity and placement IDs, charted contents and relations, and can navigate to another placement or a subsystem component. Hiding or removing one placement leaves the identity and other references intact. **Delete identity and all references** is a separate, undoable operation.
-- **Connect nodes** charts a relationship between identities, independent of the connector. Define provisional relationship types with stable IDs, role IDs, names, symbols and definitions. Select a relationship from the list to change its type, roles, endpoints or annotation. Parallel, reciprocal, cyclic and cross-boundary relationships are valid.
-- **Investigative frames** select existing identities and relationships around a question or objective. Select a node before starting to anchor the frame; use lookup to include more identities, choose relationships, adjust depth, exclude, lock, reopen, restore earlier scope, promote or discard. Frames reference knowledge without copying it. Locking affects the frame scope, not the atlas. Reopening reports missing entity references. An unpromoted frame persists until explicitly discarded.
-- **External AI proposal** accepts a JSON change set, validates it, shows the operation preview, and requires explicit approval before atomic application. Undo is available. Structural validation does not establish that a claim is true.
-
-Local storage is browser- and origin-specific, with no account or backend. Export before changing origins. If a local save is unreadable, autosave pauses and preserves the unreadable value until the user explicitly replaces it. Undo/redo retains up to 50 snapshots in memory; it does not survive reload.
-
-## Node options and variants
-
-Single-click selects a node, opens its anchored option bar, and reveals any existing owned variants. The **+** badge sits directly on the top-right of **Variants**, including when no variants exist or their contents are collapsed; it is not a separate floating graph node. **Variants** is currently the only category; categories are defined by developers in `NODE_OPTIONS`, never by user data or settings. The Variants button hides/reveals this expansion mode independently of structural collapse. Double-click performs normal structural expansion/collapse and closes that node's variant mode; it does not also execute the single-click action. Dragging, right-clicking, and cancelling do not trigger delayed single-click actions.
-
-**Shift-click** expands every structural level below a node, creating missing placements for already charted subsystem contents until there is nothing further to reveal. If the whole subtree is already expanded, Shift-click collapses it completely. A partially expanded subtree expands first. This is one undoable operation, reuses canonical identities, preserves intentionally hidden placements and frame locks, and leaves variant ownership unchanged. **Shift+E** provides the same operation for the selected node. The click modifier is configurable as Shift, Alt, Ctrl/Cmd, or Off in Workspace settings; Shift-drag still nests and does not trigger subtree expansion. Expansion beyond document limits is rejected atomically.
-
-The **+** creates an owned variant and focuses the normal node name field. A variant is an ordinary node: it supports children, deeper structures, relationships, reuse, nesting, movement, appearance, the full inspector, context menus, and shortcuts. Double-click and Shift-click expand its own structural contents as usual. Its ownership controls hidden-by-default visibility and does not assert containment. Removing a placement preserves canonical knowledge; identity deletion is separate and confirmed. All normal edits support undo. Variants and their contents persist in JSON/browser saves; revealing them is session-only and starts closed on reload.
-
-The optional version-2 `variants` array holds stable association IDs and `ownerId`/`entityId` canonical references. Ordinary placements carry `variantOwner: { placementId, variantId }` to gate visibility; their coordinates, collapse state, and appearance use the same fields as other placements. Multiple owner references have independent placements of the same variant identity. Legacy variant coordinates/appearance migrate into those placements once, marked by `variantPlacementsVersion: 1`, without changing existing entities, compositions, or relationships. Explicitly removed placements stay removed on reload; reopening the owner's Variants mode can restore a reference, like expanding charted structural contents. Removing an owner placement detaches its remaining representations, preserving their identities and knowledge. An external AI can propose `createEntity` followed by `addVariant` through normal review/approval. No inheritance, internal structure cloning, grammar, or structural equivalence is inferred.
-
-## Binders and layout views
-
-Ctrl/Cmd-drag in the workspace draws a selection rectangle; Ctrl/Cmd-click adds/removes a node. Right-click a selection to focus, expand, collapse, compact, or delete it. **Delete removes the selected canonical concepts and their subnodes everywhere**, including shared appearances and owned variants. Interconnected/shared concepts produce a warning with affected counts. Unrelated connected concepts survive. One Undo restores the entire deletion, including references and relationships; undo history lasts for the current session. **Remove placement** remains a separate representation-only action.
-
-MB4 defaults to Undo and MB5 to Redo throughout the application. Hover **Shortcuts** to inspect functions, click to pin the display, click an action to run it, or click its key to rebind immediately. Conflicts are reported before saving. Selection, nesting, and subtree modifiers, mouse history actions, and camera drag bindings are editable there too. Defaults preserve Shift-click subtree expansion and Shift-drag nesting; Ctrl/Cmd-drag selects. Settings and the pinned display persist locally. Keyboard shortcuts leave text fields alone.
-
-Click a binder or its text to open its inline editor. Binder text is a presentation override, and its midpoint visual can be a character, Iconify icon, imported image, or GLB model. These edits never change the relationship's type or participants. The inspector also retains detailed binder controls.
-
-Nodes (including variants) support text, visual-only, and visual + text representations. Choose **Search Iconify**, import SVG/PNG/JPEG/WebP/GLB, or reuse an asset already saved in the atlas. Canonical names remain searchable/editable regardless of representation. Iconify online search needs access to `api.iconify.design`; a bundled searchable Lucide collection works offline. Selected icons are embedded, so existing visuals do not depend on the API. Icon-source links expose each collection's license; bundled notices are in `public/THIRD_PARTY_NOTICES.txt`.
-
-Assets are stored once in the optional document `assets` array and referenced by presentation `visual.assetId`; text symbols use `visual.character`. `showText` and `size` control the mix. Self-contained GLB 2 models use real Three.js geometry; animations are not played. External files and models requiring unsupported compression decoders are rejected. Imports are limited to 900 KB per asset and a 3.5 MB total asset budget, within the existing 5 MB JSON limit. Failed imports leave the atlas unchanged.
-
-Default child placement leaves roughly one long name's worth of clear binder run. Collision checks use actual text/visual footprints rather than treating an entire expanded subsystem's empty enclosing sphere as solid. The renderer adapts spacing for longer annotations and overlapping names without rewriting saved coordinates. Use **Compact layout** to tighten an existing scattered atlas explicitly; it remains undoable and preserves charted knowledge.
-
-Expanded parent/child structures have directional composition binders. Visual nesting without charted composition uses a dashed binder explicitly labelled `visual nesting`. Relationship and composition arrowheads sit at the midpoint. Click a binder to edit its color, opacity, and ordered text operators; these annotations do not replace its canonical type, participants, or composition. Select a node to edit that placement's text color and opacity. No executable Omnic grammar, animation, or invented symbols are introduced.
-
-The **View** menu switches saved coordinate arrangements. Choose **Hierarchy** and **+ Layout view** for a top-down layout from containment; **Directed flow** orders by a user-chosen relationship type and participant-role direction, placing cyclic participants at the same level; **Compact** groups in 3D; **Manual** copies the current layout. The original authored arrangement is saved automatically. View names and arrangements are editable, persisted in exports, and undoable. Switching saves the arrangement being left and restores the selected one; **Reapply view rule** recomputes after structural edits. Stale saved placement references are skipped without recreating deleted entities. Rules change coordinates only, including conversion back to parent-local XYZ; they never reparent, duplicate knowledge, or infer dependencies from labels.
-
-## Data and AI contract
-
-`src/graph/structural.ts` defines version-2 `omnium-atlas` documents. `entities` hold canonical identity, label, aliases and notes. `compositions` chart structural containment by entity ID. `placements` separately hold placement IDs, identity references, visual parent, 2D/3D coordinates, collapsed and hidden state. `relationshipTypes` hold stable types and participant roles. `relationships` hold typed instances with entity participants and optional qualifier IDs. `frames` hold references, exclusions, depth, lock/promotion state, saved revision and scope history. `revision` changes on each committed edit. No meaning is inferred from position, visual parent, label or symbol.
-
-`src/graph/model.ts` retains the version-1 parser and editor adapter for migration. `src/graph/spatial.ts` derives the 3D projection from placements; `src/SpatialWorkspace.tsx` renders it. If one identity has multiple visible placements, connectors deterministically use the visible placement with the lowest lexical placement ID. When a nested endpoint is collapsed, the connector uses its visible ancestor; the relationship instance never changes. Replacing the 3D renderer requires no migration of identities or relationships.
-
-`src/graph/coordinates.ts` resolves parent-local/world coordinates across renderers and filtered frames. `src/graph/layout3d.ts` owns snapping, conservative label/subsystem occupied radii, collision checks, creation/movement, and compact layout. `src/graph/labels.ts` handles full-text wrapping; `src/graph/presentation.ts` projects authored binders and manages saved rule-based coordinate views. `src/textScene.ts` supplies stable world-space Three.js text/binder geometry without giving it ownership of knowledge. `src/workspaceActions.ts` stores configurable shortcuts and mouse settings separately in `omnium.workspace.settings.v1`. Changing snap spacing does not reposition saved placements.
-
-Version 2 gains optional `appearance` on placements and binders, binder `operators` with stable IDs and text, and document `layoutViews`/`activeLayoutViewId`. Old documents load unchanged without these fields; identities, relationships, and authored containment require no migration. Appearance is presentation metadata, not semantic classification. Future icon/structure rendering can replace text without changing canonical IDs. Future executable grammar requires a separately authored specification; these text operators are annotations only.
-
-An external AI can export/read the atlas and submit an `omnium-changeset` with `version: 1`, a stable proposal `id`, `baseRevision` matching the atlas, and an `operations` array. Supported operations: `createEntity`, `addPlacement` (including reuse of an existing entity), `addComposition`, `createRelationshipType`, `createRelationship`, `updateRelationship`, `updatePlacement`, `createFrame`, and `refineFrame`. Updates include an exact `expected` object or `expectedScope` precondition. See [changeset.ts](src/graph/changeset.ts) and [round-trip test](tests/structural.test.mjs) for the executable contract. Operations validate in order, so referenced entities/types must already exist or be created earlier in the same change set. Stale or invalid proposals leave the atlas unchanged. A proposal can be pasted into the UI, reviewed, approved and exported as a new atlas.
-
-The v1 migration records each old `parentId` as both visual nesting and structural composition, preserving authored containment. Old untyped relationship labels remain instance annotations under the stable `legacy-untyped` type; migration does not guess whether “requires” meant causal dependency. The current 3D XYZ positions are parent-local; changing that convention later would require a placement-layout migration. Types, participants, identities and frames are renderer independent and do not fix Omnic grammar.
-
-The app enforces a 5 MB JSON import limit, 2,000 identities, 4,000 placements, 10,000 relationships, and maximum visual nesting depth 50. It provides structural/reference validation, deterministic lookup, and human approval, but no automatic entity matching, epistemic verification, simulation, online collaboration or final Omnic notation.
-
-## Hosted entry point
-
-The website is live at [omnium.nexus](https://omnium.nexus), protected by Cloudflare
-Access. GitHub Actions automatically deploys `master` to Cloudflare Pages project
-`omnia-web` after tests, build and Access preflight pass. Manual workflow runs
-verify only. GitHub Pages hosting is disabled; its old workflow retains build/test
-checks. See [deployment operations and verification](docs/CLOUDFLARE_DEPLOYMENT.md).
-Each visitor's atlas remains in that visitor's browser and is not published with
-the app; local data does not automatically transfer between hosting origins.
-
-Contributor requirement: [saved-data evolution and compatibility](docs/DATA_EVOLUTION.md), including migration/recovery responsibilities and current coverage gaps.
+# Omnium V2
+
+Omnium is being rebuilt in this repository. V2 replaces the website at
+https://omnium.nexus and is developed on `master`. V1 is obsolete; its complete
+merged source and history remain at [`archive/v1`](https://github.com/OmnirORax/Omnia/tree/archive/v1)
+and the `v1-final` tag, both anchored at
+`2fab9db610f2e12da766efc34d2d8104e6af51f4` (including PR #63).
+
+## Current scope
+
+This first release is a minimal responsive shell with source/archive links,
+TypeScript, Vite and the existing private Cloudflare deployment connection.
+It has no editor, graph, selection, DOF controls, persistence or backend client.
+The circle on the opening screen is decorative, not an interactive object.
+Open the site to see the V2 starting screen; Source opens this repository and
+V1 archive opens the preserved implementation. Visual acceptance remains user-owned.
+
+Supabase and Cloudflare resources, secrets, variables, domains and Access policies
+are retained. V1 application files, dependencies, instructions and unrelated
+workflows are absent from V2. No V1 saved-content migration is required by the user.
+The shell does not read, write or clear browser storage or call Supabase.
+
+## Run
+
+Node 24 and npm:
+
+```sh
+npm ci
+npm run dev
+npm test
+npm run build
+npm run preview
+```
+
+`src/main.ts` is the browser entry, `src/style.css` owns the initial shell styles,
+and `index.html` supplies accessible page structure. Production output is `dist/`.
+Builds include `source.json` with the exact Git commit and dirty-tree status.
+No runtime framework or backend SDK is installed yet; add one only for an actual
+need. The initial UI does not decide how the eventual world renderer will work.
+
+## Agreed architectural direction
+
+- **Reusable capabilities/DOFs:** establish canonical behavior once, with target
+  applicability, composition and on-demand coupling. Avoid independently rebuilding
+  selection, transformation and property editing for each system.
+- **Editable executable structure:** expose real implementation through Omnic
+  inside Omnium from the first reused capability. Start with source-backed editing;
+  do not maintain a disconnected architectural diagram as a substitute.
+- **Incremental reuse:** inspect a chosen V1 implementation and dependencies,
+  bring in the useful part, fix encountered tangles and evaluate the result before
+  broadening it. No blanket V1 compatibility or UI recreation requirement.
+- **Clean tree, retained ancestry:** the V2 transition is an ordinary descendant
+  commit. Old files/instructions are not active just because history is retained.
+- **Active publication:** V2 becomes the website immediately; development is not
+  held behind a V1 production branch.
+
+Next: choose one small reusable implementation and compare concrete source-backed
+editing mechanisms. AST-aware source changes, stable structural identity,
+validation, persistence back to the repository and execution/rebuild behavior
+remain design questions. Local source writes and hosted editing have different
+execution environments; a static Pages build cannot write its own repository.
+Keep ordinary source tooling and recovery available throughout the experiment.
+
+## Reuse and infrastructure
+
+Retrieve one file with `git show v1-final:path/to/file`. Inspect its imports,
+state/history owners and tests before reuse. Documentation in V1 is historical
+evidence and may describe unfinished or superseded behavior.
+
+Retained implementations: V1's favicon and read-only Cloudflare Access preflight.
+The deployment workflow is simplified for V2; backend, legacy Pages and native
+audio jobs are archived with V1 rather than applied to an empty application.
+This does not delete deployed services or alter database schemas.
+
+See [deployment operations](docs/DEPLOYMENT.md) for release behavior, retained
+resources, verification limits and recovery.
