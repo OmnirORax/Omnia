@@ -1,3 +1,5 @@
+import {shortcutsBlocked as isShortcutBlocked,protectWorkspacePrimaryPress} from './ui/shortcutBlocking.ts';
+import {controlInputOwner} from './ui/inputOwnership.ts';
 import {appendWavePreset,WAVE_PRESETS_OWNER} from './scene/wavePresets.ts';
 import {shouldRevealInspection} from './ui/inspectionReveal.ts';
 import {NODE_ACCESS_ACTIONS} from './nodeContextActions.ts';
@@ -1184,11 +1186,11 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
       if (event.defaultPrevented || isTypingTarget(event.target)) { heldNudges.stop(); return; }
       // Registered scoped owners get first refusal before legacy global actions,
       // regardless of capture-listener mount order (notably held world arrows).
-      if(preferredFeatureKey(settings.bindings,normalizeKey(event),id=>featureActionRuntime.available(id),false,settingsOpen||!!insertContext))return;
+      if(preferredFeatureKey(settings.bindings,normalizeKey(event),id=>featureActionRuntime.available(id),false,isShortcutBlocked(settingsOpen, !!uiLayout.panels["@workspaceOnly"], !!insertContext)))return;
       const action = actionForKey(settings.bindings, normalizeKey(event));
       if (!action || (event.repeat && !isNudgeAction(action))) return;
       if (isNudgeAction(action) && selection?.kind !== "node") return;
-      if ((settingsOpen || insertContext) && action !== "cancel" && action !== "searchUI") return;
+      if (isShortcutBlocked(settingsOpen, !!uiLayout.panels["@workspaceOnly"], !!insertContext) && action !== "cancel" && action !== "searchUI") return;
       event.preventDefault();
       if (isNudgeAction(action)) {
         // Stale queued presses cannot start a new movement after a main-thread stall.
@@ -1206,10 +1208,11 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
       clearRecordedShortcutPress();
       if (capturing) { recordShortcutPress(event); consumedShortcutPress.current = event.button; claimUIPress(event.pointerId, event.pointerType, event.buttons); event.preventDefault(); event.stopImmediatePropagation(); assignBinding(normalizePointer(event)); return; }
       if (event.defaultPrevented) return;
+      if (protectWorkspacePrimaryPress(!!uiLayout.panels["@workspaceOnly"],event.button,event.ctrlKey||event.altKey||event.shiftKey||event.metaKey,controlInputOwner(event.target as Element,event.composedPath()))) return;
       const contextAction=preferredFeatureKey(settings.bindings,normalizePointer(event),id=>FEATURE_ACTIONS.some(action=>action.id===id&&action.owner==='activeContext')&&featureActionRuntime.available(id));
       if(contextAction){consumedShortcutPress.current=event.button;claimUIPress(event.pointerId,event.pointerType,event.buttons);event.preventDefault();event.stopImmediatePropagation();featureActionRuntime.invoke(contextAction,event);return;}
       const action = actionForKey(settings.bindings, normalizePointer(event));
-      if (action && (!(settingsOpen || insertContext) || action === "cancel" || action === "searchUI")) {
+      if (action && (!isShortcutBlocked(settingsOpen, !!uiLayout.panels["@workspaceOnly"], !!insertContext) || action === "cancel" || action === "searchUI")) {
         consumedShortcutPress.current = event.button;
         claimUIPress(event.pointerId, event.pointerType, event.buttons);
         event.preventDefault(); event.stopImmediatePropagation(); runAction(action); return;
@@ -1240,7 +1243,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
   });
   useEffect(() => {
     heldNudges.stop();
-  }, [selection?.kind, selection?.id, capturing, settingsOpen, insertContext, settings.bindings]);
+  }, [selection?.kind, selection?.id, capturing, settingsOpen, uiLayout.panels["@workspaceOnly"], insertContext, settings.bindings]);
   useEffect(() => {
     const stop = () => heldNudges.stop();
     const focus = (event: FocusEvent) => { if (isTypingTarget(event.target)) stop(); };
@@ -1361,7 +1364,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
   }
   return (
     <><AppearanceRecovery open={recoveryOpen} onOpen={setRecoveryOpen} pending={appearancePending} safe={safeView} onSafe={setSafeView} onApply={applyAppearance} onDiscard={discardAppearance} onReset={() => restoreAppearance(defaultSettings().appearance)} checkpoints={checkpoints} onSave={name => { storeCheckpoints(appendCheckpoint(checkpoints, savedSettings.appearance, name || "Manual checkpoint", true)); }} onRestore={checkpoint => restoreAppearance(checkpoint.appearance)} error={recoveryError} />
-    <UIWorkspace appearance={{ pattern:patternPaint,masterOpen: themeOpen, activityPreview: setActivityRequests, inspect: setMasterInspection, subtreeModifier: settings.mouse.subtreeModifier, safe: safeView, base: previewAppearance, applied: savedSettings.appearance, fonts: customFonts, commit: (controller: Controller) => { setAppearancePreview(null); setSettings(old => old.appearance.controller === controller ? old : ({ ...old, appearance: { ...old.appearance, controller } })); }, preview: controller => setAppearancePreview(previous => controller ? (controller === (previous ?? ui.settings.appearance).controller ? previous : { ...ui.settings.appearance, controller }) : null), reveal: path => setSearchReveal(path ? { path } : null) }} search={{ open: searchOpen, onClose: () => setSearchOpen(false), onPreview: setSearchReveal, onKeep: reveal => { updateUI(layout => revealSearchPath(layout, reveal)); setSearchReveal(null); } }} shortcuts={{ onInvoke: invokeContextShortcut, bindings: settings.bindings, capturing, blocked: settingsOpen || !!insertContext, onCapture: (id, label) => { captureLabel.current = label; setCapturing(id); }, onClear: id => setSettings(s => ({ ...s, bindings: { ...s.bindings, [id]: "" } })) }} layout={uiLayout} update={updateUI} functions={uiFunctions} command={uiCommand} onReset={() => { updateUI(() => validateUILayout(structuredClone(websiteTemplate.layout))); setCapturing(null); setShortcutsHovered(false); }}><div className="workbench"><OmnicWorkspaceActions selected={!!selectedEntity}
+    <UIWorkspace appearance={{ pattern:patternPaint,masterOpen: themeOpen, activityPreview: setActivityRequests, inspect: setMasterInspection, subtreeModifier: settings.mouse.subtreeModifier, safe: safeView, base: previewAppearance, applied: savedSettings.appearance, fonts: customFonts, commit: (controller: Controller) => { setAppearancePreview(null); setSettings(old => old.appearance.controller === controller ? old : ({ ...old, appearance: { ...old.appearance, controller } })); }, preview: controller => setAppearancePreview(previous => controller ? (controller === (previous ?? ui.settings.appearance).controller ? previous : { ...ui.settings.appearance, controller }) : null), reveal: path => setSearchReveal(path ? { path } : null) }} search={{ open: searchOpen, onClose: () => setSearchOpen(false), onPreview: setSearchReveal, onKeep: reveal => { updateUI(layout => revealSearchPath(layout, reveal)); setSearchReveal(null); } }} shortcuts={{ onInvoke: invokeContextShortcut, bindings: settings.bindings, capturing, blocked: isShortcutBlocked(settingsOpen, !!uiLayout.panels["@workspaceOnly"], !!insertContext), onCapture: (id, label) => { captureLabel.current = label; setCapturing(id); }, onClear: id => setSettings(s => ({ ...s, bindings: { ...s.bindings, [id]: "" } })) }} layout={uiLayout} update={updateUI} functions={uiFunctions} command={uiCommand} onReset={() => { updateUI(() => validateUILayout(structuredClone(websiteTemplate.layout))); setCapturing(null); setShortcutsHovered(false); }}><div className="workbench"><OmnicWorkspaceActions selected={!!selectedEntity}
       canShow={!!selectedEntity?.omnic && !!selectedPlacement?.visual && !!(selectedPlacement.visual.assetId || selectedPlacement.visual.character)}
       onLibrary={() => setOmnicLibraryOpen(true)} onOpen={() => { try { if (selectedEntity) setOmnicEditorId(selectedEntity.id); else startOmnicDraft(); } catch(e) { setError(message(e)); } }}
       onCreate={() => { try { startOmnicDraft(); } catch(e) { setError(message(e)); } }}

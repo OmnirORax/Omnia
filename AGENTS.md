@@ -928,3 +928,5 @@ The user chose the consolidated website default rather than JSON delivery or a n
 Waves presets (2026-11-09): two controls apply the existing six wave values and enable Waves in one shared property/history transaction. Preset 1 is the missing-field default; explicit saved values remain authoritative. No extra persisted preset identity. User visual acceptance is pending.
 
 Custom Waves presets: + preset beside the built-ins captures the current Waves toggle and six values, stored as compact validated slots in existing settings functionValues. New slots never overwrite unknown/unreadable records. Existing settings history and settings transfer own persistence. Browser acceptance remains pending.
+
+Shortcut routing correction (2026-11-10): the consolidated Workspace settings window is an ordinary working surface; opening it must not globally block shortcuts. Keep the legacy modal guard for non-consolidated settings and insertion dialogs, retain typing/capture ownership, and give ordinary unmodified primary clicks on UI controls priority over MB1. User interaction acceptance remains pending.

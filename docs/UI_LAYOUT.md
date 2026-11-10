@@ -150,3 +150,5 @@ The shipped default now consolidates these live panels inside Workspace settings
 Workspace-only mode uses one collapsed settings window as its entry, with the existing frame rename and toggle. Closing or Escape collapses it. Previously saved workspace-only layouts adopt this presentation once and copy an existing launcher label when the frame has none. Browser acceptance remains pending.
 
 Workspace-only active-context correction: the settings window does not expand on mount, closing it completes normal context navigation, and automatic Master Controller inspection cannot reopen the user-collapsed settings tab. Explicit search retains its reveal behavior. No layout format or saved setting changes. Browser acceptance is pending.
+
+Consolidated Workspace is a working surface, not a modal shortcut block. Existing text/capture/insertion ownership remains; ordinary primary clicks on controls take precedence over unmodified MB1 bindings. Older non-consolidated settings dialogs retain their blocking policy. Browser acceptance remains pending.

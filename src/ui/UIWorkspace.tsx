@@ -1,3 +1,5 @@
+import {protectWorkspacePrimaryPress} from './shortcutBlocking.ts';
+import {controlInputOwner} from './inputOwnership.ts';
 import websiteTemplate from "./default-template.json";
 import { canResetResidentHome, resetResidentHome } from "./residentHome";
 import {featureActionRuntime} from '../featureActions';
@@ -643,6 +645,7 @@ export function UIWorkspace({
     const input = (event: KeyboardEvent | PointerEvent) => {
       const keyboard = event instanceof KeyboardEvent;
       if (shortcuts?.capturing || shortcuts?.blocked || event.defaultPrevented || keyboard && (event.repeat || isTypingTarget(event.target))) return;
+      if (!keyboard && protectWorkspacePrimaryPress(!!current.current.layout.panels["@workspaceOnly"],event.button,event.ctrlKey||event.altKey||event.shiftKey||event.metaKey,controlInputOwner(event.target as Element,event.composedPath()))) return;
       const key = keyboard ? normalizeKey(event) : normalizePointer(event);
       const id = keyboard ? residentShortcutAction(shortcuts?.bindings ?? {},key,candidate=>featureActionRuntime.available(candidate))
         : pointerFeatureKey(shortcuts?.bindings??{},event,candidate=>featureActionRuntime.available(candidate))??Object.entries(shortcuts?.bindings??{}).find(([id,binding])=>id.startsWith("button:")&&binding&&binding===key)?.[0];

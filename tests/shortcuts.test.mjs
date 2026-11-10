@@ -774,3 +774,14 @@ test('new control owners retain their first click through popup dismissal and fr
  const frame={},target={closest:selector=>selector===CONTROL_INPUT_OWNER?control:selector==='[data-popup-drag-frame]'?frame:null};
  assert.equal(popupDragHandle(target,frame,true),null,'the same declaration also prevents parent-frame dragging');
 });
+
+test('consolidated workspace allows shortcuts while retaining input and modal ownership',async()=>{
+ const {shortcutsBlocked,protectWorkspacePrimaryPress}=await import('../src/ui/shortcutBlocking.ts');
+ assert.equal(shortcutsBlocked(true,true,false),false,'open consolidated workspace is a working surface');
+ assert.equal(shortcutsBlocked(true,false,false),true,'legacy settings dialog retains its guard');
+ assert.equal(shortcutsBlocked(true,true,true),true,'insertion retains modal ownership');
+ assert.equal(protectWorkspacePrimaryPress(true,0,false,{}),true,'primary control click stays with the control');
+ assert.equal(protectWorkspacePrimaryPress(true,0,false,null),false,'canvas clicks can reach shortcuts');
+ assert.equal(protectWorkspacePrimaryPress(true,3,false,{}),false,'other mouse bindings remain available');
+ assert.equal(protectWorkspacePrimaryPress(true,0,true,{}),false,'explicit modified gestures remain available');
+});
