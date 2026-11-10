@@ -83,7 +83,7 @@ export function DockArea({ container, contour = true, hidden = false, visibleRes
   // Live dragging reserves the source footprint. Destination hints must not
   // reflow residents; only a committed drop changes the authored arrangement.
   // Context availability is a transient projection; retain authored membership.
-  const entries = visibleResidents ? members.filter(member=>visibleResidents.has(residentKey(member))) : members;
+  const entries = members.filter(member => (member.kind !== "function" || !ui.layout.items[member.id]?.hidden) && (!visibleResidents || visibleResidents.has(residentKey(member))));
   const occupied = entries;
   const positioned = !stacked && occupied.length > 0 && occupied.every((m) => m.position && m.size);
   const minX = positioned ? Math.min(0, ...occupied.map((m) => m.position!.x - 12)) : 0,

@@ -22,14 +22,19 @@ export const RETIRED_LIGHT_CONTROLS = [
 /** Current sine-wave approximation: exposed independently for live user tuning.
  * Displacement is percent of viewport UV span; frequency is cycles across its driving axis. */
 export const WAVE_CONTROLS = [
- {key:'waveAmplitudeX',label:'Horizontal displacement (%)',initial:.1,min:0,max:5,step:.025},
+ {key:'waveAmplitudeX',label:'Horizontal displacement (%)',initial:.25,min:0,max:5,step:.025},
  {key:'waveAmplitudeY',label:'Vertical displacement (%)',initial:.3,min:0,max:5,step:.025},
- {key:'waveFrequencyX',label:'Horizontal wave count',initial:1.5,min:0,max:40,step:.25},
+ {key:'waveFrequencyX',label:'Horizontal wave count',initial:4,min:0,max:40,step:.25},
  {key:'waveFrequencyY',label:'Vertical wave count',initial:10,min:0,max:40,step:.25},
- {key:'waveSpeedX',label:'Horizontal phase speed (rad/s)',initial:3,min:-20,max:20,step:.05},
+ {key:'waveSpeedX',label:'Horizontal phase speed (rad/s)',initial:2,min:-20,max:20,step:.05},
  {key:'waveSpeedY',label:'Vertical phase speed (rad/s)',initial:3,min:-20,max:20,step:.05},
 ] as const;
 export type WaveKey=typeof WAVE_CONTROLS[number]['key'];
+export const WAVE_PRESETS = [
+ {label:'Preset 1',waveAmplitudeX:.25,waveAmplitudeY:.3,waveFrequencyX:4,waveFrequencyY:10,waveSpeedX:2,waveSpeedY:3},
+ {label:'Preset 2',waveAmplitudeX:.1,waveAmplitudeY:.1,waveFrequencyX:2.5,waveFrequencyY:7.5,waveSpeedX:4,waveSpeedY:3},
+] as const;
+
 const WAVE_DEFAULTS=Object.fromEntries(WAVE_CONTROLS.map(({key,initial})=>[key,initial])) as Record<WaveKey,number>;
 export type SceneLightKey = typeof RETIRED_LIGHT_CONTROLS[number]['key'];
 export type SceneVfx = { pulseRangeMode:"manual"|"auto";pulseSensitivity:number;pulseDropContrast:number; audioLight: string; audioBounce: number; waves: boolean; distortion: number; glitching: number; maxFps: number; lightAllColors: boolean; lightModel:"pulse"|"legacy"; pulseTintLow:string; pulseTintHigh:string;pulseOmniTint:string;pulseOmniTintLow:string; pulseColorMode:"tint"|"all";pulseColors:string;pulseColorWidth:number;pulseAllBrightness:number;imageTintEnabled:boolean;imageTint:string } & Record<WaveKey,number> & Record<RetiredFlareKey,number> & Record<PulseKey,number> & Record<RetiredOmniBrightnessKey,number> & Record<SceneLightKey,number>;
@@ -86,3 +91,6 @@ export function createBassDynamics(){
   },
  };
 }
+
+/** Audio modulates existing wave displacement; silence retains authored waves. */
+export function waveAudioGain(level:number,sensitivity=8){const input=Math.min(1,Math.max(0,Number.isFinite(level)?level:0));const scale=Math.min(8,Math.max(0,Number.isFinite(sensitivity)?sensitivity:0));return 1+2*input*scale/8;}

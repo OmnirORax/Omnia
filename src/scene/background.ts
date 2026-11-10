@@ -1,3 +1,4 @@
+import {resolveBackgroundReference} from './backgroundReference.ts';
 import { useEffect, useRef, useState } from 'react';
 import { backendConfiguration, cloud, type Asset } from '../backend/client';
 import type { ActionHistory } from '../ui/actionHistory';
@@ -24,7 +25,7 @@ function load(): Backgrounds {
 export function useSceneBackground(history: ActionHistory, nodeId: string | null) {
   const [backgrounds, setBackgrounds] = useState<Backgrounds>(load);
   const current = useRef(backgrounds); current.current = backgrounds;
-  const reference = nodeId ? Object.hasOwn(backgrounds.nodes, nodeId) ? backgrounds.nodes[nodeId] : null : backgrounds.fallback;
+  const reference = resolveBackgroundReference(backgrounds.nodes,backgrounds.fallback,nodeId);
   const [loaded, setLoaded] = useState<{ reference: SceneReference; userId: string | null; url: string; blob:Blob } | null>(null), [error, setError] = useState('');
   const config = backendConfiguration(), client = config.kind === 'cloud' ? config.client : null;
   const [userId, setUserId] = useState<string | null>(null);

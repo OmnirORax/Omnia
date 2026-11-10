@@ -4,12 +4,12 @@ import { createPortal } from 'react-dom';
 import { cursorSample, observeCursor } from './cursorPosition';
 import { pointerToolZone, observeToolZones } from './toolCursorZone';
 import { activeToolCursor, cursorApplies } from './toolCursorModel';
-export type ToolCursorOptions={zone?:string;priority?:number;rotationTurns?:number;badge?:string;pulse?:boolean};
+export type ToolCursorOptions={allowController?:boolean;zone?:string;priority?:number;rotationTurns?:number;badge?:string;pulse?:boolean};
 export type ToolCursorRequest=ToolCursorOptions & {contains?:(point:ReturnType<typeof cursorSample>)=>boolean;key:string;icon:ReactNode;className?:string;width?:number;height?:number;anchor?:{x:number;y:number};parked?:{x:number;y:number}};
 const owners=new Map<string,ToolCursorRequest>(),snapshots=new Map<string,HTMLElement>(),listeners=new Set<()=>void>();
 let version=0,selected:ToolCursorRequest|null=null;
 const publish=()=>{version++;listeners.forEach(listener=>listener());};
-const refresh=(point=cursorSample())=>{const scope=pointerToolZone(point),next=activeToolCursor(owners.values(),request=>cursorApplies(request,scope.zone,scope.blocked)&&(!request.contains||request.contains(point)));if(next!==selected){selected=next;publish();}};
+const refresh=(point=cursorSample())=>{const scope=pointerToolZone(point),next=activeToolCursor(owners.values(),request=>cursorApplies(request,scope.zone,scope.blocked,point.target instanceof Element&&!!point.target.closest('[data-context-controller]')&&!point.target.closest('[data-visual-selector]'))&&(!request.contains||request.contains(point)));if(next!==selected){selected=next;publish();}};
 const subscribe=(listener:()=>void)=>{listeners.add(listener);return()=>{listeners.delete(listener);};};
 /** Owners declare active state; transport, priority and clicked-icon inheritance are shared. */
 export function useToolCursor(request:ToolCursorRequest|null){

@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import {emptyDocument,validateDocument} from '../src/graph/structural.ts';
 import {worldPositions} from '../src/graph/coordinates.ts';
-import {prepareLattice,cellAt,cellPoint,nearestCell,latticeCreatePoint,latticeMove,resolveLatticePoint,reconcileLattice,vacantCells} from '../src/graph/lattice.ts';
-import {createLatticeField,latticeFrame,LATTICE_FIELD_CAPACITY} from '../src/latticeField.ts';
+import {prepareLattice,cellAt,cellPoint,nearestCell,latticeCreatePoint,latticeMove,resolveLatticePoint,reconcileLattice} from '../src/graph/lattice.ts';
+import {latticeFrame} from '../src/latticeField.ts';
 import {createPlacement,DEFAULT_SPATIAL_SETTINGS} from '../src/graph/layout3d.ts';
 import {defaultSettings,normalizeSettings} from '../src/workspaceActions.ts';
 import {switchLayoutView} from '../src/graph/presentation.ts';
@@ -67,14 +67,6 @@ test('scale is independent of logical addresses and content; tiny positive scale
  for(const value of [0,-1,Infinity,NaN])assert.equal(normalizeSettings({...base,spatial:{...base.spatial,latticeScale:value}}).spatial.latticeScale,1);
  assert.deepEqual(cellPoint(point(100),1e-12),point(1e-10));
 });
-test('empty field is bounded instanced display data; it omits occupied cells and follows a fixed lattice slice',()=>{
- const doc=fixture([point(0),point(1)]),before=JSON.stringify(doc),field=createLatticeField(doc);
- const camera=new THREE.PerspectiveCamera(60,1,.1,1000);camera.position.z=10;camera.lookAt(0,0,0);field.update(new THREE.Vector3(),camera);
- assert.ok(field.object.isInstancedMesh);assert.ok(field.object.count>0&&field.object.count<=LATTICE_FIELD_CAPACITY);
- assert.equal(vacantCells(doc,point(0)).length,623);assert.equal(JSON.stringify(doc),before);
- const matrix=new THREE.Matrix4();for(let i=0;i<field.object.count;i++){field.object.getMatrixAt(i,matrix);const p=new THREE.Vector3().setFromMatrixPosition(matrix);assert.ok(!(p.x===0&&p.y===0)&&!(p.x===1&&p.y===0));}
- field.dispose();
-});
 test('camera-relative arrows choose distinct integer world axes and never rotate the lattice',()=>{
  for(const angles of [[.3,.7,.1],[1,2,3],[0,Math.PI/4,0]]){
   const frame=latticeFrame(new THREE.Quaternion().setFromEuler(new THREE.Euler(...angles)));
@@ -108,11 +100,6 @@ test('recovery metadata roundtrips and an exhausted view budget rejects before s
  const bad={...doc,layoutViews:[{id:'bad',name:'Bad',rule:'manual',positions:[],preservePositions:'yes'}]};assert.throws(()=>validateDocument(bad),/recovery/);
 });
 
-test('the empty field hides safely outside exact address range and can recover after camera movement',()=>{
- const field=createLatticeField(fixture([]));const q=new THREE.PerspectiveCamera(60,1,.1,1000);q.position.z=10;q.lookAt(0,0,0);field.update(new THREE.Vector3(1e30,0,0),q);assert.equal(field.object.count,0);
- field.update(new THREE.Vector3(),q);assert.ok(field.object.count>0&&field.object.count<=LATTICE_FIELD_CAPACITY);field.dispose();
-});
-
 test('layout previews use the same fixed occupancy and reject duplicates and hidden obstacles',async()=>{
  const {prepareLatticeTransform}=await import('../src/graph/lattice.ts');const doc=fixture([point(0),point(1),point(2)]);doc.placements[2].hidden=true;
  const resolve=prepareLatticeTransform(doc,['0','1'],1,.1);
@@ -130,33 +117,6 @@ test('navigation adapts displayed coordinates and prepares layout constraints on
  const event={pointerId:1,button:0,clientX:0,clientY:0};assert.equal(gesture.begin(event,{...NAV_DEFAULTS,mode:'layout',pivot:'selection',axis:'z'}),true);
  assert.equal(scene.children[0].position.x,.2);gesture.move({...event,clientX:80});gesture.move({...event,clientX:120});gesture.finish();
  assert.equal(prepared,1);assert.equal(committed,0);assert.equal(anchor.x,.2);gesture.dispose();
-});
-
-test('vacant lattice span follows zoom and aspect without changing real cell size',()=>{
- const field=createLatticeField(fixture([])),target=new THREE.Vector3(),camera=new THREE.PerspectiveCamera(60,1,.1,10000),matrix=new THREE.Matrix4();
- const measure=()=>{field.update(target,camera);let x=0,y=0;for(let i=0;i<field.object.count;i++){field.object.getMatrixAt(i,matrix);const p=new THREE.Vector3().setFromMatrixPosition(matrix),scale=new THREE.Vector3().setFromMatrixScale(matrix);assert.ok(Math.abs(scale.x-1)<1e-6);assert.equal(p.x,Math.round(p.x));x=Math.max(x,Math.abs(p.x));y=Math.max(y,Math.abs(p.y));}return {x,y,count:field.object.count};};
- camera.position.z=5;camera.lookAt(target);const near=measure();
- camera.position.z=50;const far=measure();assert.ok(far.x>near.x&&far.y>near.y);assert.ok(far.count>near.count);
- camera.aspect=2;camera.updateProjectionMatrix();const wide=measure();assert.ok(wide.x>far.x);assert.ok(Math.abs(wide.y-far.y)<=1);
- camera.position.z=1000;const overview=measure();assert.ok(overview.x>wide.x);assert.ok(overview.count<=LATTICE_FIELD_CAPACITY);
- camera.position.set(10,12,14);camera.lookAt(target);assert.ok(measure().count>0);field.dispose();
-});
-
-test('tilted near-horizon span preserves local coverage instead of spending the budget at the far plane',()=>{
- const camera=new THREE.PerspectiveCamera(55,1.8,.001,100000),field=createLatticeField(fixture([])),matrix=new THREE.Matrix4();
- camera.position.set(14.094298433892122,5.48165164671577,-13.0882484267546);
- camera.up.set(.77983384030233,.44349949855861626,.4417775190042786);camera.lookAt(0,0,0);
- field.update(new THREE.Vector3(),camera);let visible=0,nearby=0;
- for(let i=0;i<field.object.count;i++){field.object.getMatrixAt(i,matrix);const world=new THREE.Vector3().setFromMatrixPosition(matrix),p=world.clone().project(camera);if(Math.abs(p.x)<1&&Math.abs(p.y)<1&&p.z>=-1&&p.z<=1){visible++;if(world.length()<20)nearby++;}}
- assert.ok(visible>100,`${visible} visible markers`);assert.ok(nearby>50,`${nearby} nearby markers`);assert.ok(field.object.count<=LATTICE_FIELD_CAPACITY);field.dispose();
-});
-
-test('screen sampling covers both screen axes at oblique zoom without an arbitrary world horizon',()=>{
- const field=createLatticeField(fixture([])),camera=new THREE.PerspectiveCamera(55,1.8,.001,100000),matrix=new THREE.Matrix4();
- camera.position.set(14.094298433892122,5.48165164671577,-13.0882484267546);camera.up.set(.77983384030233,.44349949855861626,.4417775190042786);camera.lookAt(0,0,0);
- field.update(new THREE.Vector3(),camera,1440,800);let minX=1,maxX=-1,minY=1,maxY=-1;
- for(let i=0;i<field.object.count;i++){field.object.getMatrixAt(i,matrix);const p=new THREE.Vector3().setFromMatrixPosition(matrix).project(camera);if(p.z< -1||p.z>1)continue;minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);minY=Math.min(minY,p.y);maxY=Math.max(maxY,p.y);}
- assert.ok(minX<-.9&&maxX>.9&&minY<-.9&&maxY>.9);assert.ok(field.object.count<=LATTICE_FIELD_CAPACITY);field.dispose();
 });
 
 test('shared navigator creation conversion uses projected parent cells and does not mutate legacy coordinates',async()=>{
@@ -184,4 +144,14 @@ test('paint confirmation retains exact preview cells under an off-grid parent',a
  const {paintNodes}=await import('../src/graph/paintNodes.ts');const doc=fixture([point(.2),point(.3)]),targets=[point(4),point(5),point(6)];
  const next=reconcileLattice(doc,paintNodes(doc,targets,undefined,'1',settings));const worlds=worldPositions(next);
  assert.deepEqual(next.placements.slice(2).map(p=>worlds.get(p.id)),targets);
+});
+
+test('retired empty-cell setting is unavailable while legacy data and lattice behavior survive',async()=>{
+ const {SETTINGS_PROPERTY_ADAPTERS}=await import('../src/properties/settingsAdapter.ts');
+ const original={spatial:{...DEFAULT_SPATIAL_SETTINGS,showVacantCells:true}};
+ const restored=normalizeSettings(original);
+ assert.equal(restored.spatial.showVacantCells,true,'legacy value is archived');
+ assert.equal(SETTINGS_PROPERTY_ADAPTERS['spatial.placement'].channels['placement.vacantCells'],undefined,'retired property cannot be invoked');
+ assert.equal(original.spatial.showVacantCells,true);
+ assert.ok(prepareLattice(fixture([point(0)])).occupied.size);
 });

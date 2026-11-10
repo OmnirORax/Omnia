@@ -1,3 +1,4 @@
+import {NODE_ACCESS_ACTIONS,nodeDocumentTarget,type NodeAccessAction} from './nodeContextActions.ts';
 import type {Corrections} from './scene/normalization.ts';
 import {SPHERE_VISUAL_DEFAULTS} from './properties/sphereVisualDefaults.ts';
 import {atomicCarrierGeometry,atomicCarrierMaterial} from './atomicCarrier.ts';
@@ -13,7 +14,7 @@ import { analyticSelectionRing } from "./materialCoverage";
 import type { BinderEnd } from "./graph/reconnectBinder";
 import type { DisplayBinder } from "./graph/binders";
 import { cellAt, latticeWorld, prepareLattice, prepareLatticeTransform, cellPoint, latticeScale, latticeUnit } from "./graph/lattice";
-import { createLatticeField, latticeFrame } from "./latticeField";
+import { latticeFrame } from "./latticeField";
 import { expansionState } from "./graph/nodePresentation";
 import {cursorSample} from './ui/cursorPosition';
 import { selectionSurfaces } from "./appearance/selectionSurfaces";
@@ -67,8 +68,8 @@ import { registerHierarchyScene, type SceneSelectionPaint } from "./appearance/s
 import { createGraphHierarchyPulse } from "./appearance/graphHighlight";
 import { createWallpaper } from "./scene/wallpaper";
 
-export type NavigationCommand = { sequence: number; kind: NudgeActionId | "focus" | "selection" | "local" | "variants" | "all" | "hierarchy" | "back" | "cancel" | "zoom100" | "cameraOrigin" | "rollLeft" | "rollRight"; id?: string };
-export type ContextAction = "createUIFrame" | "expand" | "collapse" | "createChild" | "createAt" | "insertExisting" | "connect" | "detach" | "toggle" | "focus" | "edit" | "removePlacement" | "deleteIdentity" | "compact" | "fitAll" | "settings";
+export type NavigationCommand = { sequence: number; kind: NudgeActionId | "focus" | "selection" | "local" | "variants" | "all" | "hierarchy" | "back" | "cancel" | "zoom100" | "cameraOrigin" | "rollLeft" | "rollRight" | "document"; id?: string };
+export type ContextAction = NodeAccessAction | "createUIFrame" | "expand" | "collapse" | "createChild" | "createAt" | "insertExisting" | "connect" | "detach" | "toggle" | "focus" | "edit" | "removePlacement" | "deleteIdentity" | "compact" | "fitAll" | "settings";
 export type ContextTarget = { kind: "selection"; ids: string[] } | { kind: "node"; id: string } | { kind: "space"; world: XYZ; screen?: { x: number; y: number } };
 type Props = {
   omnicPreview: OmnicPreviewStore;
@@ -168,7 +169,6 @@ export default function SpatialWorkspace(props: Props) {
   useEffect(() => { stateRef.current?.requestRender(); }, [documentNodeId]);
   const stateRef = useRef<SceneState | null>(null);
   const navigatorDriving=useRef(false);
-  const latticeFieldRef = useRef<ReturnType<typeof createLatticeField> | null>(null);
   const callbacks = useRef(props); callbacks.current = props;
   const baseGraph = useMemo(() => {
     const graph=projectSpatial(atlas),index=prepareLattice(doc,settings.spatial.nodeCellSize),scale=latticeScale(settings.spatial.latticeScale);
@@ -294,7 +294,6 @@ export default function SpatialWorkspace(props: Props) {
         navigator.orientation.copy(camera.quaternion);
         const navigatorAppearance=callbacks.current.settings.appearance,navigatorStyle=navigatorAppearance.renderDefaults?.['omnium.selection'];
         navigatorMarker.update(navigator.position,navigator.orientation,pitch(),navigatorVisible,drive.valid,{color:brightHex(String(navigatorStyle?.color??navigatorAppearance.accent),Number(navigatorStyle?.brightness??1)),opacity:Number(navigatorStyle?.opacity??.85)*navigatorAppearance.opacity,glow:Number(navigatorStyle?.glow??navigatorAppearance.nodes.glow)});
-        latticeFieldRef.current?.update(navigator.initialized?navigator.position:controls.target,camera,host.clientWidth,host.clientHeight,navigator.orientation);
         const outputRatio=sceneOutputPixelRatio(host.clientWidth,host.clientHeight,window.devicePixelRatio,wallpaper.visible);
         if(renderer.getPixelRatio()!==outputRatio){renderer.setPixelRatio(outputRatio);appearance.resize(Math.max(1,host.clientWidth),Math.max(1,host.clientHeight));}
         appearance.render();
@@ -385,6 +384,10 @@ export default function SpatialWorkspace(props: Props) {
       animation = requestAnimationFrame(tick);
     };
     const focus = (kind: NavigationCommand["kind"], requestedId?: string) => {
+      if(kind==='document'){
+        const target=nodeDocumentTarget(requestedId,callbacks.current.document.placements);if(target)setDocumentNodeId(target);
+        return;
+      }
       if (isNudgeAction(kind)) {
         const node = graphRef.current.nodes.find(node => node.visible && node.id === (requestedId ?? callbacks.current.selectedId));
         if (!node || drag) return;
@@ -936,12 +939,6 @@ export default function SpatialWorkspace(props: Props) {
     state.camera.updateProjectionMatrix();state.controls.minDistance=Math.min(.2,pitch/4);state.requestRender();
   },[ready,settings.spatial.nodeCellSize,settings.spatial.latticeScale]);
 
-  useEffect(()=>{
-    const state=stateRef.current;if(!state||!ready||!settings.spatial.showVacantCells)return;
-    const field=createLatticeField(doc,settings.spatial.nodeCellSize,settings.spatial.latticeScale);
-    state.scene.add(field.object); latticeFieldRef.current=field; state.requestRender();
-    return ()=>{latticeFieldRef.current=null;state.scene.remove(field.object);field.dispose();state.requestRender();};
-  },[ready,doc,settings.spatial.nodeCellSize,settings.spatial.latticeScale,settings.spatial.showVacantCells]);
 
   const sceneStructure = useMemo(() => ({}), [atlas, doc, ready, settings.spatial.radius, settings.spatial.nodeCellSize, settings.spatial.latticeScale, settings.spatial.nodeNames,
     settings.spatial.clearance, settings.isolateFocus, props.focusContextIds, props.variantDisplay, props.selectedBinderKey,
@@ -1088,6 +1085,7 @@ export default function SpatialWorkspace(props: Props) {
 
   useEffect(() => { if (command) stateRef.current?.focus(command.kind, command.id); }, [command]);
   const nodeMenu: [ContextAction, string][] = [
+    ...NODE_ACCESS_ACTIONS.map(([id,label])=>[id,label] as [ContextAction,string]),
     ["createChild", "Create child"], ["insertExisting", "Insert existing entity"], ["connect", "Connect to another node"],
     ...(menu?.target.kind==="node"&&doc.placements.some(p=>p.id===(menu.target.kind==='node'?menu.target.id:null)&&(p.parentId||p.variantOwner))?([["detach","Detach from parent"]] as [ContextAction,string][]):[]),
     ["toggle", "Expand / collapse"], ["focus", "Focus"], ["edit", "Rename / edit in inspector"],
@@ -1113,7 +1111,7 @@ export default function SpatialWorkspace(props: Props) {
       <NodeDocument key={documentEntity.id} entity={documentEntity} entities={doc.entities} saveStatus={props.saveStatus} onSave={props.onSaveText} onLibrary={props.onOpenLibrary} onClose={() => setDocumentNodeId(null)} />
     </>}
     <div className="spatial-controls">
-      <FunctionControl id="focus" /><FunctionControl id="isolateFocus" /><FunctionControl id="ui:nodeNames" /><FunctionControl id="ui:nodeCellSize" /><FunctionControl id="ui:vacantCells" /><FunctionControl id="fitLocal" /><FunctionControl id="fitAll" /><FunctionControl id="back" />
+      <FunctionControl id="focus" /><FunctionControl id="isolateFocus" /><FunctionControl id="ui:nodeNames" /><FunctionControl id="ui:nodeCellSize" /><FunctionControl id="fitLocal" /><FunctionControl id="fitAll" /><FunctionControl id="back" />
     </div>
     <div className="camera-guide-home"><CameraGuide attach={attachGuide} /></div>
     {selectionRect && <div className="selection-rectangle" style={{ left: selectionRect.x, top: selectionRect.y, width: selectionRect.width, height: selectionRect.height }} />}

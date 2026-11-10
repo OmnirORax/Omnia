@@ -169,7 +169,7 @@ export function NativeActions() {
     attribute(element, "data-ui-native-title", "true");
     element.toggleAttribute(
       "data-ui-native-hidden",
-      isOwned(layout, id) || (!!item && (!item.home || !!item.anchorId)),
+      isOwned(layout, id) || (!!item && (item.hidden || !item.home || !!item.anchorId)),
     );
     element.toggleAttribute("data-ui-native-icon", style?.mode === "icon");
     if (style?.mode === "icon") {

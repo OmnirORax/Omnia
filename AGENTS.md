@@ -1,6 +1,10 @@
+MS lifecycle correction (2026-11-08): Lock/parking is retired. Cycle the MS opening shortcut to off to restore normal pointer input while retaining accepted selections/history. Hovering MC does not hide the MS cursor or exit MS. Esc/deselect/clear removes MS membership only while MS is active; off-state Esc preserves retained membership. Existing borrowed-reference and native editor cancellation stay authoritative. This supersedes older parking/off-state-clear instructions below.
+
 Composer interaction update (2026-11-06, supersedes earlier Composer-only selection/entry rules): baseline MS is active without Q. Q toggles selection settings → baseline aiming. A plain target pick uses the configured selection mode and opens the retained compatible DOF, defaulting to Position against Composer space. Confirming a single value by click or Enter commits it and closes its preview, returning to baseline selection; outside canvas clicks choose a compatible reference without changing the edited target. Esc cancels the uncommitted DOF preview, clears target selection and returns to baseline (previous commits stay). Right-click selects immediately and opens DOF choices. Modifier membership gestures stay selection-only; explicit Draw/Erase and borrowed requests retain gesture ownership. Other app surfaces retain opt-in MS. This supersedes the earlier Composer prohibition on automatic DOF entry. No browser acceptance is inferred.
 
 # User operating rules (required)
+
+UI cleanup default: when the user asks to remove a button or UI instance, preserve its underlying function, shared owners and other placements unless the user explicitly requests functionality removal. Preserve authored layouts/data and ask only when the requested instance or impact is unclear.
 
 Explicitly opened MS remains aiming after each pick, including Ctrl/Shift picks; its selector cursor stays visible until Esc or editing, and parking anchors it. Completing a native modifier gesture begun while MS is off leaves MS off. Accepting a requested reference ends that temporary session. MS opening shortcuts route with selector priority even after exit, ahead of retained DOF/resident bindings, while explicit rebinding/clears, native text entry and blocked input remain authoritative.
 
@@ -908,3 +912,21 @@ Waves toggle, reduced-motion bypass and explicit zero/negative persistence.
 User-selected missing defaults are displacement .1%/.3%, counts 1.5/10 and
 speeds 3/3 rad/s (Waves on); explicit saved values retain precedence;
 never claim a faithful waterwaves port without its missing shaders/layer setup.
+
+Correction (2026-11-08): Empty lattice cells is fully retired: control/property/display renderer removed, archived showVacantCells values preserved without effect; shared lattice snapping/creation/navigation remain. Waves uses the existing Audio response Sensitivity together with system audio level; no new sensitivity control. Hide UI participates in shared UI undo/redo; Escape or the assigned Undo shortcut restores it. Visibility remains transient and does not change saved layout. Browser interaction and wave acceptance remain pending.
+
+Node menu correction (2026-11-08): plain node left-click continues navigator mounting. The existing node right-click menu offers Document, Variants and Add variant via shared context dispatch; validate stale document targets. Hide UI participates in shared UI history; Escape restores directly and the assigned Undo follows configured history mode/categories. Empty-cell display/setting is retired; legacy values are archive-only. Waves reuses the existing Audio response Sensitivity, with no new control.
+
+Waves audio response is temporarily disabled (2026-11-08): authored Waves settings and animation remain, while audio level and Sensitivity no longer affect wave displacement. Other audio effects and their controls are unchanged; no saved settings migrate.
+
+UI selection removal (2026-11-08): in UI edit mode Delete/Backspace hides selected registered controls or closes selected containers using UI history. Controls retain their home, placement, styling and functionality; restore them via Undo or UI library → Removed UI controls. Containers use the existing Closed frames and panels recovery. Pinned items still require unpinning. The additive optional UIItem.hidden flag defaults to false and survives current layout export/import; older clients may ignore it and show a hidden control. No graph data changes. Browser acceptance remains pending.
+
+Workspace-only layout (2026-11-08): for the user's supplied layout, use the existing resident owners to dock the pictured live panels inside Workspace settings, retaining one floating Workspace settings entry. Redo UI and Reset to default remain in the embedded Workspace panel; duplicate panel launchers and temporary mirrors are hidden. The opt-in @workspaceOnly layout flag hides the empty sidebar and former spatial strip. Preserve the original export and do not include atlas or settings in the layout-only transfer. Browser acceptance remains user-owned.
+
+The user chose the consolidated website default rather than JSON delivery or a new import feature. Ship the canonical layout in default-template.json, with one free Workspace settings entry and the real panels docked inside it. Existing saved arrangements retain precedence; use the existing Reset to default to apply the template. Do not publish the user export or add consolidation-import UI.
+
+Waves presets (2026-11-09): two controls apply the existing six wave values and enable Waves in one shared property/history transaction. Preset 1 is the missing-field default; explicit saved values remain authoritative. No extra persisted preset identity. User visual acceptance is pending.
+
+Custom Waves presets: + preset beside the built-ins captures the current Waves toggle and six values, stored as compact validated slots in existing settings functionValues. New slots never overwrite unknown/unreadable records. Existing settings history and settings transfer own persistence. Browser acceptance remains pending.
+
+Shortcut routing correction (2026-11-10): the consolidated Workspace settings window is an ordinary working surface; opening it must not globally block shortcuts. Keep the legacy modal guard for non-consolidated settings and insertion dialogs, retain typing/capture ownership, and give ordinary unmodified primary clicks on UI controls priority over MB1. User interaction acceptance remains pending.

@@ -235,7 +235,7 @@ test("Shift executable bindings migrate without stealing keys or reviving clears
   const migrated = normalizeSettings({ bindings: { searchUI: "Shift+S", redo: "Ctrl+Shift+Z", "selector.lock": "Shift+MB3", newChild: "", "button:custom": "Shift+P" } });
   assert.equal(migrated.bindings.searchUI, "Ctrl+Alt+S");
   assert.equal(migrated.bindings.redo, "Ctrl+Y");
-  assert.equal(migrated.bindings["selector.lock"], "Ctrl+MB3");
+  assert.equal(migrated.bindings["selector.lock"], undefined, "retired Lock no longer creates a live binding");
   assert.equal(migrated.bindings["button:custom"], "Ctrl+Alt+P");
   assert.equal(migrated.bindings.newChild, "");
   const occupied = normalizeSettings({ bindings: { redo: "Ctrl+Shift+Z", "button:owned": "Ctrl+Y" } });
@@ -718,7 +718,7 @@ test('MS targeted/spatial chords follow its opening binding and preserve explici
  const {configurationTarget}=await import('../src/ui/shortcutConfiguration.ts');
  const defaults=defaultSettings().bindings;
  assert.equal(shortcutBinding('selector.togglePointed',defaults),'Ctrl+Q');
- assert.equal(shortcutBinding('selector.togglePointed',{...defaults,'selector.open':'MB3'}),'','a derived default cannot steal the existing MS lock binding');
+ assert.equal(shortcutBinding('selector.togglePointed',{...defaults,'selector.open':'MB3'}),'Ctrl+MB3','retired Lock no longer reserves its old chord');
  assert.equal(shortcutBinding('selector.extendSpatial',defaults),'Shift+Q');
  const rebound=normalizeSettings({bindings:{...defaults,'selector.open':'K'}}).bindings;
  assert.equal(shortcutBinding('selector.togglePointed',rebound),'Ctrl+K');
@@ -773,4 +773,15 @@ test('new control owners retain their first click through popup dismissal and fr
  assert.equal(dismissContextPointer(layers,icon,false,!!owner),false);assert.equal(dismissed,0,'dismissal must not consume the first click of a newly declared control');
  const frame={},target={closest:selector=>selector===CONTROL_INPUT_OWNER?control:selector==='[data-popup-drag-frame]'?frame:null};
  assert.equal(popupDragHandle(target,frame,true),null,'the same declaration also prevents parent-frame dragging');
+});
+
+test('consolidated workspace allows shortcuts while retaining input and modal ownership',async()=>{
+ const {shortcutsBlocked,protectWorkspacePrimaryPress}=await import('../src/ui/shortcutBlocking.ts');
+ assert.equal(shortcutsBlocked(true,true,false),false,'open consolidated workspace is a working surface');
+ assert.equal(shortcutsBlocked(true,false,false),true,'legacy settings dialog retains its guard');
+ assert.equal(shortcutsBlocked(true,true,true),true,'insertion retains modal ownership');
+ assert.equal(protectWorkspacePrimaryPress(true,0,false,{}),true,'primary control click stays with the control');
+ assert.equal(protectWorkspacePrimaryPress(true,0,false,null),false,'canvas clicks can reach shortcuts');
+ assert.equal(protectWorkspacePrimaryPress(true,3,false,{}),false,'other mouse bindings remain available');
+ assert.equal(protectWorkspacePrimaryPress(true,0,true,{}),false,'explicit modified gestures remain available');
 });

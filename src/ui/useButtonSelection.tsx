@@ -39,6 +39,7 @@ import { AlignmentControls } from "./AlignmentControls";
 import { FloatingWindow } from "./FloatingWindow";
 import { beginLiveDrag, dragSurface } from "./liveDrag";
 import { residentMovable } from "./rigidity";
+import { removeUISelection } from "./removeSelection";
 
 const selectable = '[data-ui-function]:not([data-ui-palette]),[data-ui-drag^="window:"],[data-ui-drag^="frame:"]';
 const idOf = (el: HTMLElement) => el.dataset.uiDrag && /^(window|frame):/.test(el.dataset.uiDrag) ? el.dataset.uiDrag : el.dataset.uiFunction!;
@@ -675,9 +676,12 @@ export function useButtonSelection({
       ) {
         e.preventDefault();
         e.stopImmediatePropagation();
-        setMessage(
-          "UI items are selected; graph knowledge is unchanged. Use an item’s settings to remove it.",
-        );
+        if (uiContextEnabled(current.current.layout) && current.current.ids.size && !gesture.current) {
+          const selected = [...current.current.ids];
+          current.current.update(layout => removeUISelection(layout, selected));
+          select(new Set());
+          setMessage("UI items removed. Undo restores them; functions remain available.");
+        } else setMessage("Enable UI edit mode and select UI items to remove them.");
         return;
       }
       if (e.key === "Escape" && active) {
@@ -735,6 +739,7 @@ export function useButtonSelection({
   }, [ids, layout, functions]);
   return {
     ids,
+    selectResident: (key: string) => { if (uiContextEnabled(current.current.layout)) select(new Set([selectionId(key)])); },
     locked,
     toggleLock,
     mode,

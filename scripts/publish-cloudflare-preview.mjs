@@ -12,8 +12,9 @@ function run(command,args,options={}){
  return result.stdout?.trim()??'';
 }
 const branch=process.argv[2];
-const checkOnly=process.argv[3]==='--check';
-if(!/^pr-[1-9][0-9]*$/.test(branch??'')||process.argv.length!==(checkOnly?4:3))throw Error('Usage: node --run preview:cloudflare -- pr-61 [--check] (PR preview branches only).');
+const checkOnly=['--check','--check-upload'].includes(process.argv[3]);
+const checkUpload=process.argv[3]==='--check-upload';
+if(!/^pr-[1-9][0-9]*$/.test(branch??'')||process.argv.length!==(checkOnly?4:3))throw Error('Usage: node --run preview:cloudflare -- pr-61 [--check|--check-upload] (PR preview branches only).');
 const account=process.env.CLOUDFLARE_ACCOUNT_ID,token=process.env.CLOUDFLARE_API_TOKEN;
 if(!/^[a-f0-9]{32}$/i.test(account??'')||!token)throw Error('Cloudflare account/token missing or invalid.');
 if(!checkOnly&&run('git',['status','--porcelain','--untracked-files=normal']))throw Error('Commit source changes before uploading an attributable preview.');
@@ -31,21 +32,21 @@ function host(value){
  if(url.protocol!=='https:'||url.username||url.password||url.port||url.pathname!=='/'||url.search||url.hash)throw Error('Invalid host inventory.');
  return url.hostname;
 }
-async function checkAccess(){
+async function checkAccess(postUpload=false){
  const project=await api('');
  if(project.name!=='omnia-web'||project.production_branch!=='master'||project.subdomain!=='omnia-web-bae.pages.dev'||
   project.source&&project.source.config?.deployments_enabled!==false)throw Error('Unexpected project/production/Git build configuration.');
- const hosts=new Set(['omnium.nexus',project.subdomain,alias,`access-probe-${Date.now()}.${project.subdomain}`]);
- for(const domain of project.domains??[])hosts.add(host(domain));
- for(const extra of (process.env.CLOUDFLARE_ACCESS_EXTRA_HOSTS??'').split(/[\s,]+/).filter(Boolean))hosts.add(host(extra));
- for(let page=1;;page++){
-  if(page>100)throw Error('Deployment inventory exceeded safety limit.');
-  const deployments=await api(`/deployments?page=${page}&per_page=25`);
-  for(const deployment of deployments){
-   if(deployment.url)hosts.add(host(deployment.url));
-   for(const value of deployment.aliases??[])hosts.add(host(value));
+ const hosts=new Set([alias,`access-probe-${Date.now()}.${project.subdomain}`]);
+ // After upload, discover the deployment(s) for this exact source and branch.
+ if (postUpload) {
+  const deployments=await api('/deployments?per_page=25');
+  const matches=deployments.filter(d=>d.environment==='preview' && d.deployment_trigger?.metadata?.branch===branch && d.deployment_trigger?.metadata?.commit_hash===source);
+  if(!matches.length)throw Error('Uploaded preview was not found in recent deployment inventory.');
+  for(const deployment of matches){
+   const name=host(deployment.url);
+   if(!name.endsWith(`.${project.subdomain}`))throw Error('Unexpected deployment hostname.');
+   hosts.add(name);
   }
-  if(deployments.length<25)break;
  }
  const probes=[...hosts].flatMap(host=>['/','/index.html','/source.json','/favicon.svg'].map(path=>`https://${host}${path}`));
  // Bounded concurrency; never follow authentication redirects or print their tokens.
@@ -73,7 +74,7 @@ async function checkAccess(){
  }));
  console.log(`Access required on ${hosts.size} hosts (HTML, provenance and icon paths).`);
 }
-await checkAccess();
+await checkAccess(checkUpload);
 if(checkOnly)process.exit(0);
 run(process.execPath,['scripts/cloudflare-build-config.mjs'],{stdio:'inherit'});
 run(process.execPath,['--run','build:preview'],{stdio:'inherit'});
@@ -92,6 +93,6 @@ try{
  });
  // A postcheck failure means a deployment already exists: report and investigate,
  // never hide the failure or relax Access to make the URL work.
- await checkAccess();
+ await checkAccess(true);
  console.log(`Verified private preview: https://${alias}\nSource: ${source}`);
 }finally{await rm(directory,{recursive:true,force:true});}

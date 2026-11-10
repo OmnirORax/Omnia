@@ -1,3 +1,5 @@
+import {protectWorkspacePrimaryPress} from './shortcutBlocking.ts';
+import {controlInputOwner} from './inputOwnership.ts';
 import { useLayoutEffect, useMemo, useRef, useSyncExternalStore, type ReactNode } from "react";
 import { FEATURE_ACTIONS, featureActionRuntime, recordedShortcutTail, type ActionInput, type FeatureActionFor, type FeatureOwner } from "../featureActions.ts";
 import { isTypingTarget, preferredFeatureKey, pointerFeatureKey, matchesPointerShortcut, normalizeKey, shortcutBinding } from "../workspaceActions.ts";
@@ -48,6 +50,7 @@ export function useFeatureActions<Owner extends FeatureOwner>(owner: Owner, hand
     matches: (id: FeatureActionFor<Owner>, event: KeyboardEvent | MouseEvent, gestureModifiers = true) => {
       const current = latest.current;
       const definition = FEATURE_ACTIONS.find(action => action.id === id)!;
+      if (event instanceof MouseEvent && protectWorkspacePrimaryPress(!!current.ui.layout.panels['@workspaceOnly'],event.button,event.ctrlKey||event.altKey||event.shiftKey||event.metaKey,controlInputOwner(event.target as Element,event.composedPath()))) return false;
       if ("gestureSurface" in definition && event instanceof MouseEvent && !eventPathMatches(event,definition.gestureSurface)) return false;
       if (current.ui.shortcutCapturing || current.ui.shortcutsBlocked && !("allowBlocked" in definition && definition.allowBlocked) || event.defaultPrevented || !effectiveRef.current(id).enabled) return false;
       if (event instanceof MouseEvent && recordedShortcutTail(event)) return false;

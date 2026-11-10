@@ -1,3 +1,5 @@
+Distortion and Glitching retirement (2026-11-08): both controls/setters and shader effects are removed. Historical numeric settings remain archive-only for export compatibility; they do not render or keep animation running. Waves, tint, audio and shared rendering are retained. This supersedes historical mentions below.
+
 # Scene image effects and audio response
 
 Open **Scene → Scene effects → Wallpaper Engine pulse**. This is now the only
@@ -156,15 +158,13 @@ ignored, as above. Existing explicit saved values are retained.
 | imageTint | Image tint colour | #c20000 |
 | audioBounce | Audio Bounce | 1.3; 1–1.5 |
 | waves | Waves | true |
-| distortion | Distortion | 0.4; 0–1 |
-| glitching | Glitching | 0.3; 0–1 |
 | maxFps | Max FPS | 120; integer 60–1000 |
 
 Shared Color/numeric/text/selection editors and action registry own these controls;
 all edits inherit settings/history, save/reload and template/workspace exports.
 Reversed frequency/threshold bounds are sorted; equal thresholds use a defined
 hard transition. Low tint applies at zero pulse even when disconnected. Use Low
-tint white, Bounce 1 and Waves/Distortion/Glitching off for original-file comparisons.
+tint white, Bounce 1 and Waves off for original-file comparisons.
 
 ## Compatibility and retirement
 
@@ -212,7 +212,7 @@ output, bounded at 8,294,400 pixels / DPR 2. Graph targets stay at 1.5 million p
 graph AA/glow does not filter the wallpaper. There is no palette detection or synthetic halo work. Single/All and optional
 Image tint are separate compiled shader variants; changing ordinary colour/response
 values does not recompile their variant. Hidden/reduced-motion suspension and saved FPS cap
-remain; actual rate depends on hardware. Waves/VHS are still approximate.
+remain; actual rate depends on hardware. Waves remains approximate.
 
 ## Verification
 
@@ -295,7 +295,7 @@ displacement varies along Y; vertical displacement varies along the already offs
 X, preserving the existing coupled approximation. Displacement uses screen UV
 percent before image-cover cropping. Speed controls phase per second: zero freezes
 that component, negative reverses it. Both displacements zero removes waves.
-Distortion/Glitching and bass zoom are independent: turn those down/off when
+Bass zoom is independent: turn it down/off when
 comparing just waves. Reduced motion still bypasses wave animation/deformation.
 
 Dragging previews uniforms immediately without image decoding, shader recompilation,
@@ -306,3 +306,13 @@ Absent fields use the screenshot-selected defaults: Waves on, displacement
 .1% / .3%, counts 1.5 / 10, and speeds 3 / 3 rad/s. Existing explicit settings,
 including the earlier coefficients, Waves false and zeros remain authoritative. Appearance remains
 unverified by a browser check in this change.
+
+View/audio update (2026-11-08): Hide UI in View temporarily suppresses interface chrome while retaining the atlas and live/saved layout; Escape restores it. The Empty lattice cells button is removed from its atlas-view home only; its existing setting, renderer and other placements remain. Waves multiplies the existing displacement by a bounded gain from the existing audio input level, with silence gain 1 and explicit zero/off preserved. No new persisted wave or visibility setting, migration or audio loop. Older layouts and explicit stored values remain authoritative; browser/visual acceptance is pending.
+
+Correction (2026-11-08): Empty lattice cells is fully retired: control/property/display renderer removed, archived showVacantCells values preserved without effect; shared lattice snapping/creation/navigation remain. Waves uses the existing Audio response Sensitivity together with system audio level; no new sensitivity control. Hide UI participates in shared UI undo/redo; Escape or the assigned Undo shortcut restores it. Visibility remains transient and does not change saved layout. Browser interaction and wave acceptance remain pending.
+
+Waves audio response is temporarily disabled (2026-11-08): authored Waves settings and animation remain, while audio level and Sensitivity no longer affect wave displacement. Other audio effects and their controls are unchanged; no saved settings migrate.
+
+Waves presets: two built-in choices set the existing six wave values and enable Waves in one shared property/history commit. Preset 1 supplies new/missing defaults; existing explicit wave settings remain unchanged. No preset identity or new settings format is stored. Browser and visual acceptance are pending.
+
+The + preset action beside the built-in wave presets saves the current toggle and six values as the next numbered preset. Compact per-preset records live in the existing settings functionValues owner and travel with settings export/import and history. Invalid records are retained and not shown or overwritten; there are at most 97 numbered slots. Browser acceptance is pending.

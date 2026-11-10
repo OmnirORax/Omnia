@@ -1,3 +1,5 @@
+import {protectWorkspacePrimaryPress} from './shortcutBlocking.ts';
+import {controlInputOwner} from './inputOwnership.ts';
 import websiteTemplate from "./default-template.json";
 import { canResetResidentHome, resetResidentHome } from "./residentHome";
 import {featureActionRuntime} from '../featureActions';
@@ -24,6 +26,7 @@ import { UIAction } from "./UIAction";
 import { UISection } from "./UISection";
 import { CustomControls, CustomControlSettings } from "./CustomControls";
 import { removeCustomControl } from "./authoring";
+import { restoreUIFunction } from "./removeSelection";
 import { useOutsideDismiss } from "./useOutsideDismiss";
 import { ContextMenu, contextMenuRoots } from "./ContextMenu";
 import { ContextSubmenu } from "./ContextSubmenu";
@@ -131,7 +134,7 @@ export const FunctionControl=memo(function FunctionControl({ id, palette = false
   const scope = useContext(UIHomeContext), anchor = `${scope}|${id}`;
   const ui = useUITracked(ui=>{
     const index=functionIndex(ui.functions,ui.layout);
-    return [index.byId.get(id),ui.layout.items[id],index.anchors.get(anchor),ui.layout.nativeOrders?.[anchor],index.owners.get(`function:${id}`)];
+    return [index.byId.get(id),ui.layout.items[id],index.anchors.get(anchor),ui.layout.nativeOrders?.[anchor],index.owners.get(`function:${id}`),...(index.anchors.get(anchor) ?? []).map(fn => ui.layout.items[fn.id])];
   }), index=functionIndex(ui.functions,ui.layout),
     fn = index.byId.get(id),
     item = ui.layout.items[id];
@@ -150,7 +153,7 @@ export const FunctionControl=memo(function FunctionControl({ id, palette = false
         const visible =
           key !== id ||
           (!index.owners.has(`function:${id}`) && !item?.anchorId && (!item || item.home));
-        return current && visible ? (
+        return current && visible && !ui.layout.items[key]?.hidden ? (
           <FunctionElement key={key} fn={current} nativeAnchor={{ key: anchor, id }} symbol={key===id?symbol:undefined} symbolOpacity={key===id?symbolOpacity:undefined} symbolFill={key===id?symbolFill:undefined} symbolMask={key===id?symbolMask:undefined} tooltip={key===id?tooltip:undefined} />
         ) : null;
       })}
@@ -642,6 +645,7 @@ export function UIWorkspace({
     const input = (event: KeyboardEvent | PointerEvent) => {
       const keyboard = event instanceof KeyboardEvent;
       if (shortcuts?.capturing || shortcuts?.blocked || event.defaultPrevented || keyboard && (event.repeat || isTypingTarget(event.target))) return;
+      if (!keyboard && protectWorkspacePrimaryPress(!!current.current.layout.panels["@workspaceOnly"],event.button,event.ctrlKey||event.altKey||event.shiftKey||event.metaKey,controlInputOwner(event.target as Element,event.composedPath()))) return;
       const key = keyboard ? normalizeKey(event) : normalizePointer(event);
       const id = keyboard ? residentShortcutAction(shortcuts?.bindings ?? {},key,candidate=>featureActionRuntime.available(candidate))
         : pointerFeatureKey(shortcuts?.bindings??{},event,candidate=>featureActionRuntime.available(candidate))??Object.entries(shortcuts?.bindings??{}).find(([id,binding])=>id.startsWith("button:")&&binding&&binding===key)?.[0];
@@ -695,6 +699,7 @@ export function UIWorkspace({
     command,
     suppress: suppressActivation,
   });
+  const buttonSelectionRef = useRef(buttonSelection); buttonSelectionRef.current = buttonSelection;
   const reset = () => {
     buttonSelection.clear();
     configure(null); configureFrame(null); configureControl(null);
@@ -1493,6 +1498,9 @@ export function UIWorkspace({
         }
         return previous;
         });
+        // A moved control stays visibly selected so Delete can act on it immediately.
+        if (source.key.startsWith("function:") && !p.control && uiContextEnabled(current.current.layout))
+          buttonSelectionRef.current.selectResident(source.key);
       });
     };
     const end = () => {
@@ -1742,7 +1750,7 @@ export function UIWorkspace({
         }}
       >
         {Object.entries(layout.items)
-          .filter(([id, i]) => !i.home && !i.anchorId && !ownerOf(layout, `function:${id}`))
+          .filter(([id, i]) => !(layout.panels["@workspaceOnly"] && id === "settings") && !i.hidden && !i.home && !i.anchorId && !ownerOf(layout, `function:${id}`))
           .map(([id, placement]) => (
             <FreeFunction
               key={id} id={id}
@@ -1910,6 +1918,14 @@ export function UIWorkspace({
                 const title = layout.labels?.[key] ?? ("name" in state ? state.name : frameActions.get(key)?.title ?? key.replace(/^window:(panel:)?/, ""));
                 if (query && !`${title} ${key}`.toLowerCase().includes(query.toLowerCase())) return null;
                 return <button key={key} data-ui-id={`restore:${key}`} onClick={() => update(layout => reopenContainer(layout, key))}>{title}</button>;
+              })}
+            </section>}
+            {Object.entries(layout.items).some(([, item]) => item.hidden) && <section aria-label="Removed UI controls" className="hidden-ui-library">
+              <h3>Removed UI controls</h3>
+              {Object.entries(layout.items).filter(([, item]) => item.hidden).map(([id]) => {
+                const title = layout.labels?.[`function:${id}`] ?? functions.find(fn => fn.id === id)?.label ?? id;
+                if (query && !`${title} ${id}`.toLowerCase().includes(query.toLowerCase())) return null;
+                return <button key={id} onClick={() => update(layout => restoreUIFunction(layout, id))}>{title}</button>;
               })}
             </section>}
             {LIBRARY_CATEGORIES.map((category) => {

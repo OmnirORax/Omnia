@@ -1,7 +1,7 @@
 import {PULSE_CONTROLS,RETIRED_FLARE_CONTROLS,referencePulse,referencePulseRGB,pulsePalette,sourcePulseTint,RETIRED_OMNI_BRIGHTNESS_CONTROLS,omniHighTintRGB,createAutomaticPulse} from '../src/scene/pulse.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {WAVE_CONTROLS,RETIRED_LIGHT_CONTROLS,DEFAULT_SCENE_VFX,normalizeSceneVfx,serializeSceneVfx,smoothAudio,followBass,createBassDynamics,audioScale,normalizeAudioLevel,nextVfxDeadline,SCENE_VFX_FPS} from '../src/scene/vfx.ts';
+import {WAVE_PRESETS,WAVE_CONTROLS,RETIRED_LIGHT_CONTROLS,DEFAULT_SCENE_VFX,normalizeSceneVfx,serializeSceneVfx,smoothAudio,followBass,createBassDynamics,audioScale,normalizeAudioLevel,nextVfxDeadline,SCENE_VFX_FPS,waveAudioGain} from '../src/scene/vfx.ts';
 import {defaultSettings,normalizeSettings} from '../src/workspaceActions.ts';
 import {SETTINGS_PROPERTY_ADAPTERS} from '../src/properties/settingsAdapter.ts';
 test('scene effects serialize base controls plus requested light tuning, excluding session internals',()=>{
@@ -214,20 +214,21 @@ test('Single tint ticks remain live at exponent 0.1 while bounce works; colour v
  globalThis.window={matchMedia:()=>({matches:false,addEventListener(){},removeEventListener(){}})};globalThis.document=Object.assign(new EventTarget(),{hidden:false});
  globalThis.requestAnimationFrame=fn=>{pending.set(++id,fn);return id;};globalThis.cancelAnimationFrame=i=>pending.delete(i);
  class Node{connect(n){return n;}disconnect(){}}
- class Context{state='running';sampleRate=48000;destination={};nodes=[];constructor(){ctx=this;}resume(){return Promise.resolve();}close(){return Promise.resolve();}createMediaElementSource(){return new Node();}createChannelSplitter(){return new Node();}createAnalyser(){const node=Object.assign(new Node(),{frequencyBinCount:1024,value:255,getByteFrequencyData(b){b.fill(this.value);},getByteTimeDomainData(b){b.fill(140);}});this.nodes.push(node);return node;}}
+ class Context{state='running';sampleRate=48000;destination={};nodes=[];constructor(){ctx=this;}resume(){return Promise.resolve();}close(){return Promise.resolve();}createMediaElementSource(){return new Node();}createChannelSplitter(){return new Node();}createAnalyser(){const node=Object.assign(new Node(),{frequencyBinCount:1024,value:255,getByteFrequencyData(b){b.fill(this.value);},getByteTimeDomainData(b){b.fill(128+Math.round(this.value*12/255));}});this.nodes.push(node);return node;}}
  globalThis.AudioContext=Context;T.TextureLoader.prototype.loadAsync=async()=>new T.Texture({width:8,height:8});
  const scene=new T.Scene(),paper=createWallpaper(scene,()=>{},{setRenderTarget(){},render(){}}),settings={...DEFAULT_SCENE_VFX,waves:false,distortion:0,glitching:0,pulseExponent:.1,pulseRangeMode:'manual',pulseColorMode:'tint'};
  try{
   await audio.connectSceneAudioElement({pause(){},addEventListener(){},removeEventListener(){}});paper.configure(settings);await paper.setURL('disposable');
-  const material=scene.children.find(o=>o.material?.uniforms?.light).material,u=material.uniforms,values=[];let now=0;
+  const material=scene.children.find(o=>o.material?.uniforms?.light).material,u=material.uniforms,values=[],waveValues=[];let now=0;
+  assert.equal(u.distortion,undefined);assert.equal(u.glitching,undefined);assert.doesNotMatch(material.fragmentShader,/uniform float (distortion|glitching)/);
   for(const value of [20,80,160,240,255,0]){
-   ctx.nodes[1].value=value;ctx.nodes[2].value=value;const [key,fn]=pending.entries().next().value;pending.delete(key);fn(now+=20);values.push(u.light.value);
+   ctx.nodes[0].value=value;ctx.nodes[1].value=value;ctx.nodes[2].value=value;const [key,fn]=pending.entries().next().value;pending.delete(key);fn(now+=20);values.push(u.light.value);waveValues.push(u.waveAudio.value);
   }
-  for(let i=1;i<5;i++)assert.ok(values[i]>values[i-1],'light must follow changing signal at 0.1 without retuning');assert.equal(values[5],0);assert.ok(u.bounce.value>1,'bounce can remain active while light returns to zero');
+  for(let i=1;i<5;i++)assert.ok(values[i]>values[i-1],'light must follow changing signal at 0.1 without retuning');assert.equal(values[5],0);assert.ok(waveValues.every(value=>value===1),'audio must not change wave displacement');assert.match(material.fragmentShader,/waves\*waveAudio\*waveAmplitudeX/);assert.match(material.fragmentShader,/waves\*waveAudio\*waveAmplitudeY/);assert.ok(u.bounce.value>1,'bounce can remain active while light returns to zero');
   assert.equal(material.defines.PULSE_ALL_COLORS,0);assert.equal(material.defines.IMAGE_TINT,0);
   paper.configure({...settings,pulseColorMode:'all',pulseOmniTint:'#330f00',pulseOmniTintLow:'#003300'});assert.ok(Math.abs(u.pulseOmniTintLow.value.y-.2)<1e-5);assert.equal(u.pulseOmniTintLow.value.x,0);assert.ok(Math.abs(u.pulseOmniTint.value.x-.2)<1e-5);assert.ok(Math.abs(u.pulseOmniTint.value.y-15/255)<1e-5);assert.equal(material.defines.PULSE_ALL_COLORS,1);assert.equal(material.defines.IMAGE_TINT,0);
   paper.configure({...settings,imageTintEnabled:true,imageTint:'#c20000'});assert.equal(material.defines.PULSE_ALL_COLORS,0);assert.equal(material.defines.IMAGE_TINT,1);
-  paper.configure({...settings,pulseRangeMode:'auto',pulseAmount:0});ctx.nodes[1].value=ctx.nodes[2].value=255;
+  ctx.nodes[0].value=255;paper.configure({...settings,pulseRangeMode:'auto',pulseAmount:0});ctx.nodes[1].value=ctx.nodes[2].value=255;
   {const [key,fn]=pending.entries().next().value;pending.delete(key);fn(now+=20);}assert.ok(u.bounce.value>1);assert.equal(u.light.value,0);
   const expanded=u.bounce.value;ctx.nodes[0].value=120;ctx.nodes[1].value=ctx.nodes[2].value=0;
   {const [key,fn]=pending.entries().next().value;pending.delete(key);fn(now+=20);}assert.ok(u.bounce.value>1&&u.bounce.value<expanded,'bass motion should breathe out gently even with nonzero residual noise');
@@ -238,6 +239,12 @@ test('Single tint ticks remain live at exponent 0.1 while bounce works; colour v
   assert.equal(u.time.value,currentTime);assert.equal(u.bounce.value,currentBounce,'tuning waves must not reset audio/motion');
   paper.configure({...settings,waves:false});assert.equal(u.waves.value,0);assert.equal(u.time.value,currentTime);
   assert.equal(settings.pulseExponent,.1);assert.equal(settings.maxFps,DEFAULT_SCENE_VFX.maxFps);
+  paper.configure({...settings,pulseAmount:0});ctx.nodes[0].value=255;
+  {const [key,fn]=pending.entries().next().value;pending.delete(key);fn(now+=20);}
+  assert.equal(u.light.value,0,'light can be disabled');assert.equal(u.waveAudio.value,1,'waves remain independent of audio');
+  paper.configure({...settings,pulseAmount:0,pulseSensitivity:4});
+  {const [key,fn]=pending.entries().next().value;pending.delete(key);fn(now+=20);}
+  assert.equal(u.waveAudio.value,1,'sensitivity does not change waves');ctx.nodes[0].value=0;
  }finally{paper.dispose();T.TextureLoader.prototype.loadAsync=prior.load;globalThis.window=prior.window;globalThis.document=prior.document;globalThis.AudioContext=prior.AudioContext;globalThis.requestAnimationFrame=prior.raf;globalThis.cancelAnimationFrame=prior.cancel;}
 });
 
@@ -452,11 +459,51 @@ test('wave setters preserve zero, reverse speed and saved values with historical
  for(const control of WAVE_CONTROLS)assert.equal(restored.sceneVfx[control.key],control.key.includes('Speed')?-2:0);
  assert.equal(restored.sceneVfx.pulseTintLow,base.sceneVfx.pulseTintLow);assert.equal(restored.sceneVfx.audioBounce,base.sceneVfx.audioBounce);
  const old=normalizeSceneVfx({waves:false,waveAmplitudeX:Infinity,waveSpeedX:-999,waveFrequencyY:999});
- assert.equal(old.waves,false);assert.equal(old.waveAmplitudeX,.1);assert.equal(old.waveAmplitudeY,.3);assert.equal(old.waveSpeedX,-20);assert.equal(old.waveFrequencyY,40);
+ assert.equal(old.waves,false);assert.equal(old.waveAmplitudeX,.25);assert.equal(old.waveAmplitudeY,.3);assert.equal(old.waveSpeedX,-20);assert.equal(old.waveFrequencyY,40);
  // Screenshot-selected defaults apply to absent fields; older explicit coefficients survive.
- const requested={waves:true,waveAmplitudeX:.1,waveAmplitudeY:.3,waveFrequencyX:1.5,waveFrequencyY:10,waveSpeedX:3,waveSpeedY:3};
+ const requested={waves:true,waveAmplitudeX:.25,waveAmplitudeY:.3,waveFrequencyX:4,waveFrequencyY:10,waveSpeedX:2,waveSpeedY:3};
  for(const [key,value] of Object.entries(requested)){assert.equal(DEFAULT_SCENE_VFX[key],value);assert.equal(normalizeSceneVfx(undefined)[key],value);}
  const authored={waves:false,waveAmplitudeX:.875,waveAmplitudeY:.5,waveFrequencyX:10,waveFrequencyY:10,waveSpeedX:5,waveSpeedY:-3.5};
  const saved=normalizeSceneVfx(JSON.parse(serializeSceneVfx(authored)));
  for(const [key,value] of Object.entries(authored))assert.equal(saved[key],value);
+});
+
+test('default background covers no selection and unassigned nodes while explicit assignments and clears win',async()=>{
+ const {resolveBackgroundReference}=await import('../src/scene/backgroundReference.ts');
+ const fallback={localId:'default'},node={localId:'node'},nodes={assigned:node,cleared:null};
+ assert.equal(resolveBackgroundReference(nodes,fallback,null),fallback);
+ assert.equal(resolveBackgroundReference(nodes,fallback,'new'),fallback);
+ assert.equal(resolveBackgroundReference(nodes,fallback,'assigned'),node);
+ assert.equal(resolveBackgroundReference(nodes,fallback,'cleared'),null);
+ assert.equal(resolveBackgroundReference(nodes,null,'new'),null);
+ assert.deepEqual(nodes,{assigned:node,cleared:null});
+});
+
+test('audio wave gain is finite, bounded and leaves authored waves unchanged at silence',()=>{
+ assert.equal(waveAudioGain(0),1);assert.equal(waveAudioGain(.5),2);assert.equal(waveAudioGain(99),3);assert.equal(waveAudioGain(1,0),1);assert.equal(waveAudioGain(1,4),2);assert.equal(waveAudioGain(1,8),3);
+ assert.equal(waveAudioGain(-1),1);assert.equal(waveAudioGain(NaN),1);assert.equal(waveAudioGain(Infinity),1);
+});
+
+
+test('wave presets set all six wave properties through existing settings adapters',()=>{
+ const channels=SETTINGS_PROPERTY_ADAPTERS['scene.vfx'].channels;
+ for(const {key} of WAVE_CONTROLS)assert.equal(DEFAULT_SCENE_VFX[key],WAVE_PRESETS[0][key]);
+ for(const preset of WAVE_PRESETS){
+  let settings=defaultSettings();settings=channels['scene.waves'].write(settings,true);
+  for(const {key} of WAVE_CONTROLS)settings=channels[`scene.${key}`].write(settings,preset[key]);
+  const saved=normalizeSettings(JSON.parse(JSON.stringify(settings)));
+  assert.equal(saved.sceneVfx.waves,true);
+  for(const {key} of WAVE_CONTROLS)assert.equal(saved.sceneVfx[key],preset[key]);
+  assert.equal(saved.sceneVfx.pulseAmount,defaultSettings().sceneVfx.pulseAmount);
+ }
+});
+
+test('custom wave presets preserve saved values, on state, and unreadable records',async()=>{
+ const {appendWavePreset,readWavePresets,WAVE_PRESETS_OWNER}=await import('../src/scene/wavePresets.ts');
+ const values=Object.fromEntries(WAVE_CONTROLS.map(control=>[control.key,control.initial]));
+ const raw={preset3:'unreadable'};const next=appendWavePreset(raw,false,values);
+ assert.equal(next.preset3,'unreadable');assert.equal(raw.preset4,undefined);
+ const restored=normalizeSettings({functionValues:{[WAVE_PRESETS_OWNER]:next}}).functionValues[WAVE_PRESETS_OWNER];
+ const presets=readWavePresets(restored);assert.equal(presets.length,1);assert.equal(presets[0].label,'Preset 4');assert.equal(presets[0].waves,false);assert.deepEqual(presets[0].values,values);
+ assert.throws(()=>appendWavePreset({},true,{...values,waveAmplitudeX:Infinity}));
 });

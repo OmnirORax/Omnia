@@ -16,18 +16,17 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
     uniforms: { ...sceneCorrectionUniforms(correction), worldLayer:{value:null},compositeWorld:{value:0},image: { value: null }, imageAspect: { value: 1 }, viewportAspect: { value: 1 },
       pulseOmniTintLow:{value:tint(initial.pulseOmniTintLow)},pulseOmniTint:{value:tint(initial.pulseOmniTint)},imageTint:{value:tint(initial.imageTint)},
       pulseTintLow:{value:tint(initial.pulseTintLow)},pulseTintHigh:{value:tint(initial.pulseTintHigh)},sceneGlowPass:{value:0},time:{value:0},bounce:{value:1},light:{value:0},
-      ...Object.fromEntries(WAVE_CONTROLS.map(({key,initial})=>[key,{value:initial}])),waves:{value:1}, distortion:{value:.4}, glitching:{value:.3},
+      ...Object.fromEntries(WAVE_CONTROLS.map(({key,initial})=>[key,{value:initial}])),waves:{value:1},waveAudio:{value:1},
       feedbackColor: { value: new THREE.Color() }, feedbackStrength: { value: 0 } },
     vertexShader: 'varying vec2 imageUV; void main() { imageUV = uv; gl_Position = vec4(position.xy, 1.0, 1.0); }',
     fragmentShader: `uniform sampler2D image; uniform float imageAspect; uniform float viewportAspect;
       uniform float sceneGlowPass; uniform float time; uniform float bounce; uniform float light;
-      uniform float waves; uniform float waveAmplitudeX; uniform float waveAmplitudeY;
-      uniform float waveFrequencyX; uniform float waveFrequencyY; uniform float waveSpeedX; uniform float waveSpeedY; uniform float distortion; uniform float glitching;
+      uniform float waves; uniform float waveAudio; uniform float waveAmplitudeX; uniform float waveAmplitudeY;
+      uniform float waveFrequencyX; uniform float waveFrequencyY; uniform float waveSpeedX; uniform float waveSpeedY;
       uniform vec3 imageTint;uniform vec3 pulseTintLow;uniform vec3 pulseTintHigh;
       ${sceneCorrectionGLSL}
       ${REFERENCE_PULSE_GLSL}
       uniform sampler2D worldLayer;uniform float compositeWorld;
-      float hash(float n){return fract(sin(n*127.1)*43758.5453);}
       ${PULSE_COLOUR_GLSL}
       uniform vec3 feedbackColor; uniform float feedbackStrength; varying vec2 imageUV;
       void main() {
@@ -35,13 +34,8 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
         vec2 uv=(imageUV-.5)/bounce+.5;
         // Approximation only: original waterwaves shader/project-layer setup is missing.
         // Extracted numbers do not establish equivalent UV displacement.
-        uv.x+=waves*waveAmplitudeX*.01*sin(uv.y*6.28318530718*waveFrequencyX+time*waveSpeedX);
-        uv.y+=waves*waveAmplitudeY*.01*sin(uv.x*6.28318530718*waveFrequencyY+time*waveSpeedY);
-        // One shared VHS pass: slow bending plus brief horizontal tracking bands.
-        uv.x+=distortion*.02*sin(uv.y*12.566+time*.5);
-        float frame=floor(time*12.0),band=floor(uv.y*36.0);
-        float tear=step(.94,hash(frame+band*19.0));
-        uv.x+=(hash(frame*7.0+band)-.5)*glitching*.07*tear;
+        uv.x+=waves*waveAudio*waveAmplitudeX*.01*sin(uv.y*6.28318530718*waveFrequencyX+time*waveSpeedX);
+        uv.y+=waves*waveAudio*waveAmplitudeY*.01*sin(uv.x*6.28318530718*waveFrequencyY+time*waveSpeedY);
         vec2 coverUV = uv - 0.5;
         if (viewportAspect > imageAspect) coverUV.y *= imageAspect / viewportAspect;
         else coverUV.x *= viewportAspect / imageAspect;
@@ -81,7 +75,7 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
   const cancel=()=>{if(frame)cancelAnimationFrame(frame);frame=0;last=0;deadline=0;};
   const schedule=()=>{
     if(frame||!alive||!mesh.visible||document.hidden||reduced.matches)return;
-    if(!settings.waves&&!settings.distortion&&!settings.glitching&&!isSceneAudioConnected()&&bass<.0001&&level<.0001)return;
+    if(!settings.waves&&!isSceneAudioConnected()&&bass<.0001&&level<.0001)return;
     frame=requestAnimationFrame(tick);
   };
   const tick=(now:number)=>{
@@ -93,12 +87,13 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
     bass=settings.pulseRangeMode==='auto'?followBass(bass,bassDynamics.sample(audio.bassAmplitude,dt),dt):smoothAudio(bass,audio.bass,dt);level=smoothAudio(level,audio.level,dt);
     material.uniforms.time.value=elapsed;
     material.uniforms.light.value=pulse;
+    // Wave audio response is temporarily disabled; keep authored displacement unchanged.
     material.uniforms.bounce.value=audioScale(bass,settings.audioBounce);
     requestPaint();schedule();
   };
   const visibility=()=>{cancel();schedule();};
-  const motion=()=>{cancel();material.uniforms.waves.value=reduced.matches?0:Number(settings.waves);material.uniforms.distortion.value=reduced.matches?0:settings.distortion;material.uniforms.glitching.value=reduced.matches?0:settings.glitching;material.uniforms.bounce.value=1;material.uniforms.light.value=0;requestPaint();schedule();};
-  const stopAudio=subscribeSceneAudio(()=>{bassDynamics.reset();if(!isSceneAudioConnected()){material.uniforms.light.value=0;requestPaint();}schedule();});
+  const motion=()=>{cancel();material.uniforms.waves.value=reduced.matches?0:Number(settings.waves);material.uniforms.bounce.value=1;material.uniforms.light.value=0;material.uniforms.waveAudio.value=1;requestPaint();schedule();};
+  const stopAudio=subscribeSceneAudio(()=>{bassDynamics.reset();if(!isSceneAudioConnected()){material.uniforms.light.value=0;material.uniforms.waveAudio.value=1;requestPaint();}schedule();});
   document.addEventListener('visibilitychange',visibility);reduced.addEventListener('change',motion);
   return {
     get visible(){return mesh.visible;},
@@ -123,8 +118,8 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
       const filter=Number(settings.imageTintEnabled);
       if(material.defines.IMAGE_TINT!==filter){material.defines.IMAGE_TINT=filter;material.needsUpdate=true;}
       material.uniforms.waves.value=reduced.matches?0:Number(settings.waves);
-      material.uniforms.distortion.value=reduced.matches?0:settings.distortion;
-      material.uniforms.glitching.value=reduced.matches?0:settings.glitching;
+
+
       requestPaint();schedule();
     },
     setURL(url:string|null){return this.setSource(url);},
@@ -132,7 +127,7 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
       const mine=++epoch;
       if(!url||!keepPrevious){
         configureSceneCorrection(correction,null);cancel();bass=0;level=0;elapsed=0;
-        material.uniforms.time.value=0;material.uniforms.bounce.value=1;material.uniforms.light.value=0;
+        material.uniforms.time.value=0;material.uniforms.bounce.value=1;material.uniforms.light.value=0;material.uniforms.waveAudio.value=1;
         mesh.visible=false;texture?.dispose();texture=null;material.uniforms.image.value=null;requestPaint();
       }
       if(!url)return;

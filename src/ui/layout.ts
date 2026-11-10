@@ -72,6 +72,7 @@ export type UIItem = {
   x: number;
   y: number;
   home?: boolean;
+  hidden?: boolean;
   frameId?: string;
   cell?: Cell;
   style?: FunctionStyle;
@@ -267,6 +268,7 @@ export function validateUILayout(value: unknown): UILayout {
       !numeric(item.x) ||
       !numeric(item.y) ||
       (item.home !== undefined && typeof item.home !== "boolean") ||
+      (item.hidden !== undefined && typeof item.hidden !== "boolean") ||
       (item.pinned !== undefined && typeof item.pinned !== "boolean") ||
       (item.anchorId !== undefined &&
         (typeof item.anchorId !== "string" || !item.anchorId || item.anchorId.length > 500))

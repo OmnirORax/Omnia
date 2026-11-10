@@ -12,3 +12,6 @@ export function rangeWorkingScope<T extends {ownerFrame?:boolean;scope?:T}>(scop
   while(scope?.ownerFrame)scope=scope.scope??null;
   return scope;
 }
+
+/** Retained membership alone never grants inactive MS ownership of Escape. */
+export function selectorCanCancel(phase:string,nativeGesture=false){return phase!=='off'||nativeGesture;}

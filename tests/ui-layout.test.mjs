@@ -479,3 +479,69 @@ test('new native panels inherit their declared neighbor without rewriting saved 
  assert.deepEqual(saved,['file','view','workspace','custom']);
  assert.deepEqual(mergeNativeOrder(['infinity','workspace','view'],['view','infinity','workspace']),['infinity','workspace','view']);
 });
+
+test('hidden UI Escape restores it before other handlers, while normal and typing input keep their owner',async()=>{
+ const {restoreHiddenUI}=await import('../src/ui/interfaceVisibility.ts');
+ const target=new EventTarget();let hidden=true,typing=false,restored=0,other=0;
+ target.addEventListener('keydown',event=>restoreHiddenUI(event,hidden,typing,()=>{restored++;hidden=false;}));
+ target.addEventListener('keydown',()=>{other++;});
+ const key=(name,repeat=false)=>{const event=new Event('keydown',{cancelable:true});Object.defineProperties(event,{key:{value:name},repeat:{value:repeat}});target.dispatchEvent(event);return event;};
+ assert.equal(key('Escape').defaultPrevented,true);assert.equal(restored,1);assert.equal(other,0);
+ assert.equal(key('Escape').defaultPrevented,false);assert.equal(other,1);
+ hidden=true;typing=true;assert.equal(key('Escape').defaultPrevented,false);assert.equal(other,2);
+ typing=false;assert.equal(key('Escape',true).defaultPrevented,false);assert.equal(other,3);
+ assert.equal(key('x').defaultPrevented,false);assert.equal(other,4);
+});
+
+test('transient UI visibility participates in existing undo and redo without touching layout',async()=>{
+ const {createActionHistory}=await import('../src/ui/actionHistory.ts');
+ const history=createActionHistory(),layout={frames:[{id:'kept'}]};let hidden=false;
+ history.register('ui.visibility',{read:()=>hidden,write:value=>{hidden=value;}});
+ history.record('ui.visibility',false,true,['ui'],['omnium']);hidden=true;
+ assert.equal(history.travel('undo'),1);assert.equal(hidden,false);assert.deepEqual(layout,{frames:[{id:'kept'}]});
+ assert.equal(history.travel('redo'),1);assert.equal(hidden,true);
+});
+
+test('removing selected UI controls preserves placement and can be restored', async()=>{
+  const {removeUISelection,restoreUIFunction}=await import('../src/ui/removeSelection.ts');
+  const original=emptyUILayout(), hidden=removeUISelection(original,['native-control']);
+  assert.equal(hidden.items['native-control'].hidden,true);
+  assert.equal(hidden.items['native-control'].home,true);
+  assert.equal(original.items['native-control'],undefined);
+  const roundTrip=validateUILayout(JSON.parse(JSON.stringify(hidden)));
+  assert.equal(roundTrip.items['native-control'].hidden,true);
+  const restored=restoreUIFunction(roundTrip,'native-control');
+  assert.equal(restored.items['native-control'].hidden,false);
+  assert.equal(restored.items['native-control'].home,true);
+  assert.throws(()=>validateUILayout({...hidden,items:{'native-control':{...hidden.items['native-control'],hidden:'yes'}}}));
+});
+
+test('removing a docked UI control retains its container membership and styling', async()=>{
+  const {removeUISelection,restoreUIFunction}=await import('../src/ui/removeSelection.ts');
+  const layout=emptyUILayout();
+  layout.frames=[{id:'group',name:'Group',x:10,y:20,cellSize:40,collapsed:false,pinned:false,members:[{kind:'function',id:'control'}]}];
+  layout.items.control={x:23,y:41,home:false,style:{mode:'icon',geometry:'circle'}};
+  const hidden=removeUISelection(layout,['control']);
+  assert.deepEqual(hidden.frames,layout.frames);
+  assert.deepEqual(restoreUIFunction(hidden,'control').items.control,{...layout.items.control,hidden:false});
+  assert.equal(ownerOf(hidden,'function:control'),'frame:group');
+});
+
+test('workspace-only presentation is opt-in and survives layout export',()=>{
+  const old=validateUILayout(emptyUILayout());
+  assert.equal(old.panels['@workspaceOnly'],undefined);
+  const layout=validateUILayout({...old,panels:{...old.panels,'@workspaceOnly':true}});
+  assert.equal(validateUILayout(JSON.parse(JSON.stringify(layout))).panels['@workspaceOnly'],true);
+  assert.deepEqual(old.windows,layout.windows,'presentation flag does not move saved residents');
+});
+
+test('automatic inspection respects a collapsed Workspace settings tab',async()=>{
+ const {shouldRevealInspection}=await import('../src/ui/inspectionReveal.ts');
+ const frame={x:0,y:0,width:300,height:300,collapsed:true,pinned:false};
+ const layout=validateUILayout({...emptyUILayout(),panels:{'@workspaceOnly':true,'@settings':true},windows:{settings:{...frame,members:[{kind:'window',id:'theme'}]},theme:{...frame}}});
+ const path=['window:settings','window:theme'];
+ assert.equal(shouldRevealInspection(layout,path),false,'inspection cannot reopen a closed tab');
+ assert.equal(shouldRevealInspection(layout,['window:theme']),true,'unrelated inspection remains available');
+ const opened={...layout,windows:{...layout.windows,settings:{...layout.windows.settings,collapsed:false}}};
+ assert.equal(shouldRevealInspection(opened,path),true,'inspection still reveals the controller within an open tab');
+});

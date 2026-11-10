@@ -13,8 +13,9 @@ import { useFeatureActions } from '../ui/useFeatureActions';
 import type { SceneReference } from './background';
 import { deleteLocalScene, downloadScene, importLocalScene, listLocalScenes, loadCopiedPrompt, localSceneBlob, saveCopiedPrompt, type LocalScene, type ScenePromptSnapshot } from './library';
 
-export function ScenePanel({ normalization,normalizationState,node, revision, bindings, onApply, hasBackground, backgroundError, backgroundKey, onForgetLocal, nodeExists }: {
+export function ScenePanel({ normalization,normalizationState,node, revision, bindings, onApply, hasBackground, backgroundError, backgroundKey, onForgetLocal, nodeExists, customWavePresets, onSaveWavePreset }: {
   normalization:NormalizationPreferences;normalizationState:NormalizationState;
+  customWavePresets:Record<string,import("../appearance/model.ts").Value>;onSaveWavePreset:(waves:boolean,values:Record<import("./vfx.ts").WaveKey,number>)=>void;
   node: SceneNode | null; revision: number; bindings: PropertyBindings;
   onApply: (value: SceneReference | null, targetNodeId?: string | null) => void;
   onForgetLocal: (id: string) => void; nodeExists: (id: string) => boolean; hasBackground: boolean; backgroundError: string; backgroundKey?: string;
@@ -30,11 +31,11 @@ export function ScenePanel({ normalization,normalizationState,node, revision, bi
   const applied = useRef(0);
   const fileInput = useRef<HTMLInputElement>(null);
   const [copied, setCopied] = useState<ScenePromptSnapshot | null>(loadCopiedPrompt);
-  const [imageTarget, setImageTarget] = useState<'copied' | 'active'>(() => loadCopiedPrompt() ? 'copied' : 'active');
+  const [imageTarget, setImageTarget] = useState<'copied' | 'active' | 'default'>(() => !node ? 'default' : loadCopiedPrompt() ? 'copied' : 'active');
   const [localImages, setLocalImages] = useState<LocalScene[]>([]), [localId, setLocalId] = useState('');
   const [localBusy, setLocalBusy] = useState(false), [localError, setLocalError] = useState('');
   const localPending = useRef(false);
-  type ImportContext = { target: string; input: ScenePromptSnapshot | null; backgroundVersion: number; background: string | undefined };
+  type ImportContext = { target: string | null; input: ScenePromptSnapshot | null; backgroundVersion: number; background: string | undefined };
   const fileContext = useRef<ImportContext | null>(null);
   const localSelected = localImages.find(item => item.id === localId);
   const prompt = String(bindings.values['scene.generate']['scene.prompt']);
@@ -69,6 +70,7 @@ export function ScenePanel({ normalization,normalizationState,node, revision, bi
   };
   const targetNode = imageTarget === 'copied' ? copied?.node : node;
   function importContext(): ImportContext | null {
+    if (imageTarget === 'default') return {target:null,input:null,backgroundVersion:applied.current,background:backgroundKey};
     if (!targetNode || !nodeExists(targetNode.id)) { setLocalError('Select an existing node as the image destination.'); return null; }
     return { target: targetNode.id, input: imageTarget === 'copied' ? copied : snapshot(), backgroundVersion: applied.current, background: backgroundKey };
   }
@@ -87,9 +89,9 @@ export function ScenePanel({ normalization,normalizationState,node, revision, bi
     setLocalImages(items => [item, ...items]); setLocalId(item.id);
     // The explicit destination may differ from the currently selected node. Do not
     // overwrite a replacement/clear made while decoding, or apply to a removed node.
-    if (nodeExists(context.target) && applied.current === context.backgroundVersion && backgroundNow.current === context.background) {
+    if ((context.target === null || nodeExists(context.target)) && applied.current === context.backgroundVersion && backgroundNow.current === context.background) {
       applied.current++; applyCurrent.current({ localId: item.id }, context.target);
-      setNotice(`Image saved and assigned to ${context.input?.node.label || 'the chosen node'}. Select that node to see its scene.`);
+      setNotice(context.target === null ? 'Default background saved.' : `Image saved and assigned to ${context.input?.node.label || 'the chosen node'}. Select that node to see its scene.`);
     } else setNotice('Image saved in Imported images. The background changed or the destination was removed; apply it explicitly when ready.');
   }
   const backgroundNow = useRef(backgroundKey); backgroundNow.current = backgroundKey;
@@ -191,12 +193,12 @@ export function ScenePanel({ normalization,normalizationState,node, revision, bi
   }
   useFeatureActions('scene', {
     'scene.copyPrompt': { enabled: !!resolved && !bindingError && !localBusy, run: () => void copyPrompt() },
-    'scene.chooseImage': { enabled: !!targetNode && nodeExists(targetNode.id) && !localBusy && !busy, run: () => {
+    'scene.chooseImage': { enabled: (imageTarget === 'default' || !!targetNode && nodeExists(targetNode.id)) && !localBusy && !busy, run: () => {
       fileContext.current = importContext(); if (fileContext.current) fileInput.current?.click();
     } },
-    'scene.pasteImage': { enabled: !!targetNode && nodeExists(targetNode.id) && !localBusy && !busy, run: () => void pasteImage() },
-    'scene.applyLocal': { enabled: !!localSelected && !!node && !localBusy && !busy, run: () => {
-      try { applied.current++; onApply({ localId: localSelected!.id }); setNotice('Imported scene applied to this node.'); setLocalError(''); }
+    'scene.pasteImage': { enabled: (imageTarget === 'default' || !!targetNode && nodeExists(targetNode.id)) && !localBusy && !busy, run: () => void pasteImage() },
+    'scene.applyLocal': { enabled: !!localSelected && (imageTarget === 'default' || !!node) && !localBusy && !busy, run: () => {
+      try { applied.current++; onApply({ localId: localSelected!.id },imageTarget === 'default' ? null : node!.id); setNotice(imageTarget === 'default' ? 'Default background saved.' : 'Imported scene applied to this node.'); setLocalError(''); }
       catch { setLocalError('The scene assignment could not be saved in this browser.'); }
     } },
     'scene.downloadLocal': { enabled: !!localSelected && !localBusy, run: () => {
@@ -217,7 +219,7 @@ export function ScenePanel({ normalization,normalizationState,node, revision, bi
     } },
     'scene.generate': { enabled: generationEnabled && !!userId && canWrite && !!resolved && !bindingError && !busy && !running && !localBusy, run: () => void generate() },
     'scene.refresh': { enabled: !!userId && !busy, run: () => { setAPIError(''); setRefresh(value => value + 1); } },
-    'scene.clear': { enabled: hasBackground, run: () => { try { applied.current++; onApply(null); setNotice('Scene cleared for this node.'); } catch { setLocalError('Scene assignment could not be saved.'); } } },
+    'scene.clear': { enabled: hasBackground, run: () => { try { applied.current++; onApply(null,imageTarget === 'default' ? null : node?.id); setNotice(imageTarget === 'default' ? 'Default background cleared.' : 'Scene cleared for this node.'); } catch { setLocalError('Scene assignment could not be saved.'); } } },
     'scene.apply': { enabled: !!userId && selected?.state === 'ready' && !!selected.asset_id && !!node && !busy && !localBusy, run: () => {
       const before = epoch.current, context = fingerprint, backgroundVersion = applied.current;
       void applyJob(selected!, userId!, () => live.current && epoch.current === before && latest.current === context && applied.current === backgroundVersion)
@@ -226,7 +228,7 @@ export function ScenePanel({ normalization,normalizationState,node, revision, bi
     } },
   });
   return <div className="scene-panel">
-    <SceneVfxControls bindings={bindings}/>
+    <SceneVfxControls bindings={bindings} customPresets={customWavePresets} onSavePreset={onSaveWavePreset}/>
     <UIField id="scene.prompt" label="Image prompt" category="Scene"><CoupledField bindings={bindings} consumer="scene.generate" property="scene.prompt" /></UIField>
     <div className="scene-input-row">
       <UIField id="scene.variable" label="Prompt variable" category="Scene"><CoupledField bindings={bindings} consumer="scene.generate" property="scene.variable" /></UIField>
@@ -236,8 +238,8 @@ export function ScenePanel({ normalization,normalizationState,node, revision, bi
     {bindingError && <small>{bindingError}</small>}
     <UISection id="scene-resolved-prompt" title="Resolved prompt" defaultExpanded={false}><pre className="scene-resolved">{resolved || 'No resolved input.'}</pre></UISection>
     <div className="scene-input-row"><FunctionControl id="scene.copyPrompt" /><FunctionControl id="scene.clear" /></div>
-    <UIField id="scene.imageTarget" label="Image destination" category="Scene"><label>Image belongs to<select value={imageTarget} onChange={event => setImageTarget(event.target.value as 'copied' | 'active')}>
-      <option value="active">Active node{node ? `: ${node.label || 'Untitled'}` : ' (select one)'}</option>
+    <UIField id="scene.imageTarget" label="Image destination" category="Scene"><label>Image belongs to<select value={imageTarget} onChange={event => setImageTarget(event.target.value as 'copied' | 'active' | 'default')}>
+      <option value="default">Default background</option><option value="active">Active node{node ? `: ${node.label || 'Untitled'}` : ' (select one)'}</option>
       <option value="copied" disabled={!copied}>Copied prompt{copied ? `: ${copied.node.label || 'Untitled'}` : ' (copy one first)'}</option>
     </select></label></UIField>
     <div className="scene-input-row"><FunctionControl id="scene.pasteImage" /><FunctionControl id="scene.chooseImage" /></div>

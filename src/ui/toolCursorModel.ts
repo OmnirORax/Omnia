@@ -6,9 +6,9 @@ export function activeToolCursor<T extends {priority?:number}>(requests:Iterable
 }
 
 /** Missing applicability is never a website-wide tool by accident. */
-export function cursorApplies(request:{zone?:string;parked?:unknown},zone:string|undefined,blocked=false){
+export function cursorApplies(request:{zone?:string;parked?:unknown;allowController?:boolean},zone:string|undefined,blocked=false,controller=false){
   if(request.parked)return true;
-  return !blocked&&!!request.zone&&(request.zone==='*'||request.zone===zone);
+  return (!blocked||!!request.allowController&&controller)&&!!request.zone&&(request.zone==='*'||request.zone===zone);
 }
 
 export type CursorArea={left:number;top:number;width:number;height:number;circle?:boolean};

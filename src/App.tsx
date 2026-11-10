@@ -1,3 +1,9 @@
+import {shortcutsBlocked as isShortcutBlocked,protectWorkspacePrimaryPress} from './ui/shortcutBlocking.ts';
+import {controlInputOwner} from './ui/inputOwnership.ts';
+import {appendWavePreset,WAVE_PRESETS_OWNER} from './scene/wavePresets.ts';
+import {shouldRevealInspection} from './ui/inspectionReveal.ts';
+import {NODE_ACCESS_ACTIONS} from './nodeContextActions.ts';
+import {restoreHiddenUI} from './ui/interfaceVisibility.ts';
 import {PATTERN_FUNCTION,patternSettings,resolvePattern} from './paint/pattern.ts';
 import {useScenePalette} from './paint/useScenePalette.ts';
 import {startRememberedSystemAudio} from './scene/audio.ts';
@@ -67,7 +73,6 @@ import {
   type Frame,
   type FrameScope,
 } from "./graph/structural";
-import { parseChangeSet, validateChangeSet, type Preview } from "./graph/changeset";
 import { ensureBinderSpacing, compactLayout, createPlacement, movePlacement, reparentStructure, reparentVisual, detachPlacement, detachNodeConnection, type ReflowScope, type GridSpacing } from "./graph/layout3d";
 import { ACTIONS, SETTINGS_KEY, allowsShiftShortcut, actionForKey, defaultSettings, isFeatureAction, isNudgeAction, isTypingTarget, keyConflict, loadSettings, normalizeSettings, normalizeKey, normalizePointer, preferredFeatureKey, type ActionId, type NudgeActionId, type WorkspaceSettings } from "./workspaceActions";
 import { clearRecordedShortcutPress, FEATURE_ACTIONS, featureActionRuntime, recordedShortcutTail, recordShortcutPress } from "./featureActions";
@@ -82,7 +87,7 @@ import { fontFamily, MAX_FONT_TEMPLATE_BYTES, type CustomFont } from "./fonts";
 import { embeddedFont, importCustomFonts, importFontFile, listCustomFonts, loadFont } from "./fontLibrary";
 import { createLayoutView, hierarchyLayout, flowLayout, switchLayoutView, chartedBinders } from "./graph/presentation";
 import { addVariant, nodeEntityId, projectVariants } from "./graph/variants";
-import { ShortcutDisplay, ShortcutGestures } from "./ShortcutDisplay";
+import { ShortcutDisplay, ShortcutGestures, ShortcutPicker } from "./ShortcutDisplay";
 import { VisualControls } from "./VisualControls";
 import { deleteConceptSubtrees, deletionSummary } from "./graph/selection";
 import { type Visual, type VisualAsset } from "./graph/assets";
@@ -131,6 +136,25 @@ async function loadInitial(): Promise<InitialWorkspace> {
   }
 }
 function Workbench({initial}:{initial:InitialWorkspace}) {
+  const [uiHidden,setUiHidden]=useState(false),uiHiddenRef=useRef(false),uiVisibilityBindings=useRef<WorkspaceSettings["bindings"]>({});
+  uiHiddenRef.current=uiHidden;
+  useLayoutEffect(()=>{
+    const restore=(event:KeyboardEvent)=>{
+      if(!uiHiddenRef.current)return;
+      const action=actionForKey(uiVisibilityBindings.current,normalizeKey(event));
+      if(!event.repeat&&!isTypingTarget(event.target)&&(action==='undo'||action==='ui:undo')){
+        event.preventDefault();event.stopImmediatePropagation();
+        actionHistory.travel('undo',{...actionHistory.options,steps:1});return;
+      }
+      restoreHiddenUI(event,true,isTypingTarget(event.target),()=>changeUiHidden(false));
+    };
+    window.addEventListener('keydown',restore,true);
+    return()=>window.removeEventListener('keydown',restore,true);
+  },[]);
+  useEffect(()=>{
+    window.document.documentElement.toggleAttribute('data-omnium-ui-hidden',uiHidden);
+    return()=>window.document.documentElement.removeAttribute('data-omnium-ui-hidden');
+  },[uiHidden]);
   useEffect(startRememberedSystemAudio,[]);
   const [workspace, setWorkspace] = useState(initial.workspace);
   const workspaceRef = useRef(workspace); workspaceRef.current = workspace;
@@ -139,6 +163,15 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
     try { return createActionHistory(JSON.parse(localStorage.getItem("omnium-history-options-v1") ?? "null") ?? undefined); }
     catch { return createActionHistory(); }
   });
+  useEffect(()=>actionHistory.register('ui.visibility',{
+    read:()=>uiHiddenRef.current,
+    write:(value:boolean)=>{uiHiddenRef.current=value;setUiHidden(value);},
+  }),[actionHistory]);
+  function changeUiHidden(next:boolean){
+    const before=uiHiddenRef.current;if(before===next)return;
+    uiHiddenRef.current=next;setUiHidden(next);
+    actionHistory.record('ui.visibility',before,next,['ui'],[...new Set(['omnium','window:panel:menu:view',actionHistory.activeContext,...actionHistory.contextPath])]);
+  }
   useEffect(() => {
     let previous = JSON.stringify(actionHistory.options);
     return actionHistory.subscribe(() => {
@@ -161,10 +194,20 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
       const path: string[] = [], seen = new Set<string>();
       let owner: string | undefined = "window:theme";
       while (owner && !seen.has(owner)) { seen.add(owner); path.unshift(owner); owner = ownerOf(savedUILayout, owner); }
-      revealed = revealSearchPath(revealed, { path });
+      if (shouldRevealInspection(revealed, path)) revealed = revealSearchPath(revealed, { path });
     }
     return revealSearchPath(revealed, searchReveal);
   }, [savedUILayout, searchReveal, masterInspection, dismissedInspection]);
+  useEffect(() => {
+    if (!savedUILayout.panels["@workspaceOnly"] || savedUILayout.panels["@workspaceSettingsSingle"]) return;
+    updateUI(layout => ({...layout, panels:{...layout.panels,"@settings":true,"@workspaceSettingsSingle":true},
+      windows:{...layout.windows,settings:{...layout.windows.settings,collapsed:true}},
+      labels:layout.labels?.["function:settings"] && !layout.labels?.["window:settings"] ? {...layout.labels,"window:settings":layout.labels["function:settings"]} : layout.labels}));
+  }, [savedUILayout, updateUI]);
+  useEffect(() => {
+    window.document.documentElement.toggleAttribute("data-workspace-settings-only", !!uiLayout.panels["@workspaceOnly"]);
+    return () => window.document.documentElement.removeAttribute("data-workspace-settings-only");
+  }, [uiLayout.panels["@workspaceOnly"]]);
   const [colorPreview, setColorPreview] = useState<ColorPreview | null>(null);
   const [activityRequests, setActivityRequests] = useState<ActivityPreview[]>([]);
   const [appearancePreview, setAppearancePreview] = useState<WorkspaceSettings["appearance"] | null>(null);
@@ -179,6 +222,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
   const backupUI=useRef({layout:savedUILayout,settings:savedSettings,appearance:previewAppearance});backupUI.current={layout:savedUILayout,settings:savedSettings,appearance:previewAppearance};
   const appearancePending = ui.pendingAppearance || !sameAppearance(previewAppearance, savedSettings.appearance);
   const settings = useMemo(() => ({ ...ui.settings, appearance: safeView ? safeAppearance() : previewAppearance }), [ui.settings, safeView, previewAppearance]);
+  uiVisibilityBindings.current=settings.bindings;
   const propertyBindings = settingsPropertyBindings(settings, setSettings, candidate=>ui.previewSettings(candidate?()=>candidate:null));
   const renderSource = useMemo(() => safeView ? settings.appearance : activityPreview(settings.appearance, activityRequests), [settings.appearance, safeView, activityRequests]);
   const renderedAppearance = useMemo(() => resolveControllerAppearance(renderSource), [renderSource]);
@@ -257,18 +301,15 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
   actionHistory.register("omnium", { read: () => workspaceHistory(workspaceRef.current), write: value => {
     const checked = restoreWorkspaceHistory(workspaceRef.current, value);
     const changedContext=checked.id!==workspaceRef.current.id||checked.activeAtlasId!==workspaceRef.current.activeAtlasId;
-    workspaceRef.current=checked; documentRef.current=activeDocument(checked); setWorkspace(checked); setSelection(null); setBinderPopup(null); setProposalPreview(null); setRevision(r => r + 1);
+    workspaceRef.current=checked; documentRef.current=activeDocument(checked); setWorkspace(checked); setSelection(null); setBinderPopup(null); setRevision(r => r + 1);
     if(changedContext)clearAtlasContext();
   } });
-  const [proposalText, setProposalText] = useState("");
-  const [proposalPreview, setProposalPreview] = useState<Preview | null>(null);
   const [frameQuestion, setFrameQuestion] = useState("");
   const [entityLookup, setEntityLookup] = useState("");
   const [frameLookup, setFrameLookup] = useState("");
-  const [source, setSource] = useState("");
-  const [target, setTarget] = useState("");
-  const settingsOpen = uiLayout.panels["@settings"] ?? false;
-  const setSettingsOpen = (value: boolean) => updateUI(layout => value ? reopenContainer(layout, "window:settings") : { ...layout, panels: { ...layout.panels, "@settings": false } });
+  const settingsVisible = uiLayout.panels["@settings"] ?? false;
+  const settingsOpen = settingsVisible && (!uiLayout.panels["@workspaceOnly"] || !uiLayout.windows.settings?.collapsed);
+  const setSettingsOpen = (value: boolean) => updateUI(layout => value ? reopenContainer(layout, "window:settings") : layout.panels["@workspaceOnly"] ? {...layout, windows:{...layout.windows, settings:{...layout.windows.settings,collapsed:true}}} : { ...layout, panels: { ...layout.panels, "@settings": false } });
   const themeOpen = (uiLayout.panels["@theme"] ?? true) || (!!masterInspection && masterInspection !== dismissedInspection);
   const setThemeOpen = (value: boolean, confirmed = false) => {
     if (!value && appearancePending && !confirmed) { setAppearanceExit("close"); return false; }
@@ -317,7 +358,6 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
   const templateInput = useRef<HTMLInputElement>(null);
   const themeTemplateInput = useRef<HTMLInputElement>(null);
   const fontInput = useRef<HTMLInputElement>(null);
-  const proposalInput = useRef<HTMLInputElement>(null);
   function navigate(kind: NavigationCommand["kind"], id?: string) {
     setNavCommand((old) => ({ sequence: (old?.sequence ?? 0) + 1, kind, id }));
   }
@@ -329,10 +369,10 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
     const changedContext=next.id!==workspaceRef.current.id||next.activeAtlasId!==workspaceRef.current.activeAtlasId;
     const checked=validateWorkspace(advanceWorkspaceRevisions(workspaceRef.current,next));
     actionHistory.record("omnium",workspaceHistory(workspaceRef.current),workspaceHistory(checked),["omnium"],["omnium","window:omnic-library"]);
-    workspaceRef.current=checked; documentRef.current=activeDocument(checked); setWorkspace(checked); setRevision(r=>r+1); setProposalPreview(null); setError("");
+    workspaceRef.current=checked; documentRef.current=activeDocument(checked); setWorkspace(checked); setRevision(r=>r+1); setError("");
     if(changedContext)clearAtlasContext();
   }
-  function clearAtlasContext(){setSelection(null);setSelectedIds(new Set());setOptionNodeId(null);setOmnicEditorId(null);setOmnicNewDraft(null);omnicPreview.set(null);setExpandedVariants(new Set());setFocusContextIds(null);setBinderPopup(null);setInsertContext(null);setConnectionSource(null);setProposalPreview(null);}
+  function clearAtlasContext(){setSelection(null);setSelectedIds(new Set());setOptionNodeId(null);setOmnicEditorId(null);setOmnicNewDraft(null);omnicPreview.set(null);setExpandedVariants(new Set());setFocusContextIds(null);setBinderPopup(null);setInsertContext(null);setConnectionSource(null);}
   function switchAtlas(id: string) {
     if (!workspaceRef.current.atlases.some(a=>a.id===id)) return;
     const next={...workspaceRef.current,activeAtlasId:id}; workspaceRef.current=next; documentRef.current=activeDocument(next); setWorkspace(next);
@@ -354,7 +394,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
       actionHistory.record("omnium", workspaceHistory(workspaceRef.current), workspaceHistory(nextWorkspace), ["omnium"], ["omnium", "window:omnic-library"]);
       workspaceRef.current=nextWorkspace; documentRef.current = validated;
       setWorkspace(nextWorkspace);
-      setProposalPreview(null);
+
       setRevision((r) => r + 1);
       setError("");
       return true;
@@ -768,38 +808,6 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
   function editNodeVisual(visual: Visual, asset?: VisualAsset) {
     commitDocument({ ...document, ...(asset ? { assets: [...(document.assets ?? []), asset] } : {}), placements: document.placements.map((p) => selectedIds.has(p.id) ? { ...p, visual } : p) });
   }
-  function createType() {
-    const name = window.prompt("New relationship type name (provisional)");
-    if (!name?.trim()) return;
-    const id = newId();
-    commitDocument({
-      ...document,
-      relationshipTypes: [
-        ...document.relationshipTypes,
-        {
-          id,
-          name: name.trim(),
-          symbol: "",
-          definition: "",
-          roles: [
-            { id: "source", name: "From" },
-            { id: "target", name: "To" },
-          ],
-        },
-      ],
-    });
-  }
-  function patchType(
-    typeId: string,
-    changes: Partial<(typeof document.relationshipTypes)[number]>,
-  ) {
-    commitDocument({
-      ...document,
-      relationshipTypes: document.relationshipTypes.map((t) =>
-        t.id === typeId ? { ...t, ...changes } : t,
-      ),
-    });
-  }
   function makeScope(entityIds: string[]): FrameScope {
     return {
       anchorIds: entityIds.slice(0, 1),
@@ -848,15 +856,6 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
     frame.history.push({ revision: document.revision, scope: structuredClone(frame.scope) });
     frame.scope = scope;
     commitDocument(next);
-  }
-  function reviewProposal() {
-    try {
-      setProposalPreview(validateChangeSet(document, parseChangeSet(proposalText)));
-      setError("");
-    } catch (e) {
-      setProposalPreview(null);
-      setError(`Proposal rejected. ${message(e)}`);
-    }
   }
   function toggleNode(id: string) {
     const placement = document.placements.find((p) => p.id === id);
@@ -1064,7 +1063,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
   }
   function invokeContextShortcut(id: string): boolean {
     if (invokeCatalogAction(id, action => runAction(action))) return true;
-    const nodeAction = ["createChild", "insertExisting", "connect", "detach", "toggle", "focus", "edit", "removePlacement", "deleteIdentity"].find(action => id === `context:node:${action}`);
+    const nodeAction = [...NODE_ACCESS_ACTIONS.map(([id])=>id), "createChild", "insertExisting", "connect", "detach", "toggle", "focus", "edit", "removePlacement", "deleteIdentity"].find(action => id === `context:node:${action}`);
     if (nodeAction && selectedNode) {
       contextAction(nodeAction as ContextAction, { kind: "node", id: selectedNode.id });
       return true;
@@ -1092,6 +1091,9 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
     }
     const id = target.kind === "node" ? target.id : null;
     switch (action) {
+      case "document": if(id){selectNodeImmediately(id);navigate("document",id);} break;
+      case "variants": if(id){selectNodeImmediately(id);toggleVariants(id);} break;
+      case "addVariant": if(id){selectNodeImmediately(id);createVariant(id);} break;
       case "createUIFrame": { const point = target.kind === "space" ? target.screen : undefined; updateUI((layout) => uiContextEnabled(layout)?({ ...layout, frames: [...layout.frames, { id: crypto.randomUUID(), name: "New frame", x: point?.x ?? 120, y: point?.y ?? 180, cellSize: 96, collapsed: false, pinned: false }] }):layout); break; }
       case "createChild": if (id) addNode(id); break;
       case "createAt": if (target.kind === "space") addNode(null, target.world); break;
@@ -1125,6 +1127,10 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
       case "appearance": setThemeOpen(true); break;
       case "ui:redo": setAppearancePreview(null); actionHistory.travel("redo", { ...actionHistory.options, mode: "selective", categories: ["ui"], ...(steps ? { steps } : {}) }); break;
       case "ui:select": case "ui:compact": case "ui:align": setUICommand(old => ({ action: action === "ui:select" ? "select" : action === "ui:align" ? "align" : "compact", sequence: (old?.sequence ?? 0) + 1 })); break;
+      case "ui:hideUI": {
+        if(window.document.activeElement instanceof HTMLElement)window.document.activeElement.blur();
+        changeUiHidden(!uiHiddenRef.current);break;
+      }
       case "ui:reset": setUICommand(old => ({ action: "reset", sequence: (old?.sequence ?? 0) + 1 })); break;
       case "ui:devMode": updateUI(layout => ({ ...layout, panels: { ...layout.panels, "@devMode": !layout.panels["@devMode"] } })); break;
       case "ui:arrange": updateUI((layout) => ({ ...layout, panels: { ...layout.panels, "@library": true } })); break;
@@ -1180,11 +1186,11 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
       if (event.defaultPrevented || isTypingTarget(event.target)) { heldNudges.stop(); return; }
       // Registered scoped owners get first refusal before legacy global actions,
       // regardless of capture-listener mount order (notably held world arrows).
-      if(preferredFeatureKey(settings.bindings,normalizeKey(event),id=>featureActionRuntime.available(id),false,settingsOpen||!!insertContext))return;
+      if(preferredFeatureKey(settings.bindings,normalizeKey(event),id=>featureActionRuntime.available(id),false,isShortcutBlocked(settingsOpen, !!uiLayout.panels["@workspaceOnly"], !!insertContext)))return;
       const action = actionForKey(settings.bindings, normalizeKey(event));
       if (!action || (event.repeat && !isNudgeAction(action))) return;
       if (isNudgeAction(action) && selection?.kind !== "node") return;
-      if ((settingsOpen || insertContext) && action !== "cancel" && action !== "searchUI") return;
+      if (isShortcutBlocked(settingsOpen, !!uiLayout.panels["@workspaceOnly"], !!insertContext) && action !== "cancel" && action !== "searchUI") return;
       event.preventDefault();
       if (isNudgeAction(action)) {
         // Stale queued presses cannot start a new movement after a main-thread stall.
@@ -1202,10 +1208,11 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
       clearRecordedShortcutPress();
       if (capturing) { recordShortcutPress(event); consumedShortcutPress.current = event.button; claimUIPress(event.pointerId, event.pointerType, event.buttons); event.preventDefault(); event.stopImmediatePropagation(); assignBinding(normalizePointer(event)); return; }
       if (event.defaultPrevented) return;
+      if (protectWorkspacePrimaryPress(!!uiLayout.panels["@workspaceOnly"],event.button,event.ctrlKey||event.altKey||event.shiftKey||event.metaKey,controlInputOwner(event.target as Element,event.composedPath()))) return;
       const contextAction=preferredFeatureKey(settings.bindings,normalizePointer(event),id=>FEATURE_ACTIONS.some(action=>action.id===id&&action.owner==='activeContext')&&featureActionRuntime.available(id));
       if(contextAction){consumedShortcutPress.current=event.button;claimUIPress(event.pointerId,event.pointerType,event.buttons);event.preventDefault();event.stopImmediatePropagation();featureActionRuntime.invoke(contextAction,event);return;}
       const action = actionForKey(settings.bindings, normalizePointer(event));
-      if (action && (!(settingsOpen || insertContext) || action === "cancel" || action === "searchUI")) {
+      if (action && (!isShortcutBlocked(settingsOpen, !!uiLayout.panels["@workspaceOnly"], !!insertContext) || action === "cancel" || action === "searchUI")) {
         consumedShortcutPress.current = event.button;
         claimUIPress(event.pointerId, event.pointerType, event.buttons);
         event.preventDefault(); event.stopImmediatePropagation(); runAction(action); return;
@@ -1236,7 +1243,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
   });
   useEffect(() => {
     heldNudges.stop();
-  }, [selection?.kind, selection?.id, capturing, settingsOpen, insertContext, settings.bindings]);
+  }, [selection?.kind, selection?.id, capturing, settingsOpen, uiLayout.panels["@workspaceOnly"], insertContext, settings.bindings]);
   useEffect(() => {
     const stop = () => heldNudges.stop();
     const focus = (event: FocusEvent) => { if (isTypingTarget(event.target)) stop(); };
@@ -1281,10 +1288,10 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
   for(const entry of UI_FIELD_CATALOG)uiFunctions.push({...entry,control:true,available:false,element:<p>Select the relevant node, relationship or investigation to edit {entry.label.toLowerCase()}.</p>});
   const replaceFunction = (id: string, label: string, element: React.ReactElement, control = false) => { const index = uiFunctions.findIndex((f) => f.id === id); const value = { id, label, element, control, category: uiFunctions[index]?.category ?? (control ? "Settings" : id.startsWith("panel:") ? "Panels" : "Workspace") }; if (index >= 0) uiFunctions[index] = value; else uiFunctions.push(value); };
   const field = (id: string, label: string, element: React.ReactElement) => { const entry=UI_FIELD_CATALOG.find(f=>f.id===id);replaceFunction(id, entry?.label??label, element, true);if(entry)uiFunctions.find(f=>f.id===id)!.category=entry.category; return <FunctionControl id={id} key={id} />; };
-  for(const action of ACTIONS){replaceFunction(`shortcut:${action.id}`,`${action.label} shortcut`,<div className="binding-row" title={FEATURE_ACTIONS.find(feature => feature.id === action.id)?.description}><FunctionControl id={action.id} palette/><button aria-label={`Rebind ${action.label}`} title="Click, then press a key or mouse button" onClick={()=>setCapturing(action.id)}>{capturing===action.id?'Press a key or mouse button…':functionShortcutBinding(action.id, settings.bindings)||'Unassigned'}</button><button aria-label={`Clear shortcut ${action.label}`} onClick={()=>setSettings(s=>({...s,bindings:{...s.bindings,[action.id]:''}}))}>×</button></div>,true);uiFunctions.find(f=>f.id===`shortcut:${action.id}`)!.category='Shortcuts';}
+  for(const action of ACTIONS){replaceFunction(`shortcut:${action.id}`,`${action.label} shortcut`,<div className="binding-row" title={FEATURE_ACTIONS.find(feature => feature.id === action.id)?.description}><FunctionControl id={action.id} palette/>{(!!functionShortcutBinding(action.id, settings.bindings)||capturing===action.id)&&<><button aria-label={`Rebind ${action.label}`} title="Click, then press a key or mouse button" onClick={()=>setCapturing(action.id)}>{capturing===action.id?'Press a key or mouse button…':functionShortcutBinding(action.id, settings.bindings)||'Unassigned'}</button><button aria-label={`Clear shortcut ${action.label}`} onClick={()=>setSettings(s=>({...s,bindings:{...s.bindings,[action.id]:''}}))}>×</button></>}</div>,true);uiFunctions.find(f=>f.id===`shortcut:${action.id}`)!.category='Shortcuts';}
   for (const [id, key] of Object.entries(settings.bindings).filter(([id]) => id.startsWith("button:"))) {
     const label = settings.buttonLabels[id] ?? id.slice(7);
-    replaceFunction(`shortcut:${id}`, `${label} shortcut`, <div className="binding-row"><button onClick={() => window.dispatchEvent(new CustomEvent("omnium:invoke-button", { detail: id }))}>{label}</button><button aria-label={`Rebind ${label}`} onClick={() => { captureLabel.current = label; setCapturing(id); }}>{capturing === id ? "Press a key…" : key || "Unassigned"}</button><button aria-label={`Clear shortcut ${label}`} onClick={() => setSettings(s => ({ ...s, bindings: { ...s.bindings, [id]: "" } }))}>×</button></div>, true);
+    replaceFunction(`shortcut:${id}`, `${label} shortcut`, <div className="binding-row"><button onClick={() => window.dispatchEvent(new CustomEvent("omnium:invoke-button", { detail: id }))}>{label}</button>{(!!key||capturing===id)&&<><button aria-label={`Rebind ${label}`} onClick={() => { captureLabel.current = label; setCapturing(id); }}>{capturing === id ? "Press a key…" : key || "Unassigned"}</button><button aria-label={`Clear shortcut ${label}`} onClick={() => setSettings(s => ({ ...s, bindings: { ...s.bindings, [id]: "" } }))}>×</button></>}</div>, true);
     uiFunctions.find(f => f.id === `shortcut:${id}`)!.category = "Shortcuts";
   }
 
@@ -1336,30 +1343,28 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
   replaceFunction("ui:saveTemplate", "Save UI template", <button onClick={exportTemplate}>Save UI template</button>);
   replaceFunction("ui:import", "Import JSON", <button onClick={() => fileInput.current?.click()}>Import JSON</button>);
   replaceFunction("ui:loadTemplate", "Load UI template", <button onClick={() => templateInput.current?.click()}>Load UI template</button>);
+  replaceFunction("ui:hideUI", "Hide UI", <button type="button" title="Press Escape to show the UI again" onClick={() => runAction("ui:hideUI")}>Hide UI</button>);
   replaceFunction("ui:view", "Layout view", <label className="toolbar-snap">View<select aria-label="Layout view" value={document.activeLayoutViewId ?? "authored-layout"} onChange={(e) => switchView(e.target.value)}>{!document.layoutViews?.some((v) => v.id === "authored-layout") && <option value="authored-layout">Authored layout</option>}{document.layoutViews?.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}</select></label>, true);
   replaceFunction("ui:viewRule", "New view rule", <label className="toolbar-snap">New view rule<select aria-label="New view rule" value={layoutRule} onChange={(e) => setLayoutRule(e.target.value as typeof layoutRule)}><option value="hierarchy">Hierarchy · top down</option><option value="flow">Directed flow · chosen roles</option><option value="compact">Compact · 3D</option><option value="manual">Manual · copy current</option></select></label>, true);
   replaceFunction("ui:snap", "Snap spacing", <label className="toolbar-snap">Snap<select aria-label="Snap spacing" value={settings.spatial.spacing} onChange={(e) => setSettings((old) => ({ ...old, spatial: { ...old.spatial, spacing: Number(e.target.value) as GridSpacing } }))}>{[0,.25,.5,1,2,5].map((v) => <option key={v} value={v}>{v || "Off"}</option>)}</select></label>, true);
   replaceFunction("ui:settingsSnap", "Settings snap spacing", <label>Snap spacing<select aria-label="Settings snap spacing" value={settings.spatial.spacing} onChange={(event) => setSettings((old) => ({ ...old, spatial: { ...old.spatial, spacing: Number(event.target.value) as GridSpacing } }))}>{[0, 0.25, 0.5, 1, 2, 5].map((step) => <option key={step} value={step}>{step || "Off"}</option>)}</select></label>, true);
   replaceFunction("ui:nodeNames", "Node names", <label>Names<select aria-label="Node names" value={settings.spatial.nodeNames ?? "expanded"} onChange={event => setSettings(old => ({ ...old, spatial: { ...old.spatial, nodeNames: event.target.value as "expanded" | "all" | "selection" } }))}><option value="expanded">Expanded</option><option value="all">All</option><option value="selection">Selection</option></select></label>, true);
   replaceFunction("ui:nodeCellSize", "Lattice scale", <label>Lattice scale<input key={settings.spatial.latticeScale??1} aria-label="Lattice scale" type="number" step="any" defaultValue={settings.spatial.latticeScale ?? 1} onBlur={event=>{const value=event.target.valueAsNumber;if(Number.isFinite(value)&&value>0)setSettings(old=>({...old,spatial:{...old.spatial,latticeScale:value}}));else event.target.value=String(settings.spatial.latticeScale??1);}} onKeyDown={event=>{if(event.key==='Enter'){event.preventDefault();event.currentTarget.blur();}if(event.key==='Escape'){event.preventDefault();event.stopPropagation();event.currentTarget.value=String(settings.spatial.latticeScale??1);event.currentTarget.blur();}}} title="Positive scale, including scientific notation. Enter applies. Scales cells and O carriers together; content keeps its size." /></label>, true);
-  replaceFunction("ui:vacantCells", "Show empty lattice cells", <label><input type="checkbox" checked={!!settings.spatial.showVacantCells} onChange={event=>setSettings(old=>({...old,spatial:{...old.spatial,showVacantCells:event.target.checked}}))}/>Empty lattice cells</label>, true);
   replaceFunction("ui:radius", "Minimum placement clearance radius", <CoupledField bindings={propertyBindings} consumer="spatial.placement" property="placement.radius" />, true);
   replaceFunction("ui:clearance", "Collision clearance", <CoupledField bindings={propertyBindings} consumer="spatial.placement" property="placement.clearance" />, true);
   replaceFunction("ui:subtreeModifier", "Subtree click modifier", <label>Expand/collapse subtree click modifier<select aria-label="Subtree click modifier" value={settings.mouse.subtreeModifier} onChange={(event) => setSettings((old) => ({ ...old, mouse: { ...old.mouse, subtreeModifier: event.target.value as WorkspaceSettings["mouse"]["subtreeModifier"] } }))}><option value="shift">Shift</option><option value="alt">Alt</option><option value="ctrl">Ctrl / Cmd</option><option value="none">Off</option></select></label>, true);
   replaceFunction("ui:startInvestigation", "Start frame", <button onClick={createFrame}>Start frame</button>);
-  replaceFunction("ui:defineType", "Define relationship type", <button onClick={createType}>+ Define type</button>);
-  replaceFunction("ui:reviewProposal", "Validate and preview", <button onClick={reviewProposal}>Validate and preview</button>);
   replaceFunction("ui:flowType", "View relationship type", flowType ? <label className="toolbar-snap">Order type<select aria-label="View relationship type" value={flowType.id} onChange={(event) => setFlowOrder({ typeId: event.target.value, fromRoleId: "", toRoleId: "" })}>{document.relationshipTypes.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select></label> : <span>Define a relationship type first</span>, true);
   replaceFunction("ui:flowFrom", "View upstream role", flowType ? <label className="toolbar-snap">Upstream role<select aria-label="View upstream role" value={resolvedOrder.fromRoleId} onChange={(event) => setFlowOrder({ ...resolvedOrder, fromRoleId: event.target.value })}>{flowType.roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</select></label> : <span>Define a relationship type first</span>, true);
   replaceFunction("ui:flowTo", "View downstream role", flowType ? <label className="toolbar-snap">Downstream role<select aria-label="View downstream role" value={resolvedOrder.toRoleId} onChange={(event) => setFlowOrder({ ...resolvedOrder, toRoleId: event.target.value })}>{flowType.roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</select></label> : <span>Define a relationship type first</span>, true);
-  for (const [id, title] of [["reuse", "Reuse identity"], ["hierarchy", "Hierarchy"], ["frames", "Investigative frames"], ["inspector", "Inspector"], ["connections", "Connect nodes"], ["types", "Relationship types"], ["ai", "External AI proposal"], ["relationships", "Relationships"], ["help", "Workspace help"]]) replaceFunction(`panel:${id}`, title, <button onClick={() => revealPanel(id)}>{title}</button>);
+  for (const [id, title] of [["reuse", "Reuse identity"], ["hierarchy", "Hierarchy"], ["frames", "Investigative frames"], ["inspector", "Inspector"], ["relationships", "Relationships"]]) replaceFunction(`panel:${id}`, title, <button onClick={() => revealPanel(id)}>{title}</button>);
   for (const fn of uiFunctions) {
     const metadata = ACTIONS.find(action => action.id === fn.id);
     if (metadata && "configuration" in metadata && metadata.configuration === "history") fn.configuration = <HistoryControls history={actionHistory} />;
   }
   return (
     <><AppearanceRecovery open={recoveryOpen} onOpen={setRecoveryOpen} pending={appearancePending} safe={safeView} onSafe={setSafeView} onApply={applyAppearance} onDiscard={discardAppearance} onReset={() => restoreAppearance(defaultSettings().appearance)} checkpoints={checkpoints} onSave={name => { storeCheckpoints(appendCheckpoint(checkpoints, savedSettings.appearance, name || "Manual checkpoint", true)); }} onRestore={checkpoint => restoreAppearance(checkpoint.appearance)} error={recoveryError} />
-    <UIWorkspace appearance={{ pattern:patternPaint,masterOpen: themeOpen, activityPreview: setActivityRequests, inspect: setMasterInspection, subtreeModifier: settings.mouse.subtreeModifier, safe: safeView, base: previewAppearance, applied: savedSettings.appearance, fonts: customFonts, commit: (controller: Controller) => { setAppearancePreview(null); setSettings(old => old.appearance.controller === controller ? old : ({ ...old, appearance: { ...old.appearance, controller } })); }, preview: controller => setAppearancePreview(previous => controller ? (controller === (previous ?? ui.settings.appearance).controller ? previous : { ...ui.settings.appearance, controller }) : null), reveal: path => setSearchReveal(path ? { path } : null) }} search={{ open: searchOpen, onClose: () => setSearchOpen(false), onPreview: setSearchReveal, onKeep: reveal => { updateUI(layout => revealSearchPath(layout, reveal)); setSearchReveal(null); } }} shortcuts={{ onInvoke: invokeContextShortcut, bindings: settings.bindings, capturing, blocked: settingsOpen || !!insertContext, onCapture: (id, label) => { captureLabel.current = label; setCapturing(id); }, onClear: id => setSettings(s => ({ ...s, bindings: { ...s.bindings, [id]: "" } })) }} layout={uiLayout} update={updateUI} functions={uiFunctions} command={uiCommand} onReset={() => { updateUI(() => validateUILayout(structuredClone(websiteTemplate.layout))); setCapturing(null); setShortcutsHovered(false); }}><div className="workbench"><OmnicWorkspaceActions selected={!!selectedEntity}
+    <UIWorkspace appearance={{ pattern:patternPaint,masterOpen: themeOpen, activityPreview: setActivityRequests, inspect: setMasterInspection, subtreeModifier: settings.mouse.subtreeModifier, safe: safeView, base: previewAppearance, applied: savedSettings.appearance, fonts: customFonts, commit: (controller: Controller) => { setAppearancePreview(null); setSettings(old => old.appearance.controller === controller ? old : ({ ...old, appearance: { ...old.appearance, controller } })); }, preview: controller => setAppearancePreview(previous => controller ? (controller === (previous ?? ui.settings.appearance).controller ? previous : { ...ui.settings.appearance, controller }) : null), reveal: path => setSearchReveal(path ? { path } : null) }} search={{ open: searchOpen, onClose: () => setSearchOpen(false), onPreview: setSearchReveal, onKeep: reveal => { updateUI(layout => revealSearchPath(layout, reveal)); setSearchReveal(null); } }} shortcuts={{ onInvoke: invokeContextShortcut, bindings: settings.bindings, capturing, blocked: isShortcutBlocked(settingsOpen, !!uiLayout.panels["@workspaceOnly"], !!insertContext), onCapture: (id, label) => { captureLabel.current = label; setCapturing(id); }, onClear: id => setSettings(s => ({ ...s, bindings: { ...s.bindings, [id]: "" } })) }} layout={uiLayout} update={updateUI} functions={uiFunctions} command={uiCommand} onReset={() => { updateUI(() => validateUILayout(structuredClone(websiteTemplate.layout))); setCapturing(null); setShortcutsHovered(false); }}><div className="workbench"><OmnicWorkspaceActions selected={!!selectedEntity}
       canShow={!!selectedEntity?.omnic && !!selectedPlacement?.visual && !!(selectedPlacement.visual.assetId || selectedPlacement.visual.character)}
       onLibrary={() => setOmnicLibraryOpen(true)} onOpen={() => { try { if (selectedEntity) setOmnicEditorId(selectedEntity.id); else startOmnicDraft(); } catch(e) { setError(message(e)); } }}
       onCreate={() => { try { startOmnicDraft(); } catch(e) { setError(message(e)); } }}
@@ -1367,23 +1372,19 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
       <ScoreTracker bindings={propertyBindings} /><ShortcutConfiguration mouse={settings.mouse} bindings={propertyBindings} /><FrameResizeController bindings={propertyBindings} /><SearchController bindings={propertyBindings} /><FrameViewportSystem /><HistoryActionBridge history={actionHistory} />
       <input ref={themeTemplateInput} type="file" accept="application/json,.json" hidden aria-label="Import theme template file" onChange={event => void importTheme(event.target.files?.[0])} />
       <input ref={fontInput} type="file" accept=".woff2,.woff,.ttf,.otf" hidden aria-label="Import font file" onChange={event => void importFont(event.target.files?.[0])} />
-      <header className="toolbar">
-        <div className="brand">
-          <strong>Omnium</strong>
-          <span>Atlas workbench</span>
-        </div>
-        <div className="toolbar-actions">
-          <FunctionControl id="searchUI" />
+      {/* Keep native menu owners mounted so user-moved tabs and saved placements remain live. */}
+      <div hidden>
+        <div>
           {uiLayout.panels["@organized"] ? <>
           <UIFrameStrip id="@toolbarFrames">
           <UIPanel id="menu:file" title="File" menu>
             {["ui:import", "ui:export", "ui:saveTemplate", "ui:loadTemplate"].map(id => <FunctionControl id={id} key={id} />)}
           </UIPanel>
           <UIPanel id="menu:create" title="Create" menu>
-            {["omnic.library", "omnic.create", "omnic.open", "panel:reuse", "panel:connections", "panel:types", "panel:frames", "panel:ai", "ui:snap"].map(id => <FunctionControl id={id} key={id} />)}
+            {["omnic.library", "omnic.create", "omnic.open", "panel:reuse", "panel:frames", "ui:snap"].map(id => <FunctionControl id={id} key={id} />)}
           </UIPanel>
           <UIPanel id="menu:view" title="View" menu>
-            <FunctionControl id="appearance" />
+            <FunctionControl id="ui:hideUI" /><FunctionControl id="appearance" />
             <FunctionControl id="theme" />
             <FunctionControl id="ui:view" /><FunctionControl id="ui:viewRule" />
             {layoutRule === "flow" && flowType && <>
@@ -1391,7 +1392,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
             <FunctionControl id="ui:flowFrom" />
             <FunctionControl id="ui:flowTo" />
             </>}
-            {["ui:newView", "fitAll", "panel:hierarchy", "panel:inspector", "panel:relationships", "panel:help"].map(id => <FunctionControl id={id} key={id} />)}
+            {["ui:newView", "fitAll", "panel:hierarchy", "panel:inspector", "panel:relationships"].map(id => <FunctionControl id={id} key={id} />)}
           </UIPanel>
           <UIPanel id="menu:infinity" title="♾️" menu>
             {["metrics.open", "quests.open", "leaderboard.open"].map(id => <FunctionControl id={id} key={id} />)}
@@ -1400,13 +1401,10 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
             {["settings", "shortcuts", "ui:devMode", "ui:arrange", "ui:createFrame", "ui:select", "ui:compact", "ui:align", "ui:undo", "ui:redo", "ui:reset"].map(id => <FunctionControl id={id} key={id} />)}
           </UIPanel>
           </UIFrameStrip>
-          <div className="primary-charting-actions" role="toolbar" aria-label="Charting actions">
-            {["newNode", "newChild", "connect", "compactAll", "undo", "redo"].map(id => <FunctionControl id={id} key={id} />)}
-          </div>
           </> : <>
             <FunctionControl id="ui:view" /><FunctionControl id="ui:viewRule" />
             {layoutRule === "flow" && flowType && <><FunctionControl id="ui:flowType" /><FunctionControl id="ui:flowFrom" /><FunctionControl id="ui:flowTo" /></>}
-            {["ui:newView", "newNode", "compactAll", "ui:snap", "settings", "shortcuts", "undo", "redo", "ui:export", "ui:saveTemplate", "ui:import", "ui:loadTemplate"].map(id => <FunctionControl id={id} key={id} />)}
+            {["ui:newView", "ui:snap", "settings", "shortcuts", "ui:export", "ui:saveTemplate", "ui:import", "ui:loadTemplate"].map(id => <FunctionControl id={id} key={id} />)}
             <UIArrangeButtons /><FunctionControl id="ui:reset" />
           </>}
           {transfer&&<WorkspaceTransferDialog workspace={workspace} source={transfer.source} onApply={applyTransfer} onClose={()=>setTransfer(null)}/>}
@@ -1429,10 +1427,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
             }}
           />
         </div>
-        <span className="save-status" role="status">
-          {saveStatus} · {atlas.nodes.length} nodes · {atlas.relationships.length} relationships
-        </span>
-      </header>
+      </div>
       {error && (
         <div className="error" role="alert">
           {error}
@@ -2108,149 +2103,6 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
               <p>Select a node or relationship to edit it.</p>
             )}
           </UIPanel>
-          <UIPanel id="connections" title="Connect nodes">
-            <p>Choose endpoints below to add a directed relationship.</p>
-            {field("field:new-relationship-source", "New relationship source", <label>
-              From
-              <select
-                aria-label="New relationship source"
-                value={source}
-                onChange={(e) => setSource(e.target.value)}
-              >
-                <option value="">Choose node</option>
-                {options()}
-              </select>
-            </label>)}
-            {field("field:new-relationship-target", "New relationship target", <label>
-              To
-              <select
-                aria-label="New relationship target"
-                value={target}
-                onChange={(e) => setTarget(e.target.value)}
-              >
-                <option value="">Choose node</option>
-                {options()}
-              </select>
-            </label>)}
-            <button
-              disabled={
-                !atlas.nodes.some((n) => n.id === source) ||
-                !atlas.nodes.some((n) => n.id === target)
-              }
-              onClick={() => connect({ source, target })}
-            >
-              Add relationship
-            </button>
-          </UIPanel>
-          <UIPanel id="types" title="Relationship types">
-            <FunctionControl id="ui:defineType" />
-            {document.relationshipTypes.map((type) => (
-              <div key={type.id}>
-                {field("field:" + (`Type name ${type.id}`), `Type name ${type.id}`, <label>
-                  Type name{" "}
-                  <input
-                    aria-label={`Type name ${type.id}`}
-                    value={type.name}
-                    onChange={(e) => patchType(type.id, { name: e.target.value })}
-                  />
-                </label>)}
-                {field("field:" + (`Type symbol ${type.id}`), `Type symbol ${type.id}`, <label>
-                  Display symbol{" "}
-                  <input
-                    aria-label={`Type symbol ${type.id}`}
-                    value={type.symbol}
-                    maxLength={50}
-                    onChange={(e) => patchType(type.id, { symbol: e.target.value })}
-                  />
-                </label>)}
-                {field("field:" + (`Type definition ${type.id}`), `Type definition ${type.id}`, <label>
-                  Definition{" "}
-                  <textarea
-                    aria-label={`Type definition ${type.id}`}
-                    value={type.definition}
-                    onChange={(e) => patchType(type.id, { definition: e.target.value })}
-                  />
-                </label>)}
-                {type.roles.slice(0, 2).map((role, i) => (
-                  field("field:" + (`Role ${i + 1} ${type.id}`), `Role ${i + 1} ${type.id}`, <label key={role.id}>
-                    Role {i + 1}
-                    <input
-                      aria-label={`Role ${i + 1} ${type.id}`}
-                      value={role.name}
-                      onChange={(e) =>
-                        patchType(type.id, {
-                          roles: type.roles.map((r) =>
-                            r.id === role.id ? { ...r, name: e.target.value } : r,
-                          ),
-                        })
-                      }
-                    />
-                  </label>)
-                ))}
-              </div>
-            ))}
-          </UIPanel>
-          <UIPanel id="ai" title="External AI proposal">
-            <p>
-              Export the atlas JSON for an external AI. Ask it for an <code>omnium-changeset</code>{" "}
-              with this document revision ({document.revision}) and stable IDs. Valid structure
-              still needs your factual review.
-            </p>
-            {field("field:change-set-json", "Change set JSON", <textarea
-              aria-label="Change set JSON"
-              rows={7}
-              value={proposalText}
-              onChange={(e) => {
-                setProposalText(e.target.value);
-                setProposalPreview(null);
-              }}
-              placeholder="Paste change-set JSON"
-            />)}
-            <button onClick={() => proposalInput.current?.click()}>
-              Load change-set JSON file
-            </button>
-            <input
-              ref={proposalInput}
-              type="file"
-              accept=".json,application/json"
-              hidden
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file && file.size > 5_000_000)
-                  setError("Change set exceeds the 5 MB import limit.");
-                else if (file)
-                  void file
-                    .text()
-                    .then((value) => {
-                      setProposalText(value);
-                      setProposalPreview(null);
-                    })
-                    .catch((error) => setError(message(error)));
-                event.target.value = "";
-              }}
-            />
-            <FunctionControl id="ui:reviewProposal" />
-            {proposalPreview && (
-              <div className="proposal-preview">
-                <p>Proposed changes at revision {document.revision}:</p>
-                <ul>
-                  {proposalPreview.lines.map((line, i) => (
-                    <li key={i}>{line}</li>
-                  ))}
-                </ul>
-                <button
-                  onClick={() => {
-                    if (window.confirm("Apply these reviewed structural changes?")) {
-                      commitDocument(proposalPreview.next);
-                      setProposalText("");
-                    }
-                  }}
-                >
-                  Approve and apply atomically
-                </button>
-              </div>
-            )}
-          </UIPanel>
           {
             <UIPanel id="relationships" title="Relationships">
                 <p>
@@ -2274,21 +2126,10 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
             </UIPanel>
           }
           <UIPanel id="scene" title="Scene">
-            <ScenePanel normalization={imagePreferences} normalizationState={normalizedScene} node={selectedNode && selectedEntity ? { id: selectedNode.id, label: selectedEntity.label, notes: selectedEntity.notes } : null}
+            <ScenePanel customWavePresets={settings.functionValues[WAVE_PRESETS_OWNER] ?? {}} onSaveWavePreset={(waves,values)=>setSettings(old=>({...old,functionValues:{...old.functionValues,[WAVE_PRESETS_OWNER]:appendWavePreset(old.functionValues[WAVE_PRESETS_OWNER],waves,values)}}))} normalization={imagePreferences} normalizationState={normalizedScene} node={selectedNode && selectedEntity ? { id: selectedNode.id, label: selectedEntity.label, notes: selectedEntity.notes } : null}
               revision={document.revision} bindings={propertyBindings} onApply={sceneBackground.apply}
               hasBackground={!!sceneBackground.reference} backgroundError={sceneBackground.error} backgroundKey={sceneReferenceKey(sceneBackground.reference)}
               onForgetLocal={sceneBackground.forgetLocal} nodeExists={id => sceneNodeIdsRef.current.has(id)} />
-          </UIPanel>
-          <UIPanel id="help" title="Workspace help" className="help">
-            <p>
-              Click a node to drive it with the mouse and Up/Down depth steps; click an empty slot to park, or Esc to cancel. Right-click for node actions. Drag empty space to pan; right-drag to navigate; scroll to zoom. Click a binder for connection and glyph actions.
-            </p>
-            <FunctionControl id="compactSelected" />
-            <FunctionControl id="compactFrame" />
-            <p>
-              Autosave is specific to this browser and origin. Export JSON for a portable backup.
-              This is a private local atlas.
-            </p>
           </UIPanel>
           </UIFrameStrip>
         </aside>
@@ -2366,7 +2207,7 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
         <div className="entity-results">{document.entities.filter((entity) => `${entity.id} ${entity.label} ${entity.aliases.join(" ")}`.toLowerCase().includes(insertQuery.toLowerCase())).slice(0, 30).map((entity) => <button key={entity.id} onClick={() => insertExisting(entity.id, insertContext.parentId, insertContext.world)}>{entity.label || entity.id}<small>{entity.id}</small></button>)}</div>
         <button onClick={() => setInsertContext(null)}>Close</button>
       </FloatingWindow>}
-      {(shortcutsPinned || shortcutsHovered) && <div onMouseLeave={() => setShortcutsHovered(false)}><ShortcutDisplay onInteract={() => setShortcutsPinned(true)} settings={renderSettings} onChange={setSettings} capturing={capturing} onCapture={setCapturing} onAction={runAction} onClose={() => { setShortcutsPinned(false); setShortcutsHovered(false); }} /></div>}
+      {(shortcutsPinned || shortcutsHovered) && <div onMouseLeave={() => setShortcutsHovered(false)}><ShortcutDisplay onInteract={() => setShortcutsPinned(true)} settings={renderSettings} onChange={setSettings} capturing={capturing} onCapture={(id,label) => { captureLabel.current=label ?? ""; setCapturing(id); }} onAction={runAction} onClose={() => { setShortcutsPinned(false); setShortcutsHovered(false); }} /></div>}
       {binderPopup && selectedBinder && <FloatingWindow id="binder-editor" openingKey={`${selection?.kind}:${selection?.id}:${binderPopup.x}:${binderPopup.y}`} title="Binder editor" className="binder-editor" x={binderPopup.x} y={binderPopup.y} width={370} height={560} onClose={() => setBinderPopup(null)} closeLabel="Close binder editor">{selectedBinderEdge&&<UISection id="binder-connection-actions" title="Binder actions"><UIAction id="binder:reverse" label="Reverse direction / hierarchy" category="Relationships" onClick={()=>binderConnectionAction('reverse')}/><UIAction id="binder:focus-endpoints" label="Focus both endpoints" category="Relationships" onClick={()=>{selectMany([selectedBinderEdge.source,selectedBinderEdge.target]);navigate('selection');setBinderPopup(null);}}/><UIAction id="binder:delete" label="Delete binder" category="Relationships" onClick={()=>binderConnectionAction('delete')}/></UISection>}<BinderControls {...binderThemeProps} value={selectedBinder} defaultText={selectedBinderText} onChange={editBinder} composition={selection?.kind === "composition"} /><VisualControls key={selection?.id} label="Binder" glyphs={binderGlyphs} value={selectedBinder.visual} assets={document.assets ?? []} onChange={(visual) => editBinder({ visual })} onAsset={(asset, visual) => editBinder({ visual }, asset)} /></FloatingWindow>}
       {omnicLibraryOpen && <FloatingWindow id="omnic-library" title="Omnic library" width={560} height={590} onClose={()=>setOmnicLibraryOpen(false)}>
         <Suspense fallback={<p>Opening library…</p>}><OmnicLibrary onExport={exportJSON} onImport={importWorkspaceBackup} onRecover={recoverWorkspaceBackup} workspace={workspace} onChange={commitWorkspace} onSwitch={switchAtlas} onOpen={setOmnicEditorId} onPlace={placeLibraryObject} onCopy={(recipe,label,source)=>createOmnicObject(recipe,label,source)} /></Suspense>
@@ -2392,11 +2233,17 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
         </EmbeddedGroup>
         </MasterController>
       </FloatingWindow>}
-      {settingsOpen && <FloatingWindow id="settings" title="Workspace settings" width={520} height={640} onClose={() => setSettingsOpen(false)}>
+      {settingsVisible && <FloatingWindow id="settings" title="Workspace settings" width={520} height={640} openAtCursor={!uiLayout.panels["@workspaceOnly"]} onClose={() => {
+        if (uiLayout.panels["@workspaceOnly"]) { updateUI(layout => ({...layout,windows:{...layout.windows,settings:{...layout.windows.settings,collapsed:true}}})); return true; }
+        setSettingsOpen(false);
+      }}>
+        {!uiLayout.panels["@workspaceOnly"] && <UISection id="workspace-interface-tools" title="Workspace interface tools">
+          {["ui:devMode", "shortcuts", "ui:arrange", "ui:createFrame", "ui:select", "ui:compact", "ui:align", "ui:undo", "ui:redo"].map(id => <FunctionControl key={id} id={id} mirror />)}
+        </UISection>}
         <CloudPanel />
-        <FunctionControl id="appearance" palette />
+        {!uiLayout.panels["@workspaceOnly"] && <FunctionControl id="appearance" palette />}
         <UISection id="spatial-settings" title="Spatial settings">
-          {["ui:nodeNames", "ui:nodeCellSize", "ui:vacantCells", "isolateFocus"].map(id => <FunctionControl key={id} id={id} />)}
+          {["ui:nodeNames", "ui:nodeCellSize", "isolateFocus"].map(id => <FunctionControl key={id} id={id} />)}
         </UISection>
         <UISection id="mouse-settings" title="Mouse & gestures">
           <FunctionControl id="ui:subtreeModifier" />
@@ -2405,13 +2252,17 @@ function Workbench({initial}:{initial:InitialWorkspace}) {
           {["backButton", "forwardButton"].map(key => <FunctionControl key={key} id={`ui:mouse:${key}`} />)}
         </UISection>
         <UISection id="keyboard-actions" title="Shortcuts & gestures">
+          <ShortcutPicker id="workspace-shortcut-search" settings={settings} capturing={capturing} onCapture={(id,label) => { captureLabel.current=label; setCapturing(id); }} />
           {ACTIONS.some(action => keyConflict(settings.bindings, action.id, settings.bindings[action.id])) && <p role="alert">Some bindings conflict. Reassign or clear the duplicate keys.</p>}
           {Array.from(new Set(ACTIONS.map(action => action.category))).map(category => <UISection key={category} id={`shortcuts-${category}`} title={category} className="settings-category">
             {ACTIONS.filter(action => action.category === category).map(action => <FunctionControl key={action.id} id={`shortcut:${action.id}`} />)}
             <ShortcutGestures category={category} />
           </UISection>)}
+          {Object.keys(settings.bindings).some(id => id.startsWith("button:")) && <UISection id="workspace-button-shortcuts" title="Button shortcuts">
+            {Object.keys(settings.bindings).filter(id => id.startsWith("button:")).map(id => <FunctionControl key={id} id={`shortcut:${id}`} />)}
+          </UISection>}
         </UISection>
-        <div className="dialog-actions"><FunctionControl id="ui:reset" palette /><button title="Reset mouse, keybindings and spatial preferences" onClick={() => { setSettings(old => ({ ...defaultSettings(), appearance: old.appearance })); setCapturing(null); }}>Reset controls</button><button onClick={() => { setSettingsOpen(false); setCapturing(null); }}>Close</button></div>
+        <div className="dialog-actions">{!uiLayout.panels["@workspaceOnly"] && <FunctionControl id="ui:reset" palette />}<button title="Reset mouse, keybindings and spatial preferences" onClick={() => { setSettings(old => ({ ...defaultSettings(), appearance: old.appearance })); setCapturing(null); }}>Reset controls</button><button onClick={() => { if (uiLayout.panels["@workspaceOnly"]) updateUI(layout => ({...layout,windows:{...layout.windows,settings:{...layout.windows.settings,collapsed:true}}})); else setSettingsOpen(false); setCapturing(null); }}>Close</button></div>
       </FloatingWindow>}
     </div><WindowSparkles source={renderSource} appearance={renderedAppearance} /></UIWorkspace></>
   );
