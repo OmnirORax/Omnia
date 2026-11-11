@@ -7,7 +7,7 @@ import { NORMALIZATION_FIELDS, normalizationProperty, normalizationPreferences }
 import { WAVE_CONTROLS, WAVE_PRESETS } from './vfx.ts';
 import { readWavePresets, appendWavePreset } from './wavePresets.ts';
 import { importLocalScene, listLocalScenes, localSceneBlob, downloadScene, deleteLocalScene, saveCopiedPrompt, type ScenePromptSnapshot } from './library.ts';
-import { loadSceneAudioFile, playSceneAudio, stopSceneAudio, sceneAudioSnapshot, subscribeSceneAudio, parkSceneAudioPlayer, toggleSceneSystemAudio, forgetSceneSystemAudio } from './audio.ts';
+import { sceneAudioSnapshot, subscribeSceneAudio, toggleSceneSystemAudio, forgetSceneSystemAudio } from './audio.ts';
 import { readSystemAudioPreference } from './systemAudioPreference.ts';
 import { resolveScenePrompt } from './contracts.ts';
 import { locate, sameOrigin, type Origin, type World } from '../core/model.ts';
@@ -17,11 +17,11 @@ type Host = { read: () => World; selected: () => readonly Origin[]; change: (edi
 export function scenePanel(host: Host) {
   let live = true; let target: Origin | undefined = host.selected()[0];
   const subscriptions: (() => void)[] = [];
-  const view = panel('Scene', () => { live = false; for (const stop of subscriptions.splice(0)) stop(); host.preview(host.read()); parkSceneAudioPlayer(); });
+  const view = panel('Scene', () => { live = false; for (const stop of subscriptions.splice(0)) stop(); host.preview(host.read()); });
   const navigation = document.createElement('nav'), body = document.createElement('div'); navigation.className = 'scene-tabs'; body.className = 'scene-content'; view.body.append(navigation, body);
   function attempt(action: () => void | Promise<void>) { void Promise.resolve().then(action).catch(error => host.feedback(error instanceof Error ? error.message : String(error))); }
   function button(label: string, action: () => void | Promise<void>, parent: HTMLElement = body) { const b = document.createElement('button'); b.textContent = label; b.onclick = () => attempt(action); parent.append(b); return b; }
-  function clear() { for (const stop of subscriptions.splice(0)) stop(); parkSceneAudioPlayer(); body.replaceChildren(); }
+  function clear() { for (const stop of subscriptions.splice(0)) stop(); body.replaceChildren(); }
   function update(edit: (settings: SceneSettings) => void) { host.change(world => { world.scene ??= defaultScene(); edit(world.scene); }); }
   function currentImage() { const w = host.read(), node = target && locate(w, target); return node?.scene !== undefined ? node.scene : w.scene?.image ?? null; }
   function assign(image: string | null) { host.change(world => { if (target) { const node = locate(world, target); if (!node) throw Error('Image destination no longer exists.'); node.scene = image; } else { world.scene ??= defaultScene(); world.scene.image = image; } }); }
@@ -109,9 +109,7 @@ export function scenePanel(host: Host) {
     }
   }
   function audio() {
-    clear(); button('Choose audio', () => { const file = document.createElement('input'); file.type = 'file'; file.accept = 'audio/*'; file.onchange = () => { if (file.files?.[0]) { loadSceneAudioFile(file.files[0]); audio(); } }; file.click(); });
-    button('Play', () => playSceneAudio()); button('Stop', () => stopSceneAudio());
-    const snapshot = sceneAudioSnapshot(); if (snapshot.player) { snapshot.player.controls = true; body.append(snapshot.player); }
+    clear();
     const code = document.createElement('input'); code.type = 'password'; code.placeholder = 'Helper pairing code'; code.setAttribute('aria-label', 'System audio pairing code'); code.autocomplete = 'off'; code.value = readSystemAudioPreference()?.code ?? ''; body.append(code);
     button('System audio', () => toggleSceneSystemAudio(code.value)); button('Forget connection', () => { forgetSceneSystemAudio(); code.value = ''; });
     const output = document.createElement('output'); body.append(output);

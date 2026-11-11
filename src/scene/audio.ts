@@ -10,40 +10,24 @@ let splitter:ChannelSplitterNode|null=null,stereo:AnalyserNode[]=[];
 const automaticPulse=createAutomaticPulse();let fftMode='',pulseResponse=0;
 export const scenePulseResponse=()=>pulseResponse;
 const spectrumBytes=[new Uint8Array(1024),new Uint8Array(1024)],bands=new Float32Array(32);
-let activeMedia:HTMLMediaElement|null=null;
-let cleanupMedia:(()=>void)|undefined;
 let cleanupNative:(()=>void)|undefined;
-type InputKind='file'|'system'|null;
+type InputKind='system'|null;
 let inputKind:InputKind=null;
 let bytes=new Uint8Array(0),epoch=0,status='No audio connected',connected=false;
-let player:HTMLAudioElement|null=null,playerURL='',parking:HTMLDivElement|null=null;
-let snapshot:{status:string;player:HTMLAudioElement|null;kind:InputKind;remembered:boolean}={status,player,kind:inputKind,remembered:false};
+let snapshot:{status:string;kind:InputKind;remembered:boolean}={status,kind:inputKind,remembered:false};
 const listeners=new Set<()=>void>();
-const publish=(message:string)=>{status=message;snapshot={status,player,kind:inputKind,remembered:!!readSystemAudioPreference()};listeners.forEach(fn=>fn());};
+const publish=(message:string)=>{status=message;snapshot={status,kind:inputKind,remembered:!!readSystemAudioPreference()};listeners.forEach(fn=>fn());};
 export const isSceneAudioConnected=()=>connected;
 export const sceneAudioStatus=()=>status;
 export const sceneAudioSnapshot=()=>snapshot;
 export const subscribeSceneAudio=(fn:()=>void)=>{listeners.add(fn);return()=>{listeners.delete(fn);};};
 export function disconnectSceneAudio(){
- automaticPulse.reset();fftMode='';pulseResponse=0;epoch++;cleanupNative?.();cleanupNative=undefined;inputKind=null;activeMedia?.pause();activeMedia=null;cleanupMedia?.();cleanupMedia=undefined;connected=false;source?.disconnect();source=null;analyser?.disconnect();analyser=null;
+ automaticPulse.reset();fftMode='';pulseResponse=0;epoch++;cleanupNative?.();cleanupNative=undefined;inputKind=null;connected=false;source?.disconnect();source=null;analyser?.disconnect();analyser=null;
  splitter?.disconnect();splitter=null;stereo.forEach(a=>a.disconnect());stereo=[];bands.fill(0);
  if(context)void context.close().catch(()=>{});context=null;bytes=new Uint8Array(0);publish('No audio connected');
 }
 function analysis(ctx:AudioContext){context=ctx;
- ctx.addEventListener?.('statechange',()=>{if(context!==ctx||!connected)return;if(ctx.state==='suspended')publish('Audio suspended — reconnect or press Play to resume');else if(ctx.state==='running')publish(inputKind==='system'?'System audio connected':'Audio file connected');});analyser=ctx.createAnalyser();analyser.fftSize=2048;analyser.smoothingTimeConstant=.7;bytes=new Uint8Array(analyser.frequencyBinCount);return analyser;}
-export async function connectSceneAudioElement(element:HTMLMediaElement){
- pauseRememberedSystemAudio();
- if(activeMedia===element&&connected&&context){void context.resume().catch(()=>publish('Press Play to enable browser audio'));return;}
- disconnectSceneAudio();const token=epoch;const ctx=new AudioContext();context=ctx;
- try{source=ctx.createMediaElementSource(element);source.connect(analysis(ctx));analyser!.connect(ctx.destination);
- if(ctx.createChannelSplitter){splitter=ctx.createChannelSplitter(2);source.connect(splitter);stereo=[ctx.createAnalyser(),ctx.createAnalyser()];stereo.forEach((a,i)=>{a.fftSize=2048;a.smoothingTimeConstant=.7;splitter!.connect(a,i);});}
- const resume=()=>{if(token===epoch)void ctx.resume().catch(()=>{if(token===epoch)publish('Press Play to enable browser audio');});};
- element.addEventListener('play',resume);cleanupMedia=()=>element.removeEventListener('play',resume);
- activeMedia=element;inputKind='file';connected=true;publish('Audio file connected');resume();}
- catch(error){if(token===epoch)disconnectSceneAudio();throw error;}
-}
-/** System PCM takes the same analyser graph as website playback, through a muted
- * output so capture is never replayed to the speakers or captured twice. */
+ ctx.addEventListener?.('statechange',()=>{if(context!==ctx||!connected)return;if(ctx.state==='suspended')publish('Audio suspended — click to resume');else if(ctx.state==='running')publish('System audio connected');});analyser=ctx.createAnalyser();analyser.fftSize=2048;analyser.smoothingTimeConstant=.7;bytes=new Uint8Array(analyser.frequencyBinCount);return analyser;}
 export async function connectSceneSystemAudio(code=readSystemAudioPreference()?.code??''){
  if(!systemAudioOriginSupported(window.location.origin))throw Error('Use the Omnium preview, omnium.nexus or localhost to connect system audio.');
  const pairingCode=systemAudioRequiresPairing(window.location.origin)?code.trim():'';
@@ -123,7 +107,7 @@ export function sampleSceneAudio(){
 /** Manual retains 16 log bands/channel; Automatic follows frequency-local rises
  * across both channels, retaining a short analysis window rather than sustained loudness. */
 export function sampleScenePulse(settings:SceneVfx,seconds=1/60){
- if(!connected||!context||context.state!=='running'||stereo.length!==2||activeMedia?.paused===true){pulseResponse=0;return 0;}
+ if(!connected||!context||context.state!=='running'||stereo.length!==2){pulseResponse=0;return 0;}
  const auto=settings.pulseRangeMode==='auto';
  if(fftMode!==settings.pulseRangeMode){
   fftMode=settings.pulseRangeMode;automaticPulse.reset();
@@ -151,43 +135,8 @@ export function sampleScenePulse(settings:SceneVfx,seconds=1/60){
  return pulseResponse;
 }
 
-/** The playback session belongs to the app, not to the settings panel DOM. */
-function filePlayer(url:string){
- const media=new Audio(url);media.controls=true;
- const connect=()=>{if(player!==media)return;void connectSceneAudioElement(media).catch(error=>publish(error instanceof Error?error.message:'Audio connection failed'));};
- media.addEventListener('pointerdown',connect);media.addEventListener('keydown',connect);media.addEventListener('play',connect);
- media.addEventListener('error',()=>{if(player!==media)return;disconnectSceneAudio();publish('This audio file could not be decoded. Choose a supported audio file.');});
- return media;
-}
-export function loadSceneAudioFile(file:File){
- pauseRememberedSystemAudio();
- disconnectSceneAudio();player?.pause();if(playerURL)URL.revokeObjectURL(playerURL);
- playerURL=URL.createObjectURL(file);player=filePlayer(playerURL);publish('Audio file ready — press Play');
-}
-/** Playback and analysis use the same app-owned element; no browser capture. */
-export async function playSceneAudio(){
- const media=player;
- if(!media){publish('Choose an audio file first');return;}
- await connectSceneAudioElement(media);
- if(player!==media)return;
- try{await media.play();if(player!==media)media.pause();}
- catch(error){if(player===media)publish(error instanceof Error?error.message:'Press Play to enable browser audio');throw error;}
-}
 export function stopSceneAudio(){
  pauseRememberedSystemAudio();
- disconnectSceneAudio();player?.pause();
- if(playerURL)player=filePlayer(playerURL); // A closed WebAudio source cannot reuse its media element.
- publish('No audio connected');
+ disconnectSceneAudio();
 }
-export function disposeSceneAudio(){
- disconnectSceneAudio();player?.pause();player?.remove();player=null;parking?.remove();parking=null;if(playerURL)URL.revokeObjectURL(playerURL);playerURL='';publish('No audio connected');
-}
-
-/** Keep the media element in the document while its settings view is closed.
- * Browsers can pause a playing element after it is detached, even if JS retains it. */
-export function parkSceneAudioPlayer(media:HTMLAudioElement|null=player){
- if(!media)return;
- if(media!==player){media.remove();return;}
- if(!parking){parking=document.createElement('div');parking.hidden=true;parking.dataset.sceneAudioSession='';document.body.appendChild(parking);}
- parking.appendChild(media);
-}
+export function disposeSceneAudio(){ disconnectSceneAudio(); }
