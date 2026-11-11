@@ -7,6 +7,7 @@ export function label(caption: string) {
   context.fillStyle = '#eeeee8'; context.shadowColor = '#101113'; context.shadowBlur = 8;
   lines.forEach((line, i) => context.fillText(line.trim(), canvas.width / 2, 36 + i * 48));
   const texture = new T.CanvasTexture(canvas); texture.colorSpace = T.SRGBColorSpace;
+  texture.generateMipmaps = true; texture.minFilter = T.LinearMipmapLinearFilter; texture.magFilter = T.LinearFilter;
   const sprite = new T.Sprite(new T.SpriteMaterial({ map: texture, transparent: true, depthWrite: false })); sprite.scale.set(canvas.width / 52, canvas.height / 52, 1); sprite.userData.aspect = canvas.width / canvas.height; return sprite;
 }
 export function disposeLabel(text: T.Sprite) { text.material.map?.dispose(); text.material.dispose(); }
