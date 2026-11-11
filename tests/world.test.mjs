@@ -58,7 +58,7 @@ test('shared definitions retain independent values and target only the requested
   const { world, a, b } = sample();
   const ca = capabilities(a).find(c => c.key === 'color'), cb = capabilities(b).find(c => c.key === 'color');
   assert.equal(ca.properties[0].property, cb.properties[0].property);
-  ca.properties[0].write('#ff0000'); assert.equal(b.color, '#c4cb9b');
+  const originalColor = b.color; ca.properties[0].write('#ff0000'); assert.equal(b.color, originalColor);
   translate(world, [a.origin, b.origin], [1, 2, 3]);
   assert.deepEqual(a.position, [1, 2, 3]); assert.deepEqual(b.position, [9, 2, 3]);
 });

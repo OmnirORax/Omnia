@@ -1,15 +1,18 @@
 import type { Structure, Vec3, World } from './model.ts';
+import { prepareTranslation, address } from './lattice.ts';
+import { SPHERE_VISUAL_DEFAULTS } from '../properties/sphereVisualDefaults.ts';
+import { property, type Property } from '../properties/pool.ts';
 
-export type Property = { key: string; label: string; kind: 'color' | 'number' | 'text'; unit?: string };
-export const color: Property = { key: 'color', label: 'Color', kind: 'color' };
-export const label: Property = { key: 'label', label: 'Label', kind: 'text' };
-export const position: Property[] = ['X', 'Y', 'Z'].map((label, i) => ({ key: `position.${i}`, label, kind: 'number', unit: 'world' }));
+export const color = property({ key: 'color', label: 'Color', kind: 'color' });
+export const label = property({ key: 'label', label: 'Label', kind: 'text' });
+export const position = ['X', 'Y', 'Z'].map((label, i) => property({ key: `position.${i}`, label, kind: 'number', unit: 'world' }));
+export const carrierProperties = ['opacity','glow','translucency','translucencyRadius'].map(key => property({ key, label: ({opacity:'Opacity',glow:'Glow',translucency:'Translucency',translucencyRadius:'Translucency radius'} as Record<string,string>)[key], kind:'number', min:0, max:1, step:.01 }));
 export type PropertyBinding = { property: Property; read: () => string | number; write: (value: string | number) => void };
 export type Capability = { key: string; label: string; properties: PropertyBinding[] };
 
 // UI and gestures use the same real bindings. A shared definition never implies shared values.
 export function capabilities(node: Structure): Capability[] {
-  return [
+  const available: Capability[] = [
     { key: 'label', label: 'Label', properties: [{ property: label, read: () => node.label,
       write: value => { if (typeof value !== 'string' || value.length > 160) throw new Error('Label is limited to 160 characters.'); node.label = value; },
     }] },
@@ -19,12 +22,18 @@ export function capabilities(node: Structure): Capability[] {
     { key: 'color', label: 'Color', properties: [{ property: color, read: () => node.color,
       write: value => { if (typeof value !== 'string' || !/^#[\da-f]{6}$/i.test(value)) throw new Error('Invalid color.'); node.color = value; },
     }] },
+    { key: 'carrier', label: 'Sphere', properties: carrierProperties.map(property => ({ property,
+      read: () => node[property.key as keyof typeof SPHERE_VISUAL_DEFAULTS] as number ?? SPHERE_VISUAL_DEFAULTS[property.key as keyof typeof SPHERE_VISUAL_DEFAULTS],
+      write: value => { const n = Number(value); if (!Number.isFinite(n) || n < 0 || n > 1) throw Error('Expected a value from 0 to 1.'); Object.assign(node, { [property.key]: n }); },
+    })) },
   ];
+  return available.map(capability => ({ ...capability, properties: capability.properties.map(binding => ({ ...binding,
+    write(value) { binding.write(value); if (node.variantOf && ['label','color','opacity','glow','translucency','translucencyRadius'].includes(binding.property.key)) node.overrides = [...new Set([...(node.overrides ?? []), binding.property.key])]; },
+  })) }));
 }
 
 export function translate(world: World, origins: readonly Structure['origin'][], delta: Vec3) {
-  for (const node of world.nodes) if (origins.some(origin => origin.born === node.origin.born && origin.at.every((n, i) => n === node.origin.at[i]))) {
-    const movement = capabilities(node).find(capability => capability.key === 'move')!;
-    movement.properties.forEach((binding, axis) => binding.write(Number(binding.read()) + delta[axis]));
-  }
+  const targets = prepareTranslation(world, origins)(delta);
+  if (!targets) throw Error('That lattice landing is occupied.');
+  for (const node of world.nodes) { const target = targets.get(address(node.origin)); if (target) node.position = target; }
 }

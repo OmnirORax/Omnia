@@ -36,3 +36,28 @@ header button { width: 28px; height: 28px; font-size: 18px; }
 .marquee { position: fixed; pointer-events: none; border: 1px solid #c4cb9b; background: #c4cb9b0c; }
 [hidden] { display: none !important; }
 @media(max-width: 420px) { header { left: 8px; top: 8px; } #find { width: 90px; } .wordmark { font-size: 13px; } }
+.panel { position:fixed; z-index:8; top:64px; right:16px; width:340px; min-width:240px; max-width:calc(100vw - 16px); max-height:calc(100svh - 80px); resize:both; overflow:auto; border:1px solid #42483b; border-radius:6px; background:#191c1bf5; box-shadow:0 6px 24px #0005; }
+.panel > header { position:sticky; top:0; left:auto; display:flex; justify-content:space-between; align-items:center; gap:8px; margin:0; padding:5px 8px; border:0; border-bottom:1px solid #ffffff10; border-radius:0; background:#191c1b; cursor:move; }
+.panel > header button { width:24px; height:24px; font-size:16px; }
+.panel-body { padding:6px; }
+.panel button { padding:4px 7px; }
+.panel form { display:grid; gap:5px; margin:6px 0; }
+.panel label { display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:11px; }
+.panel label input, .panel label select { width:115px; }
+.panel input[type=checkbox] { width:auto; }
+.panel input[type=color] { padding:2px; height:26px; }
+.panel output { display:block; font-size:10px; color:#9da88a; padding:5px 2px; }
+.panel select, #tools select { font:inherit; color:inherit; background:#252a25; border:1px solid #ffffff18; border-radius:3px; padding:4px; max-width:100%; }
+.scene-tabs { display:flex; flex-wrap:wrap; gap:2px; border-bottom:1px solid #ffffff10; padding-bottom:4px; }
+.scene-tabs button { font-size:11px; padding:4px 5px; }
+.scene-image-row { display:flex; align-items:center; gap:3px; }
+.scene-image-row button:first-child { flex:1; text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.scene-content audio { width:100%; height:32px; margin:5px 0; }
+.scene-content > input { max-width:100%; }
+.document-tools { display:flex; gap:2px; padding:1px 0 5px; }
+.document-content { min-height:120px; padding:7px; outline:none; overflow-wrap:anywhere; white-space:pre-wrap; font-size:13px; line-height:1.55; }
+.document-content img { max-height:1.25em; vertical-align:middle; }
+.document-content p { margin:.4em 0; }
+.document-content ul,.document-content ol { margin:.4em 0; padding-left:1.7em; white-space:normal; }
+.document-content h1,.document-content h2,.document-content h3 { margin:.6em 0 .3em; line-height:1.2; }
+.document-content [data-node-glyph] { display:inline-block; }
