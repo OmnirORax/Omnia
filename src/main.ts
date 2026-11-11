@@ -61,6 +61,16 @@ function open(title: string) {
   const caption = document.createElement('span'); caption.textContent = title;
   const back = document.createElement('button'); back.textContent = '×'; back.setAttribute('aria-label', 'Close'); back.onclick = close;
   row.append(caption, back); tools.append(row);
+  const find = document.createElement('input'); find.type = 'search'; find.placeholder = 'Search…'; find.setAttribute('aria-label', 'Search operations');
+  const filter = () => {
+    const query = find.value.trim().toLocaleLowerCase();
+    for (const item of Array.from(tools.children)) if (item instanceof HTMLButtonElement) item.hidden = item.dataset.searchOnly === 'true' && !query || !!query && !`${item.textContent} ${item.dataset.keywords ?? ''}`.toLocaleLowerCase().includes(query);
+    positionMenu();
+  };
+  find.oninput = filter;
+  find.onkeydown = event => { if (event.key === 'Enter') { const match = Array.from(tools.children).find(item => item instanceof HTMLButtonElement && !item.hidden) as HTMLButtonElement | undefined; if (match) { event.preventDefault(); match.click(); } } };
+  tools.append(find);
+  requestAnimationFrame(() => { if (!find.isConnected) return; if (tools.querySelector('form')) find.hidden = true; else { filter(); find.focus(); } });
   positionMenu();
 }
 function positionMenu() {
@@ -162,16 +172,20 @@ function context(position: Vec3) {
   const edge = selection.values.find((target): target is Edge => !isNode(target));
   if (edge) { edgeContext(edge); return; }
   open(selectedOrigins().length ? `${selectedOrigins().length} selected` : 'Omnium');
-  if (!selectedOrigins().length) { button('Create structure', () => create(position)); button('Scene', openScene); button('World', worldControls); return; }
+  if (!selectedOrigins().length) { button('Create structure', () => create(position)); button('👁', appearance).setAttribute('aria-label', 'Appearance'); return; }
   const node = selectedNodes(store.world)[0]; if (!node) return;
-  for (const capability of capabilities(node)) button(capability.label, () => editCapability(capability.key));
+  for (const capability of capabilities(node).filter(c => !['color','carrier'].includes(c.key))) button(capability.label, () => editCapability(capability.key));
+  button('👁', appearance).setAttribute('aria-label', 'Appearance');
+  for (const capability of capabilities(node).filter(c => ['color','carrier'].includes(c.key))) {
+    const shortcut = button(`👁 ${capability.label}`, () => editCapability(capability.key)); shortcut.dataset.searchOnly = 'true'; shortcut.dataset.keywords = capability.properties.map(p => p.property.label).join(' ');
+  }
+  if (selectedOrigins().length === 1) { const shortcut = button('👁 Visual', visuals); shortcut.dataset.searchOnly = 'true'; shortcut.dataset.keywords = 'image SVG GLB character size text'; }
   if (selectedOrigins().length === 1) { button('Composition', parts); button('Document', openDocument); button('Node tools…', nodeTools); }
   button('Include…', chooseReference);
   button(node.invariant ? '⚬ Release invariant' : '⚬ Activate invariant', () => {
     store.change(world => { for (const target of selectedNodes(world)) setInvariant(world, target, !node.invariant); }); close();
   });
-  button('Scene', openScene);
-  button('World', worldControls);
+  for (const [name, action] of [['Scene', openScene], ['World', worldControls]] as const) { const shortcut = button(`👁 ${name}`, action); shortcut.dataset.searchOnly = 'true'; }
   button('Focus', () => { view?.focus(selectedOrigins(), true); close(); });
   button('Remove', remove);
 }
@@ -209,12 +223,21 @@ function nodeTools() {
   button('Variants', () => { view?.variants(origin); close(); });
   button('Add variant', () => { let child: Origin | undefined; store.change(world => { child = childNode(world, origin, true).origin; }); selection.set([child!]); view?.variants(origin, true); close(); refresh(); });
   button(node.collapsed ? 'Expand children' : 'Collapse children', () => { store.change(world => { locate(world, origin)!.collapsed = !node.collapsed; }); close(); });
-  button('Visual…', visuals);
+
   button('Copy', () => { let result: Origin | undefined; store.change(world => { const source = locate(world, origin)!; result = copyNode(world, source, source.position).origin; }); selection.set([result!]); close(); refresh(); });
   button('Connect to…', () => requestNode(target => store.change(world => { world.relationships ??= []; world.relationships.push({ from: bind(locate(world, origin)!, 'follow', world), to: bind(locate(world, target)!, 'follow', world), label: '', kind: 'relation' }); })));
   button('Attach to…', () => requestNode(target => store.change(world => { const source = locate(world, origin)!; source.parent = structuredClone(target); })));
   if (node.parent || node.variantOf) button('Detach', () => { store.change(world => detachNode(world, origin)); close(); });
   button('Hide', () => { store.change(world => { locate(world, origin)!.hidden = true; }); selection.set([]); close(); refresh(); });
+}
+function appearance() {
+  open('👁');
+  button('Scene', openScene); button('World', worldControls);
+  const node = selectedNodes(store.world)[0]; if (!node) return;
+  for (const capability of capabilities(node).filter(c => ['color','carrier'].includes(c.key))) {
+    const action = button(capability.label, () => editCapability(capability.key)); action.dataset.keywords = capability.properties.map(p => p.property.label).join(' ');
+  }
+  if (selectedOrigins().length === 1) button('Visual', visuals);
 }
 function worldControls() {
   open('World');
