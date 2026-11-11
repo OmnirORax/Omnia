@@ -12,14 +12,12 @@ permissions:
 
 concurrency:
   group: cloudflare-pages-${{ github.event.pull_request.number || github.ref }}
-  # New PR commits supersede stale checks; never interrupt master releases.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   checks:
-    # Keep the local Docker/Supabase baseline stable during ubuntu-latest rollouts.
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
@@ -27,65 +25,34 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - name: Install pinned Yarn and dependencies
-        run: |
-          npm install --prefix "$RUNNER_TEMP/omnia-yarn" --no-audit --no-fund --package-lock=false @yarnpkg/cli-dist@4.18.1
-          export PATH="$RUNNER_TEMP/omnia-yarn/node_modules/.bin:$PATH"
-          yarn install --immutable
-      - name: Model and architecture tests
-        run: node --run test
-      - name: Build production frontend
-        env:
-          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
-        run: |
-          node scripts/cloudflare-build-config.mjs
-          node --run build
-      - name: Check backend types (local only)
-        run: node --run backend:check
-      - name: Start isolated backend
-        run: node scripts/backend-start-ci.mjs
-      - name: Verify backend permissions (local only)
-        run: |
-          node --run backend:serve > "$RUNNER_TEMP/omnia-backend-functions.log" 2>&1 &
-          node --run backend:ready
-          node --run test:backend
-      - name: Stop isolated backend
-        if: always()
-        run: node --run backend:stop
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
 
   release:
     needs: checks
-    # Dispatch is verification-only. Activation requires an explicit repository
-    # variable AND a new push to master. Production credentials stay in this job.
     if: >-
       github.ref == 'refs/heads/master' &&
       (github.event_name == 'workflow_dispatch' ||
        (github.event_name == 'push' && vars.CLOUDFLARE_DEPLOY_ENABLED == 'true'))
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     permissions:
       contents: read
       pages: read
     environment: cloudflare-production
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - name: Install pinned Yarn and dependencies
-        run: |
-          npm install --prefix "$RUNNER_TEMP/omnia-yarn" --no-audit --no-fund --package-lock=false @yarnpkg/cli-dist@4.18.1
-          export PATH="$RUNNER_TEMP/omnia-yarn/node_modules/.bin:$PATH"
-          yarn install --immutable
-      - name: Rebuild checked revision without publishing artifacts
-        env:
-          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
-        run: |
-          node scripts/cloudflare-build-config.mjs
-          node --run build
-      - name: Verify existing hosts deny unauthenticated access
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Verify existing hosts require Access
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
@@ -95,7 +62,7 @@ jobs:
       - name: Install pinned Wrangler
         if: github.event_name == 'push'
         run: npm install --prefix "$RUNNER_TEMP/omnia-wrangler" --no-audit --no-fund --package-lock=false wrangler@4.152.0
-      - name: Deploy production to existing Pages project
+      - name: Deploy V2 production
         if: github.event_name == 'push'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -104,6 +71,15 @@ jobs:
         run: >-
           "$RUNNER_TEMP/omnia-wrangler/node_modules/.bin/wrangler"
           pages deploy dist --project-name omnia-web --branch master
+          --commit-hash "${{ github.sha }}" --commit-dirty=false
+      - name: Verify new production deployment requires Access
+        if: github.event_name == 'push'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ACCESS_EXTRA_HOSTS: ${{ vars.CLOUDFLARE_ACCESS_EXTRA_HOSTS }}
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/cloudflare-access-check.mjs
 
   preview:
     needs: checks
@@ -111,11 +87,10 @@ jobs:
       github.event_name == 'pull_request' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.pull_request.author_association)
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     permissions:
       contents: read
-      pages: read
     environment:
       name: cloudflare-preview
       url: https://pr-${{ github.event.number }}.omnia-web-bae.pages.dev
@@ -129,34 +104,29 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - name: Install pinned Yarn and dependencies
-        run: |
-          npm install --prefix "$RUNNER_TEMP/omnia-yarn" --no-audit --no-fund --package-lock=false @yarnpkg/cli-dist@4.18.1
-          export PATH="$RUNNER_TEMP/omnia-yarn/node_modules/.bin:$PATH"
-          yarn install --immutable
-      - name: Build checked PR head
-        env:
-          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
-        run: |
-          node scripts/cloudflare-build-config.mjs
-          node --run build
+          cache: npm
+      - run: npm ci
+      - run: npm run build
       - name: Verify preview alias and wildcard before upload
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-        run: node --use-env-proxy scripts/publish-cloudflare-preview.mjs "$PREVIEW_BRANCH" --check
+        run: node scripts/cloudflare-preview-check.mjs "$PREVIEW_BRANCH"
       - name: Install pinned Wrangler
         run: npm install --prefix "$RUNNER_TEMP/omnia-wrangler" --no-audit --no-fund --package-lock=false wrangler@4.152.0
-      - name: Deploy preview only and verify resulting hosts
+      - name: Deploy V2 preview
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-          GH_TOKEN: ${{ github.token }}
-          CLOUDFLARE_ACCESS_EXTRA_HOSTS: ${{ vars.CLOUDFLARE_ACCESS_EXTRA_HOSTS }}
           WRANGLER_SEND_METRICS: 'false'
+        run: >-
+          "$RUNNER_TEMP/omnia-wrangler/node_modules/.bin/wrangler"
+          pages deploy dist --project-name omnia-web --branch "$PREVIEW_BRANCH"
+          --commit-hash "${{ github.event.pull_request.head.sha }}" --commit-dirty=false
+      - name: Verify resulting preview deployment
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          test "$PREVIEW_BRANCH" != master
-          "$RUNNER_TEMP/omnia-wrangler/node_modules/.bin/wrangler" pages deploy dist --project-name omnia-web --branch "$PREVIEW_BRANCH"
-          node --use-env-proxy scripts/publish-cloudflare-preview.mjs "$PREVIEW_BRANCH" --check-upload
+          node scripts/cloudflare-preview-check.mjs "$PREVIEW_BRANCH" --uploaded
           echo "Verified private preview: https://$PREVIEW_BRANCH.omnia-web-bae.pages.dev" >> "$GITHUB_STEP_SUMMARY"

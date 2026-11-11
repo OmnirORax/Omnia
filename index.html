@@ -1,16 +1,27 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1"
-    />
-    <title>Omnia · Omnium workbench</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#101113" />
+    <meta name="description" content="Omnium — a new foundation for a structural workbench." />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>Omnium V2</title>
   </head>
   <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <header>
+      <a class="wordmark" href="./" aria-label="Omnium home">omnium <span>v2</span></a>
+      <nav aria-label="Project">
+        <a href="https://github.com/OmnirORax/Omnia">Source</a>
+        <a href="https://github.com/OmnirORax/Omnia/tree/archive/v1">V1 archive</a>
+      </nav>
+    </header>
+    <main aria-labelledby="workspace-title">
+      <div class="origin" aria-hidden="true"><span></span></div>
+      <h1 id="workspace-title">A clean starting point.</h1>
+      <p>The next Omnium begins here.</p>
+    </main>
+    <footer>V2 foundation</footer>
+    <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
