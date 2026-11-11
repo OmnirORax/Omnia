@@ -4,7 +4,7 @@ import { imageSignatureMatches, isImageType, MAX_ASSET_BYTES, type SceneNode, ty
 
 export type ScenePromptSnapshot = { prompt: string; variable: string; source: SceneSource; node: SceneNode; resolved: string; copiedAt: string };
 export type LocalScene = { id: string; name: string; type: string; size: number; width: number; height: number; createdAt: string; input: ScenePromptSnapshot | null };
-type StoredScene = LocalScene & { blob: Blob };
+export type StoredScene = LocalScene & { blob: Blob };
 const MAX_LIBRARY_BYTES = 100 * 1024 * 1024, MAX_IMAGES = 100;
 
 async function database() {
@@ -82,7 +82,7 @@ function dimensions(bytes: Uint8Array, type: string): [number, number] {
   }
   throw new Error('Image dimensions could not be read. Export a standard PNG, JPEG or WebP.');
 }
-export async function importLocalScene(file: File, input: ScenePromptSnapshot | null,normalization?:NormalizationPreferences): Promise<LocalScene> {
+export async function prepareLocalScene(file: File, input: ScenePromptSnapshot | null): Promise<StoredScene> {
   if (!file.size || file.size > MAX_ASSET_BYTES) throw new Error('Choose a PNG, JPEG or WebP up to 10 MiB.');
   const bytes = new Uint8Array(await file.arrayBuffer());
   const type = ['image/png', 'image/jpeg', 'image/webp'].find(type => isImageType(type) && imageSignatureMatches(bytes, type));
@@ -95,7 +95,11 @@ export async function importLocalScene(file: File, input: ScenePromptSnapshot | 
   const valid = decoded.width > 0 && decoded.height > 0 && decoded.width <= 4096 && decoded.height <= 4096 && decoded.width * decoded.height <= 12_000_000;
   decoded.close();
   if (!valid) throw new Error('The decoded image exceeds the scene resolution limit.');
-  const item: LocalScene = { id: crypto.randomUUID(), name: file.name.slice(0, 120) || 'Pasted scene', type, size: blob.size, width, height, createdAt: new Date().toISOString(), input };
+  const item: LocalScene = { id: `sha256:${Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)), n => n.toString(16).padStart(2, '0')).join('')}`, name: file.name.slice(0, 120) || 'Pasted scene', type, size: blob.size, width, height, createdAt: new Date().toISOString(), input };
+  return { ...item, blob };
+}
+export async function saveLocalScenes(incoming: readonly StoredScene[]): Promise<void> {
+  if (!incoming.length) return;
   const db = await database();
   try {
     await new Promise<void>((resolve, reject) => {
@@ -104,14 +108,21 @@ export async function importLocalScene(file: File, input: ScenePromptSnapshot | 
       let full = false;
       request.onsuccess = () => {
         const items = request.result as LocalScene[];
-        if (items.length >= MAX_IMAGES || items.reduce((total, item) => total + item.size, 0) + blob.size > MAX_LIBRARY_BYTES) { full = true; transaction.abort(); return; }
-        transaction.objectStore('images').add({ ...item, blob });
-        transaction.objectStore('metadata').add(item);
+        const known = new Set(items.map(item => item.id)), additions = incoming.filter(item => !known.has(item.id) && !!known.add(item.id));
+        if (items.length + additions.length > MAX_IMAGES || [...items, ...additions].reduce((total, item) => total + item.size, 0) > MAX_LIBRARY_BYTES) { full = true; transaction.abort(); return; }
+        for (const { blob, ...item } of additions) {
+          transaction.objectStore('images').add({ ...item, blob });
+          transaction.objectStore('metadata').add(item);
+        }
       };
       transaction.oncomplete = () => resolve();
       transaction.onerror = transaction.onabort = () => reject(new Error(full ? 'Scene library is full (100 images / 100 MiB). Download and delete images you no longer need.' : 'Scene could not be saved. Browser storage may be full or unavailable.'));
     });
   } finally { db.close(); }
+}
+export async function importLocalScene(file: File, input: ScenePromptSnapshot | null,normalization?:NormalizationPreferences): Promise<LocalScene> {
+  const { blob, ...item } = await prepareLocalScene(file, input);
+  await saveLocalScenes([{ ...item, blob }]);
   // Derived pixels are disposable; a failed correction never rolls back the saved original.
   if(normalization?.enabled)await normalizeSceneBlob(blob,normalization).catch(()=>{});
   return item;

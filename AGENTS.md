@@ -23,8 +23,8 @@ docs/DEPLOYMENT.md before changing hosting, workflows or backend integration.
 - Keep UI compact and relevant to the current task. Do not add controls for
   capabilities that do not exist. Keep pointer/frame work bounded and avoid
   unrelated state updates, discovery and persistence in hot paths.
-- Keep one concise current account of decisions and implemented scope. Update
-  it when behavior changes; distinguish plans, implementation and verification.
+- The user owns project documentation. Do not create or update documentation
+  unless explicitly requested. Agent instructions may be updated when requested.
 - Tell the user promptly about blockers or newly discovered architectural choices.
 
 ## Delivery
@@ -46,3 +46,20 @@ There is no required V1 authored-content migration. V2 currently has no persiste
 data owner or backend client; do not introduce either merely to preserve V1 shapes.
 Before future backend changes, inspect the actual hosted state and historical
 migrations; never reset the deployed database or replay the archive blindly.
+
+## User instructions
+
+- **Performance first:** always consider & optimize for performance costs.
+- **UI Compactness:** smallest practical layout + contents, neatly arranged, minimal wasted space, minimal text, no tooltips or descriptions.
+- **User handles interaction testing:** if asked for resolving or optimizing something, only target & fix the suspects - i do the testing. Don’t run unsolicited browser suites or treat a narrowly authorized check as ongoing permission.
+
+## Time saving lessons from past experience
+
+- **Challenge the framing before solving the task.** Identify the underlying need behind the requested change. Several apparently separate requests may expose one missing general rule; recognizing it early prevents repeated patches.
+- **Identify the owner of each behavior.** Determine which component, process, or authority should control it. Putting correct behavior in the wrong place creates duplication, exceptions, and later rework.
+- **Use evidence that distinguishes causes.** Before changing a suspected cause, seek the smallest observation that could confirm or contradict it.
+- **Check whether your verification could miss the reported failure.** Successful checks can establish the wrong thing. Where verification is warranted, first demonstrate the actual failure, then check that the change resolves it.
+- **Consider the complete lifecycle.** Examine entering, continuing, reversing, cancelling, completing, and recovering—not merely the successful forward path. Many omissions become obvious when mentally running those transitions.
+- **Investigate recurrence as evidence of a flawed model.** If successive fixes leave related failures, reconsider systemically not locally.
+- **Match planning depth to propagation and reversal cost.** Think further ahead where a decision constrains many later decisions. Keep isolated, easily replaceable choices lightweight.
+- **Optimize total effort across everyone involved.** Include user explanation, waiting, manual work, integration, and expected rework—not just implementation speed or agent cost. A locally faster action can make the overall process slower.

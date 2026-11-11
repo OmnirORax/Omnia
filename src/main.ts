@@ -9,6 +9,7 @@ import { childNode, copyNode, detachNode, removeNodes } from './core/nodeOperati
 import { editDocument } from './text/editor.ts';
 import { scenePanel } from './scene/panel.ts';
 import { validateAsset, MAX_ASSET_BYTES, type VisualAsset } from './graph/assets.ts';
+import { workspacePanel } from './ui/workspace.ts';
 import { field } from './ui/fields.ts';
 
 const element = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -174,6 +175,15 @@ function context(position: Vec3) {
   button('Focus', () => { view?.focus(selectedOrigins(), true); close(); });
   button('Remove', remove);
 }
+let workspaceView: ReturnType<typeof workspacePanel> | undefined;
+function openWorkspace() {
+  close(); if (workspaceView?.root.isConnected) { workspaceView.root.focus(); return; }
+  workspaceView = workspacePanel({ read: () => store.world, replace: world => { store.replace(world); selection.set([]); search.value = ''; refresh(); }, recover: () => { store.recover(); selection.set([]); search.value = ''; refresh(); }, beforeReplace: () => {
+    view?.cancel(); close(); selection.cancel(); sceneView?.close();
+    for (const document of documents.values()) document?.close();
+    if ([...documents.values()].some(document => document?.root.isConnected)) throw Error('An open document could not close. Preserve it before importing.');
+  } });
+}
 let sceneView: ReturnType<typeof scenePanel> | undefined;
 function openScene() {
   close(); if (!view) return; sceneView?.close();
@@ -242,6 +252,7 @@ function edgeContext(edge: Edge) {
   }else if(edge.kind==='part')button('Reconnect target…',()=>requestNode(target=>store.change(world=>{locate(world,edge.owner)!.parts[edge.index]=bind(locate(world,target)!,'follow',world);})));
   button('Remove',remove);positionMenu();
 }
+element('workspace').onclick = openWorkspace;
 element<HTMLButtonElement>('create').disabled = !view;
 element('create').onclick = () => attempt(() => create(view!.center()));
 element('undo').onclick = () => { view?.cancel(); close(); selection.cancel(); store.undo(); };
