@@ -1,4 +1,4 @@
-import {PULSE_CONTROLS,RETIRED_FLARE_CONTROLS,RETIRED_OMNI_BRIGHTNESS_CONTROLS,pulsePalette,type PulseKey,type RetiredFlareKey,type RetiredOmniBrightnessKey} from './pulse.ts';
+import {audioNoiseGate,PULSE_CONTROLS,RETIRED_FLARE_CONTROLS,RETIRED_OMNI_BRIGHTNESS_CONTROLS,pulsePalette,type PulseKey,type RetiredFlareKey,type RetiredOmniBrightnessKey} from './pulse.ts';
 /** Scene effects and user-adjustable light tuning; no capture/session data. */
 export const SCENE_VFX_FPS = 120;
 export const MIN_SCENE_VFX_FPS = 60;
@@ -80,14 +80,14 @@ export function followBass(previous:number,next:number,seconds:number){
 
 /** Peak reference changes gain only, never holds the current zoom target. */
 export function createBassDynamics(){
- let reference=.03;
+ let reference=.08;
  return {
-  reset(){reference=.03;},
+  reset(){reference=.08;},
   sample(amplitude:number,seconds:number){
    const value=Math.max(0,Math.min(1,amplitude)),dt=Math.max(0,Math.min(.1,seconds));
-   reference=Math.max(.03,value,reference*Math.exp(-dt/12));
-   const floor=Math.max(.001,reference*.02);
-   return Math.max(0,Math.min(1,(value-floor)/(reference-floor)));
+   reference=Math.max(.08,value,reference*Math.exp(-dt/12));
+   const floor=Math.max(.01,reference*.02);
+   return audioNoiseGate(value)*Math.max(0,Math.min(1,(value-floor)/(reference-floor)));
   },
  };
 }

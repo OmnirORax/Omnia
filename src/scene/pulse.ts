@@ -70,6 +70,12 @@ export function omniHighTintRGB(image:readonly number[],control:readonly number[
 
 /** Byte FFT decode for Automatic's -100..0 dB range. Reused across frames. */
 const AUTOMATIC_AMPLITUDES=Float32Array.from({length:256},(_,i)=>i?Math.pow(10,(-100+i/255*100)/20):0);
+/** Absolute amplitude floor (-40 dB), with a soft knee up to roughly -30 dB.
+ * Adaptive gain and sensitivity must never amplify background noise past it. */
+export function audioNoiseGate(amplitude:number){
+ const x=Math.max(0,Math.min(1,(amplitude-.01)/.02));
+ return x*x*(3-2*x);
+}
 /** Frequency-local rises drive flashes; sustained energy calibrates gain only. */
 export function createAutomaticPulse(){
  let range=.03;
@@ -94,10 +100,10 @@ export function createAutomaticPulse(){
    const change=onset;
    const level=onsetLevel;
    // Sensitivity owns admission, independently of brightness and drop contrast.
-   const admitted=Math.max(0,change-range*.25/sensitivity);
+   const admitted=Math.max(0,change-Math.max(.01,range*.25/sensitivity));
    const normalized=level/(level+range*.25);
    const strength=Math.pow(normalized,dropContrast);
-   const output=level>0?strength*Math.min(1,admitted/level)*amount:0;
+   const output=level>0?audioNoiseGate(level)*strength*Math.min(1,admitted/level)*amount:0;
    if(signal>0)range+=(Math.max(.01,Math.min(1,signal))-range)*(1-Math.exp(-dt/8));
    return output;
   },
