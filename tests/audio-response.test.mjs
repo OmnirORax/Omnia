@@ -1,7 +1,40 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createAutomaticPulse } from '../src/scene/pulse.ts';
-import { createBassDynamics } from '../src/scene/vfx.ts';
+import { createAutomaticPulse, createPulseEnvelope } from '../src/scene/pulse.ts';
+import { createBassDynamics, normalizeSceneVfx, DEFAULT_SCENE_VFX, WAVE_PRESETS } from '../src/scene/vfx.ts';
+
+test('10 Hz input cannot retrigger pulses faster than the selected interval', () => {
+  for (const interval of [250,350,500,1000]) {
+    const envelope = createPulseEnvelope(), starts = []; let previous = 0;
+    for(let frame=0;frame<600;frame++) {
+      const output=envelope.sample(frame%6<3?1:0,1/60,interval);
+      if(output>0&&previous===0) starts.push(frame/60);
+      previous=output;
+    }
+    assert.ok(starts.length>1);
+    for(let i=1;i<starts.length;i++) assert.ok(starts[i]-starts[i-1]>=interval/1000-1e-8);
+  }
+});
+
+test('pulse transitions rise and fade, sustained input does not keep flashing', () => {
+  const envelope=createPulseEnvelope();
+  assert.equal(envelope.sample(1,1/60,350),0);
+  const rise=envelope.sample(1,1/60,350);assert.ok(rise>0&&rise<.5);
+  for(let i=0;i<60;i++)envelope.sample(1,1/60,350);
+  assert.equal(envelope.sample(1,1/60,350),0);
+  envelope.reset();assert.equal(envelope.sample(0,1/60,350),0);
+});
+
+test('new scene defaults match the uploaded tuning without replacing saved values', () => {
+  const settings=normalizeSceneVfx(undefined);
+  assert.deepEqual(settings,DEFAULT_SCENE_VFX);
+  assert.equal(settings.pulseSensitivity,2);assert.equal(settings.audioBounce,1.1);
+  assert.equal(settings.pulseTintLow,'#ffffff');assert.equal(settings.pulseTintHigh,'#0062ff');
+  assert.equal(settings.imageTint,'#00eeff');assert.equal(settings.pulseInterval,350);
+  for(const key of ['waveAmplitudeX','waveAmplitudeY','waveFrequencyX','waveFrequencyY','waveSpeedX','waveSpeedY'])assert.equal(settings[key],WAVE_PRESETS[1][key]);
+  assert.equal(normalizeSceneVfx({pulseInterval:500,pulseSensitivity:4}).pulseInterval,500);
+  assert.equal(normalizeSceneVfx({pulseSensitivity:4}).pulseSensitivity,4);
+});
 
 test('faint repeated sounds stay below pulse and bounce admission even after adaptation', () => {
   const pulse = createAutomaticPulse(), bass = createBassDynamics();

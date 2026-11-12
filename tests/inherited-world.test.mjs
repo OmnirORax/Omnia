@@ -67,7 +67,7 @@ test('the extended world saves separately and preserves the first preview origin
 test('the original scene controls write independent settings through their declared bindings',()=>{
   const original={sceneVfx:normalizeSceneVfx(undefined)},changed=sceneFunction.inputs['scene.pulseTintHigh'].write(original,'#abcdef');
   assert.equal(changed.sceneVfx.pulseTintHigh,'#abcdef');assert.equal(original.sceneVfx.pulseTintHigh,DEFAULT_SCENE_VFX.pulseTintHigh);assert.equal(changed.sceneVfx.waveAmplitudeX,original.sceneVfx.waveAmplitudeX);
-  assert.equal(WAVE_PRESETS[0].waveAmplitudeX,DEFAULT_SCENE_VFX.waveAmplitudeX);
+  assert.equal(WAVE_PRESETS[1].waveAmplitudeX,DEFAULT_SCENE_VFX.waveAmplitudeX);
 });
 test('wave presets preserve independent authored controls and round-trip',()=>{
   const settings=normalizeSceneVfx(undefined),values=appendWavePreset({},false,settings),saved=readWavePresets(values);

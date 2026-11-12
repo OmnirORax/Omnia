@@ -1,13 +1,13 @@
 import {readSystemAudioPreference,saveSystemAudioPreference,pauseRememberedSystemAudio,forgetSystemAudioPreference,validPairingCode} from './systemAudioPreference.ts';
 import {pcmWorkletSource,systemAudioOriginSupported,systemAudioRequiresPairing} from './nativePcm.ts';
 import {createNativeAudioTransport} from './nativeAudioTransport.ts';
-import {createAutomaticPulse} from './pulse.ts';
+import {createAutomaticPulse,createPulseEnvelope} from './pulse.ts';
 import type {SceneVfx} from './vfx.ts';
 import {normalizeAudioLevel} from './vfx.ts';
 /** Live PCM is ephemeral; remembered connection credentials stay device-local. */
 let context:AudioContext|null=null,analyser:AnalyserNode|null=null,source:AudioNode|null=null;
 let splitter:ChannelSplitterNode|null=null,stereo:AnalyserNode[]=[];
-const automaticPulse=createAutomaticPulse();let fftMode='',pulseResponse=0;
+const automaticPulse=createAutomaticPulse(),pulseEnvelope=createPulseEnvelope();let fftMode='',pulseResponse=0;
 export const scenePulseResponse=()=>pulseResponse;
 const spectrumBytes=[new Uint8Array(1024),new Uint8Array(1024)];
 let cleanupNative:(()=>void)|undefined;
@@ -22,7 +22,7 @@ export const sceneAudioStatus=()=>status;
 export const sceneAudioSnapshot=()=>snapshot;
 export const subscribeSceneAudio=(fn:()=>void)=>{listeners.add(fn);return()=>{listeners.delete(fn);};};
 export function disconnectSceneAudio(){
- automaticPulse.reset();fftMode='';pulseResponse=0;epoch++;cleanupNative?.();cleanupNative=undefined;inputKind=null;connected=false;source?.disconnect();source=null;analyser?.disconnect();analyser=null;
+ automaticPulse.reset();pulseEnvelope.reset();fftMode='';pulseResponse=0;epoch++;cleanupNative?.();cleanupNative=undefined;inputKind=null;connected=false;source?.disconnect();source=null;analyser?.disconnect();analyser=null;
  splitter?.disconnect();splitter=null;stereo.forEach(a=>a.disconnect());stereo=[];
  if(context)void context.close().catch(()=>{});context=null;bytes=new Uint8Array(0);publish('No audio connected');
 }
@@ -56,7 +56,7 @@ export async function connectSceneSystemAudio(code=readSystemAudioPreference()?.
   }};
   const transport=createNativeAudioTransport(sink,(ready,message)=>{
    if(token!==epoch)return;
-   if(connected!==ready){automaticPulse.reset();fftMode='';pulseResponse=0;}
+   if(connected!==ready){automaticPulse.reset();pulseEnvelope.reset();fftMode='';pulseResponse=0;}
    connected=ready;publish(message);
   },pairingCode,()=>{if(token===epoch)saveSystemAudioPreference(pairingCode,true);});
   cleanupNative=()=>{transport.stop();node.port.close();mute.disconnect();};
@@ -108,7 +108,7 @@ export function sampleSceneAudio(){
 export function sampleScenePulse(settings:SceneVfx,seconds=1/60){
  if(!connected||!context||context.state!=='running'||stereo.length!==2){pulseResponse=0;return 0;}
  if(fftMode!=='auto'){
-  fftMode='auto';automaticPulse.reset();
+  fftMode='auto';automaticPulse.reset();pulseEnvelope.reset();
   if(analyser){analyser.smoothingTimeConstant=.15;analyser.minDecibels=-100;analyser.maxDecibels=0;}
   for(const node of stereo){node.fftSize=1024;node.smoothingTimeConstant=0;node.minDecibels=-100;node.maxDecibels=0;}
  }
@@ -121,7 +121,8 @@ export function sampleScenePulse(settings:SceneVfx,seconds=1/60){
   peak=Math.max(peak,measure.level);
   if(measure.change>onset){onset=measure.change;onsetLevel=measure.changeLevel;}
  }
- pulseResponse=automaticPulse.sample(peak,seconds,settings.pulseSensitivity,settings.pulseAmount,onset,onsetLevel,settings.pulseDropContrast);
+ const raw=automaticPulse.sample(peak,seconds,settings.pulseSensitivity,settings.pulseAmount,onset,onsetLevel,settings.pulseDropContrast);
+ pulseResponse=pulseEnvelope.sample(raw,seconds,settings.pulseInterval);
  return pulseResponse;
 }
 

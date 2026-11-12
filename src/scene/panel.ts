@@ -90,6 +90,11 @@ export function scenePanel(host: Host) {
         const wave = key === 'scene.waves' || key === 'scene.maxFps' || WAVE_CONTROLS.some(control => `scene.${control.key}` === key);
         if (wave !== (group === 'waves')) continue;
         const input = field({ ...binding.definition, key }, binding.read(state)); form.append(input.row); values.push({ key, get: input.value });
+        if (key === 'scene.pulseInterval' && input.input instanceof HTMLInputElement) {
+          input.input.type = 'range';
+          const value = document.createElement('output'); value.textContent = `${input.input.value} ms`;
+          input.input.oninput = () => { value.textContent = `${input.input.value} ms`; }; input.row.append(value);
+        }
       }
     }
     const apply = (settings: SceneSettings) => {
