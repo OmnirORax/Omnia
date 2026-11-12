@@ -33,18 +33,18 @@ test('repetition is elapsed-time occupancy of similar loudness, not spectral pit
  for(let i=480;i<960;i++)engine.sample(i%6===0?.1:0,i/RESPONSE_HZ);
  assert.ok(Math.abs(engine.result.counts.reduce((a,b)=>a+b,0)/engine.result.samples-1/6)<1e-12);
 });
-test('the same loudness can fade with repetition while another curve retains it',()=>{
+test('repeated attacks can be suppressed independently by recurrence curves',()=>{
  const settings=constantResponse();settings.light.recurrence=makeCurve(x=>1-x);
- const engine=createAudioResponse(settings);engine.sample(.1,0);
- const rare=engine.result.light;
- for(let i=1;i<600;i++)engine.sample(.1,i/60);
- assert.ok(engine.result.light<rare*.01);assert.ok(engine.result.bounce>.99);
+ const engine=createAudioResponse(settings);
+ for(let i=0;i<4800;i++)engine.sample(i%6===0?0:.1,i/60);
+ engine.sample(0,4800/60);engine.sample(.1,4801/60);
+ assert.ok(engine.result.light<engine.result.bounce*.2);assert.equal(engine.result.bounce,1);
 });
 test('a muted loudness range contributes nothing, with independent light and bounce settings',()=>{
  const settings=constantResponse();settings.light.loudness=flat(0);
  const engine=createAudioResponse(settings);
- for(let i=0;i<60;i++)engine.sample(.1,i/60);
- assert.equal(engine.result.light,0);assert.ok(engine.result.bounce>.99);
+ engine.sample(.1,0);
+ assert.equal(engine.result.light,0);assert.equal(engine.result.bounce,1);
 });
 test('silence and invalid levels release output and never create a new pulse',()=>{
  const engine=createAudioResponse(constantResponse());
@@ -82,4 +82,24 @@ test('loudness combines stereo energy without cancellation or channel-maximum bi
  assert.equal(rmsLevel([new Float32Array([.5,-.5]),new Float32Array([-.5,.5])]),.5);
  assert.ok(Math.abs(rmsLevel([new Float32Array([1,1]),new Float32Array([0,0])])-Math.SQRT1_2)<1e-12);
  assert.equal(rmsLevel([new Float32Array([0,0])]),0);assert.equal(rmsLevel([]),0);
+});
+test('a sustained level attacks immediately and releases instead of holding either effect',()=>{
+ const e=createAudioResponse(constantResponse());e.sample(.1,0);
+ assert.equal(e.result.light,1);assert.equal(e.result.bounce,1);
+ const output=[e.result.light];for(let i=1;i<90;i++){e.sample(.1,i/60);output.push(e.result.light);}
+ assert.ok(output[6]<.3);assert.equal(output.at(-1),0);assert.equal(e.result.bounce,0);
+ assert.ok(output.every((value,i)=>!i||value<=output[i-1]));
+});
+test('new rises retrigger from an existing sustained level, with relative attack strength',()=>{
+ const e=createAudioResponse(constantResponse());for(let i=0;i<120;i++)e.sample(.1,i/60);
+ assert.equal(e.result.light,0);e.sample(.2,2);assert.equal(e.result.light,.5);
+ for(let i=121;i<240;i++)e.sample(.2,i/60);
+ assert.equal(e.result.light,0);e.sample(.21,4);assert.ok(e.result.light>0&&e.result.light<.05);
+});
+test('editing response curves does not create a held level or retrigger an expired attack',()=>{
+ const e=createAudioResponse(constantResponse());for(let i=0;i<120;i++)e.sample(.1,i/60);
+ e.configure(constantResponse());assert.equal(e.result.light,0);
+ e.sample(0,2);e.sample(.1,121/60);assert.equal(e.result.light,1);
+ const muted=constantResponse();muted.light.loudness=flat(0);e.configure(muted);assert.equal(e.result.light,0);assert.equal(e.result.bounce,1);
+ e.configure(constantResponse());assert.equal(e.result.light,0);
 });

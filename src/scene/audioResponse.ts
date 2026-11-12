@@ -29,10 +29,11 @@ export function rmsLevel(channels: readonly Float32Array[]): number {
 }
 /** One RMS input, a 480-entry ring and 32 counters; no spectrum or sound classification. */
 export function createAudioResponse(initial = defaultAudioResponse()) {
-  let settings = initial, cursor = 0, slot = -1;
+  let settings = initial, cursor = 0, slot = -1, previousAmplitude = 0;
+  const events={light:{loudness:0,recurrence:0,gain:0},bounce:{loudness:0,recurrence:0,gain:0}};
   const ring = new Int8Array(WINDOW).fill(-1), counts = new Uint16Array(LOUDNESS_BINS);
   const result = { loudness:0,recurrence:0,light:0,bounce:0,counts,samples:WINDOW };
-  function reset() { ring.fill(-1);counts.fill(0);cursor=0;slot=-1;result.loudness=result.recurrence=result.light=result.bounce=0; }
+  function reset() { ring.fill(-1);counts.fill(0);cursor=0;slot=-1;previousAmplitude=0;for(const key of TARGETS)events[key].loudness=events[key].recurrence=events[key].gain=0;result.loudness=result.recurrence=result.light=result.bounce=0; }
   function insert(bin: number) {
     const old = ring[cursor];if (old >= 0) counts[old]--;
     ring[cursor] = bin;if (bin >= 0) counts[bin]++;
@@ -43,8 +44,11 @@ export function createAudioResponse(initial = defaultAudioResponse()) {
     due(now: number) { return Number.isFinite(now) && Math.floor(now*RESPONSE_HZ+1e-6) !== slot; },
     configure(value: AudioResponse) {
       settings = value;
-      result.light = responseStrength(settings.light,result.loudness,result.recurrence);
-      result.bounce = responseStrength(settings.bounce,result.loudness,result.recurrence);
+      // Reweight an existing tail, never manufacture an attack from a settings edit.
+      for(const key of TARGETS){
+        const event=events[key], gain=responseStrength(settings[key],event.loudness,event.recurrence);
+        result[key]=event.gain>0?Math.min(1,result[key]*gain/event.gain):0;event.gain=gain;
+      }
     },
     sample(rms: number, now: number) {
       if (!Number.isFinite(now)) return result;
@@ -60,9 +64,14 @@ export function createAudioResponse(initial = defaultAudioResponse()) {
       insert(bin);
       // Neighbor buckets avoid a discontinuity when nearly equal levels straddle an edge.
       result.recurrence = bin < 0 ? 0 : ((counts[bin-1]??0)+counts[bin]+(counts[bin+1]??0))/WINDOW;
+      // Relative positive waveform-energy rises are attacks; a plateau adds no energy.
+      const attack=amplitude>previousAmplitude?(amplitude-previousAmplitude)/amplitude:0;
+      previousAmplitude=amplitude;
+      const release=Math.exp(-elapsed/.08);
       for (const key of TARGETS) {
-        const target = responseStrength(settings[key],result.loudness,result.recurrence), time = target > result[key] ? .02 : .08;
-        result[key] += (target-result[key])*(1-Math.exp(-elapsed/time));
+        const gain=responseStrength(settings[key],result.loudness,result.recurrence), trigger=gain*attack;
+        result[key]*=release;
+        if(trigger>result[key]){result[key]=trigger;events[key].loudness=result.loudness;events[key].recurrence=result.recurrence;events[key].gain=gain;}
         if (result[key] < .00001) result[key] = 0;
       }
       return result;
