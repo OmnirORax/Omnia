@@ -1,4 +1,6 @@
 import './style.css';
+import { paintForm } from './ui/visualControls.ts';
+import { updateUIAppearance } from './ui/appearance.ts';
 import { addStructure, bind, locate, resolve, sameOrigin, setInvariant, type Binding, type Origin, type Vec3, type World } from './core/model.ts';
 import { capabilities, translate } from './core/capabilities.ts';
 import { createSelection } from './core/selection.ts';
@@ -47,6 +49,8 @@ const view = (() => {
 })();
 
 function refresh() {
+  updateUIAppearance(store.world.appearance);
+  for (const document of documents.values()) document?.refreshAppearance();
   const query = search.value.trim().toLocaleLowerCase();
   shown = query ? new Set(store.world.nodes.filter(node => node.label.toLocaleLowerCase().includes(query)).map(node => key(node.origin))) : undefined;
   selection.set(selection.values.filter(target => isNode(target) ? !!locate(store.world, target) : target.kind === 'part' ? !!locate(store.world, target.owner)?.parts[target.index] : target.kind === 'variant' ? !!locate(store.world,target.owner)?.variantOf : !!store.world.relationships?.[target.index]));
@@ -242,12 +246,18 @@ function nodeTools() {
 function appearance() {
   open('👁');
   button('Scene', openScene); button('World', worldControls);
-  const node = selectedNodes(store.world)[0]; if (!node) return;
-  for (const capability of capabilities(node).filter(c => ['color','carrier'].includes(c.key))) {
-    const action = button(capability.label, () => editCapability(capability.key)); action.dataset.keywords = capability.properties.map(p => p.property.label).join(' ');
-  }
-  if (selectedOrigins().length === 1) button('Visual', visuals);
+  button('Visuals', () => {
+    open('👁 Visuals');
+    const origins=[...selectedOrigins()];
+    for(const [target,title] of [['nodes','Nodes'],['nodeText','Node text'],['text','Text'],['background','UI backgrounds']] as const){
+      if((target==='nodes'||target==='nodeText')&&!origins.length)continue;
+      button(title,()=>{open(title);tools.append(paintForm(target,origins,()=>store.world,(edit,group)=>store.change(edit,group),feedback));positionMenu();});
+    }
+    if(origins.length===1)button('Node visual',visuals);
+    positionMenu();
+  });
 }
+
 function worldControls() {
   open('World');
   const form = document.createElement('form'), scale = field({ key:'latticeScale',label:'Lattice scale',kind:'number',min:1e-9 }, store.world.settings?.latticeScale ?? 1);

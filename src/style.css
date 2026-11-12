@@ -1,4 +1,5 @@
 :root { font: 12px/1.4 ui-sans-serif, system-ui, sans-serif; color: #deded7; background: #000000; color-scheme: dark; font-synthesis: none; }
+@font-face { font-family:'Rubik Glitch'; src:url('./assets/fonts/RubikGlitch-Regular.woff') format('woff'); font-display:swap; }
 * { box-sizing: border-box; }
 body { margin: 0; overflow: hidden; }
 button, input { font: inherit; }
@@ -66,3 +67,16 @@ header button.wordmark { width:auto; font-size:15px; }
 .document-content:has(.cm-editor) { padding:7px; white-space:normal; }
 .document-glyph { display:inline-block; vertical-align:baseline; }
 .document-glyph img { max-height:1.25em; vertical-align:middle; }
+
+/* Surface alpha never fades its text or controls. Shared paint uses V1's
+   independent transmission, text-shadow and surface-shadow semantics. */
+:root[data-visual-text] { color:var(--visual-text-color,#deded7); font-family:var(--visual-text-fontFamily,ui-sans-serif,system-ui,sans-serif); text-shadow:var(--visual-text-textShadow,none); }
+:root[data-visual-background] :is(header, #tools, .panel, .panel > header, #status, .cm-panels) {
+  background-color:var(--visual-background);
+  box-shadow:var(--visual-background-glow,0 6px 24px #0005);
+}
+:root[data-visual-text] :is(button, input, select, #tools .title, #tools .muted, #status, .panel output, .wordmark small, .cm-search) {
+  color:var(--visual-text-color);
+  font-family:var(--visual-text-fontFamily,inherit);
+  text-shadow:var(--visual-text-textShadow,inherit);
+}

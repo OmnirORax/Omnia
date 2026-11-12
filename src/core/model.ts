@@ -1,3 +1,4 @@
+import { validateAppearance, validatePaint, type Appearance, type Paint } from '../properties/visual.ts';
 import { creationCell } from './lattice.ts';
 import { SPHERE_VISUAL_DEFAULTS } from '../properties/sphereVisualDefaults.ts';
 import { validateNodeText, type NodeText } from '../text/model.ts';
@@ -11,11 +12,11 @@ export type Binding =
   | { mode: 'structure'; specification: string };
 export type Structure = { origin: Origin; label: string; position: Vec3; color: string; invariant: boolean; parts: Binding[];
   parent?: Origin; variantOf?: Origin; overrides?: string[]; hidden?: boolean; collapsed?: boolean;
-  text?: NodeText; visual?: Visual; scene?: string | null;
+  text?: NodeText; textAppearance?: Paint; visual?: Visual; scene?: string | null;
   opacity?: number; glow?: number; translucency?: number; translucencyRadius?: number;
 };
 export type Relationship = { from: Binding; to: Binding; label: string; kind: string };
-export type World = { format: 'omnium-world'; version: 1 | 2; nodes: Structure[]; assets?: VisualAsset[]; relationships?: Relationship[]; scene?: SceneSettings;
+export type World = { format: 'omnium-world'; version: 1 | 2; nodes: Structure[]; assets?: VisualAsset[]; relationships?: Relationship[]; scene?: SceneSettings; appearance?: Appearance;
   settings?: { latticeScale: number; names: 'all' | 'expanded' | 'selection' } };
 export const emptyWorld = (): World => ({ format: 'omnium-world', version: 2, nodes: [], assets: [], relationships: [], scene: defaultScene(), settings: { latticeScale: 1, names: 'expanded' } });
 export const samePoint = (a: Vec3, b: Vec3) => a.every((n, i) => n === b[i]);
@@ -92,6 +93,7 @@ export function validateWorld(value: unknown): World {
   if (!w || w.format !== 'omnium-world' || ![1, 2].includes(w.version) || !Array.isArray(w.nodes) || w.nodes.length > 4000) throw new Error('Unsupported world format.');
   const point = (p: unknown): p is Vec3 => Array.isArray(p) && p.length === 3 && p.every(n => typeof n === 'number' && Number.isFinite(n) && Math.abs(n) <= 1e7);
   const origin = (o: Origin) => o && Number.isFinite(o.born) && point(o.at);
+  validateAppearance(w.appearance);
   const assets = w.assets ?? [];
   if (!Array.isArray(assets) || assets.length > 100) throw Error('Invalid visual library.');
   const assetKeys = new Set<string>();
@@ -106,10 +108,11 @@ export function validateWorld(value: unknown): World {
     if (anchors.has(a) || positions.has(p)) throw new Error('Two structures cannot occupy the same address.');
     anchors.add(a); positions.add(p);
     if (node.parent !== undefined && !origin(node.parent) || node.variantOf !== undefined && !origin(node.variantOf)) throw Error('Invalid node parent or variant.');
-    if (node.overrides !== undefined && (!Array.isArray(node.overrides) || node.overrides.some(key => !['color','label','text','visual','opacity','glow','translucency','translucencyRadius','scene'].includes(key)))) throw Error('Invalid variant override.');
+    if (node.overrides !== undefined && (!Array.isArray(node.overrides) || node.overrides.some(key => !['color','label','text','visual','opacity','glow','translucency','translucencyRadius','scene','textAppearance'].includes(key)))) throw Error('Invalid variant override.');
     if (node.hidden !== undefined && typeof node.hidden !== 'boolean' || node.collapsed !== undefined && typeof node.collapsed !== 'boolean') throw Error('Invalid node visibility.');
     if (node.scene !== undefined && node.scene !== null && (typeof node.scene !== 'string' || node.scene.length > 200)) throw Error('Invalid node scene.');
     for (const key of ['opacity','glow','translucency','translucencyRadius'] as const) if (node[key] !== undefined && (!Number.isFinite(node[key]) || node[key]! < 0 || node[key]! > 1)) throw Error('Invalid carrier appearance.');
+    validatePaint(node.textAppearance,true);
     if (node.text) validateNodeText(node.text, glyphs);
     validateVisual(node.visual, assets);
     for (const binding of node.parts) {
