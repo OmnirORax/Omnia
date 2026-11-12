@@ -33,7 +33,7 @@ type Visual = { node: Structure; actual: Structure; anchor: T.Vector3; group: T.
 const xyz = (v: T.Vector3): Vec3 => [v.x, v.y, v.z];
 
 export function createWorld(host: HTMLElement, input: Input) {
-  const renderer = new T.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true }); renderer.setClearColor('#101113');
+  const renderer = new T.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true }); renderer.setClearColor('#000000');
   const canvas = renderer.domElement; canvas.tabIndex = 0; canvas.setAttribute('aria-label', 'Omnium lattice world'); host.append(canvas);
   const scene = new T.Scene(), camera = new T.PerspectiveCamera(45, 1, .00001, 100000);
   camera.position.set(12, 8, 40);

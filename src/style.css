@@ -1,4 +1,4 @@
-:root { font: 12px/1.4 ui-sans-serif, system-ui, sans-serif; color: #deded7; background: #101113; color-scheme: dark; font-synthesis: none; }
+:root { font: 12px/1.4 ui-sans-serif, system-ui, sans-serif; color: #deded7; background: #000000; color-scheme: dark; font-synthesis: none; }
 * { box-sizing: border-box; }
 body { margin: 0; overflow: hidden; }
 button, input { font: inherit; }
