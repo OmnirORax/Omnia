@@ -17,6 +17,7 @@ import { createPipeline } from './world/render.ts';
 import { label, disposeLabel } from './world/labels.ts';
 import { createSceneSession } from './scene/session.ts';
 import type { Document } from './graph/geometryTypes.ts';
+import { branch } from './core/nodeOperations.ts';
 
 export type Edge = { kind: 'part'; owner: Origin; index: number } | { kind: 'relationship'; index: number } | { kind: 'variant'; owner: Origin };
 type Point = { x: number; y: number };
@@ -24,6 +25,7 @@ type Input = { pick: (origin: Origin, extend: boolean, toggle: boolean) => void;
   range: (origins: Origin[], extend: boolean) => void; clear: () => void;
   menu: (origin: Origin | undefined, point: Point, position: Vec3, edge?: Edge) => void;
   move: (origins: readonly Origin[], delta: Vec3) => void;
+  adopt: (origins: readonly Origin[], owner: Origin, delta: Vec3) => void;
   park: (origin: Origin, position: Vec3) => World;
   paint: (positions: Vec3[], source?: Origin) => void;
   expand: (origin: Origin) => void; edge: (edge: Edge) => void;
@@ -74,13 +76,13 @@ export function createWorld(host: HTMLElement, input: Input) {
   const resize = new ResizeObserver(() => { const box = host.getBoundingClientRect(); pipeline.resize(box.width, box.height); camera.aspect = box.width / Math.max(1, box.height); camera.updateProjectionMatrix(); request(); }); resize.observe(host);
   controls.addEventListener('change', () => { navigator.orientation.copy(camera.quaternion); request(); });
   function pointer(p: Point) { const r = canvas.getBoundingClientRect(); ray.setFromCamera(new T.Vector2((p.x-r.left)/r.width*2-1, -(p.y-r.top)/r.height*2+1), camera); }
-  function pointed(p: Point): { origin?: Origin; edge?: Edge } {
+  function pointed(p: Point, exclude?: ReadonlySet<string>): { origin?: Origin; edge?: Edge } {
     pointer(p); ray.params.Line!.threshold = scale * .15;
     for (const hit of ray.intersectObjects(picks, true)) {
       let owner: T.Object3D | null = hit.object;
       while (owner && !owner.userData.origin && !owner.userData.edge) owner = owner.parent;
-      if (owner?.userData.origin) return { origin: owner.userData.origin };
-      if (owner?.userData.edge) return { edge: owner.userData.edge };
+      if (owner?.userData.origin) { if (exclude?.has(key(owner.userData.origin))) continue; return { origin: owner.userData.origin }; }
+      if (owner?.userData.edge && !exclude) return { edge: owner.userData.edge };
     }
     return {};
   }
@@ -185,7 +187,7 @@ export function createWorld(host: HTMLElement, input: Input) {
     controls.enabled=false;input.pick(origin,false,false);rebuildPicks();input.feedback('Driving · click an empty cell to park · Esc cancels');request();
   }
   function cancelDrive() { const active=drive.active;drive.cancel();mountedWorld=undefined;navigatorOffset.set(0,0,0);controls.enabled=true;edges.visible=true;rebuildPicks();request();return active; }
-  type Gesture={pointer:number;button:number;start:Point;end:Point;origin?:Origin;edge?:Edge;anchor:T.Vector3;mode:'move'|'range'|'view'|'drive'|'paint';dragged:boolean;resolve?:ReturnType<typeof import('./core/lattice.ts').prepareTranslation>};
+  type Gesture={pointer:number;button:number;start:Point;end:Point;origin?:Origin;edge?:Edge;anchor:T.Vector3;mode:'move'|'range'|'view'|'drive'|'paint';dragged:boolean;origins:readonly Origin[];moving?:Set<string>;resolve?:ReturnType<typeof import('./core/lattice.ts').prepareTranslation>};
   let gesture:Gesture|undefined;
   let stroke:{points:Vec3[];seen:Set<string>;previous:Vec3;source?:Origin;preview:T.InstancedMesh}|undefined;
   function paintPoint(p: Point) {
@@ -207,7 +209,7 @@ export function createWorld(host: HTMLElement, input: Input) {
     }
     if(moving&&!event.altKey&&!selected.some(origin=>sameOrigin(origin,hit.origin!)))input.pick(hit.origin!,false,false);
     const anchor=hit.origin?visuals.get(key(hit.origin))!.group.position:controls.target;
-    gesture={pointer:event.pointerId,button:event.button,start:p,end:p,...hit,anchor:at(p,anchor),mode,dragged:false};
+    gesture={pointer:event.pointerId,button:event.button,start:p,end:p,...hit,anchor:at(p,anchor),mode,dragged:false,origins:[...selected]};
     if(['move','range','drive','paint'].includes(mode)||input.picking()) {controls.enabled=false;event.stopImmediatePropagation();canvas.setPointerCapture(event.pointerId);}
   },true);
   function processPointer(){
@@ -217,7 +219,7 @@ export function createWorld(host: HTMLElement, input: Input) {
       if(g.dragged&&g.mode==='move'){
         const delta=at(p,g.anchor).sub(g.anchor).divideScalar(scale);
         // Same lattice transform used by numerical operation commits; preparation is once per gesture.
-        g.resolve??=prepareTranslation(world,selected);
+        g.resolve??=prepareTranslation(world,g.origins);
         if(gesture!==g)return;const targets=g.resolve(xyz(delta));
         if(targets)for(const[id,position]of targets)visuals.get(id)?.group.position.set(...position).multiplyScalar(scale);
         edges.visible=false;request();return;
@@ -231,10 +233,14 @@ export function createWorld(host: HTMLElement, input: Input) {
   }
   canvas.addEventListener('pointermove',event=>{lastPoint={x:event.clientX,y:event.clientY};if(!inputFrame)inputFrame=requestAnimationFrame(()=>{void processPointer();});});
   canvas.addEventListener('pointerup',event=>{
-    const g=gesture;if(!g||g.pointer!==event.pointerId)return;g.end={x:event.clientX,y:event.clientY};gesture=undefined;rectangle.hidden=true;edges.visible=true;controls.enabled=!drive.active;
+    const g=gesture;if(!g||g.pointer!==event.pointerId)return;g.end={x:event.clientX,y:event.clientY};g.dragged ||= Math.hypot(g.end.x-g.start.x,g.end.y-g.start.y)>=4;gesture=undefined;rectangle.hidden=true;edges.visible=true;controls.enabled=!drive.active;
     try{
       if(g.mode==='paint'){finishPaint();return;}
-      if(g.dragged&&g.mode==='move'){input.move(selected,xyz(at(g.end,g.anchor).sub(g.anchor).divideScalar(scale)));return;}
+      if(g.dragged&&g.mode==='move'){
+        g.moving??=new Set(branch(world,g.origins).map(key));
+        const target=pointed(g.end,g.moving).origin,delta=xyz(at(g.end,g.anchor).sub(g.anchor).divideScalar(scale));
+        if(target)input.adopt(g.origins,target,delta);else input.move(g.origins,delta);return;
+      }
       if(g.dragged&&g.mode==='range'){
         const rect=canvas.getBoundingClientRect(),origins:Origin[]=[];
         for(const visual of visuals.values()){if(!visual.group.visible)continue;const p=visual.group.position.clone().project(camera),x=rect.left+(p.x+1)/2*rect.width,y=rect.top+(1-p.y)/2*rect.height;if(p.z>=-1&&p.z<=1&&x>=Math.min(g.start.x,g.end.x)&&x<=Math.max(g.start.x,g.end.x)&&y>=Math.min(g.start.y,g.end.y)&&y<=Math.max(g.start.y,g.end.y))origins.push(visual.node.origin);}input.range(origins,true);return;

@@ -5,7 +5,7 @@ import { createSelection } from './core/selection.ts';
 import { createStore } from './core/store.ts';
 import { createWorld, type Edge } from './world.ts';
 import { moveBranch, inherited } from './core/lattice.ts';
-import { childNode, copyNode, detachNode, removeNodes } from './core/nodeOperations.ts';
+import { adoptNodes, childNode, copyNode, detachNode, removeNodes } from './core/nodeOperations.ts';
 import { editDocument } from './text/editor.ts';
 import { scenePanel } from './scene/panel.ts';
 import { validateAsset, MAX_ASSET_BYTES, type VisualAsset } from './graph/assets.ts';
@@ -35,6 +35,7 @@ const view = (() => {
       clear() { if (selection.requesting) return; close(); selection.set([]); refresh(); },
       menu(origin, point, position, edge) { if (selection.requesting) return; message = ''; if (edge) selection.set([edge]); else if (origin && !selection.has(origin)) pick(origin); menuPoint = point; refresh(); context(position); },
       move(origins, delta) { store.change(world => translate(world, origins, delta)); },
+      adopt(origins, owner, delta) { store.change(world => adoptNodes(world, origins, owner, delta)); },
       park(origin, position) { message = ''; store.change(world => moveBranch(world, origin, position)); return store.world; },
       paint(positions, source) { store.change(world => { const node = source && locate(world, source); for (const position of positions) { if (node) copyNode(world, node, position).parts = []; else addStructure(world, position); } }); },
       expand(origin) { store.change(world => { const node = locate(world, origin)!; node.collapsed = !node.collapsed; }); },
@@ -260,8 +261,9 @@ element('redo').onclick = () => { view?.cancel(); close(); selection.cancel(); s
 search.oninput = () => { close(); refresh(); };
 search.onkeydown = event => { if (event.key === 'Enter' && shown && !selection.requesting) { selection.set(store.world.nodes.filter(node => shown!.has(key(node.origin))).map(node => node.origin)); search.blur(); refresh(); } };
 document.addEventListener('pointerdown', event => {
-  if (!tools.hidden && !tools.contains(event.target as Node)) { close(); event.preventDefault(); event.stopPropagation(); }
+  if (!tools.hidden && !tools.contains(event.target as Node)) { close(); if (event.button !== 2) { event.preventDefault(); event.stopPropagation(); } }
 }, true);
+tools.addEventListener('contextmenu', event => { event.preventDefault(); event.stopPropagation(); });
 document.addEventListener('keydown', event => {
   const editing = event.target instanceof Element && (!!event.target.closest('[data-input-owner]') || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement);
   if (event.target instanceof Element && event.target.closest('[data-input-owner]')) return;
