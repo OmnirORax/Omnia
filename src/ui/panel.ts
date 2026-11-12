@@ -16,10 +16,17 @@ export function panel(title: string, onClose?: () => void | boolean) {
     const left = Math.max(8, Math.min(point.x, innerWidth - box.width - 8));
     const top = Math.max(8, Math.min(point.y, innerHeight - box.height - 8));
     root.style.left = `${left}px`; root.style.top = `${top}px`; root.style.right = 'auto';
-    root.style.maxHeight = `${Math.max(30, innerHeight - top - 8)}px`;
+
   });
+  const maximize = document.createElement('button'); maximize.textContent='□'; maximize.setAttribute('aria-label','Maximize');
+  let restored: string | undefined;
+  maximize.onclick=()=>{
+    if(restored===undefined){restored=root.style.cssText;Object.assign(root.style,{left:'8px',top:'8px',right:'auto',width:'calc(100vw - 16px)',height:'calc(100svh - 16px)'});maximize.setAttribute('aria-label','Restore');}
+    else {root.style.cssText=restored;restored=undefined;maximize.setAttribute('aria-label','Maximize');}
+  };
+  const actions=document.createElement('div');actions.append(maximize,close);heading.append(actions);
   heading.onpointerdown = event => {
-    if (event.target === close || event.button !== 0) return;
+    if (actions.contains(event.target as Node) || event.button !== 0) return;
     const box = root.getBoundingClientRect(), start = { x: event.clientX, y: event.clientY };
     heading.setPointerCapture(event.pointerId);
     heading.onpointermove = move => { root.style.left = `${Math.max(0, Math.min(innerWidth - 40, box.left + move.clientX - start.x))}px`; root.style.top = `${Math.max(0, Math.min(innerHeight - 30, box.top + move.clientY - start.y))}px`; root.style.right = 'auto'; };

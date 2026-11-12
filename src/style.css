@@ -36,7 +36,7 @@ header button { width: 28px; height: 28px; font-size: 18px; }
 .marquee { position: fixed; pointer-events: none; border: 1px solid #c4cb9b; background: #c4cb9b0c; }
 [hidden] { display: none !important; }
 @media(max-width: 420px) { header { left: 8px; top: 8px; } #find { width: 90px; } .wordmark { font-size: 13px; } }
-.panel { position:fixed; z-index:8; top:64px; right:16px; width:340px; min-width:240px; max-width:calc(100vw - 16px); max-height:calc(100svh - 80px); resize:both; overflow:auto; border:1px solid #42483b; border-radius:6px; background:#191c1bf5; box-shadow:0 6px 24px #0005; }
+.panel { position:fixed; z-index:8; top:64px; right:16px; width:340px; min-width:240px; max-width:calc(100vw - 16px); max-height:calc(100svh - 16px); resize:both; overflow:auto; border:1px solid #42483b; border-radius:6px; background:#191c1bf5; box-shadow:0 6px 24px #0005; }
 .panel > header { position:sticky; top:0; left:auto; display:flex; justify-content:space-between; align-items:center; gap:8px; margin:0; padding:5px 8px; border:0; border-bottom:1px solid #ffffff10; border-radius:0; background:#191c1b; cursor:move; }
 .panel > header button { width:24px; height:24px; font-size:16px; }
 .panel-body { padding:6px; }
