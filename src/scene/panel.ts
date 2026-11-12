@@ -1,5 +1,6 @@
 import { panel } from '../ui/panel.ts';
 import { field } from '../ui/fields.ts';
+import { liveForm } from '../ui/liveForm.ts';
 import { property, type Property, type Value } from '../properties/pool.ts';
 import vfxFunction from './vfx.function.ts';
 import { defaultScene, type SceneSettings } from './state.ts';
@@ -13,7 +14,7 @@ import { resolveScenePrompt } from './contracts.ts';
 import { locate, sameOrigin, type Origin, type World } from '../core/model.ts';
 import type { createSceneSession } from './session.ts';
 
-type Host = { read: () => World; selected: () => readonly Origin[]; change: (edit: (world: World) => void) => void; preview: (world: World) => void; session: ReturnType<typeof createSceneSession>; feedback: (text: string) => void };
+type Host = { read: () => World; selected: () => readonly Origin[]; change: (edit: (world: World) => void, group?: string) => void; preview: (world: World) => void; session: ReturnType<typeof createSceneSession>; feedback: (text: string) => void };
 export function scenePanel(host: Host) {
   let live = true; let target: Origin | undefined = host.selected()[0];
   const subscriptions: (() => void)[] = [];
@@ -22,7 +23,7 @@ export function scenePanel(host: Host) {
   function attempt(action: () => void | Promise<void>) { void Promise.resolve().then(action).catch(error => host.feedback(error instanceof Error ? error.message : String(error))); }
   function button(label: string, action: () => void | Promise<void>, parent: HTMLElement = body) { const b = document.createElement('button'); b.textContent = label; b.onclick = () => attempt(action); parent.append(b); return b; }
   function clear() { for (const stop of subscriptions.splice(0)) stop(); body.replaceChildren(); }
-  function update(edit: (settings: SceneSettings) => void) { host.change(world => { world.scene ??= defaultScene(); edit(world.scene); }); }
+  function update(edit: (settings: SceneSettings) => void, group?: string) { host.change(world => { world.scene ??= defaultScene(); edit(world.scene); }, group); }
   function currentImage() { const w = host.read(), node = target && locate(w, target); return node?.scene !== undefined ? node.scene : w.scene?.image ?? null; }
   function assign(image: string | null) { host.change(world => { if (target) { const node = locate(world, target); if (!node) throw Error('Image destination no longer exists.'); node.scene = image; } else { world.scene ??= defaultScene(); world.scene.image = image; } }); }
   function promptSnapshot(): ScenePromptSnapshot {
@@ -103,9 +104,8 @@ export function scenePanel(host: Host) {
       else if (group === 'prompt') Object.assign(settings, entries);
       else for (const [key, value] of Object.entries(entries)) settings.vfx = vfxFunction.inputs[key].write({ sceneVfx: settings.vfx }, value).sceneVfx;
     };
-    if (group !== 'prompt') form.oninput = () => { if (!form.checkValidity()) return; const candidate = structuredClone(host.read()); candidate.scene ??= defaultScene(); apply(candidate.scene); host.preview(candidate); };
-    form.onsubmit = event => { event.preventDefault(); attempt(() => { update(apply); }); };
-    const submit = document.createElement('button'); submit.type = 'submit'; submit.textContent = 'Apply'; form.append(submit); body.append(form);
+    liveForm(form, undoGroup => { try { update(apply, undoGroup); } catch (error) { host.feedback(error instanceof Error ? error.message : String(error)); } });
+    body.append(form);
     if (group === 'prompt') button('Copy resolved prompt', async () => { const input = promptSnapshot(); await navigator.clipboard.writeText(input.resolved); saveCopiedPrompt(input); host.feedback('Prompt copied. Import or paste the resulting image.'); });
     if (group === 'normalization') {
       const output = document.createElement('output'); body.append(output);

@@ -78,15 +78,16 @@ export function audioNoiseGate(amplitude:number){
 }
 /** One rounded pulse per interval; a sustained input must settle before rearming. */
 export function createPulseEnvelope(){
- let cooldown=0,age=1,peak=0,armed=true;
+ let cooldown=0,age=1,peak=0,armed=true,duration=.2;
  return {
   reset(){cooldown=0;age=1;peak=0;armed=true;},
   sample(input:number,seconds:number,intervalMs:number){
    const dt=Math.max(0,Math.min(.1,seconds)); cooldown=Math.max(0,cooldown-dt);age+=dt;
    if(input<=.05)armed=true;
-   if(input>.05&&armed&&cooldown<=1e-9){peak=input;age=0;cooldown=Math.max(250,Math.min(1500,intervalMs))/1000;armed=false;}
-   // 50 ms rise, 150 ms fade, then rest until the next admitted onset.
-   const x=age<.05?age/.05:Math.max(0,1-(age-.05)/.15);
+   if(input>.05&&armed&&cooldown<=1e-9){peak=input;age=0;cooldown=Math.max(5,Math.min(1500,intervalMs))/1000;armed=false;duration=Math.min(.2,cooldown*.8);}
+   // Rounded rise/fade fits inside short intervals, with rest before retriggering.
+   const rise=duration*.25,fade=duration*.75;
+   const x=age<rise?age/rise:Math.max(0,1-(age-rise)/fade);
    return peak*x*x*(3-2*x);
   },
  };
