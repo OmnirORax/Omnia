@@ -25,7 +25,7 @@ export function decodeScene(file: SceneFile): Uint8Array {
   if (!bytes.length || bytes.length > MAX_ASSET_BYTES || !imageSignatureMatches(bytes, file.type)) throw Error('Invalid workspace image bytes.');
   return bytes;
 }
-export function parseWorkspaceFile(text: string): WorkspaceFile {
+export function parseWorkspaceFile(text: string): WorkspaceFile & { parts?: unknown } {
   if (text.length > TRANSFER_BYTES || new TextEncoder().encode(text).length > TRANSFER_BYTES) throw Error('Workspace file exceeds 145 MiB.');
   const value = JSON.parse(text);
   if (!value || value.format !== 'omnium-v2-workspace' || value.version !== 1 || !Array.isArray(value.scenes) || value.scenes.length > 100) throw Error('Unsupported workspace file. V1 files require a separate migration.');
@@ -38,7 +38,7 @@ export function parseWorkspaceFile(text: string): WorkspaceFile {
     seen.add(image.id);
   }
   if (seen.size !== required.size) throw Error('Workspace file is missing scene images.');
-  return { format: 'omnium-v2-workspace', version: 1, world, scenes: value.scenes };
+  return { format: 'omnium-v2-workspace', version: 1, world, scenes: value.scenes, ...(value.parts !== undefined ? { parts: value.parts } : {}) };
 }
 export function rebindScenes(world: World, images: ReadonlyMap<string, string>): World {
   const next = structuredClone(world);

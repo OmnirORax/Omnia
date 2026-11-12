@@ -197,7 +197,7 @@ function context(position: Vec3) {
 let workspaceView: ReturnType<typeof workspacePanel> | undefined;
 function openWorkspace() {
   close(); if (workspaceView?.root.isConnected) { workspaceView.root.focus(); return; }
-  workspaceView = workspacePanel({ read: () => store.world, replace: world => { store.replace(world); selection.set([]); search.value = ''; refresh(); }, recover: () => { store.recover(); selection.set([]); search.value = ''; refresh(); }, beforeReplace: () => {
+  workspaceView = workspacePanel({ selected: () => selectedOrigins().map(origin => JSON.stringify(origin)), read: () => store.world, replace: world => { store.replace(world); selection.set([]); search.value = ''; refresh(); }, recover: () => { store.recover(); selection.set([]); search.value = ''; refresh(); }, beforeReplace: () => {
     documentEpoch++; view?.cancel(); close(); selection.cancel(); sceneView?.close();
     for (const document of documents.values()) document?.close();
     if ([...documents.values()].some(document => document?.root.isConnected)) throw Error('An open document could not close. Preserve it before importing.');
