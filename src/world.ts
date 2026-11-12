@@ -16,6 +16,7 @@ import { createPipeline } from './world/render.ts';
 import { label, disposeLabel } from './world/labels.ts';
 import { createSceneSession } from './scene/session.ts';
 import type { Document } from './graph/geometryTypes.ts';
+import { TEXT_DEFAULTS } from './properties/visual.ts';
 import { branch } from './core/nodeOperations.ts';
 
 export type Edge = { kind: 'part'; owner: Origin; index: number } | { kind: 'relationship'; index: number } | { kind: 'variant'; owner: Origin };
@@ -30,7 +31,7 @@ type Input = { pick: (origin: Origin, extend: boolean, toggle: boolean) => void;
   expand: (origin: Origin) => void; edge: (edge: Edge) => void;
   feedback: (message: string) => void; picking: () => boolean };
 type Visual = { node: Structure; actual: Structure; anchor: T.Vector3; group: T.Group;
-  body: T.Mesh<T.SphereGeometry, T.MeshPhongMaterial>; slot: T.Mesh; ring: T.Mesh; text: T.Sprite; caption: string; object?: T.Group; visualKey?: string };
+  body: T.Mesh<T.SphereGeometry, T.MeshPhongMaterial>; slot: T.Mesh; ring: T.Mesh; text: T.Sprite; caption: string; textKey?:string; object?: T.Group; visualKey?: string };
 const xyz = (v: T.Vector3): Vec3 => [v.x, v.y, v.z];
 
 export function createWorld(host: HTMLElement, input: Input) {
@@ -127,7 +128,7 @@ export function createWorld(host: HTMLElement, input: Input) {
     const line = new T.Line(new T.BufferGeometry().setFromPoints([a,b]), material); line.userData.edge = edge; edges.add(line);
     const side = direction.clone().cross(camera.position.clone().sub(b)).normalize().multiplyScalar(scale*.12), back = b.clone().addScaledVector(direction,-scale*.25);
     const arrow = new T.Line(new T.BufferGeometry().setFromPoints([back.clone().add(side),b,back.clone().sub(side)]), material.clone()); arrow.userData.edge = edge; edges.add(arrow);
-    if (text) { const caption = label(text); caption.scale.multiplyScalar(.65); caption.position.copy(a.clone().add(b).multiplyScalar(.5)); caption.userData.edge = edge; caption.userData.ends=[a,b]; edges.add(caption); }
+    if (text) { const caption = label(text,world.appearance?.text); caption.userData.requestRender=request;caption.scale.multiplyScalar(.65); caption.position.copy(a.clone().add(b).multiplyScalar(.5)); caption.userData.edge = edge; caption.userData.ends=[a,b]; edges.add(caption); }
   }
   function connections() {
     clearEdges();
@@ -151,17 +152,18 @@ export function createWorld(host: HTMLElement, input: Input) {
     const present = new Set(next.nodes.map(node => key(node.origin)));
     for (const [id, visual] of visuals) if (!present.has(id)) { scene.remove(visual.group); visual.body.material.dispose(); disposeLabel(visual.text); if (visual.object) disposeVisual(visual.object); visuals.delete(id); }
     for (const node of next.nodes) {
-      const actual = inherited(node,next), id=key(node.origin), caption=`${actual.label || (node.invariant ? '⚬' : '•')}${node.parts.some(binding => !prepared.resolve(binding).length) ? ' !' : ''}`;
+      const actual = inherited(node,next), id=key(node.origin), textPaint={...TEXT_DEFAULTS,...next.appearance?.text,...actual.textAppearance},textKey=JSON.stringify(textPaint), caption=`${actual.label || (node.invariant ? '⚬' : '•')}${node.parts.some(binding => !prepared.resolve(binding).length) ? ' !' : ''}`;
       let visual=visuals.get(id);
       if (!visual) {
-        const group=new T.Group(),body=new T.Mesh(sphere,atomicCarrierMaterial(actual.color)),slot=new T.Mesh(sphere,slotMaterial),ring=new T.Mesh(ringGeometry,ringMaterial),text=label(caption);
-        ring.renderOrder=1; group.add(body,slot,ring,text);scene.add(group);visual={node,actual,anchor:group.position,group,body,slot,ring,text,caption};visuals.set(id,visual);
+        const group=new T.Group(),body=new T.Mesh(sphere,atomicCarrierMaterial(actual.color)),slot=new T.Mesh(sphere,slotMaterial),ring=new T.Mesh(ringGeometry,ringMaterial),text=label(caption,textPaint);text.userData.requestRender=request;
+        ring.renderOrder=1; group.add(body,slot,ring,text);scene.add(group);visual={node,actual,anchor:group.position,group,body,slot,ring,text,caption,textKey};visuals.set(id,visual);
       }
-      if (visual.caption!==caption) { visual.group.remove(visual.text);disposeLabel(visual.text);visual.text=label(caption);visual.group.add(visual.text);visual.caption=caption; }
-      const visualKey=JSON.stringify(actual.visual ?? null);
+      if (visual.caption!==caption || visual.textKey!==textKey) { visual.group.remove(visual.text);disposeLabel(visual.text);visual.text=label(caption,textPaint);visual.text.userData.requestRender=request;visual.group.add(visual.text);visual.caption=caption; }
+      visual.textKey=textKey;
+      const visualKey=JSON.stringify([actual.visual ?? null,actual.visual?.character?textPaint:null]);
       if (visual.visualKey!==visualKey) {
         if (visual.object) {visual.group.remove(visual.object);disposeVisual(visual.object);visual.object=undefined;}
-        if (actual.visual?.assetId || actual.visual?.character) {visual.object=visualObject(actual.visual,next.assets??[],label,request);visual.object.scale.setScalar(actual.visual.size??1.4);visual.object.userData.origin=node.origin;visual.group.add(visual.object);}
+        if (actual.visual?.assetId || actual.visual?.character) {visual.object=visualObject(actual.visual,next.assets??[],text=>{const sprite=label(text,textPaint);sprite.userData.requestRender=request;return sprite;},request);visual.object.scale.setScalar(actual.visual.size??1.4);visual.object.userData.origin=node.origin;visual.group.add(visual.object);}
         visual.visualKey=visualKey;
       }
       visual.node=node;visual.actual=actual;visual.group.position.copy(new T.Vector3(...vector(cellPoint(grid.cells.get(id)!,scale))));

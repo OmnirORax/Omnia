@@ -29,7 +29,7 @@ export function branch(world: World, roots: readonly Origin[]) {
 }
 export function copyNode(world: World, source: Structure, position: Vec3) {
   const actual = inherited(source, world), node = addStructure(world, position);
-  for (const key of ['label','color','text','visual','opacity','glow','translucency','translucencyRadius','parts','scene'] as const) if (actual[key] !== undefined) Object.assign(node, { [key]: structuredClone(actual[key]) });
+  for (const key of ['label','color','text','visual','opacity','glow','translucency','translucencyRadius','parts','scene','textAppearance'] as const) if (actual[key] !== undefined) Object.assign(node, { [key]: structuredClone(actual[key]) });
   return node;
 }
 export function childNode(world: World, owner: Origin, variant = false) {

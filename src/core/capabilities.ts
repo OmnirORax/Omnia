@@ -3,7 +3,8 @@ import { prepareTranslation, address } from './lattice.ts';
 import { SPHERE_VISUAL_DEFAULTS } from '../properties/sphereVisualDefaults.ts';
 import { property, type Property } from '../properties/pool.ts';
 
-export const color = property({ key: 'color', label: 'Color', kind: 'color' });
+import { color } from '../properties/visual.ts';
+export { color };
 export const label = property({ key: 'label', label: 'Label', kind: 'text' });
 export const position = ['X', 'Y', 'Z'].map((label, i) => property({ key: `position.${i}`, label, kind: 'number', unit: 'world' }));
 export const carrierProperties = ['opacity','glow','translucency','translucencyRadius'].map(key => property({ key, label: ({opacity:'Opacity',glow:'Glow',translucency:'Translucency',translucencyRadius:'Translucency radius'} as Record<string,string>)[key], kind:'number', min:0, max:1, step:.01 }));

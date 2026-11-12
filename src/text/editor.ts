@@ -6,6 +6,8 @@ import { Strikethrough, TaskList } from '@lezer/markdown';
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { tags } from '@lezer/highlight';
 import { closeSearchPanel, getSearchQuery, openSearchPanel, search, searchKeymap, SearchQuery, setSearchQuery } from '@codemirror/search';
+import { readPaint } from '../core/appearance.ts';
+import { textStyle } from '../ui/appearance.ts';
 import { panel } from '../ui/panel.ts';
 import { TEXT_CLIPBOARD } from './dom.ts';
 import { normalizeText, validateNodeText, type NodeText, type TextPart } from './model.ts';
@@ -103,5 +105,11 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
     EditorView.updateListener.of(update => { if (update.docChanged) save(); }),
     EditorView.theme({ '&':{ backgroundColor:'transparent',fontSize:'inherit',color:'inherit' },'.cm-content':{fontFamily:'inherit',padding:'0',minHeight:'120px'},'.cm-scroller':{overflow:'auto',fontFamily:'inherit'},'&.cm-focused':{outline:'none'},'.cm-cursor, &.cm-focused .cm-cursor':{borderLeft:'2px solid #ffffff',marginLeft:'-1px'},'&.cm-editor .cm-scroller > .cm-selectionLayer .cm-selectionBackground, &.cm-editor.cm-focused .cm-scroller > .cm-selectionLayer .cm-selectionBackground':{backgroundColor:'#245eac',outline:'1px solid #85baff',outlineOffset:'-1px'},'.cm-panels':{backgroundColor:'#191c1b',color:'inherit'},'.cm-search':{fontSize:'11px',padding:'4px'},'.cm-search label':{display:'inline-flex'},'.cm-search input':{width:'90px'},'.cm-search input[type=checkbox]':{width:'auto'} }, {dark:true}),
   ] }) });
-  editor.focus(); return view;
+  let previousPaint='';
+  function refreshAppearance(){
+    if(!locate(read(),origin))return;
+    const paint=readPaint(read(),'nodeText',origin),key=JSON.stringify(paint);if(key===previousPaint)return;previousPaint=key;
+    Object.assign(host.style,textStyle(paint));editor?.requestMeasure();
+  }
+  refreshAppearance();editor.focus(); return {...view,refreshAppearance};
 }
