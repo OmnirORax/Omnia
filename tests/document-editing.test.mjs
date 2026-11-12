@@ -89,3 +89,13 @@ test('grouped deletion and a preceding edit restore the removed glyph exactly',(
  e.dispatch(e.state.update({changes:{from:0,to:1},userEvent:'delete.backward'}));
  assert.deepEqual(e.text().content,['b']);e.run(undo);assert.deepEqual(e.text().content,['a',glyph,'b']);e.run(redo);assert.deepEqual(e.text().content,['b']);
 });
+test('Alt-double-click adds whole words without discarding earlier ranges',async()=>{
+ const {addWordSelection}=await import('../src/text/mouse.ts');
+ const e=editor(['one two three'],[[0,3]]), baseline=e.state.selection;
+ const selected=addWordSelection(e.state,baseline,5);
+ assert.deepEqual(selected.ranges.map(r=>[r.from,r.to]),[[0,3],[4,7]]);
+ assert.deepEqual(addWordSelection(e.state,baseline,5,10).ranges.map(r=>[r.from,r.to]),[[0,3],[4,13]]);
+ const full=editor(['one two three'],[[0,3],[4,7]]),before=full.state.selection;
+ full.select([[0,3]]);
+ assert.deepEqual(addWordSelection(full.state,before,5).ranges.map(r=>[r.from,r.to]),[[0,3],[4,7]]);
+});

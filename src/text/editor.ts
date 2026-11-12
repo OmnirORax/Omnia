@@ -14,6 +14,7 @@ import { inherited } from '../core/lattice.ts';
 import { locate } from '../core/model.ts';
 import { fromSource, glyphField, glyphHistory, sliceSource, sourceTransaction, toSource, type Edit } from './source.ts';
 import { capitalizeSentence, codeBlock, deleteParagraph, heading, list, moveLines, singleCursor, wrap } from './commands.ts';
+import { documentMouseSelection } from './mouse.ts';
 import { documentPresentation } from './presentation.ts';
 
 export function editDocument(origin: Origin, read: () => World, commit: (text: NodeText) => void, feedback: (message: string) => void, closed?: () => void) {
@@ -62,7 +63,7 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
   };
   editor = new EditorView({ parent:host, state:EditorState.create({ doc:source.text, extensions:[
     EditorState.allowMultipleSelections.of(true), glyphField.init(() => source.glyphs), glyphHistory, history(),
-    EditorView.clickAddsSelectionRange.of(event => event.altKey), drawSelection(), EditorView.lineWrapping,
+    EditorView.clickAddsSelectionRange.of(event => event.altKey), documentMouseSelection(), drawSelection({drawRangeCursor:true,cursorBlinkRate:1000}), EditorView.lineWrapping,
     markdown({ extensions:[Strikethrough,TaskList],addKeymap:false }), documentPresentation(read),
     syntaxHighlighting(HighlightStyle.define([
       { tag:tags.strong,fontWeight:'bold' }, { tag:tags.emphasis,fontStyle:'italic' }, { tag:tags.strikethrough,textDecoration:'line-through' },
@@ -100,7 +101,7 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
       },
     }),
     EditorView.updateListener.of(update => { if (update.docChanged) save(); }),
-    EditorView.theme({ '&':{ backgroundColor:'transparent',fontSize:'inherit',color:'inherit' },'.cm-content':{fontFamily:'inherit',padding:'0',minHeight:'120px'},'.cm-scroller':{overflow:'auto',fontFamily:'inherit'},'&.cm-focused':{outline:'none'},'.cm-cursor':{borderLeftColor:'#e8e9de'},'.cm-selectionBackground, &.cm-focused .cm-selectionBackground':{backgroundColor:'#6a815d66'},'.cm-panels':{backgroundColor:'#191c1b',color:'inherit'},'.cm-search':{fontSize:'11px',padding:'4px'},'.cm-search label':{display:'inline-flex'},'.cm-search input':{width:'90px'},'.cm-search input[type=checkbox]':{width:'auto'} }),
+    EditorView.theme({ '&':{ backgroundColor:'transparent',fontSize:'inherit',color:'inherit' },'.cm-content':{fontFamily:'inherit',padding:'0',minHeight:'120px'},'.cm-scroller':{overflow:'auto',fontFamily:'inherit'},'&.cm-focused':{outline:'none'},'.cm-cursor, &.cm-focused .cm-cursor':{borderLeft:'2px solid #ffffff',marginLeft:'-1px'},'.cm-selectionBackground, &.cm-focused .cm-selectionBackground':{backgroundColor:'#6a815d66'},'.cm-panels':{backgroundColor:'#191c1b',color:'inherit'},'.cm-search':{fontSize:'11px',padding:'4px'},'.cm-search label':{display:'inline-flex'},'.cm-search input':{width:'90px'},'.cm-search input[type=checkbox]':{width:'auto'} }, {dark:true}),
   ] }) });
   editor.focus(); return view;
 }
