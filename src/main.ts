@@ -53,7 +53,7 @@ function refresh() {
   element('empty').hidden = store.world.nodes.length > 0;
   element<HTMLButtonElement>('undo').disabled = !store.canUndo;
   element<HTMLButtonElement>('redo').disabled = !store.canRedo;
-  if (view) status.textContent = store.message || message || (selection.requesting ? 'Choose a reference · Esc cancels' : selectedOrigins().length ? `${selectedOrigins().length} selected` : 'Click to drive · Empty cell to park · Alt-drag to paint');
+  if (view) status.textContent = store.message || message || (selection.requesting ? 'Choose a reference · Esc cancels' : selectedOrigins().length ? `${selectedOrigins().length} selected` : 'Drag to move · Alt-click to ride · Alt-drag to paint');
 }
 store.subscribe(refresh);
 function open(title: string) {
