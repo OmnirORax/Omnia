@@ -1,5 +1,26 @@
 import { addStructure, bind, locate, sameOrigin, type Origin, type Structure, type Vec3, type World } from './model.ts';
-import { inherited } from './lattice.ts';
+import { address, inherited, point, prepareTranslation, vector } from './lattice.ts';
+import { nearestCell } from '../graph/lattice.ts';
+
+export function adoptNodes(world: World, origins: readonly Origin[], owner: Origin, delta: Vec3) {
+  const parent = locate(world, owner); if (!parent) throw Error('The parent is no longer available.');
+  const moving = new Set(branch(world, origins).map(address));
+  if (moving.has(address(owner))) throw Error('A node cannot become a child of its own branch.');
+  // Only selection roots change parent; selected descendants retain their hierarchy.
+  const roots = world.nodes.filter(node => origins.some(origin => sameOrigin(origin, node.origin)) &&
+    (!node.parent || !moving.has(address(node.parent))));
+  if (!roots.length) return;
+  const resolve = prepareTranslation(world, origins);
+  const landing = nearestCell(point(delta), cell => !!resolve(vector(cell)));
+  const targets = resolve(vector(landing))!;
+  for (const node of world.nodes) { const target = targets.get(address(node.origin)); if (target) node.position = target; }
+  for (const node of roots) {
+    detachNode(world, node.origin);
+    node.parent = structuredClone(owner);
+    if (!parent.parts.some(binding => binding.mode === 'follow' && sameOrigin(binding.origin, node.origin))) parent.parts.push(bind(node, 'follow', world));
+  }
+  parent.collapsed = false;
+}
 
 export function branch(world: World, roots: readonly Origin[]) {
   const values = [...roots]; let added = true;
