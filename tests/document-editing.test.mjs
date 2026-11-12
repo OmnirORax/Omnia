@@ -78,3 +78,14 @@ test('Escape simplifies multiple cursors before asking to close the document',()
 test('moving a full-line selection to the document end keeps selection in bounds',()=>{
  const e=editor(['a\nb\nc'],[[2,4]]);e.run(moveLines(1));assert.equal(e.state.doc.toString(),'a\nc\nb');assert.deepEqual([e.state.selection.main.from,e.state.selection.main.to],[4,5]);
 });
+test('grouped native typing undo/redo maps references across all constituent changes',()=>{
+ const e=editor(['a',glyph,'b']);
+ for(let i=0;i<3;i++)e.dispatch(e.state.update({changes:{from:0,insert:'!'},userEvent:'input.type'}));
+ assert.deepEqual(e.text().content,['!!!a',glyph,'b']);e.run(undo);assert.deepEqual(e.text().content,['a',glyph,'b']);e.run(redo);assert.deepEqual(e.text().content,['!!!a',glyph,'b']);
+});
+test('grouped deletion and a preceding edit restore the removed glyph exactly',()=>{
+ const e=editor(['a',glyph,'b']);
+ e.dispatch(e.state.update({changes:{from:1,to:2},userEvent:'delete.backward'}));
+ e.dispatch(e.state.update({changes:{from:0,to:1},userEvent:'delete.backward'}));
+ assert.deepEqual(e.text().content,['b']);e.run(undo);assert.deepEqual(e.text().content,['a',glyph,'b']);e.run(redo);assert.deepEqual(e.text().content,['b']);
+});

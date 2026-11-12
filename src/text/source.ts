@@ -1,10 +1,12 @@
-import { EditorSelection, StateEffect, StateField, type EditorState, type ChangeDesc, type ChangeSpec } from '@codemirror/state';
+import { EditorSelection, StateEffect, StateField, MapMode, type EditorState, type ChangeDesc, type ChangeSpec } from '@codemirror/state';
 import { invertedEffects, isolateHistory } from '@codemirror/commands';
 import { normalizeText, type NodeText, type TextPart } from './model.ts';
 
 export type Glyph = { at: number; part: Exclude<TextPart, string> };
 export type Source = { text: string; glyphs: Glyph[] };
-export const setGlyphs = StateEffect.define<readonly Glyph[]>();
+export const addGlyphs = StateEffect.define<readonly Glyph[]>({ map: (glyphs, changes) => glyphs.flatMap(g => {
+  const at = changes.mapPos(g.at, 1, MapMode.TrackDel); return at === null ? [] : [{ ...g, at }];
+}) });
 function mapped(glyphs: readonly Glyph[], changes: ChangeDesc): Glyph[] {
   const result: Glyph[] = []; let i = 0;
   changes.iterGaps((from, to, length) => {
@@ -16,11 +18,21 @@ function mapped(glyphs: readonly Glyph[], changes: ChangeDesc): Glyph[] {
 export const glyphField = StateField.define<readonly Glyph[]>({
   create: () => [],
   update(value, tr) {
-    for (const effect of tr.effects) if (effect.is(setGlyphs)) return effect.value;
-    return tr.docChanged ? mapped(value, tr.changes) : value;
+    const next = tr.docChanged ? mapped(value, tr.changes) : [...value];
+    for (const effect of tr.effects) if (effect.is(addGlyphs)) next.push(...effect.value);
+    return next.sort((a,b) => a.at-b.at);
   },
 });
-export const glyphHistory = invertedEffects.of(tr => tr.docChanged ? [setGlyphs.of(tr.startState.field(glyphField))] : []);
+export const glyphHistory = invertedEffects.of(tr => {
+  if (!tr.docChanged) return [];
+  const before = tr.startState.field(glyphField), kept = new Set<number>(); let i = 0;
+  tr.changes.iterGaps((from, _to, length) => {
+    while (i < before.length && before[i].at < from) i++;
+    while (i < before.length && before[i].at < from+length) kept.add(before[i++].at);
+  });
+  const deleted = before.filter(g => !kept.has(g.at));
+  return deleted.length ? [addGlyphs.of(deleted)] : [];
+});
 export function toSource(text: NodeText): Source {
   let source = ''; const glyphs: Glyph[] = [];
   for (const part of text.content) if (typeof part === 'string') source += part; else { glyphs.push({ at: source.length, part }); source += '\ufffc'; }
@@ -46,11 +58,11 @@ export const literal = (text: string): Source => ({ text, glyphs: [] });
 export type Edit = { from: number; to: number; insert: Source };
 export function sourceTransaction(state: EditorState, edits: readonly Edit[], ranges?: readonly { anchor: number; head: number }[]) {
   const specs: ChangeSpec[] = edits.map(e => ({ from: e.from, to: e.to, insert: e.insert.text })), changes = state.changes(specs);
-  const glyphs = mapped(state.field(glyphField), changes);
+  const glyphs: Glyph[] = [];
   for (const edit of edits) {
     const offset = changes.mapPos(edit.from, -1);
     glyphs.push(...edit.insert.glyphs.map(g => ({ ...g, at: offset + g.at })));
   }
   glyphs.sort((a, b) => a.at - b.at);
-  return state.update({ changes, effects: setGlyphs.of(glyphs), annotations:isolateHistory.of('full'), ...(ranges ? { selection: EditorSelection.create(ranges.map(r => EditorSelection.range(r.anchor, r.head)), state.selection.mainIndex) } : {}), scrollIntoView: true, userEvent: 'input' });
+  return state.update({ changes, effects: addGlyphs.of(glyphs), annotations:isolateHistory.of('full'), ...(ranges ? { selection: EditorSelection.create(ranges.map(r => EditorSelection.range(r.anchor, r.head)), state.selection.mainIndex) } : {}), scrollIntoView: true, userEvent: 'input' });
 }
