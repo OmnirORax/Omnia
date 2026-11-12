@@ -6,7 +6,7 @@ import { createStore } from './core/store.ts';
 import { createWorld, type Edge } from './world.ts';
 import { moveBranch, inherited } from './core/lattice.ts';
 import { childNode, copyNode, detachNode, removeNodes } from './core/nodeOperations.ts';
-import { editDocument } from './text/editor.ts';
+import type { editDocument } from './text/editor.ts';
 import { scenePanel } from './scene/panel.ts';
 import { validateAsset, MAX_ASSET_BYTES, type VisualAsset } from './graph/assets.ts';
 import { workspacePanel } from './ui/workspace.ts';
@@ -193,7 +193,7 @@ let workspaceView: ReturnType<typeof workspacePanel> | undefined;
 function openWorkspace() {
   close(); if (workspaceView?.root.isConnected) { workspaceView.root.focus(); return; }
   workspaceView = workspacePanel({ read: () => store.world, replace: world => { store.replace(world); selection.set([]); search.value = ''; refresh(); }, recover: () => { store.recover(); selection.set([]); search.value = ''; refresh(); }, beforeReplace: () => {
-    view?.cancel(); close(); selection.cancel(); sceneView?.close();
+    documentEpoch++; view?.cancel(); close(); selection.cancel(); sceneView?.close();
     for (const document of documents.values()) document?.close();
     if ([...documents.values()].some(document => document?.root.isConnected)) throw Error('An open document could not close. Preserve it before importing.');
   } });
@@ -203,15 +203,23 @@ function openScene() {
   close(); if (!view) return; sceneView?.close();
   sceneView = scenePanel({ read: () => store.world, selected: selectedOrigins, change: edit => store.change(edit), preview: candidate => view.session.update(candidate, selectedOrigins()[0]), session: view.session, feedback });
 }
-const documents = new Map<string, ReturnType<typeof editDocument>>();
+const documents = new Map<string, ReturnType<typeof editDocument>>(), openingDocuments = new Set<string>();
+let documentEpoch = 0;
 function openDocument() {
   const origin = selectedOrigins()[0]; if (!origin) return; close();
-  const existing = documents.get(key(origin)); if (existing?.root.isConnected) { existing.root.focus(); return; }
-  documents.set(key(origin), editDocument(origin, () => store.world, text => store.change(world => {
-    const node = locate(world, origin); if (!node) throw Error('This node was removed. Copy the document before closing.'); node.text = text;
-    if (node.variantOf) node.overrides = [...new Set([...(node.overrides ?? []), 'text'])];
-  }, `document:${key(origin)}`), feedback, () => documents.delete(key(origin))));
+  const id = key(origin), existing = documents.get(id);
+  if (existing?.root.isConnected) { existing.root.querySelector<HTMLElement>('.cm-content')?.focus(); return; }
+  if (openingDocuments.has(id)) return;
+  openingDocuments.add(id); const epoch = documentEpoch;
+  void import('./text/editor.ts').then(({ editDocument }) => {
+    if (epoch !== documentEpoch || !locate(store.world, origin)) return;
+    documents.set(id, editDocument(origin, () => store.world, text => store.change(world => {
+      const node = locate(world, origin); if (!node) throw Error('This node was removed. Copy the document before closing.'); node.text = text;
+      if (node.variantOf) node.overrides = [...new Set([...(node.overrides ?? []), 'text'])];
+    }, `document:${id}`), feedback, () => documents.delete(id)));
+  }).catch(error => feedback(error instanceof Error ? error.message : String(error))).finally(() => openingDocuments.delete(id));
 }
+
 function requestNode(accept: (target: Origin) => void) {
   close(); selection.request(target => { if (!isNode(target)) return false; try { accept(target); message = ''; return true; } catch (error) { message = error instanceof Error ? error.message : String(error); return false; } });
   message = 'Choose a node · Esc cancels'; refresh();
