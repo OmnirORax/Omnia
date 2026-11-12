@@ -1,67 +1,34 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { AUDIO_TUNING_CONTROLS,AUDIO_TUNING_DEFAULTS,frequencyRange } from '../src/scene/audioTuning.ts';
-import { normalizeSceneVfx,createBassDynamics,followBass,serializeSceneVfx } from '../src/scene/vfx.ts';
-import { createAutomaticPulse,createPulseEnvelope } from '../src/scene/pulse.ts';
-import { emptyWorld } from '../src/core/model.ts';
-import { parseWorkspaceFile } from '../src/core/transfer.ts';
+import {normalizeSceneVfx,DEFAULT_SCENE_VFX,serializeSceneVfx,WAVE_PRESETS} from '../src/scene/vfx.ts';
+import {emptyWorld,validateWorld} from '../src/core/model.ts';
+import {parseWorkspaceFile} from '../src/core/transfer.ts';
+import {defaultAudioResponse,validateAudioResponse} from '../src/scene/audioResponse.ts';
+import {makeCurve} from '../src/properties/curve.ts';
+import sceneFunction from '../src/scene/vfx.function.ts';
 
-const tuning=patch=>({...AUDIO_TUNING_DEFAULTS,...patch});
-test('pulse noise and onset controls change actual detection',()=>{
-  const sample=patch=>createAutomaticPulse().sample(.03,1/60,2,1.7,.03,.03,1,tuning(patch));
-  assert.ok(sample({})>0);
-  assert.equal(sample({audioNoiseFloor:.04}),0);
-  assert.equal(sample({pulseOnsetFloor:.04}),0);
-  assert.ok(sample({audioNoiseKnee:.1})<sample({}));
-  assert.ok(sample({pulseReferenceWeight:1})<sample({}));
+test('old scenes gain editable curves without overwriting their saved tuning or visual defaults',()=>{
+ assert.deepEqual(normalizeSceneVfx(undefined),DEFAULT_SCENE_VFX);
+ const raw={pulseAmount:1,audioBounce:1.2,pulseSensitivity:4,pulseHzMax:500,bassAttack:50};
+ const settings=normalizeSceneVfx(raw);assert.deepEqual(settings.audioResponse,defaultAudioResponse(1,1.2));
+ assert.equal(settings.pulseSensitivity,4);assert.equal(settings.pulseHzMax,500);assert.equal(settings.bassAttack,50);assert.equal(raw.audioResponse,undefined);
+ assert.equal(settings.pulseTintHigh,'#0062ff');assert.equal(settings.imageTint,'#00eeff');
+ for(const key of ['waveAmplitudeX','waveAmplitudeY','waveFrequencyX','waveFrequencyY','waveSpeedX','waveSpeedY'])assert.equal(settings[key],WAVE_PRESETS[1][key]);
 });
-
-test('onset tracking duration changes residual spectral rises',()=>{
-  const sample=time=>{
-    const pulse=createAutomaticPulse(),bytes=new Uint8Array(512);bytes[10]=230;
-    pulse.spectrum(bytes,0,1,512,1/60,tuning({pulseOnsetTime:time}));
-    return pulse.spectrum(bytes,0,1,512,1/60,tuning({pulseOnsetTime:time})).change;
-  };
-  assert.ok(sample(100)>sample(5));
+test('explicit response curves own behavior independently of retired knobs and return independent arrays',()=>{
+ const response=defaultAudioResponse();response.light.loudness=makeCurve(()=>.5);
+ const a=normalizeSceneVfx({audioResponse:response}),b=normalizeSceneVfx({audioResponse:response,pulseSensitivity:8,pulseInterval:1500,pulseAmount:0,audioBounce:1,pulseHzMax:1});
+ assert.deepEqual(a.audioResponse,b.audioResponse);assert.notEqual(a.audioResponse.light.loudness,response.light.loudness);
+ assert.ok(!('scene.pulseSensitivity' in sceneFunction.inputs));assert.ok(!('scene.audioBounce' in sceneFunction.inputs));assert.ok(!('scene.pulseInterval' in sceneFunction.inputs));assert.ok(!('scene.bassAttack' in sceneFunction.inputs));
 });
-
-test('timing controls shape admitted pulses and trigger level',()=>{
-  const sample=patch=>{
-    const envelope=createPulseEnvelope(),settings=tuning(patch);envelope.sample(.5,.025,1000,settings);
-    return envelope.sample(0,.025,1000,settings);
-  };
-  assert.ok(sample({})>0);
-  assert.equal(sample({pulseTrigger:.6}),0);
-  assert.ok(sample({pulseAttackFraction:.8})<sample({}));
-  assert.equal(sample({pulseDuration:5}),0);
-  assert.equal(sample({pulseIntervalFill:.1,pulseDuration:1000}),.5);
+test('curve settings survive copy, save validation and workspace round trips',()=>{
+ const world=emptyWorld();world.scene.vfx.audioResponse.bounce.recurrence=makeCurve(()=>.3);
+ const text=serializeSceneVfx(world.scene.vfx);assert.deepEqual(JSON.parse(text),world.scene.vfx);
+ const restored=parseWorkspaceFile(JSON.stringify({format:'omnium-v2-workspace',version:1,world,scenes:[]}));assert.deepEqual(restored.world.scene.vfx.audioResponse,world.scene.vfx.audioResponse);
 });
-
-test('bounce controls change dynamics and remain bounded at extreme settings',()=>{
-  const sample=patch=>createBassDynamics().sample(.05,1/60,tuning(patch));
-  assert.ok(sample({bassReferenceMin:.3})<sample({}));
-  assert.equal(sample({bassFloorRatio:.9}),0);
-  assert.ok(followBass(0,1,.02,tuning({bassAttack:5}))>followBass(0,1,.02,tuning({bassAttack:100})));
-  assert.ok(followBass(1,0,.02,tuning({bassRelease:100}))>followBass(1,0,.02,tuning({bassRelease:5})));
-  for(const side of ['min','max']){
-    const settings=tuning(Object.fromEntries(AUDIO_TUNING_CONTROLS.map(c=>[c.key,c[side]]))),bass=createBassDynamics();
-    for(const amplitude of [0,.001,.01,.1,1]){const value=bass.sample(amplitude,1/60,settings);assert.ok(Number.isFinite(value)&&value>=0&&value<=1);}
-  }
-});
-
-test('frequency controls stay within available non-DC bins and accept reversed ranges',()=>{
-  assert.deepEqual(frequencyRange(20,20000,46.875,512),{first:1,last:427});
-  assert.deepEqual(frequencyRange(20000,20,46.875,512),frequencyRange(20,20000,46.875,512));
-  assert.deepEqual(frequencyRange(20000,20000,20,512),{first:511,last:512});
-});
-
-test('tuning survives export/copy and missing or invalid saved values normalize',()=>{
-  const settings=normalizeSceneVfx({pulseHzMax:500,bassAttack:50,audioNoiseFloor:.005});
-  assert.deepEqual(JSON.parse(serializeSceneVfx(settings)),settings);
-  const world=emptyWorld();world.scene.vfx=settings;
-  const restored=parseWorkspaceFile(JSON.stringify({format:'omnium-v2-workspace',version:1,world,scenes:[]}));
-  assert.equal(restored.world.scene.vfx.pulseHzMax,500);assert.equal(restored.world.scene.vfx.bassAttack,50);
-  assert.equal(normalizeSceneVfx({}).pulseOnsetTime,20);
-  assert.equal(normalizeSceneVfx({pulseOnsetTime:Infinity}).pulseOnsetTime,20);
-  assert.equal(normalizeSceneVfx({audioNoiseKnee:0}).audioNoiseKnee,.001);
+test('malformed or future curve data is rejected before replacing a saved world',()=>{
+ for(const corrupt of [{...defaultAudioResponse(),version:2},{...defaultAudioResponse(),light:{loudness:[1],recurrence:makeCurve(()=>1)}},{...defaultAudioResponse(),bounce:{loudness:makeCurve(()=>1),recurrence:Array(16).fill(NaN)}}]){
+  assert.throws(()=>validateAudioResponse(corrupt),/audio response/);
+  const world=emptyWorld();world.scene.vfx.audioResponse=corrupt;assert.throws(()=>validateWorld(world),/audio response/);
+ }
 });

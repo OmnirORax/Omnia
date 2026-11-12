@@ -1,4 +1,3 @@
-import { AUDIO_TUNING_DEFAULTS,type AudioTuning } from './audioTuning.ts';
 /** Port of supplied pulse.vert/pulse.frag + common_blending.h, BLENDMODE 9.
  * Band mapping into Wallpaper Engine's undocumented spectrum remains approximate. */
 export const PULSE_CONTROLS=[
@@ -68,64 +67,6 @@ export function omniHighTintRGB(image:readonly number[],control:readonly number[
  return sourcePulseTint(image).map(c=>(1-saturation+saturation*c)*value);
 }
 
-
-/** Byte FFT decode for Automatic's -100..0 dB range. Reused across frames. */
-const AUTOMATIC_AMPLITUDES=Float32Array.from({length:256},(_,i)=>i?Math.pow(10,(-100+i/255*100)/20):0);
-/** Absolute amplitude floor (-40 dB), with a soft knee up to roughly -30 dB.
- * Adaptive gain and sensitivity must never amplify background noise past it. */
-export function audioNoiseGate(amplitude:number,tuning:AudioTuning=AUDIO_TUNING_DEFAULTS){
- const x=Math.max(0,Math.min(1,(amplitude-tuning.audioNoiseFloor)/tuning.audioNoiseKnee));
- return x*x*(3-2*x);
-}
-/** One rounded pulse per interval; a sustained input must settle before rearming. */
-export function createPulseEnvelope(){
- let cooldown=0,age=1,peak=0,armed=true,duration=.2,attack=.25;
- return {
-  reset(){cooldown=0;age=1;peak=0;armed=true;},
-  sample(input:number,seconds:number,intervalMs:number,tuning:AudioTuning=AUDIO_TUNING_DEFAULTS){
-   const dt=Math.max(0,Math.min(.1,seconds)); cooldown=Math.max(0,cooldown-dt);age+=dt;
-   if(input<=tuning.pulseTrigger)armed=true;
-   if(input>tuning.pulseTrigger&&armed&&cooldown<=1e-9){peak=input;age=0;cooldown=Math.max(5,Math.min(1500,intervalMs))/1000;armed=false;duration=Math.min(tuning.pulseDuration/1000,cooldown*tuning.pulseIntervalFill);attack=tuning.pulseAttackFraction;}
-   // Rounded rise/fade fits inside short intervals, with rest before retriggering.
-   const rise=duration*attack,fade=duration*(1-attack);
-   const x=age<rise?age/rise:Math.max(0,1-(age-rise)/fade);
-   return peak*x*x*(3-2*x);
-  },
- };
-}
-/** Frequency-local rises drive flashes; sustained energy calibrates gain only. */
-export function createAutomaticPulse(){
- let range=.03;
- const profiles=new Float32Array(2048),measurement={level:0,change:0,changeLevel:0};
- return {
-  reset(){range=.03;profiles.fill(0);},
-  /** Reuses one result object. Consume it before reading the other channel. */
-  spectrum(buffer:ArrayLike<number>,channel:number,first:number,last:number,seconds:number,tuning:AudioTuning=AUDIO_TUNING_DEFAULTS){
-   const blend=1-Math.exp(-Math.max(1/1000,Math.min(.1,seconds))/(tuning.pulseOnsetTime/1000));
-   measurement.level=measurement.change=measurement.changeLevel=0;
-   for(let i=first;i<last;i++){
-    const value=AUTOMATIC_AMPLITUDES[buffer[i]],index=channel*1024+i;
-    measurement.level=Math.max(measurement.level,value);
-    const rise=value-profiles[index];
-    if(rise>measurement.change){measurement.change=rise;measurement.changeLevel=value;}
-    profiles[index]+=(value-profiles[index])*blend;
-   }
-   return measurement;
-  },
-  sample(signal:number,seconds:number,sensitivity:number,amount:number,onset=signal,onsetLevel=signal,dropContrast=1,tuning:AudioTuning=AUDIO_TUNING_DEFAULTS){
-   const dt=Math.max(0,Math.min(.1,seconds));
-   const change=onset;
-   const level=onsetLevel;
-   // Sensitivity owns admission, independently of brightness and drop contrast.
-   const admitted=Math.max(0,change-Math.max(tuning.pulseOnsetFloor,range*tuning.pulseReferenceWeight/sensitivity));
-   const normalized=level/(level+range*tuning.pulseReferenceWeight);
-   const strength=Math.pow(normalized,dropContrast);
-   const output=level>0?audioNoiseGate(level,tuning)*strength*Math.min(1,admitted/level)*amount:0;
-   if(signal>0)range+=(Math.max(tuning.pulseReferenceMin,Math.min(1,signal))-range)*(1-Math.exp(-dt/tuning.pulseReferenceTime));
-   return output;
-  },
- };
-}
 
 /** Archived rollback preferences; no active UI, gain or glow renderer. */
 export const RETIRED_FLARE_CONTROLS=[

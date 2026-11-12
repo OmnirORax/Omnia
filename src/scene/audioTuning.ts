@@ -1,4 +1,4 @@
-/** Temporary tuning surface. Keep values portable when these controls are hidden. */
+/** Retired tuning values, preserved for saved-data recovery; no active controls or analysis. */
 export const AUDIO_TUNING_CONTROLS = [
  {key:'audioNoiseFloor',label:'Noise floor',initial:.01,min:0,max:.1,step:.001},
  {key:'audioNoiseKnee',label:'Noise soft knee',initial:.02,min:.001,max:.2,step:.001},
@@ -26,8 +26,4 @@ export type AudioTuning = Record<typeof AUDIO_TUNING_CONTROLS[number]['key'],num
 export const AUDIO_TUNING_DEFAULTS: Readonly<AudioTuning> = Object.freeze(Object.fromEntries(AUDIO_TUNING_CONTROLS.map(c=>[c.key,c.initial])) as AudioTuning);
 export function normalizeAudioTuning(raw: Record<string,unknown>): AudioTuning {
  return Object.fromEntries(AUDIO_TUNING_CONTROLS.map(c=>[c.key,typeof raw[c.key]==='number'&&Number.isFinite(raw[c.key])?Math.max(c.min,Math.min(c.max,raw[c.key] as number)):c.initial])) as AudioTuning;
-}
-export function frequencyRange(low:number,high:number,hz:number,bins:number) {
- const first=Math.min(bins-1,Math.max(1,Math.floor(Math.min(low,high)/hz)));
- return {first,last:Math.min(bins,Math.max(first+1,Math.ceil(Math.max(low,high)/hz)))};
 }

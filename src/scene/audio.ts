@@ -1,20 +1,28 @@
-import { AUDIO_TUNING_DEFAULTS,frequencyRange,type AudioTuning } from './audioTuning.ts';
 import {readSystemAudioPreference,saveSystemAudioPreference,pauseRememberedSystemAudio,forgetSystemAudioPreference,validPairingCode} from './systemAudioPreference.ts';
 import {pcmWorkletSource,systemAudioOriginSupported,systemAudioRequiresPairing} from './nativePcm.ts';
 import {createNativeAudioTransport} from './nativeAudioTransport.ts';
-import {createAutomaticPulse,createPulseEnvelope} from './pulse.ts';
-import type {SceneVfx} from './vfx.ts';
-import {normalizeAudioLevel} from './vfx.ts';
+import {createAudioResponse,rmsLevel,type AudioResponse,RESPONSE_HZ} from './audioResponse.ts';
 /** Live PCM is ephemeral; remembered connection credentials stay device-local. */
-let context:AudioContext|null=null,analyser:AnalyserNode|null=null,source:AudioNode|null=null;
-let splitter:ChannelSplitterNode|null=null,stereo:AnalyserNode[]=[];
-const automaticPulse=createAutomaticPulse(),pulseEnvelope=createPulseEnvelope();let fftMode='',pulseResponse=0;
-export const scenePulseResponse=()=>pulseResponse;
-const spectrumBytes=[new Uint8Array(1024),new Uint8Array(1024)];
+let context:AudioContext|null=null,source:AudioNode|null=null,splitter:ChannelSplitterNode|null=null;
+let analysers:AnalyserNode[]=[];
+const response=createAudioResponse(),samples=[new Float32Array(512),new Float32Array(512)];
+let responseTimer:ReturnType<typeof setInterval>|undefined;
+export const readSceneAudioResponse=()=>response.result;
+export const configureSceneAudioResponse=(settings:AudioResponse)=>response.configure(settings);
+function stopResponse(){if(responseTimer!==undefined)clearInterval(responseTimer);responseTimer=undefined;response.reset();}
+function startResponse(){
+ if(responseTimer!==undefined||!connected||!context||context.state!=='running'||document.hidden)return;
+ responseTimer=setInterval(()=>{
+  if(analysers.length!==2||!context||context.state!=='running')return;
+  const now=performance.now()/1000;if(!response.due(now))return;
+  for(let channel=0;channel<2;channel++)analysers[channel].getFloatTimeDomainData(samples[channel]);
+  response.sample(rmsLevel(samples),now);
+ },1000/RESPONSE_HZ);
+}
 let cleanupNative:(()=>void)|undefined;
 type InputKind='system'|null;
 let inputKind:InputKind=null;
-let bytes=new Uint8Array(0),epoch=0,status='No audio connected',connected=false;
+let epoch=0,status='No audio connected',connected=false;
 let snapshot:{status:string;kind:InputKind;remembered:boolean}={status,kind:inputKind,remembered:false};
 const listeners=new Set<()=>void>();
 const publish=(message:string)=>{status=message;snapshot={status,kind:inputKind,remembered:!!readSystemAudioPreference()};listeners.forEach(fn=>fn());};
@@ -23,12 +31,19 @@ export const sceneAudioStatus=()=>status;
 export const sceneAudioSnapshot=()=>snapshot;
 export const subscribeSceneAudio=(fn:()=>void)=>{listeners.add(fn);return()=>{listeners.delete(fn);};};
 export function disconnectSceneAudio(){
- automaticPulse.reset();pulseEnvelope.reset();fftMode='';pulseResponse=0;epoch++;cleanupNative?.();cleanupNative=undefined;inputKind=null;connected=false;source?.disconnect();source=null;analyser?.disconnect();analyser=null;
- splitter?.disconnect();splitter=null;stereo.forEach(a=>a.disconnect());stereo=[];
- if(context)void context.close().catch(()=>{});context=null;bytes=new Uint8Array(0);publish('No audio connected');
+ stopResponse();epoch++;cleanupNative?.();cleanupNative=undefined;inputKind=null;connected=false;source?.disconnect();source=null;splitter?.disconnect();splitter=null;for(const node of analysers)node.disconnect();analysers=[];
+ if(context)void context.close().catch(()=>{});context=null;publish('No audio connected');
 }
 function analysis(ctx:AudioContext){context=ctx;
- ctx.addEventListener?.('statechange',()=>{if(context!==ctx||!connected)return;if(ctx.state==='suspended')publish('Audio suspended — click to resume');else if(ctx.state==='running')publish('System audio connected');});analyser=ctx.createAnalyser();analyser.fftSize=2048;analyser.smoothingTimeConstant=.7;bytes=new Uint8Array(analyser.frequencyBinCount);return analyser;}
+ ctx.addEventListener('statechange',()=>{
+  if(context!==ctx||!connected)return;
+  if(ctx.state==='running'){startResponse();publish('System audio connected');}
+  else{stopResponse();publish('Audio suspended — click to resume');}
+ });
+ splitter=ctx.createChannelSplitter(2);analysers=[ctx.createAnalyser(),ctx.createAnalyser()];
+ for(let channel=0;channel<2;channel++){const node=analysers[channel];node.fftSize=samples[channel].length;node.smoothingTimeConstant=0;splitter.connect(node,channel);}
+ return splitter;
+}
 export async function connectSceneSystemAudio(code=readSystemAudioPreference()?.code??''){
  if(!systemAudioOriginSupported(window.location.origin))throw Error('Use the Omnium preview, omnium.nexus or localhost to connect system audio.');
  const pairingCode=systemAudioRequiresPairing(window.location.origin)?code.trim():'';
@@ -44,9 +59,7 @@ export async function connectSceneSystemAudio(code=readSystemAudioPreference()?.
   moduleURL=URL.createObjectURL(new Blob([pcmWorkletSource()],{type:'text/javascript'}));
   await ctx.audioWorklet.addModule(moduleURL);if(token!==epoch)return;
   const node=new AudioWorkletNode(ctx,'omnium-system-pcm',{numberOfInputs:0,numberOfOutputs:1,outputChannelCount:[2]});source=node;
-  const mute=ctx.createGain();mute.gain.value=0;node.connect(analysis(ctx));analyser!.connect(mute);mute.connect(ctx.destination);
-  splitter=ctx.createChannelSplitter(2);node.connect(splitter);stereo=[ctx.createAnalyser(),ctx.createAnalyser()];
-  stereo.forEach((a,i)=>{a.fftSize=2048;a.smoothingTimeConstant=.7;splitter!.connect(a,i);});
+  const mute=ctx.createGain();mute.gain.value=0;node.connect(analysis(ctx));for(const node of analysers)node.connect(mute);mute.connect(ctx.destination);
   let suspended=true;
   const sink={postMessage:(message:unknown,transfer:Transferable[]=[])=>{
    // A suspended worklet doesn't drain its MessagePort. Never enqueue minutes
@@ -57,8 +70,8 @@ export async function connectSceneSystemAudio(code=readSystemAudioPreference()?.
   }};
   const transport=createNativeAudioTransport(sink,(ready,message)=>{
    if(token!==epoch)return;
-   if(connected!==ready){automaticPulse.reset();pulseEnvelope.reset();fftMode='';pulseResponse=0;}
-   connected=ready;publish(message);
+   if(connected!==ready){stopResponse();}
+   connected=ready;if(ready)startResponse();publish(message);
   },pairingCode,()=>{if(token===epoch)saveSystemAudioPreference(pairingCode,true);});
   cleanupNative=()=>{transport.stop();node.port.close();mute.disconnect();};
  }catch(error){if(token!==epoch)return;disconnectSceneAudio();publish(error instanceof Error?error.message:'System audio connection failed');throw error;}
@@ -71,11 +84,13 @@ export function startRememberedSystemAudio(){
   if(!readSystemAudioPreference()?.enabled)return;
   if(inputKind==='system'&&context?.state==='suspended')void context.resume().catch(()=>{});
  };
+ const visibility=()=>{if(document.hidden)stopResponse();else startResponse();};
+ document.addEventListener('visibilitychange',visibility);
  window.addEventListener('pointerdown',resume,true);window.addEventListener('keydown',resume,true);
  if(readSystemAudioPreference()?.enabled&&systemAudioOriginSupported(window.location.origin)){
   void connectSceneSystemAudio().catch(error=>publish(error instanceof Error?error.message:'System audio reconnect failed'));
  }
- return()=>{window.removeEventListener('pointerdown',resume,true);window.removeEventListener('keydown',resume,true);};
+ return()=>{document.removeEventListener('visibilitychange',visibility);window.removeEventListener('pointerdown',resume,true);window.removeEventListener('keydown',resume,true);};
 }
 export function forgetSceneSystemAudio(){
  forgetSystemAudioPreference();stopSceneAudio();publish('System audio forgotten — pair once to remember it again');
@@ -85,47 +100,6 @@ export function forgetSceneSystemAudio(){
 export async function toggleSceneSystemAudio(code=readSystemAudioPreference()?.code??''){
  if(inputKind==='system'){stopSceneAudio();return;}
  await connectSceneSystemAudio(code);
-}
-
-/** Bounded FFT sampling: bass band 1 of a log-spaced 16-band approximation. */
-export function sampleSceneAudio(settings:AudioTuning=AUDIO_TUNING_DEFAULTS){
- if(!connected||!analyser||!context||context.state!=='running')return {active:false,bass:0,bassAmplitude:0,level:0};
- analyser.getByteFrequencyData(bytes);
- const hz=context.sampleRate/analyser.fftSize;
- const {first:low,last:high}=frequencyRange(settings.bassHzMin,settings.bassHzMax,hz,analyser.frequencyBinCount);
- let bass=0,bassAmplitude=0,level=0;
- const minDb=analyser.minDecibels??-100,maxDb=analyser.maxDecibels??-30;
- for(let i=low;i<Math.min(high,bytes.length);i++){
-  bass+=bytes[i]/255;
-  if(bytes[i])bassAmplitude+=Math.pow(10,(minDb+bytes[i]/255*(maxDb-minDb))/20);
- }
- analyser.getByteTimeDomainData(bytes);
- for(let i=0;i<bytes.length;i++)level+=Math.pow((bytes[i]-128)/128,2);
- return {active:true,bass:bass/(high-low),bassAmplitude:bassAmplitude/(high-low),level:normalizeAudioLevel(Math.sqrt(level/bytes.length))};
-}
-
-
-/** Follow frequency-local rises across both channels. */
-export function sampleScenePulse(settings:SceneVfx,seconds=1/60){
- if(!connected||!context||context.state!=='running'||stereo.length!==2){pulseResponse=0;return 0;}
- if(fftMode!=='auto'){
-  fftMode='auto';automaticPulse.reset();pulseEnvelope.reset();
-  if(analyser){analyser.smoothingTimeConstant=.15;analyser.minDecibels=-100;analyser.maxDecibels=0;}
-  for(const node of stereo){node.fftSize=1024;node.smoothingTimeConstant=0;node.minDecibels=-100;node.maxDecibels=0;}
- }
- let peak=0,onset=0,onsetLevel=0;
- const hz=context.sampleRate/1024;
- if(analyser&&analyser.smoothingTimeConstant!==settings.bassSmoothing)analyser.smoothingTimeConstant=settings.bassSmoothing;
- for(let channel=0;channel<2;channel++){
-  const buffer=spectrumBytes[channel];stereo[channel].getByteFrequencyData(buffer);
-  const {first,last}=frequencyRange(settings.pulseHzMin,settings.pulseHzMax,hz,stereo[channel].frequencyBinCount);
-  const measure=automaticPulse.spectrum(buffer,channel,first,last,seconds,settings);
-  peak=Math.max(peak,measure.level);
-  if(measure.change>onset){onset=measure.change;onsetLevel=measure.changeLevel;}
- }
- const raw=automaticPulse.sample(peak,seconds,settings.pulseSensitivity,settings.pulseAmount,onset,onsetLevel,settings.pulseDropContrast,settings);
- pulseResponse=pulseEnvelope.sample(raw,seconds,settings.pulseInterval,settings);
- return pulseResponse;
 }
 
 export function stopSceneAudio(){

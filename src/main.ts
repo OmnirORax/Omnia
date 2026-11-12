@@ -206,7 +206,7 @@ function openWorkspace() {
 let sceneView: ReturnType<typeof scenePanel> | undefined;
 function openScene() {
   close(); if (!view) return; sceneView?.close();
-  sceneView = scenePanel({ read: () => store.world, selected: selectedOrigins, change: (edit, group) => store.change(edit, group), preview: candidate => view.session.update(candidate, selectedOrigins()[0]), session: view.session, feedback });
+  sceneView = scenePanel({ subscribe:store.subscribe, read: () => store.world, selected: selectedOrigins, change: (edit, group) => store.change(edit, group), preview: candidate => view.session.update(candidate, selectedOrigins()[0]), session: view.session, feedback });
 }
 const documents = new Map<string, ReturnType<typeof editDocument>>(), openingDocuments = new Set<string>();
 let documentEpoch = 0;

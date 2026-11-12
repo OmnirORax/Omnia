@@ -1,3 +1,4 @@
+import { validateAudioResponse } from '../scene/audioResponse.ts';
 import { validateAppearance, validatePaint, type Appearance, type Paint } from '../properties/visual.ts';
 import { creationCell } from './lattice.ts';
 import { SPHERE_VISUAL_DEFAULTS } from '../properties/sphereVisualDefaults.ts';
@@ -133,6 +134,7 @@ export function validateWorld(value: unknown): World {
   }
   if (w.settings && (!Number.isFinite(w.settings.latticeScale) || w.settings.latticeScale <= 0 || !['all','expanded','selection'].includes(w.settings.names))) throw Error('Invalid world settings.');
   if (w.scene && (!w.scene.vfx || !w.scene.normalization || typeof w.scene.prompt !== 'string' || w.scene.prompt.length > 4000 || !['label','notes','label-and-notes'].includes(w.scene.source))) throw Error('Invalid scene settings.');
+  if (w.scene?.vfx?.audioResponse !== undefined) validateAudioResponse(w.scene.vfx.audioResponse);
   if (w.relationships && (!Array.isArray(w.relationships) || w.relationships.length > 2000)) throw Error('Too many relationships.');
   for (const relation of w.relationships ?? []) {
     if (typeof relation.label !== 'string' || relation.label.length > 500 || typeof relation.kind !== 'string' || relation.kind.length > 100) throw Error('Invalid relationship.');

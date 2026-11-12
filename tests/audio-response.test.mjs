@@ -1,68 +1,85 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createAutomaticPulse, createPulseEnvelope } from '../src/scene/pulse.ts';
-import { createBassDynamics, normalizeSceneVfx, DEFAULT_SCENE_VFX, WAVE_PRESETS } from '../src/scene/vfx.ts';
+import {createAudioResponse,defaultAudioResponse,responseStrength,RESPONSE_HZ,HISTORY_SECONDS,LOUDNESS_BINS} from '../src/scene/audioResponse.ts';
+import {curveValue,makeCurve,CURVE_POINTS} from '../src/properties/curve.ts';
+import {paintCurve} from '../src/ui/curve.ts';
+const flat=value=>makeCurve(()=>value);
+const constantResponse=()=>({version:1,light:{loudness:flat(1),recurrence:flat(1)},bounce:{loudness:flat(1),recurrence:flat(1)}});
 
-test('10 Hz input cannot retrigger pulses faster than the selected interval', () => {
-  for (const interval of [100,250,350,500,1000]) {
-    const envelope = createPulseEnvelope(), starts = []; let previous = 0;
-    for(let frame=0;frame<600;frame++) {
-      const output=envelope.sample(frame%6<3?1:0,1/60,interval);
-      if(output>0&&previous===0) starts.push(frame/60);
-      previous=output;
-    }
-    assert.ok(starts.length>1);
-    for(let i=1;i<starts.length;i++) assert.ok(starts[i]-starts[i-1]>=interval/1000-1e-8);
-  }
+test('curve interpolation includes both ends and independently shapes loudness and recurrence',()=>{
+ const response={loudness:makeCurve(x=>x),recurrence:makeCurve(x=>1-x)};
+ assert.equal(curveValue(response.loudness,0),0);assert.equal(curveValue(response.loudness,1),1);
+ assert.ok(Math.abs(responseStrength(response,.8,.75)-.2)<1e-12);
+ assert.equal(responseStrength({loudness:flat(1),recurrence:flat(1)},0,0),0);
 });
-
-test('pulse transitions rise and fade, sustained input does not keep flashing', () => {
-  const envelope=createPulseEnvelope();
-  assert.equal(envelope.sample(1,1/60,350),0);
-  const rise=envelope.sample(1,1/60,350);assert.ok(rise>0&&rise<.5);
-  for(let i=0;i<60;i++)envelope.sample(1,1/60,350);
-  assert.equal(envelope.sample(1,1/60,350),0);
-  envelope.reset();assert.equal(envelope.sample(0,1/60,350),0);
+test('drawing a range includes its endpoints, clamps strength and preserves other points',()=>{
+ const source=flat(.5),next=paintCurve(source,{x:3/15,y:0},{x:10/15,y:1});
+ assert.equal(next[3],0);assert.equal(next[10],1);assert.equal(next[2],.5);assert.equal(next[11],.5);
+ assert.equal(source[3],.5);assert.ok(paintCurve(source,{x:10/15,y:1},{x:3/15,y:0}).every((v,i)=>Math.abs(v-next[i])<1e-12));
+ assert.equal(paintCurve(source,{x:0,y:-10})[0],0);assert.equal(paintCurve(source,{x:1,y:10})[CURVE_POINTS-1],1);
 });
-
-test('new scene defaults match the uploaded tuning without replacing saved values', () => {
-  const settings=normalizeSceneVfx(undefined);
-  assert.deepEqual(settings,DEFAULT_SCENE_VFX);
-  assert.equal(settings.pulseSensitivity,2);assert.equal(settings.audioBounce,1.1);
-  assert.equal(settings.pulseTintLow,'#ffffff');assert.equal(settings.pulseTintHigh,'#0062ff');
-  assert.equal(settings.imageTint,'#00eeff');assert.equal(settings.pulseInterval,100);
-  for(const key of ['waveAmplitudeX','waveAmplitudeY','waveFrequencyX','waveFrequencyY','waveSpeedX','waveSpeedY'])assert.equal(settings[key],WAVE_PRESETS[1][key]);
-  assert.equal(normalizeSceneVfx({pulseInterval:500,pulseSensitivity:4}).pulseInterval,500);
-  assert.equal(normalizeSceneVfx({pulseInterval:5}).pulseInterval,5);
-  assert.equal(normalizeSceneVfx({pulseSensitivity:4}).pulseSensitivity,4);
+test('loudness follows input amplitude on a fixed -60 to 0 dB scale',()=>{
+ const engine=createAudioResponse(constantResponse());
+ assert.equal(engine.sample(.001,0).loudness,0);
+ assert.ok(Math.abs(engine.sample(.01,1/60).loudness-1/3)<1e-12);
+ assert.ok(Math.abs(engine.sample(.1,2/60).loudness-2/3)<1e-12);
+ assert.equal(engine.sample(1,3/60).loudness,1);
 });
-
-test('faint repeated sounds stay below pulse and bounce admission even after adaptation', () => {
-  const pulse = createAutomaticPulse(), bass = createBassDynamics();
-  for (let frame = 0; frame < 3600; frame++) {
-    const level = frame % 6 < 3 ? .008 : 0;
-    assert.equal(pulse.sample(level, 1/60, 8, 1.7, level, level), 0);
-    assert.equal(bass.sample(level, 1/60), 0);
-  }
+test('repetition is elapsed-time occupancy of similar loudness, not spectral pitch',()=>{
+ const engine=createAudioResponse(constantResponse());
+ const first=engine.sample(.1,0).recurrence;assert.equal(first,1/(RESPONSE_HZ*HISTORY_SECONDS));
+ for(let i=1;i<RESPONSE_HZ*HISTORY_SECONDS;i++)engine.sample(.1,i/RESPONSE_HZ);
+ assert.equal(engine.result.recurrence,1);
+ for(let i=480;i<960;i++)engine.sample(i%6===0?.1:0,i/RESPONSE_HZ);
+ assert.ok(Math.abs(engine.result.counts.reduce((a,b)=>a+b,0)/engine.result.samples-1/6)<1e-12);
 });
-
-test('audible transients still react and near-floor sounds have a soft response', () => {
-  const faint = createAutomaticPulse().sample(.012, 1/60, 8, 1.7);
-  const strong = createAutomaticPulse().sample(.1, 1/60, 8, 1.7);
-  assert.ok(faint >= 0 && faint < .05);
-  assert.ok(strong > 1 && strong <= 1.7);
-  const bass = createBassDynamics();
-  assert.ok(bass.sample(.012, 1/60) < .05);
-  assert.ok(bass.sample(.1, 1/60) > .9);
+test('the same loudness can fade with repetition while another curve retains it',()=>{
+ const settings=constantResponse();settings.light.recurrence=makeCurve(x=>1-x);
+ const engine=createAudioResponse(settings);engine.sample(.1,0);
+ const rare=engine.result.light;
+ for(let i=1;i<600;i++)engine.sample(.1,i/60);
+ assert.ok(engine.result.light<rare*.01);assert.ok(engine.result.bounce>.99);
 });
-
-test('sustained tones stop flashing and silence releases bounce immediately', () => {
-  const pulse = createAutomaticPulse(), bass = createBassDynamics();
-  assert.ok(pulse.sample(.1, 1/60, 8, 1.7) > 0);
-  assert.equal(pulse.sample(.1, 1/60, 8, 1.7, 0, .1), 0);
-  bass.sample(.5, 1/60);
-  assert.equal(bass.sample(0, 1/60), 0);
-  pulse.reset(); bass.reset();
-  assert.equal(pulse.sample(.008, 1/60, 8, 1.7), 0);
-  assert.equal(bass.sample(.008, 1/60), 0);
+test('a muted loudness range contributes nothing, with independent light and bounce settings',()=>{
+ const settings=constantResponse();settings.light.loudness=flat(0);
+ const engine=createAudioResponse(settings);
+ for(let i=0;i<60;i++)engine.sample(.1,i/60);
+ assert.equal(engine.result.light,0);assert.ok(engine.result.bounce>.99);
+});
+test('silence and invalid levels release output and never create a new pulse',()=>{
+ const engine=createAudioResponse(constantResponse());
+ for(let i=0;i<10;i++)engine.sample(1,i/60);
+ for(let i=10;i<160;i++)engine.sample(i%2?NaN:0,i/60);
+ assert.equal(engine.result.light,0);assert.equal(engine.result.bounce,0);assert.equal(engine.result.loudness,0);
+ engine.reset();assert.equal(engine.sample(Infinity,0).light,0);
+});
+test('duplicate render/frame reads cannot increase repetition or change response',()=>{
+ const a=createAudioResponse(),b=createAudioResponse();
+ for(let i=0;i<1000;i++){
+  a.sample(i%7<2?.1:0,i/60);b.sample(i%7<2?.1:0,i/60);b.sample(.9,i/60+.0001);
+ }
+ assert.deepEqual(a.result,b.result);
+});
+test('history ages out, large gaps reset, and missing samples are not invented',()=>{
+ const e=createAudioResponse();e.sample(.1,0);e.sample(.1,1);
+ assert.equal(e.result.counts.reduce((a,b)=>a+b,0),2);
+ e.sample(.1,20);assert.equal(e.result.recurrence,1/480);
+ e.sample(.1,0);assert.equal(e.result.recurrence,1/480);
+ e.reset();assert.equal(e.result.light,0);assert.equal(e.result.counts.reduce((a,b)=>a+b,0),0);
+});
+test('live configuration preserves recent history and takes effect without waiting for adaptation',()=>{
+ const e=createAudioResponse();for(let i=0;i<30;i++)e.sample(.1,i/60);
+ const before=e.result.recurrence,settings=defaultAudioResponse();settings.light.loudness=flat(0);
+ e.configure(settings);assert.equal(e.result.recurrence,before);assert.equal(e.result.light,0);
+});
+test('long sessions keep fixed storage, a reused output object and bounded values',()=>{
+ const e=createAudioResponse(),result=e.result,counts=result.counts;
+ for(let i=0;i<60000;i++){const r=e.sample((i%137)/136,i/60);assert.equal(r,result);assert.equal(r.counts,counts);assert.ok(r.light>=0&&r.light<=1&&r.bounce>=0&&r.bounce<=1&&r.recurrence>=0&&r.recurrence<=1);}
+ assert.equal(counts.length,LOUDNESS_BINS);assert.ok(counts.reduce((a,b)=>a+b,0)<=480);
+});
+test('loudness combines stereo energy without cancellation or channel-maximum bias',async()=>{
+ const {rmsLevel}=await import('../src/scene/audioResponse.ts');
+ assert.equal(rmsLevel([new Float32Array([.5,-.5]),new Float32Array([-.5,.5])]),.5);
+ assert.ok(Math.abs(rmsLevel([new Float32Array([1,1]),new Float32Array([0,0])])-Math.SQRT1_2)<1e-12);
+ assert.equal(rmsLevel([new Float32Array([0,0])]),0);assert.equal(rmsLevel([]),0);
 });

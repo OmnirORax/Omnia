@@ -1,4 +1,5 @@
-import { AUDIO_TUNING_CONTROLS } from './audioTuning.ts';
+import { responseEditor } from './responseEditor.ts';
+import { normalizeSceneVfx } from './vfx.ts';
 import { panel } from '../ui/panel.ts';
 import { field } from '../ui/fields.ts';
 import { liveForm } from '../ui/liveForm.ts';
@@ -15,10 +16,7 @@ import { resolveScenePrompt } from './contracts.ts';
 import { locate, sameOrigin, type Origin, type World } from '../core/model.ts';
 import type { createSceneSession } from './session.ts';
 
-const tuningKeys=new Set(AUDIO_TUNING_CONTROLS.map(c=>`scene.${c.key}`));
-const audioKeys=new Set([...tuningKeys,'scene.pulseInterval','scene.pulseSensitivity','scene.pulseDropContrast','scene.pulseAmount','scene.audioBounce','scene.maxFps']);
-
-type Host = { read: () => World; selected: () => readonly Origin[]; change: (edit: (world: World) => void, group?: string) => void; preview: (world: World) => void; session: ReturnType<typeof createSceneSession>; feedback: (text: string) => void };
+type Host = { subscribe:(listener:()=>void)=>()=>void; read: () => World; selected: () => readonly Origin[]; change: (edit: (world: World) => void, group?: string) => void; preview: (world: World) => void; session: ReturnType<typeof createSceneSession>; feedback: (text: string) => void };
 export function scenePanel(host: Host) {
   let live = true; let target: Origin | undefined = host.selected()[0];
   const subscriptions: (() => void)[] = [];
@@ -69,7 +67,7 @@ export function scenePanel(host: Host) {
       }, row).title = 'Delete image'; list.append(row);
     }
   }
-  function controls(group: 'waves' | 'pulse' | 'normalization' | 'prompt' | 'audio') {
+  function controls(group: 'waves' | 'pulse' | 'normalization' | 'prompt') {
     clear();
     if (group === 'waves') {
       const row = document.createElement('div'); row.className = 'preset-row';
@@ -93,13 +91,9 @@ export function scenePanel(host: Host) {
       const state = { sceneVfx: host.read().scene?.vfx ?? defaultScene().vfx };
       for (const [key, binding] of Object.entries(vfxFunction.inputs)) {
         const wave = key === 'scene.waves' || key === 'scene.maxFps' || WAVE_CONTROLS.some(control => `scene.${control.key}` === key);
-        if(group==='audio'){if(!audioKeys.has(key))continue;}else if(tuningKeys.has(key)||wave !== (group === 'waves')) continue;
+        if(wave !== (group === 'waves')) continue;
         const input = field({ ...binding.definition, key }, binding.read(state)); form.append(input.row); values.push({ key, get: input.value });
-        if (key === 'scene.pulseInterval' && input.input instanceof HTMLInputElement) {
-          input.input.type = 'range';
-          const value = document.createElement('output'); value.textContent = `${input.input.value} ms`;
-          input.input.oninput = () => { value.textContent = `${input.input.value} ms`; }; input.row.append(value);
-        }
+
       }
     }
     const apply = (settings: SceneSettings) => {
@@ -110,7 +104,6 @@ export function scenePanel(host: Host) {
     };
     liveForm(form, undoGroup => { try { update(apply, undoGroup); } catch (error) { host.feedback(error instanceof Error ? error.message : String(error)); } });
     body.append(form);
-    if(group==='audio')button('Copy settings',async()=>{await navigator.clipboard.writeText(serializeSceneVfx(host.read().scene?.vfx));host.feedback('Audio settings copied');});
     if (group === 'prompt') button('Copy resolved prompt', async () => { const input = promptSnapshot(); await navigator.clipboard.writeText(input.resolved); saveCopiedPrompt(input); host.feedback('Prompt copied. Import or paste the resulting image.'); });
     if (group === 'normalization') {
       const output = document.createElement('output'); body.append(output);
@@ -120,12 +113,19 @@ export function scenePanel(host: Host) {
   }
   function audio() {
     clear();
-    button('Tuning',()=>controls('audio'));
     const code = document.createElement('input'); code.type = 'password'; code.placeholder = 'Helper pairing code'; code.setAttribute('aria-label', 'System audio pairing code'); code.autocomplete = 'off'; code.value = readSystemAudioPreference()?.code ?? ''; body.append(code);
     button('System audio', () => toggleSceneSystemAudio(code.value)); button('Forget connection', () => { forgetSceneSystemAudio(); code.value = ''; });
+    const response=responseEditor({
+      read:()=>normalizeSceneVfx(host.read().scene?.vfx).audioResponse,
+      commit:(target,dimension,value)=>update(settings=>{const vfx=normalizeSceneVfx(settings.vfx);settings.vfx={...vfx,audioResponse:{...vfx.audioResponse,[target]:{...vfx.audioResponse[target],[dimension]:[...value]}}};}),
+      subscribe:host.subscribe,
+      error:error=>host.feedback(error instanceof Error?error.message:String(error)),
+    });
+    body.append(response.root);subscriptions.push(()=>response.dispose());
+    button('Copy settings',async()=>{await navigator.clipboard.writeText(serializeSceneVfx(host.read().scene?.vfx));host.feedback('Audio settings copied');});
     const output = document.createElement('output'); body.append(output);
-    const update = () => { output.textContent = sceneAudioSnapshot().status; };
-    const unsubscribe = subscribeSceneAudio(() => { if (!output.isConnected) unsubscribe(); else update(); }); subscriptions.push(unsubscribe); update();
+    const statusUpdate = () => { output.textContent = sceneAudioSnapshot().status; };
+    const unsubscribe = subscribeSceneAudio(() => { if (!output.isConnected) unsubscribe(); else statusUpdate(); }); subscriptions.push(unsubscribe); statusUpdate();
   }
   for (const [label, action] of [['Image', () => void images()],['Waves', () => controls('waves')],['Pulse', () => controls('pulse')],['Audio', audio],['Normalize', () => controls('normalization')],['Prompt', () => controls('prompt')]] as const) button(label, action, navigation);
   attempt(images); return view;
