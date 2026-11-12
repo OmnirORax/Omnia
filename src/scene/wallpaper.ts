@@ -83,8 +83,8 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
     if(deadline&&now+.1<deadline){schedule();return;}
     deadline=nextVfxDeadline(deadline,now,settings.maxFps);
     const dt=last?Math.min(.1,(now-last)/1000):0;last=now;elapsed+=dt;
-    const pulse=sampleScenePulse(settings,dt),audio=sampleSceneAudio();
-    bass=followBass(bass,bassDynamics.sample(audio.bassAmplitude,dt),dt);level=smoothAudio(level,audio.level,dt);
+    const pulse=sampleScenePulse(settings,dt),audio=sampleSceneAudio(settings);
+    bass=followBass(bass,bassDynamics.sample(audio.bassAmplitude,dt,settings),dt,settings);level=smoothAudio(level,audio.level,dt);
     material.uniforms.time.value=elapsed;
     material.uniforms.light.value=pulse;
     // Wave audio response is temporarily disabled; keep authored displacement unchanged.

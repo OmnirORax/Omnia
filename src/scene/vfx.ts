@@ -1,3 +1,4 @@
+import { AUDIO_TUNING_DEFAULTS,normalizeAudioTuning,type AudioTuning } from './audioTuning.ts';
 import {audioNoiseGate,PULSE_CONTROLS,RETIRED_FLARE_CONTROLS,RETIRED_OMNI_BRIGHTNESS_CONTROLS,pulsePalette,type PulseKey,type RetiredFlareKey,type RetiredOmniBrightnessKey} from './pulse.ts';
 /** Scene effects and user-adjustable light tuning; no capture/session data. */
 export const SCENE_VFX_FPS = 120;
@@ -37,9 +38,9 @@ export const WAVE_PRESETS = [
 
 const WAVE_DEFAULTS=Object.fromEntries(WAVE_CONTROLS.map(({key,initial})=>[key,initial])) as Record<WaveKey,number>;
 export type SceneLightKey = typeof RETIRED_LIGHT_CONTROLS[number]['key'];
-export type SceneVfx = { pulseRangeMode:"manual"|"auto";pulseSensitivity:number;pulseInterval:number;pulseDropContrast:number; audioLight: string; audioBounce: number; waves: boolean; distortion: number; glitching: number; maxFps: number; lightAllColors: boolean; lightModel:"pulse"|"legacy"; pulseTintLow:string; pulseTintHigh:string;pulseOmniTint:string;pulseOmniTintLow:string; pulseColorMode:"tint"|"all";pulseColors:string;pulseColorWidth:number;pulseAllBrightness:number;imageTintEnabled:boolean;imageTint:string } & Record<WaveKey,number> & Record<RetiredFlareKey,number> & Record<PulseKey,number> & Record<RetiredOmniBrightnessKey,number> & Record<SceneLightKey,number>;
+export type SceneVfx = AudioTuning & { pulseRangeMode:"manual"|"auto";pulseSensitivity:number;pulseInterval:number;pulseDropContrast:number; audioLight: string; audioBounce: number; waves: boolean; distortion: number; glitching: number; maxFps: number; lightAllColors: boolean; lightModel:"pulse"|"legacy"; pulseTintLow:string; pulseTintHigh:string;pulseOmniTint:string;pulseOmniTintLow:string; pulseColorMode:"tint"|"all";pulseColors:string;pulseColorWidth:number;pulseAllBrightness:number;imageTintEnabled:boolean;imageTint:string } & Record<WaveKey,number> & Record<RetiredFlareKey,number> & Record<PulseKey,number> & Record<RetiredOmniBrightnessKey,number> & Record<SceneLightKey,number>;
 const LIGHT_DEFAULTS=Object.fromEntries(RETIRED_LIGHT_CONTROLS.map(({key,initial})=>[key,initial])) as Record<SceneLightKey,number>;
-export const DEFAULT_SCENE_VFX: Readonly<SceneVfx> = Object.freeze({pulseRangeMode:'auto',pulseSensitivity:2,pulseInterval:100,pulseDropContrast:1,audioLight:'#aa3300',audioBounce:1.1,waves:true,distortion:.4,glitching:.3,maxFps:SCENE_VFX_FPS,lightAllColors:false,imageTintEnabled:false,imageTint:'#00eeff',lightModel:'pulse',pulseTintLow:'#ffffff',pulseTintHigh:'#0062ff',pulseOmniTint:'#3d0000',pulseOmniTintLow:'#faf0f0',pulseColorMode:'tint',pulseColors:'#0044ff,#ff8800',pulseColorWidth:30,pulseAllBrightness:56/255,...Object.fromEntries(PULSE_CONTROLS.map(c=>[c.key,c.initial])) as Record<PulseKey,number>,...Object.fromEntries(RETIRED_OMNI_BRIGHTNESS_CONTROLS.map(c=>[c.key,c.initial])) as Record<RetiredOmniBrightnessKey,number>,...Object.fromEntries(RETIRED_FLARE_CONTROLS.map(c=>[c.key,c.initial])) as Record<RetiredFlareKey,number>,...LIGHT_DEFAULTS,...WAVE_DEFAULTS});
+export const DEFAULT_SCENE_VFX: Readonly<SceneVfx> = Object.freeze({...AUDIO_TUNING_DEFAULTS,pulseRangeMode:'auto',pulseSensitivity:2,pulseInterval:100,pulseDropContrast:1,audioLight:'#aa3300',audioBounce:1.1,waves:true,distortion:.4,glitching:.3,maxFps:SCENE_VFX_FPS,lightAllColors:false,imageTintEnabled:false,imageTint:'#00eeff',lightModel:'pulse',pulseTintLow:'#ffffff',pulseTintHigh:'#0062ff',pulseOmniTint:'#3d0000',pulseOmniTintLow:'#faf0f0',pulseColorMode:'tint',pulseColors:'#0044ff,#ff8800',pulseColorWidth:30,pulseAllBrightness:56/255,...Object.fromEntries(PULSE_CONTROLS.map(c=>[c.key,c.initial])) as Record<PulseKey,number>,...Object.fromEntries(RETIRED_OMNI_BRIGHTNESS_CONTROLS.map(c=>[c.key,c.initial])) as Record<RetiredOmniBrightnessKey,number>,...Object.fromEntries(RETIRED_FLARE_CONTROLS.map(c=>[c.key,c.initial])) as Record<RetiredFlareKey,number>,...LIGHT_DEFAULTS,...WAVE_DEFAULTS});
 export function normalizeSceneVfx(raw: unknown): SceneVfx {
  const r=(raw&&typeof raw==='object'?raw:{}) as Partial<SceneVfx>;
  const number=(v:unknown,f:number,min:number,max:number)=>typeof v==='number'&&Number.isFinite(v)?Math.max(min,Math.min(max,v)):f;
@@ -49,7 +50,7 @@ export function normalizeSceneVfx(raw: unknown): SceneVfx {
  const flare=Object.fromEntries(RETIRED_FLARE_CONTROLS.map(c=>[c.key,number(r[c.key],c.initial,c.min,c.max)])) as Record<RetiredFlareKey,number>;
  const wave=Object.fromEntries(WAVE_CONTROLS.map(({key,initial,min,max})=>[key,number(r[key],initial,min,max)])) as Record<WaveKey,number>;
  const color=(value:unknown,fallback:string)=>typeof value==='string'&&/^#[a-f\d]{6}$/i.test(value)?value:fallback;
- return {...light,...pulse,...brightness,...flare,...wave,pulseRangeMode:r.pulseRangeMode==='auto'?'auto':(r.pulseRangeMode==='manual'||!!raw&&typeof raw==='object')?'manual':DEFAULT_SCENE_VFX.pulseRangeMode,pulseInterval:number(r.pulseInterval,DEFAULT_SCENE_VFX.pulseInterval,5,1500),pulseSensitivity:number(r.pulseSensitivity,DEFAULT_SCENE_VFX.pulseSensitivity,.25,8),pulseDropContrast:number(r.pulseDropContrast,DEFAULT_SCENE_VFX.pulseDropContrast,1,4),imageTintEnabled:typeof r.imageTintEnabled==='boolean'?r.imageTintEnabled:false,imageTint:color(r.imageTint,DEFAULT_SCENE_VFX.imageTint),pulseColorWidth:number(r.pulseColorWidth,30,1,180),pulseAllBrightness:number(r.pulseAllBrightness,DEFAULT_SCENE_VFX.pulseAllBrightness,0,1),lightModel:r.lightModel==='legacy'?'legacy':'pulse',pulseTintLow:color(r.pulseTintLow,DEFAULT_SCENE_VFX.pulseTintLow),pulseTintHigh:color(r.pulseTintHigh,DEFAULT_SCENE_VFX.pulseTintHigh),pulseOmniTintLow:color(r.pulseOmniTintLow,color(r.pulseTintLow,DEFAULT_SCENE_VFX.pulseOmniTintLow)),pulseOmniTint:color(r.pulseOmniTint,typeof r.pulseAllBrightness==='number'&&Number.isFinite(r.pulseAllBrightness)?'#'+Math.round(number(r.pulseAllBrightness,DEFAULT_SCENE_VFX.pulseAllBrightness,0,1)*255).toString(16).padStart(2,'0')+'0000':DEFAULT_SCENE_VFX.pulseOmniTint),pulseColorMode:r.pulseColorMode==='all'?'all':'tint',pulseColors:typeof r.pulseColors==='string'?pulsePalette(r.pulseColors).join(','):DEFAULT_SCENE_VFX.pulseColors,lightAllColors:typeof r.lightAllColors==='boolean'?r.lightAllColors:false,audioLight:typeof r.audioLight==='string'&&/^#[a-f\d]{6}$/i.test(r.audioLight)?r.audioLight:DEFAULT_SCENE_VFX.audioLight,
+ return {...normalizeAudioTuning(r),...light,...pulse,...brightness,...flare,...wave,pulseRangeMode:r.pulseRangeMode==='auto'?'auto':(r.pulseRangeMode==='manual'||!!raw&&typeof raw==='object')?'manual':DEFAULT_SCENE_VFX.pulseRangeMode,pulseInterval:number(r.pulseInterval,DEFAULT_SCENE_VFX.pulseInterval,5,1500),pulseSensitivity:number(r.pulseSensitivity,DEFAULT_SCENE_VFX.pulseSensitivity,.25,8),pulseDropContrast:number(r.pulseDropContrast,DEFAULT_SCENE_VFX.pulseDropContrast,1,4),imageTintEnabled:typeof r.imageTintEnabled==='boolean'?r.imageTintEnabled:false,imageTint:color(r.imageTint,DEFAULT_SCENE_VFX.imageTint),pulseColorWidth:number(r.pulseColorWidth,30,1,180),pulseAllBrightness:number(r.pulseAllBrightness,DEFAULT_SCENE_VFX.pulseAllBrightness,0,1),lightModel:r.lightModel==='legacy'?'legacy':'pulse',pulseTintLow:color(r.pulseTintLow,DEFAULT_SCENE_VFX.pulseTintLow),pulseTintHigh:color(r.pulseTintHigh,DEFAULT_SCENE_VFX.pulseTintHigh),pulseOmniTintLow:color(r.pulseOmniTintLow,color(r.pulseTintLow,DEFAULT_SCENE_VFX.pulseOmniTintLow)),pulseOmniTint:color(r.pulseOmniTint,typeof r.pulseAllBrightness==='number'&&Number.isFinite(r.pulseAllBrightness)?'#'+Math.round(number(r.pulseAllBrightness,DEFAULT_SCENE_VFX.pulseAllBrightness,0,1)*255).toString(16).padStart(2,'0')+'0000':DEFAULT_SCENE_VFX.pulseOmniTint),pulseColorMode:r.pulseColorMode==='all'?'all':'tint',pulseColors:typeof r.pulseColors==='string'?pulsePalette(r.pulseColors).join(','):DEFAULT_SCENE_VFX.pulseColors,lightAllColors:typeof r.lightAllColors==='boolean'?r.lightAllColors:false,audioLight:typeof r.audioLight==='string'&&/^#[a-f\d]{6}$/i.test(r.audioLight)?r.audioLight:DEFAULT_SCENE_VFX.audioLight,
  audioBounce:number(r.audioBounce,DEFAULT_SCENE_VFX.audioBounce,1,1.5),waves:typeof r.waves==='boolean'?r.waves:true,
  distortion:number(r.distortion,.4,0,1),glitching:number(r.glitching,.3,0,1),maxFps:Math.round(number(r.maxFps,SCENE_VFX_FPS,MIN_SCENE_VFX_FPS,MAX_SCENE_VFX_FPS))};
 }
@@ -72,9 +73,9 @@ export function nextVfxDeadline(previous:number,now:number,maxFps=SCENE_VFX_FPS)
 }
 
 /** Original continuous low-bass motion with a faster attack and a gentle return. */
-export function followBass(previous:number,next:number,seconds:number){
+export function followBass(previous:number,next:number,seconds:number,tuning:AudioTuning=AUDIO_TUNING_DEFAULTS){
  const target=Math.max(0,Math.min(1,next)),dt=Math.max(0,Math.min(.1,seconds));
- const time=target>previous ? .012 : .045;
+ const time=(target>previous ? tuning.bassAttack : tuning.bassRelease)/1000;
  return previous+(target-previous)*(1-Math.exp(-dt/time));
 }
 
@@ -83,11 +84,11 @@ export function createBassDynamics(){
  let reference=.08;
  return {
   reset(){reference=.08;},
-  sample(amplitude:number,seconds:number){
+  sample(amplitude:number,seconds:number,tuning:AudioTuning=AUDIO_TUNING_DEFAULTS){
    const value=Math.max(0,Math.min(1,amplitude)),dt=Math.max(0,Math.min(.1,seconds));
-   reference=Math.max(.08,value,reference*Math.exp(-dt/12));
-   const floor=Math.max(.01,reference*.02);
-   return audioNoiseGate(value)*Math.max(0,Math.min(1,(value-floor)/(reference-floor)));
+   reference=Math.max(tuning.bassReferenceMin,value,reference*Math.exp(-dt/tuning.bassReferenceTime));
+   const floor=Math.min(reference-1e-6,Math.max(tuning.audioNoiseFloor,reference*tuning.bassFloorRatio));
+   return audioNoiseGate(value,tuning)*Math.max(0,Math.min(1,(value-floor)/(reference-floor)));
   },
  };
 }

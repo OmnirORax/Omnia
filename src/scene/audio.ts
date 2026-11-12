@@ -1,3 +1,4 @@
+import { AUDIO_TUNING_DEFAULTS,frequencyRange,type AudioTuning } from './audioTuning.ts';
 import {readSystemAudioPreference,saveSystemAudioPreference,pauseRememberedSystemAudio,forgetSystemAudioPreference,validPairingCode} from './systemAudioPreference.ts';
 import {pcmWorkletSource,systemAudioOriginSupported,systemAudioRequiresPairing} from './nativePcm.ts';
 import {createNativeAudioTransport} from './nativeAudioTransport.ts';
@@ -87,11 +88,11 @@ export async function toggleSceneSystemAudio(code=readSystemAudioPreference()?.c
 }
 
 /** Bounded FFT sampling: bass band 1 of a log-spaced 16-band approximation. */
-export function sampleSceneAudio(){
+export function sampleSceneAudio(settings:AudioTuning=AUDIO_TUNING_DEFAULTS){
  if(!connected||!analyser||!context||context.state!=='running')return {active:false,bass:0,bassAmplitude:0,level:0};
  analyser.getByteFrequencyData(bytes);
  const hz=context.sampleRate/analyser.fftSize;
- const low=Math.max(1,Math.floor(31/hz)),high=Math.max(low+1,Math.ceil(65/hz));
+ const {first:low,last:high}=frequencyRange(settings.bassHzMin,settings.bassHzMax,hz,analyser.frequencyBinCount);
  let bass=0,bassAmplitude=0,level=0;
  const minDb=analyser.minDecibels??-100,maxDb=analyser.maxDecibels??-30;
  for(let i=low;i<Math.min(high,bytes.length);i++){
@@ -113,16 +114,17 @@ export function sampleScenePulse(settings:SceneVfx,seconds=1/60){
   for(const node of stereo){node.fftSize=1024;node.smoothingTimeConstant=0;node.minDecibels=-100;node.maxDecibels=0;}
  }
  let peak=0,onset=0,onsetLevel=0;
- const hz=context.sampleRate/1024,upper=Math.min(20000,context.sampleRate/2);
+ const hz=context.sampleRate/1024;
+ if(analyser&&analyser.smoothingTimeConstant!==settings.bassSmoothing)analyser.smoothingTimeConstant=settings.bassSmoothing;
  for(let channel=0;channel<2;channel++){
   const buffer=spectrumBytes[channel];stereo[channel].getByteFrequencyData(buffer);
-  const first=Math.max(1,Math.floor(20/hz)),last=Math.min(buffer.length,stereo[channel].frequencyBinCount,Math.ceil(upper/hz));
-  const measure=automaticPulse.spectrum(buffer,channel,first,last,seconds);
+  const {first,last}=frequencyRange(settings.pulseHzMin,settings.pulseHzMax,hz,stereo[channel].frequencyBinCount);
+  const measure=automaticPulse.spectrum(buffer,channel,first,last,seconds,settings);
   peak=Math.max(peak,measure.level);
   if(measure.change>onset){onset=measure.change;onsetLevel=measure.changeLevel;}
  }
- const raw=automaticPulse.sample(peak,seconds,settings.pulseSensitivity,settings.pulseAmount,onset,onsetLevel,settings.pulseDropContrast);
- pulseResponse=pulseEnvelope.sample(raw,seconds,settings.pulseInterval);
+ const raw=automaticPulse.sample(peak,seconds,settings.pulseSensitivity,settings.pulseAmount,onset,onsetLevel,settings.pulseDropContrast,settings);
+ pulseResponse=pulseEnvelope.sample(raw,seconds,settings.pulseInterval,settings);
  return pulseResponse;
 }
 

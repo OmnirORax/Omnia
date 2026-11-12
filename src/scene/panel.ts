@@ -1,3 +1,4 @@
+import { AUDIO_TUNING_CONTROLS } from './audioTuning.ts';
 import { panel } from '../ui/panel.ts';
 import { field } from '../ui/fields.ts';
 import { liveForm } from '../ui/liveForm.ts';
@@ -5,7 +6,7 @@ import { property, type Property, type Value } from '../properties/pool.ts';
 import vfxFunction from './vfx.function.ts';
 import { defaultScene, type SceneSettings } from './state.ts';
 import { NORMALIZATION_FIELDS, normalizationProperty, normalizationPreferences } from './normalization.ts';
-import { WAVE_CONTROLS, WAVE_PRESETS } from './vfx.ts';
+import { WAVE_CONTROLS, WAVE_PRESETS, serializeSceneVfx } from './vfx.ts';
 import { readWavePresets, appendWavePreset } from './wavePresets.ts';
 import { importLocalScene, listLocalScenes, localSceneBlob, downloadScene, deleteLocalScene, saveCopiedPrompt, type ScenePromptSnapshot } from './library.ts';
 import { sceneAudioSnapshot, subscribeSceneAudio, toggleSceneSystemAudio, forgetSceneSystemAudio } from './audio.ts';
@@ -13,6 +14,9 @@ import { readSystemAudioPreference } from './systemAudioPreference.ts';
 import { resolveScenePrompt } from './contracts.ts';
 import { locate, sameOrigin, type Origin, type World } from '../core/model.ts';
 import type { createSceneSession } from './session.ts';
+
+const tuningKeys=new Set(AUDIO_TUNING_CONTROLS.map(c=>`scene.${c.key}`));
+const audioKeys=new Set([...tuningKeys,'scene.pulseInterval','scene.pulseSensitivity','scene.pulseDropContrast','scene.pulseAmount','scene.audioBounce','scene.maxFps']);
 
 type Host = { read: () => World; selected: () => readonly Origin[]; change: (edit: (world: World) => void, group?: string) => void; preview: (world: World) => void; session: ReturnType<typeof createSceneSession>; feedback: (text: string) => void };
 export function scenePanel(host: Host) {
@@ -65,7 +69,7 @@ export function scenePanel(host: Host) {
       }, row).title = 'Delete image'; list.append(row);
     }
   }
-  function controls(group: 'waves' | 'pulse' | 'normalization' | 'prompt') {
+  function controls(group: 'waves' | 'pulse' | 'normalization' | 'prompt' | 'audio') {
     clear();
     if (group === 'waves') {
       const row = document.createElement('div'); row.className = 'preset-row';
@@ -89,7 +93,7 @@ export function scenePanel(host: Host) {
       const state = { sceneVfx: host.read().scene?.vfx ?? defaultScene().vfx };
       for (const [key, binding] of Object.entries(vfxFunction.inputs)) {
         const wave = key === 'scene.waves' || key === 'scene.maxFps' || WAVE_CONTROLS.some(control => `scene.${control.key}` === key);
-        if (wave !== (group === 'waves')) continue;
+        if(group==='audio'){if(!audioKeys.has(key))continue;}else if(tuningKeys.has(key)||wave !== (group === 'waves')) continue;
         const input = field({ ...binding.definition, key }, binding.read(state)); form.append(input.row); values.push({ key, get: input.value });
         if (key === 'scene.pulseInterval' && input.input instanceof HTMLInputElement) {
           input.input.type = 'range';
@@ -106,6 +110,7 @@ export function scenePanel(host: Host) {
     };
     liveForm(form, undoGroup => { try { update(apply, undoGroup); } catch (error) { host.feedback(error instanceof Error ? error.message : String(error)); } });
     body.append(form);
+    if(group==='audio')button('Copy settings',async()=>{await navigator.clipboard.writeText(serializeSceneVfx(host.read().scene?.vfx));host.feedback('Audio settings copied');});
     if (group === 'prompt') button('Copy resolved prompt', async () => { const input = promptSnapshot(); await navigator.clipboard.writeText(input.resolved); saveCopiedPrompt(input); host.feedback('Prompt copied. Import or paste the resulting image.'); });
     if (group === 'normalization') {
       const output = document.createElement('output'); body.append(output);
@@ -115,6 +120,7 @@ export function scenePanel(host: Host) {
   }
   function audio() {
     clear();
+    button('Tuning',()=>controls('audio'));
     const code = document.createElement('input'); code.type = 'password'; code.placeholder = 'Helper pairing code'; code.setAttribute('aria-label', 'System audio pairing code'); code.autocomplete = 'off'; code.value = readSystemAudioPreference()?.code ?? ''; body.append(code);
     button('System audio', () => toggleSceneSystemAudio(code.value)); button('Forget connection', () => { forgetSceneSystemAudio(); code.value = ''; });
     const output = document.createElement('output'); body.append(output);
