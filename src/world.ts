@@ -8,7 +8,6 @@ import { analyticSelectionRing } from './materialCoverage.ts';
 import { SPHERE_VISUAL_DEFAULTS as defaults } from './properties/sphereVisualDefaults.ts';
 import { createWorldNavigator } from './navigation/worldNavigator.ts';
 import { createNavigatorDrive } from './navigation/navigatorDrive.ts';
-import { createWorldNavigatorMarker } from './worldNavigatorMarker.ts';
 import { expansionState, toggleContent, contentExpanded } from './graph/nodePresentation.ts';
 import { latticeFrame } from './latticeField.ts';
 import { visualObject, disposeVisual } from './visualScene.ts';
@@ -33,7 +32,7 @@ type Visual = { node: Structure; actual: Structure; anchor: T.Vector3; group: T.
 const xyz = (v: T.Vector3): Vec3 => [v.x, v.y, v.z];
 
 export function createWorld(host: HTMLElement, input: Input) {
-  const renderer = new T.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true }); renderer.setClearColor('#101113');
+  const renderer = new T.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true }); renderer.setClearColor('#000000');
   const canvas = renderer.domElement; canvas.tabIndex = 0; canvas.setAttribute('aria-label', 'Omnium lattice world'); host.append(canvas);
   const scene = new T.Scene(), camera = new T.PerspectiveCamera(45, 1, .00001, 100000);
   camera.position.set(12, 8, 40);
@@ -44,7 +43,7 @@ export function createWorld(host: HTMLElement, input: Input) {
   const sphere = atomicCarrierGeometry(), slotMaterial = new T.MeshBasicMaterial({ visible: false });
   const ringGeometry = new T.RingGeometry(.835, 1.125, 48), ringMaterial = new T.MeshBasicMaterial({ color: '#ffb000', transparent: true, side: T.DoubleSide, depthWrite: false, depthTest: false }); analyticSelectionRing(ringMaterial);
   const visuals = new Map<string, Visual>(), ray = new T.Raycaster(), edges = new T.Group(); scene.add(edges);
-  const retained = expansionState(), variants = new Set<string>(), navigator = createWorldNavigator(), marker = createWorldNavigatorMarker(); scene.add(marker.object);
+  const retained = expansionState(), variants = new Set<string>(), navigator = createWorldNavigator();
   const rectangle = document.createElement('div'); rectangle.className = 'marquee'; rectangle.hidden = true; host.append(rectangle);
   let world: World, doc: Document, prepared: ReturnType<typeof prepareWorld>, grid: ReturnType<typeof lattice>;
   let selected: readonly Origin[] = [], selectedEdges: readonly Edge[] = [], filter: ReadonlySet<string> | undefined;
@@ -66,7 +65,7 @@ export function createWorld(host: HTMLElement, input: Input) {
         let angle = Math.atan2((q.x - p.x) * camera.aspect, q.y - p.y); const reversed = angle > Math.PI / 2 || angle < -Math.PI / 2;
         if (reversed) angle += angle > 0 ? -Math.PI : Math.PI; child.material.rotation = angle; child.center.set(reversed ? 1 : 0, .5);
       }
-      navigator.orientation.copy(camera.quaternion); marker.update(navigator.position, navigator.orientation, scale, navigator.initialized, drive.valid);
+      navigator.orientation.copy(camera.quaternion);
       pipeline.render();
       if (selected.length && !reduced.matches && !document.hidden) request();
     });

@@ -6,7 +6,7 @@ import { createStore } from './core/store.ts';
 import { createWorld, type Edge } from './world.ts';
 import { moveBranch, inherited } from './core/lattice.ts';
 import { childNode, copyNode, detachNode, removeNodes } from './core/nodeOperations.ts';
-import { editDocument } from './text/editor.ts';
+import type { editDocument } from './text/editor.ts';
 import { scenePanel } from './scene/panel.ts';
 import { validateAsset, MAX_ASSET_BYTES, type VisualAsset } from './graph/assets.ts';
 import { workspacePanel } from './ui/workspace.ts';
@@ -61,6 +61,16 @@ function open(title: string) {
   const caption = document.createElement('span'); caption.textContent = title;
   const back = document.createElement('button'); back.textContent = '×'; back.setAttribute('aria-label', 'Close'); back.onclick = close;
   row.append(caption, back); tools.append(row);
+  const find = document.createElement('input'); find.type = 'search'; find.placeholder = 'Search…'; find.setAttribute('aria-label', 'Search operations');
+  const filter = () => {
+    const query = find.value.trim().toLocaleLowerCase();
+    for (const item of Array.from(tools.children)) if (item instanceof HTMLButtonElement) item.hidden = item.dataset.searchOnly === 'true' && !query || !!query && !`${item.textContent} ${item.dataset.keywords ?? ''}`.toLocaleLowerCase().includes(query);
+    positionMenu();
+  };
+  find.oninput = filter;
+  find.onkeydown = event => { if (event.key === 'Enter') { const match = Array.from(tools.children).find(item => item instanceof HTMLButtonElement && !item.hidden) as HTMLButtonElement | undefined; if (match) { event.preventDefault(); match.click(); } } };
+  tools.append(find);
+  requestAnimationFrame(() => { if (!find.isConnected) return; if (tools.querySelector('form')) find.hidden = true; else { filter(); find.focus(); } });
   positionMenu();
 }
 function positionMenu() {
@@ -162,16 +172,20 @@ function context(position: Vec3) {
   const edge = selection.values.find((target): target is Edge => !isNode(target));
   if (edge) { edgeContext(edge); return; }
   open(selectedOrigins().length ? `${selectedOrigins().length} selected` : 'Omnium');
-  if (!selectedOrigins().length) { button('Create structure', () => create(position)); button('Scene', openScene); button('World', worldControls); return; }
+  if (!selectedOrigins().length) { button('Create structure', () => create(position)); button('👁', appearance).setAttribute('aria-label', 'Appearance'); return; }
   const node = selectedNodes(store.world)[0]; if (!node) return;
-  for (const capability of capabilities(node)) button(capability.label, () => editCapability(capability.key));
+  for (const capability of capabilities(node).filter(c => !['color','carrier'].includes(c.key))) button(capability.label, () => editCapability(capability.key));
+  button('👁', appearance).setAttribute('aria-label', 'Appearance');
+  for (const capability of capabilities(node).filter(c => ['color','carrier'].includes(c.key))) {
+    const shortcut = button(`👁 ${capability.label}`, () => editCapability(capability.key)); shortcut.dataset.searchOnly = 'true'; shortcut.dataset.keywords = capability.properties.map(p => p.property.label).join(' ');
+  }
+  if (selectedOrigins().length === 1) { const shortcut = button('👁 Visual', visuals); shortcut.dataset.searchOnly = 'true'; shortcut.dataset.keywords = 'image SVG GLB character size text'; }
   if (selectedOrigins().length === 1) { button('Composition', parts); button('Document', openDocument); button('Node tools…', nodeTools); }
   button('Include…', chooseReference);
   button(node.invariant ? '⚬ Release invariant' : '⚬ Activate invariant', () => {
     store.change(world => { for (const target of selectedNodes(world)) setInvariant(world, target, !node.invariant); }); close();
   });
-  button('Scene', openScene);
-  button('World', worldControls);
+  for (const [name, action] of [['Scene', openScene], ['World', worldControls]] as const) { const shortcut = button(`👁 ${name}`, action); shortcut.dataset.searchOnly = 'true'; }
   button('Focus', () => { view?.focus(selectedOrigins(), true); close(); });
   button('Remove', remove);
 }
@@ -179,7 +193,7 @@ let workspaceView: ReturnType<typeof workspacePanel> | undefined;
 function openWorkspace() {
   close(); if (workspaceView?.root.isConnected) { workspaceView.root.focus(); return; }
   workspaceView = workspacePanel({ read: () => store.world, replace: world => { store.replace(world); selection.set([]); search.value = ''; refresh(); }, recover: () => { store.recover(); selection.set([]); search.value = ''; refresh(); }, beforeReplace: () => {
-    view?.cancel(); close(); selection.cancel(); sceneView?.close();
+    documentEpoch++; view?.cancel(); close(); selection.cancel(); sceneView?.close();
     for (const document of documents.values()) document?.close();
     if ([...documents.values()].some(document => document?.root.isConnected)) throw Error('An open document could not close. Preserve it before importing.');
   } });
@@ -189,15 +203,23 @@ function openScene() {
   close(); if (!view) return; sceneView?.close();
   sceneView = scenePanel({ read: () => store.world, selected: selectedOrigins, change: edit => store.change(edit), preview: candidate => view.session.update(candidate, selectedOrigins()[0]), session: view.session, feedback });
 }
-const documents = new Map<string, ReturnType<typeof editDocument>>();
+const documents = new Map<string, ReturnType<typeof editDocument>>(), openingDocuments = new Set<string>();
+let documentEpoch = 0;
 function openDocument() {
   const origin = selectedOrigins()[0]; if (!origin) return; close();
-  const existing = documents.get(key(origin)); if (existing?.root.isConnected) { existing.root.focus(); return; }
-  documents.set(key(origin), editDocument(origin, () => store.world, text => store.change(world => {
-    const node = locate(world, origin); if (!node) throw Error('This node was removed. Copy the document before closing.'); node.text = text;
-    if (node.variantOf) node.overrides = [...new Set([...(node.overrides ?? []), 'text'])];
-  }, `document:${key(origin)}`), feedback, () => documents.delete(key(origin))));
+  const id = key(origin), existing = documents.get(id);
+  if (existing?.root.isConnected) { existing.root.querySelector<HTMLElement>('.cm-content')?.focus(); return; }
+  if (openingDocuments.has(id)) return;
+  openingDocuments.add(id); const epoch = documentEpoch;
+  void import('./text/editor.ts').then(({ editDocument }) => {
+    if (epoch !== documentEpoch || !locate(store.world, origin)) return;
+    documents.set(id, editDocument(origin, () => store.world, text => store.change(world => {
+      const node = locate(world, origin); if (!node) throw Error('This node was removed. Copy the document before closing.'); node.text = text;
+      if (node.variantOf) node.overrides = [...new Set([...(node.overrides ?? []), 'text'])];
+    }, `document:${id}`), feedback, () => documents.delete(id)));
+  }).catch(error => feedback(error instanceof Error ? error.message : String(error))).finally(() => openingDocuments.delete(id));
 }
+
 function requestNode(accept: (target: Origin) => void) {
   close(); selection.request(target => { if (!isNode(target)) return false; try { accept(target); message = ''; return true; } catch (error) { message = error instanceof Error ? error.message : String(error); return false; } });
   message = 'Choose a node · Esc cancels'; refresh();
@@ -209,12 +231,21 @@ function nodeTools() {
   button('Variants', () => { view?.variants(origin); close(); });
   button('Add variant', () => { let child: Origin | undefined; store.change(world => { child = childNode(world, origin, true).origin; }); selection.set([child!]); view?.variants(origin, true); close(); refresh(); });
   button(node.collapsed ? 'Expand children' : 'Collapse children', () => { store.change(world => { locate(world, origin)!.collapsed = !node.collapsed; }); close(); });
-  button('Visual…', visuals);
+
   button('Copy', () => { let result: Origin | undefined; store.change(world => { const source = locate(world, origin)!; result = copyNode(world, source, source.position).origin; }); selection.set([result!]); close(); refresh(); });
   button('Connect to…', () => requestNode(target => store.change(world => { world.relationships ??= []; world.relationships.push({ from: bind(locate(world, origin)!, 'follow', world), to: bind(locate(world, target)!, 'follow', world), label: '', kind: 'relation' }); })));
   button('Attach to…', () => requestNode(target => store.change(world => { const source = locate(world, origin)!; source.parent = structuredClone(target); })));
   if (node.parent || node.variantOf) button('Detach', () => { store.change(world => detachNode(world, origin)); close(); });
   button('Hide', () => { store.change(world => { locate(world, origin)!.hidden = true; }); selection.set([]); close(); refresh(); });
+}
+function appearance() {
+  open('👁');
+  button('Scene', openScene); button('World', worldControls);
+  const node = selectedNodes(store.world)[0]; if (!node) return;
+  for (const capability of capabilities(node).filter(c => ['color','carrier'].includes(c.key))) {
+    const action = button(capability.label, () => editCapability(capability.key)); action.dataset.keywords = capability.properties.map(p => p.property.label).join(' ');
+  }
+  if (selectedOrigins().length === 1) button('Visual', visuals);
 }
 function worldControls() {
   open('World');
