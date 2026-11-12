@@ -11,6 +11,7 @@ import { scenePanel } from './scene/panel.ts';
 import { validateAsset, MAX_ASSET_BYTES, type VisualAsset } from './graph/assets.ts';
 import { workspacePanel } from './ui/workspace.ts';
 import { field } from './ui/fields.ts';
+import { liveForm } from './ui/liveForm.ts';
 
 const element = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const tools = element('tools'), status = element('status'), search = element<HTMLInputElement>('find');
@@ -99,10 +100,11 @@ function editCapability(capabilityKey: string) {
     if (input.type === 'text') input.maxLength = 160;
     inputs.push(input); form.append(entry.row);
   }
+  const start = [...first.position];
   const apply = (world: World) => {
     if (capabilityKey === 'move') {
       const before = locate(world, origins[0])!.position;
-      translate(world, origins, inputs.map((input, axis) => Number(input.value) - (origins.length === 1 ? before[axis] : 0)) as Vec3);
+      translate(world, origins, inputs.map((input, axis) => Number(input.value) - (origins.length === 1 ? before[axis] : before[axis] - start[axis])) as Vec3);
     } else for (const origin of origins) {
       const node = locate(world, origin); if (!node) continue;
       const coupled = capabilities(node).find(item => item.key === capabilityKey)!;
@@ -110,9 +112,7 @@ function editCapability(capabilityKey: string) {
       if (node.variantOf) node.overrides = [...new Set([...(node.overrides ?? []), ...coupled.properties.map(binding => binding.property.key)])];
     }
   };
-  if (capabilityKey === 'color') inputs[0].oninput = () => attempt(() => { const preview = { ...first }; capabilities(preview).find(c=>c.key==='color')!.properties[0].write(inputs[0].value); view?.previewColor(origins,preview.color); });
-  const confirm = document.createElement('button'); confirm.type = 'submit'; confirm.textContent = 'Apply'; form.append(confirm);
-  form.onsubmit = event => { event.preventDefault(); attempt(() => { store.change(apply); close(); }); };
+  liveForm(form, group => attempt(() => store.change(apply, group)));
   tools.append(form); positionMenu(); inputs[0].focus(); if (inputs[0].type === 'text') inputs[0].select();
 }
 function reference(mode: Binding['mode']) {
@@ -202,7 +202,7 @@ function openWorkspace() {
 let sceneView: ReturnType<typeof scenePanel> | undefined;
 function openScene() {
   close(); if (!view) return; sceneView?.close();
-  sceneView = scenePanel({ read: () => store.world, selected: selectedOrigins, change: edit => store.change(edit), preview: candidate => view.session.update(candidate, selectedOrigins()[0]), session: view.session, feedback });
+  sceneView = scenePanel({ read: () => store.world, selected: selectedOrigins, change: (edit, group) => store.change(edit, group), preview: candidate => view.session.update(candidate, selectedOrigins()[0]), session: view.session, feedback });
 }
 const documents = new Map<string, ReturnType<typeof editDocument>>(), openingDocuments = new Set<string>();
 let documentEpoch = 0;
@@ -252,8 +252,8 @@ function worldControls() {
   open('World');
   const form = document.createElement('form'), scale = field({ key:'latticeScale',label:'Lattice scale',kind:'number',min:1e-9 }, store.world.settings?.latticeScale ?? 1);
   const names = field({ key:'names',label:'Names',kind:'select',options:[{id:'expanded',label:'Expanded'},{id:'all',label:'All'},{id:'selection',label:'Selected'}] }, store.world.settings?.names ?? 'expanded');
-  form.append(scale.row,names.row); const apply = document.createElement('button'); apply.type='submit';apply.textContent='Apply';form.append(apply);
-  form.onsubmit = event => { event.preventDefault(); attempt(() => { store.change(world => { world.settings = { latticeScale:Number(scale.value()),names:names.value() as 'all'|'expanded'|'selection' }; });close(); }); };tools.append(form);
+  form.append(scale.row,names.row);
+  liveForm(form, group => attempt(() => store.change(world => { world.settings = { latticeScale:Number(scale.value()),names:names.value() as 'all'|'expanded'|'selection' }; }, group))); tools.append(form);
   button('Show all nodes', () => { store.change(world => { for (const node of world.nodes) {node.hidden=false;node.collapsed=false;} });search.value='';close();refresh(); });
   button('Fit all', () => { view?.focus(store.world.nodes.map(node => node.origin),true);close(); });positionMenu();
 }
@@ -270,7 +270,7 @@ function visuals() {
     })().catch(error=>feedback(error instanceof Error?error.message:String(error)));};file.click();
   });
   const node=inherited(locate(store.world,origin)!,store.world),form=document.createElement('form'),character=field({key:'character',label:'Character',kind:'text'},node.visual?.character??''),size=field({key:'visual.size',label:'Size',kind:'number',min:.1,max:5,step:.1},node.visual?.size??1.4),showText=field({key:'visual.showText',label:'Show text',kind:'toggle'},node.visual?.showText??true);form.append(character.row,size.row,showText.row);
-  const apply=document.createElement('button');apply.type='submit';apply.textContent='Apply';form.append(apply);form.onsubmit=event=>{event.preventDefault();attempt(()=>{store.change(world=>{const target=locate(world,origin)!,text=String(character.value());target.visual={...(text?{character:text}:node.visual),size:Number(size.value()),showText:Boolean(showText.value())};if(target.variantOf)target.overrides=[...new Set([...(target.overrides??[]),'visual'])];});close();});};tools.append(form);
+  liveForm(form, group=>attempt(()=>store.change(world=>{const target=locate(world,origin)!,text=String(character.value());target.visual={...(text?{character:text}:node.visual),size:Number(size.value()),showText:Boolean(showText.value())};if(target.variantOf)target.overrides=[...new Set([...(target.overrides??[]),'visual'])];}, group)));tools.append(form);
   if(node.visual)button('Clear visual',()=>{store.change(world=>{delete locate(world,origin)!.visual;});close();});positionMenu();
 }
 function edgeContext(edge: Edge) {
@@ -278,7 +278,7 @@ function edgeContext(edge: Edge) {
   const relation=edge.kind==='relationship'?store.world.relationships?.[edge.index]:undefined;
   if(relation && edge.kind === 'relationship'){
     const form=document.createElement('form'),label=field({key:'relation.label',label:'Label',kind:'text'},relation.label),kind=field({key:'relation.kind',label:'Type',kind:'text'},relation.kind);form.append(label.row,kind.row);
-    const apply=document.createElement('button');apply.type='submit';apply.textContent='Apply';form.append(apply);form.onsubmit=event=>{event.preventDefault();attempt(()=>{store.change(world=>{const r=world.relationships![edge.index];r.label=String(label.value());r.kind=String(kind.value());});close();});};tools.append(form);
+    liveForm(form, group=>attempt(()=>store.change(world=>{const r=world.relationships![edge.index];r.label=String(label.value());r.kind=String(kind.value());}, group)));tools.append(form);
     button('Reverse',()=>{store.change(world=>{const r=world.relationships![edge.index];[r.from,r.to]=[r.to,r.from];});close();});
     for(const [key,label] of [['from','Reconnect source…'],['to','Reconnect target…']] as const)button(label,()=>requestNode(target=>store.change(world=>{world.relationships![edge.index][key]=bind(locate(world,target)!,'follow',world);})));
   }else if(edge.kind==='part')button('Reconnect target…',()=>requestNode(target=>store.change(world=>{locate(world,edge.owner)!.parts[edge.index]=bind(locate(world,target)!,'follow',world);})));
