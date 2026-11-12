@@ -103,3 +103,7 @@ test('editing response curves does not create a held level or retrigger an expir
  const muted=constantResponse();muted.light.loudness=flat(0);e.configure(muted);assert.equal(e.result.light,0);assert.equal(e.result.bounce,1);
  e.configure(constantResponse());assert.equal(e.result.light,0);
 });
+test('a delayed sample releases by elapsed time instead of extending the hold',()=>{
+ const e=createAudioResponse(constantResponse());e.sample(.1,0);e.sample(.1,.75);
+ assert.ok(e.result.light<.0001);assert.ok(e.result.bounce<.0001);
+});

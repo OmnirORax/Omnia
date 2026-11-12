@@ -54,7 +54,7 @@ export function createAudioResponse(initial = defaultAudioResponse()) {
       if (!Number.isFinite(now)) return result;
       const next = Math.floor(now*RESPONSE_HZ+1e-6);if (next === slot) return result;
       if (slot >= 0 && (next < slot || next-slot >= WINDOW)) reset();
-      const elapsed = slot < 0 ? 1/RESPONSE_HZ : Math.min(.1,(next-slot)/RESPONSE_HZ);
+      const elapsed = slot < 0 ? 1/RESPONSE_HZ : (next-slot)/RESPONSE_HZ;
       // Missing samples are unknown, rather than invented repeated sounds.
       if (slot >= 0) for (let i=slot+1;i<next;i++) insert(-1);
       slot = next;
