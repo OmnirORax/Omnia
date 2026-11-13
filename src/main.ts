@@ -1,3 +1,6 @@
+import {createDraftSync,type Marker} from './cloud/sync.ts';
+import {createDraftClient} from './cloud/client.ts';
+import {panel} from './ui/panel.ts';
 import {readPaint,writePaint} from './core/appearance.ts';
 import {visualProperties,type Paint} from './properties/visual.ts';
 import vfxFunction from './scene/vfx.function.ts';
@@ -350,3 +353,24 @@ document.addEventListener('keydown', event => {
   if (event.key === 'Delete' && selection.values.length && !selection.requesting) { event.preventDefault(); attempt(remove); }
 });
 refresh();
+
+// Builds share one draft; production retains its published starting state.
+if(location.hostname==='omnium.nexus'||location.hostname==='omnia-web-bae.pages.dev'||location.hostname.endsWith('.omnia-web-bae.pages.dev')){
+ const api=createDraftClient(),indicator=document.createElement('button');indicator.type='button';indicator.setAttribute('aria-label','Shared draft');element('workspace').parentElement!.append(indicator);
+ let issue='',hasLocal=true;try{hasLocal=!!(localStorage.getItem('omnium.v2.world.2')??localStorage.getItem('omnium.v2.world.1'));}catch{/* Preserve recovery mode. */}
+ const sync=createDraftSync({
+  read:()=>store.world,hasLocal,autoLoad:location.hostname.endsWith('.omnia-web-bae.pages.dev'),
+  load:()=>api.load(),save:(world,revision)=>api.save(world,revision),
+  marker:()=>{try{const value=JSON.parse(localStorage.getItem('omnium.shared-draft.base.1')??'null');return value&&Number.isSafeInteger(value.revision)&&typeof value.signature==='string'?value as Marker:null;}catch{return null;}},
+  remember:value=>{localStorage.setItem('omnium.shared-draft.base.1',JSON.stringify(value));},
+  replace:async world=>{const before=store.world;await api.restore(world);if(store.world!==before)throw Error('Workspace changed while loading.');for(const doc of documents.values())doc?.close();sceneView?.close();if(store.world!==before)throw Error('Finish local edits before loading the shared draft.');store.replace(world);selection.set([]);refresh();},
+  status:(phase,error)=>{indicator.textContent=`Draft · ${phase}`;issue=error??'';},
+ });
+ store.subscribe(sync.changed);
+ indicator.onclick=()=>{const view=panel('Shared draft'),output=document.createElement('output');output.textContent=issue;view.body.append(output);
+  for(const [label,choice] of [['Load shared','remote'],['Keep local','local']] as const){const button=document.createElement('button');button.textContent=label;button.onclick=()=>{view.close();void sync.load(choice);};view.body.append(button);}
+ };
+ window.addEventListener('online',()=>{if(sync.phase==='Failed')void sync.load();});
+ document.addEventListener('visibilitychange',()=>{if(document.hidden)void sync.save();});
+ void sync.load();
+}
