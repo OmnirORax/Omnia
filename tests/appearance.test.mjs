@@ -7,13 +7,13 @@ import { childNode,copyNode,detachNode } from '../src/core/nodeOperations.ts';
 import { createStore } from '../src/core/store.ts';
 import { parseWorkspaceFile } from '../src/core/transfer.ts';
 import { visualProperties,paintColor } from '../src/properties/visual.ts';
-import { drawEmboldenedText,emboldenStrokeEm } from '../src/properties/embolden.ts';
+import { emboldenStrokeEm } from '../src/properties/embolden.ts';
 import { textStyle } from '../src/ui/appearance.ts';
 
 test('targets share paint definitions and expose font only for text',()=>{
   const text=visualProperties(true),surface=visualProperties(false);
   assert.equal(text[0],surface[0]);assert.equal(text[1],surface[1]);assert.equal(text[2],surface[2]);
-  assert.equal(text.at(-1).key,'font');assert.ok(text.some(p=>p.key==='embolden'));assert.ok(!surface.some(p=>p.key==='font'||p.key==='embolden'||p.key==='texture'));
+  assert.equal(text.at(-1).key,'font');assert.ok(text.some(p=>p.key==='embolden'&&p.presentation==='slider'));assert.ok(!surface.some(p=>p.key==='font'||p.key==='embolden'||p.key==='texture'));
   const world=emptyWorld(),node=addStructure(world,[0,0,0],1);
   for(const target of ['nodes','background'])assert.throws(()=>writePaint(world,target,[node.origin],{font:'serif'}),/Invalid/);
 });
@@ -68,7 +68,8 @@ test('invalid paint values cannot be committed or imported',()=>{
 test('forced boldness is an independent reusable text property',()=>{
   assert.equal(emboldenStrokeEm(0),0);
   assert.equal(emboldenStrokeEm(10),.25);
-  assert.equal(textStyle({embolden:6}).WebkitTextStroke,'0.15em currentColor');
+  assert.equal(emboldenStrokeEm(6),0.15);
+  assert.equal('WebkitTextStroke' in textStyle({embolden:6}),false);
   const world=emptyWorld(),node=addStructure(world,[0,0,0],1);
   writePaint(world,'text',[],{embolden:5});
   assert.equal(readPaint(world,'nodeText',node.origin).embolden,5);
@@ -82,20 +83,3 @@ test('forced boldness is an independent reusable text property',()=>{
   assert.equal(readPaint(world,'nodeText',node.origin).embolden,5);
 });
 
-test('synthetic stroke paints the selected font without asking for a Bold face',()=>{
-  const strokes=[], fills=[];
-  const context={
-    fillStyle:'#f0f0f0',shadowBlur:14,
-    save(){},restore(){},
-    strokeText(text,x,y){strokes.push({text,x,y,width:this.lineWidth,color:this.strokeStyle,shadow:this.shadowBlur});},
-    fillText(text,x,y){fills.push({text,x,y});},
-  };
-  drawEmboldenedText(context,'Optimus',20,40,0,32);
-  assert.equal(strokes.length,0);assert.equal(fills.length,1);
-  drawEmboldenedText(context,'Optimus',20,40,6,32);
-  assert.equal(strokes.length,1);
-  assert.equal(strokes[0].width,4.8);
-  assert.equal(strokes[0].color,'#f0f0f0');
-  assert.equal(strokes[0].shadow,0);
-  assert.equal(fills.length,2);
-});
