@@ -39,37 +39,47 @@ export function createAudioMeasurement(){
   result.pattern=band*PATTERN_AXIS+shape;return result;
  };
 }
+/** A brief smooth attack, followed by continuous release; independent of capture cadence. */
+export const ATTACK_SECONDS=.025;
+export function pulseValue(from:number,peak:number,age:number){
+ if(age<0||!Number.isFinite(age))return 0;
+ if(age<ATTACK_SECONDS){const x=age/ATTACK_SECONDS;return from+(peak-from)*x*x*(3-2*x);}
+ const value=peak*Math.exp(-(age-ATTACK_SECONDS)/.08);return value<1e-7?0:value;
+}
 /** Fixed storage, per-pattern accepted timestamps, and a recent peak reference. */
 export function createAudioResponse(initial=defaultAudioResponse()){
  let settings=initial,slot=-1,cursor=0,peak=0,previous=0;
  const levels=new Float64Array(WINDOW),lastReaction=new Float64Array(PATTERNS).fill(-Infinity);
  const result={intensity:0,light:0,bounce:0,reacted:false};
+ const pulses={light:{at:-Infinity,from:0,peak:0},bounce:{at:-Infinity,from:0,peak:0}};
+ function read(now:number){result.light=Math.min(settings.lightMax,pulseValue(pulses.light.from,pulses.light.peak,now-pulses.light.at));result.bounce=Math.min(settings.bounceMax,pulseValue(pulses.bounce.from,pulses.bounce.peak,now-pulses.bounce.at));return result;}
  function clearLevels(){levels.fill(0);cursor=0;peak=0;previous=0;}
- function reset(){clearLevels();lastReaction.fill(-Infinity);slot=-1;result.intensity=result.light=result.bounce=0;result.reacted=false;}
+ function reset(){clearLevels();lastReaction.fill(-Infinity);for(const p of [pulses.light,pulses.bounce]){p.at=-Infinity;p.from=p.peak=0;}slot=-1;result.intensity=result.light=result.bounce=0;result.reacted=false;}
  function insert(level:number){
   const expired=levels[cursor];levels[cursor]=level;cursor=(cursor+1)%WINDOW;
   if(level>=peak)peak=level;
   else if(expired>=peak){peak=0;for(let i=0;i<WINDOW;i++)peak=Math.max(peak,levels[i]);}
  }
  return{
-  result,reset,
+  result,reset,read,
   due(now:number){return Number.isFinite(now)&&Math.floor(now*RESPONSE_HZ+1e-6)!==slot;},
   configure(value:AudioResponse){
-   if(settings.lightMax!==value.lightMax)result.light=settings.lightMax?Math.min(value.lightMax,result.light*value.lightMax/settings.lightMax):0;
-   if(settings.bounceMax!==value.bounceMax)result.bounce=settings.bounceMax?Math.min(value.bounceMax,result.bounce*value.bounceMax/settings.bounceMax):0;
+   for(const key of ['light','bounce'] as const){
+    const before=key==='light'?settings.lightMax:settings.bounceMax,after=key==='light'?value.lightMax:value.bounceMax;
+    if(before!==after){const scale=before?after/before:0;pulses[key].from*=scale;pulses[key].peak*=scale;result[key]*=scale;}
+   }
    settings=value;
   },
   sample(rms:number,now:number,pattern=0){
    if(!Number.isFinite(now)||now<0)return result;
    const next=Math.floor(now*RESPONSE_HZ+1e-6);if(next===slot)return result;
    if(slot>=0&&next<slot)reset();
-   const elapsed=slot<0?1/RESPONSE_HZ:(next-slot)/RESPONSE_HZ;
    if(slot>=0&&next-slot>=WINDOW)clearLevels();
    else if(slot>=0)for(let i=slot+1;i<next;i++)insert(0);
    slot=next;result.reacted=false;
    const amplitude=Number.isFinite(rms)?Math.max(0,Math.min(1,rms)):0;
    insert(amplitude);result.intensity=peak>0?amplitude/peak:0;
-   const release=Math.exp(-elapsed/.08);result.light*=release;result.bounce*=release;
+   read(now);
    const rising=amplitude-previous>1e-7;previous=amplitude;
    if(rising&&(settings.lightMax>0||settings.bounceMax>0)){
     const index=Number.isFinite(pattern)?Math.max(0,Math.min(PATTERNS-1,Math.floor(pattern))):0;
@@ -78,8 +88,10 @@ export function createAudioResponse(initial=defaultAudioResponse()){
     for(let a=Math.max(0,band-1);a<=Math.min(7,band+1);a++)for(let b=Math.max(0,shape-1);b<=Math.min(7,shape+1);b++)accepted=Math.max(accepted,lastReaction[a*PATTERN_AXIS+b]);
     if(now-accepted+1e-9>=settings.cooldownMs/1000){
      lastReaction[index]=now;result.reacted=true;
-     result.light=Math.max(result.light,result.intensity*settings.lightMax);
-     result.bounce=Math.max(result.bounce,result.intensity*settings.bounceMax);
+     for(const key of ['light','bounce'] as const){
+      const maximum=key==='light'?settings.lightMax:settings.bounceMax,target=result.intensity*maximum;
+      if(target>result[key]){pulses[key].at=now;pulses[key].from=result[key];pulses[key].peak=target;}
+     }
     }
    }
    if(result.light<1e-7)result.light=0;if(result.bounce<1e-7)result.bounce=0;

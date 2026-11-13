@@ -7,7 +7,7 @@ let context:AudioContext|null=null,source:AudioNode|null=null,splitter:ChannelSp
 let analysers:AnalyserNode[]=[];
 const response=createAudioResponse(),measure=createAudioMeasurement(),samples=[new Float32Array(512),new Float32Array(512)];
 let responseTimer:ReturnType<typeof setInterval>|undefined;
-export const readSceneAudioResponse=()=>response.result;
+export const readSceneAudioResponse=()=>response.read(performance.now()/1000);
 export const configureSceneAudioResponse=(settings:AudioResponse)=>response.configure(settings);
 function stopResponse(){if(responseTimer!==undefined)clearInterval(responseTimer);responseTimer=undefined;response.reset();}
 function startResponse(){
