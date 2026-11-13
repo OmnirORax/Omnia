@@ -1,6 +1,6 @@
 import {createSceneCorrection,configureSceneCorrection,sceneCorrectionGLSL,sceneCorrectionUniforms} from './normalizationShader.ts';
 import type {Corrections} from './normalization.ts';
-import {REFERENCE_PULSE_GLSL,PULSE_COLOUR_GLSL} from './pulse.ts';
+import {REFERENCE_PULSE_GLSL,SCENE_COLOR_SPACE_GLSL} from './pulse.ts';
 import {normalizeSceneVfx,WAVE_CONTROLS,nextVfxDeadline,type SceneVfx} from './vfx.ts';
 import {readSceneAudioResponse,configureSceneAudioResponse,isSceneAudioConnected,subscribeSceneAudio,disposeSceneAudio} from './audio.ts';
 import * as THREE from 'three';
@@ -12,10 +12,9 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
   const initial=normalizeSceneVfx(undefined),correction=createSceneCorrection();
   const tint=(hex:string)=>{const c=new THREE.Color(hex).getRGB({r:0,g:0,b:0},THREE.SRGBColorSpace);return new THREE.Vector3(c.r,c.g,c.b);};
   const material = new THREE.ShaderMaterial({
-    depthTest: false, depthWrite: false, toneMapped: false,defines:{PULSE_ALL_COLORS:0,IMAGE_TINT:0},
+    depthTest: false, depthWrite: false, toneMapped: false,defines:{IMAGE_TINT:0},
     uniforms: { ...sceneCorrectionUniforms(correction), worldLayer:{value:null},compositeWorld:{value:0},image: { value: null }, imageAspect: { value: 1 }, viewportAspect: { value: 1 },
-      pulseOmniTintLow:{value:tint(initial.pulseOmniTintLow)},pulseOmniTint:{value:tint(initial.pulseOmniTint)},imageTint:{value:tint(initial.imageTint)},
-      pulseTintLow:{value:tint(initial.pulseTintLow)},pulseTintHigh:{value:tint(initial.pulseTintHigh)},sceneGlowPass:{value:0},time:{value:0},bounce:{value:1},light:{value:0},
+      imageTint:{value:tint(initial.imageTint)},pulseTintLow:{value:tint(initial.pulseTintLow)},pulseTintHigh:{value:tint(initial.pulseTintHigh)},sceneGlowPass:{value:0},time:{value:0},bounce:{value:1},light:{value:0},
       ...Object.fromEntries(WAVE_CONTROLS.map(({key,initial})=>[key,{value:initial}])),waves:{value:1},waveAudio:{value:1},
       feedbackColor: { value: new THREE.Color() }, feedbackStrength: { value: 0 } },
     vertexShader: 'varying vec2 imageUV; void main() { imageUV = uv; gl_Position = vec4(position.xy, 1.0, 1.0); }',
@@ -27,7 +26,7 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
       ${sceneCorrectionGLSL}
       ${REFERENCE_PULSE_GLSL}
       uniform sampler2D worldLayer;uniform float compositeWorld;
-      ${PULSE_COLOUR_GLSL}
+      ${SCENE_COLOR_SPACE_GLSL}
       uniform vec3 feedbackColor; uniform float feedbackStrength; varying vec2 imageUV;
       void main() {
         if(sceneGlowPass!=0.0){gl_FragColor=vec4(0.0,0.0,0.0,1.0);return;}
@@ -41,19 +40,11 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
         else coverUV.x *= viewportAspect / imageAspect;
         vec3 color = correctSceneImage(texture2D(image, clamp(coverUV + 0.5,vec2(.001),vec2(.999))).rgb);
         vec3 visible=displayColour(color);
-        #if PULSE_ALL_COLORS
-        vec3 coloured=referencePulse(visible,omniHighTint(visible,pulseOmniTintLow),omniHighTint(visible,pulseOmniTint),light);
-        vec3 enhanced=linearColour(coloured);
-        #if IMAGE_TINT
-        enhanced=linearColour(displayColour(enhanced)*imageTint);
-        #endif
-        #else
         vec3 pulsed=referencePulse(visible,pulseTintLow,pulseTintHigh,light);
         #if IMAGE_TINT
         pulsed*=imageTint;
         #endif
         vec3 enhanced=linearColour(pulsed);
-        #endif
         vec3 outputColor=mix(enhanced,feedbackColor,feedbackStrength);
         if(compositeWorld>.5){
           vec4 world=texture2D(worldLayer,imageUV);
@@ -108,10 +99,6 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
         const rgb=new THREE.Color(settings[key]).getRGB({r:0,g:0,b:0},THREE.SRGBColorSpace);
         material.uniforms[key].value.set(rgb.r,rgb.g,rgb.b);
       }
-      const all=Number(settings.pulseColorMode==='all');
-      if(material.defines.PULSE_ALL_COLORS!==all){material.defines.PULSE_ALL_COLORS=all;material.needsUpdate=true;}
-      material.uniforms.pulseOmniTint.value.copy(tint(settings.pulseOmniTint));
-      material.uniforms.pulseOmniTintLow.value.copy(tint(settings.pulseOmniTintLow));
       const filter=Number(settings.imageTintEnabled);
       if(material.defines.IMAGE_TINT!==filter){material.defines.IMAGE_TINT=filter;material.needsUpdate=true;}
       material.uniforms.waves.value=reduced.matches?0:Number(settings.waves);

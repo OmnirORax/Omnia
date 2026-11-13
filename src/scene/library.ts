@@ -1,3 +1,4 @@
+import { DEFAULT_BACKGROUND, DEFAULT_BACKGROUND_URL } from './defaultBackground.ts';
 import {normalizeSceneBlob,forgetNormalizedScene} from './normalizationCache.ts';
 import type {NormalizationPreferences} from './normalization.ts';
 import { imageSignatureMatches, isImageType, MAX_ASSET_BYTES, type SceneNode, type SceneSource } from './contracts.ts';
@@ -30,13 +31,19 @@ async function store<T>(mode: IDBTransactionMode, run: (transaction: IDBTransact
   } finally { db.close(); }
 }
 export const listLocalScenes = () => store<LocalScene[]>('readonly', transaction => transaction.objectStore('metadata').getAll())
-  .then(items => items.sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
+  .then(items => (items.some(item=>item.id===DEFAULT_BACKGROUND.id)?items:[...items,DEFAULT_BACKGROUND]).sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
 export async function localSceneBlob(id: string): Promise<Blob> {
+  if(id===DEFAULT_BACKGROUND.id){
+    const response=await fetch(DEFAULT_BACKGROUND_URL);
+    if(!response.ok)throw new Error('Default scene image could not be loaded.');
+    return response.blob();
+  }
   const item = await store<StoredScene | undefined>('readonly', transaction => transaction.objectStore('images').get(id));
   if (!item) throw new Error('This scene image is missing from this browser. Import it again.');
   return item.blob;
 }
 export const deleteLocalScene = async (id: string) => {
+  if(id===DEFAULT_BACKGROUND.id)return;
   await forgetNormalizedScene(await localSceneBlob(id));
   return store('readwrite', transaction => {
   transaction.objectStore('metadata').delete(id);
@@ -108,7 +115,7 @@ export async function saveLocalScenes(incoming: readonly StoredScene[]): Promise
       let full = false;
       request.onsuccess = () => {
         const items = request.result as LocalScene[];
-        const known = new Set(items.map(item => item.id)), additions = incoming.filter(item => !known.has(item.id) && !!known.add(item.id));
+        const known = new Set([DEFAULT_BACKGROUND.id,...items.map(item => item.id)]), additions = incoming.filter(item => !known.has(item.id) && !!known.add(item.id));
         if (items.length + additions.length > MAX_IMAGES || [...items, ...additions].reduce((total, item) => total + item.size, 0) > MAX_LIBRARY_BYTES) { full = true; transaction.abort(); return; }
         for (const { blob, ...item } of additions) {
           transaction.objectStore('images').add({ ...item, blob });

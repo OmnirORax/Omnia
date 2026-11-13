@@ -27,46 +27,10 @@ export function referencePulseRGB(image:readonly number[],low:readonly number[],
 }
 
 
-export const MAX_PULSE_COLORS=8;
-export function pulsePalette(value:unknown):string[]{
- if(typeof value!=='string')return [];
- return [...new Set(value.slice(0,200).split(/[\s,;]+/).filter(c=>/^#[a-f\d]{6}$/i.test(c)).map(c=>c.toLowerCase()))].slice(0,MAX_PULSE_COLORS);
-}
-/** Archived from the superseded separate-slider preview; never rendered or edited. */
-export const RETIRED_OMNI_BRIGHTNESS_CONTROLS=[
- {key:'pulseOmniLowBrightness',label:'Base brightness',initial:.5,min:0,max:2,step:.01},
- {key:'pulseOmniHighBrightness',label:'Flash brightness',initial:1.5,min:0,max:4,step:.01},
-] as const;
-export type RetiredOmniBrightnessKey=typeof RETIRED_OMNI_BRIGHTNESS_CONTROLS[number]['key'];
-export const PULSE_COLOUR_GLSL=`
+export const SCENE_COLOR_SPACE_GLSL=`
  vec3 displayColour(vec3 c){return mix(c*12.92,1.055*pow(max(c,vec3(0.0)),vec3(1.0/2.4))-.055,step(vec3(.0031308),c));}
  vec3 linearColour(vec3 c){return mix(c/12.92,pow((c+.055)/1.055,vec3(2.4)),step(vec3(.04045),c));}
- #if PULSE_ALL_COLORS
- vec3 pulseSourceTint(vec3 image){
-  float hi=max(image.r,max(image.g,image.b)),lo=min(image.r,min(image.g,image.b));
-  float delta=hi-lo;
-  return delta>.000001?(image-vec3(lo))/delta:vec3(1.0);
- }
- uniform vec3 pulseOmniTint;uniform vec3 pulseOmniTintLow;
- vec3 omniHighTint(vec3 image,vec3 control){
-  float value=max(control.r,max(control.g,control.b));
-  float saturation=value>0.0?1.0-min(control.r,min(control.g,control.b))/value:0.0;
-  return mix(vec3(1.0),pulseSourceTint(image),saturation)*value;
- }
- #endif
 `;
-/** Numerical contract for independent coloured responses and source-hue All. */
-export function sourcePulseTint(image:readonly number[]):number[]{
- const hi=Math.max(...image),lo=Math.min(...image),delta=hi-lo;
- return image.map(c=>delta>.000001?(c-lo)/delta:1);
-}
-
-/** Normal HSV saturation/value, with hue supplied independently by each image region. */
-export function omniHighTintRGB(image:readonly number[],control:readonly number[]){
- const value=Math.max(...control),saturation=value?1-Math.min(...control)/value:0;
- return sourcePulseTint(image).map(c=>(1-saturation+saturation*c)*value);
-}
-
 
 /** Archived rollback preferences; no active UI, gain or glow renderer. */
 export const RETIRED_FLARE_CONTROLS=[

@@ -1,3 +1,4 @@
+import { DEFAULT_BACKGROUND } from './defaultBackground.ts';
 import { audioControls } from './audioControls.ts';
 import { normalizeSceneVfx } from './vfx.ts';
 import { panel } from '../ui/panel.ts';
@@ -60,7 +61,7 @@ export function scenePanel(host: Host) {
       const row = document.createElement('div'); row.className = 'scene-image-row';
       button(`${currentImage() === item.id ? '✓ ' : ''}${item.name}`, () => { assign(item.id); return images(); }, row);
       button('↓', async () => downloadScene(await localSceneBlob(item.id), item.name), row).title = 'Download original';
-      button('×', async () => {
+      if(item.id!==DEFAULT_BACKGROUND.id)button('×', async () => {
         if (!confirm(`Delete “${item.name}” from this browser? Download it first to retain the original image.`)) return;
         host.change(world => { if (world.scene?.image === item.id) world.scene.image = null; for (const node of world.nodes) if (node.scene === item.id) delete node.scene; });
         await deleteLocalScene(item.id); await images();

@@ -75,7 +75,7 @@ test('coarse waveform signatures distinguish separated patterns and survive volu
 test('long sessions keep bounded outputs and fixed result storage',()=>{
  const e=createAudioResponse(settings()),result=e.result;
  for(let i=0;i<60000;i++){assert.equal(e.sample((i%137)/136,i/RESPONSE_HZ,i%64),result);assert.ok(result.light>=0&&result.light<=2&&result.bounce>=0&&result.bounce<=.4&&result.intensity>=0&&result.intensity<=1);}
- assert.deepEqual(defaultAudioResponse(1.5,1.2),{version:2,lightMax:1.5,bounceMax:.2,cooldownMs:1000});
+ assert.deepEqual(defaultAudioResponse(1.5,1.2),{version:2,lightMax:1.5,bounceMax:.2,cooldownMs:300});
 });
 test('even quiet dominant attacks reach the chosen maximum without an artificial gain floor',()=>{
  const e=createAudioResponse(settings());const r=hit(e,0,.00001);assert.equal(r.intensity,1);near(r.light,2);near(r.bounce,.4);

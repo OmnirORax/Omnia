@@ -11,7 +11,7 @@ test('legacy scalar scenes acquire maxima and cooldown without altering their or
  const raw={pulseAmount:1,audioBounce:1.2,pulseSensitivity:4,pulseHzMax:500,bassAttack:50};
  const settings=normalizeSceneVfx(raw);assert.deepEqual(settings.audioResponse,defaultAudioResponse(1,1.2));
  assert.equal(raw.audioResponse,undefined);assert.equal(settings.pulseSensitivity,4);assert.equal(settings.pulseHzMax,500);
- assert.equal(settings.pulseTintHigh,'#0062ff');assert.equal(settings.imageTint,'#00eeff');
+ assert.equal(settings.pulseTintHigh,'#3c3271');assert.equal(settings.imageTint,'#ff00ea');
  for(const key of ['waveAmplitudeX','waveAmplitudeY','waveFrequencyX','waveFrequencyY','waveSpeedX','waveSpeedY'])assert.equal(settings[key],WAVE_PRESETS[1][key]);
 });
 test('old graph preferences convert to maxima and remain recoverable as inactive data',()=>{
@@ -25,7 +25,7 @@ test('only the three current settings control behavior, independently of retired
  assert.deepEqual(a.audioResponse,b.audioResponse);
 });
 test('settings and archived curve data survive copy and workspace round trips',()=>{
- const world=emptyWorld();world.scene.vfx.audioResponse={...audioResponse(oldCurves()),cooldownMs:2500};
+ const world=emptyWorld();world.scene.image=null;world.scene.vfx.audioResponse={...audioResponse(oldCurves()),cooldownMs:2500};
  assert.deepEqual(JSON.parse(serializeSceneVfx(world.scene.vfx)),world.scene.vfx);
  const restored=parseWorkspaceFile(JSON.stringify({format:'omnium-v2-workspace',version:1,world,scenes:[]}));assert.deepEqual(restored.world.scene.vfx.audioResponse,world.scene.vfx.audioResponse);
 });

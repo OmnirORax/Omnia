@@ -1,4 +1,4 @@
-import {readSystemAudioPreference,saveSystemAudioPreference,pauseRememberedSystemAudio,forgetSystemAudioPreference,validPairingCode} from './systemAudioPreference.ts';
+import {shouldStartSystemAudio,readSystemAudioPreference,saveSystemAudioPreference,pauseRememberedSystemAudio,forgetSystemAudioPreference,validPairingCode} from './systemAudioPreference.ts';
 import {pcmWorkletSource,systemAudioOriginSupported,systemAudioRequiresPairing} from './nativePcm.ts';
 import {createNativeAudioTransport} from './nativeAudioTransport.ts';
 import {createAudioResponse,createAudioMeasurement,type AudioResponse,RESPONSE_HZ} from './audioResponse.ts';
@@ -81,19 +81,18 @@ export async function connectSceneSystemAudio(code=readSystemAudioPreference()?.
 /** Install once at the app boundary, independent of opening the settings panel. */
 export function startRememberedSystemAudio(){
  const resume=()=>{
-  if(!readSystemAudioPreference()?.enabled)return;
   if(inputKind==='system'&&context?.state==='suspended')void context.resume().catch(()=>{});
  };
  const visibility=()=>{if(document.hidden)stopResponse();else startResponse();};
  document.addEventListener('visibilitychange',visibility);
  window.addEventListener('pointerdown',resume,true);window.addEventListener('keydown',resume,true);
- if(readSystemAudioPreference()?.enabled&&systemAudioOriginSupported(window.location.origin)){
+ if(shouldStartSystemAudio(window.location.origin)){
   void connectSceneSystemAudio().catch(error=>publish(error instanceof Error?error.message:'System audio reconnect failed'));
  }
  return()=>{document.removeEventListener('visibilitychange',visibility);window.removeEventListener('pointerdown',resume,true);window.removeEventListener('keydown',resume,true);};
 }
 export function forgetSceneSystemAudio(){
- forgetSystemAudioPreference();stopSceneAudio();publish('System audio forgotten — pair once to remember it again');
+ disconnectSceneAudio();forgetSystemAudioPreference();publish('System audio forgotten — pair once to remember it again');
 }
 
 /** Toggle connection intent, including a pending connection or reconnect. */
