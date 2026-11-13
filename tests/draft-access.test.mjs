@@ -40,3 +40,16 @@ test('the storage endpoint validates snapshots and handles revision conflicts wi
   assert.equal((await draftServer(new Request('https://api.example/'),env)).status,401);assert.equal(calls,before);
  }finally{globalThis.fetch=original;}
 });
+test('Pages Access cookies reach the verifier when the assertion header is absent',async()=>{
+ const old=globalThis.fetch;let forwarded;
+ globalThis.fetch=async(_url,init)=>{forwarded=init.headers['x-omnium-access'];return Response.json({ok:true});};
+ try{const response=await onRequest({request:new Request('https://omnium.nexus/api/draft',{headers:{cookie:'other=value; CF_Authorization=signed-session; next=ignored'}})});assert.equal(response.status,200);assert.equal(forwarded,'signed-session');}
+ finally{globalThis.fetch=old;}
+});
+test('preview Access audiences are discovered from that protected host, not assumed to equal production',async()=>{
+ const origin='https://pr-72.omnia-web-bae.pages.dev',previewAudience='1'.repeat(64);
+ const fetcher=async url=>{if(url===origin+'/')return new Response(null,{status:302,headers:{location:`https://omnia-web-bae-pages.cloudflareaccess.com/cdn-cgi/access/login/preview?kid=${previewAudience}`}});return Response.json({keys:[jwk]});};
+ assert.equal(await verifyAccess(await token({aud:[previewAudience]}),fetcher,origin),true);
+ assert.equal(await verifyAccess(await token(),fetcher,origin),false);
+ assert.equal(await verifyAccess(await token({aud:[previewAudience]}),fetcher,'https://attacker.example'),false);
+});

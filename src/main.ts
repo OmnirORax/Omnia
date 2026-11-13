@@ -357,6 +357,7 @@ refresh();
 // Builds share one draft; production retains its published starting state.
 if(location.hostname==='omnium.nexus'||location.hostname==='omnia-web-bae.pages.dev'||location.hostname.endsWith('.omnia-web-bae.pages.dev')){
  const api=createDraftClient(),indicator=document.createElement('button');indicator.type='button';indicator.setAttribute('aria-label','Shared draft');element('workspace').parentElement!.append(indicator);
+ let draftView:ReturnType<typeof panel>|undefined;
  let issue='',hasLocal=true;try{hasLocal=!!(localStorage.getItem('omnium.v2.world.2')??localStorage.getItem('omnium.v2.world.1'));}catch{/* Preserve recovery mode. */}
  const sync=createDraftSync({
   read:()=>store.world,hasLocal,autoLoad:location.hostname.endsWith('.omnia-web-bae.pages.dev'),
@@ -367,7 +368,8 @@ if(location.hostname==='omnium.nexus'||location.hostname==='omnia-web-bae.pages.
   status:(phase,error)=>{indicator.textContent=`Draft · ${phase}`;issue=error??'';},
  });
  store.subscribe(sync.changed);
- indicator.onclick=()=>{const view=panel('Shared draft'),output=document.createElement('output');output.textContent=issue;view.body.append(output);
+ indicator.onclick=()=>{if(draftView?.root.isConnected){draftView.root.focus();return;}const view=panel('Shared draft');draftView=view;const output=document.createElement('output');output.textContent=issue;view.body.append(output);
+  if(sync.phase==='Failed'){const retry=document.createElement('button');retry.textContent='Retry';retry.onclick=()=>{view.close();void sync.load();};view.body.append(retry);return;}
   for(const [label,choice] of [['Load shared','remote'],['Keep local','local']] as const){const button=document.createElement('button');button.textContent=label;button.onclick=()=>{view.close();void sync.load(choice);};view.body.append(button);}
  };
  window.addEventListener('online',()=>{if(sync.phase==='Failed')void sync.load();});
