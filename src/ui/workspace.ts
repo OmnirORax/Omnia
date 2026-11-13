@@ -4,12 +4,13 @@ import { availableChoice, createPartsFile, fullChoice, hasChoice, parsePartsFile
 import type { World } from '../core/model.ts';
 import { listLocalScenes, localSceneBlob, prepareLocalScene, saveLocalScenes, downloadScene, deleteLocalScene, type StoredScene } from '../scene/library.ts';
 
-type Host = { read: () => World; replace: (world: World) => void; recover: () => void; beforeReplace: () => void; selected?: () => string[] };
+type Host = { draft?: HTMLButtonElement; read: () => World; replace: (world: World) => void; recover: () => void; beforeReplace: () => void; selected?: () => string[] };
 export function workspacePanel(host: Host) {
   let live = true, busy = false;
   const view = panel('Workspace', () => { if (busy) return false; live = false; });
   const actions = document.createElement('div'), output = document.createElement('output'); output.setAttribute('role', 'status'); view.body.append(actions, output);
   const buttons: HTMLButtonElement[] = [];
+  if(host.draft){actions.append(host.draft);buttons.push(host.draft);}
   const options = document.createElement('fieldset'), filename = document.createElement('input');
   options.className = 'transfer-parts';
   filename.value = 'omnium-workspace'; filename.setAttribute('aria-label', 'File name'); filename.maxLength = 100;

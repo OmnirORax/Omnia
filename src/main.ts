@@ -228,10 +228,11 @@ function searchSettings() {
   input.addEventListener('input',render);input.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();results.querySelector<HTMLElement>('input,select')?.focus();}});
   positionMenu();input.focus();
 }
+let draftControl:HTMLButtonElement|undefined;
 let workspaceView: ReturnType<typeof workspacePanel> | undefined;
 function openWorkspace() {
   close(); if (workspaceView?.root.isConnected) { workspaceView.root.focus(); return; }
-  workspaceView = workspacePanel({ selected: () => selectedOrigins().map(origin => JSON.stringify(origin)), read: () => store.world, replace: world => { store.replace(world); selection.set([]); search.value = ''; refresh(); }, recover: () => { store.recover(); selection.set([]); search.value = ''; refresh(); }, beforeReplace: () => {
+  workspaceView = workspacePanel({ draft:draftControl, selected: () => selectedOrigins().map(origin => JSON.stringify(origin)), read: () => store.world, replace: world => { store.replace(world); selection.set([]); search.value = ''; refresh(); }, recover: () => { store.recover(); selection.set([]); search.value = ''; refresh(); }, beforeReplace: () => {
     documentEpoch++; view?.cancel(); close(); selection.cancel(); sceneView?.close();
     for (const document of documents.values()) document?.close();
     if ([...documents.values()].some(document => document?.root.isConnected)) throw Error('An open document could not close. Preserve it before importing.');
@@ -356,7 +357,7 @@ refresh();
 
 // Builds share one draft; production retains its published starting state.
 if(location.hostname==='omnium.nexus'||location.hostname==='omnia-web-bae.pages.dev'||location.hostname.endsWith('.omnia-web-bae.pages.dev')){
- const api=createDraftClient(),indicator=document.createElement('button');indicator.type='button';indicator.setAttribute('aria-label','Shared draft');element('workspace').parentElement!.append(indicator);
+ const api=createDraftClient(),indicator=document.createElement('button');indicator.type='button';indicator.setAttribute('aria-label','Shared draft');draftControl=indicator;
  let draftView:ReturnType<typeof panel>|undefined;
  let issue='',hasLocal=true;try{hasLocal=!!(localStorage.getItem('omnium.v2.world.2')??localStorage.getItem('omnium.v2.world.1'));}catch{/* Preserve recovery mode. */}
  const sync=createDraftSync({
@@ -370,7 +371,7 @@ if(location.hostname==='omnium.nexus'||location.hostname==='omnia-web-bae.pages.
  store.subscribe(sync.changed);
  indicator.onclick=()=>{if(draftView?.root.isConnected){draftView.root.focus();return;}const view=panel('Shared draft');draftView=view;const output=document.createElement('output');output.textContent=issue;view.body.append(output);
   if(sync.phase==='Failed'){const retry=document.createElement('button');retry.textContent='Retry';retry.onclick=()=>{view.close();void sync.load();};view.body.append(retry);return;}
-  for(const [label,choice] of [['Load shared','remote'],['Keep local','local']] as const){const button=document.createElement('button');button.textContent=label;button.onclick=()=>{view.close();void sync.load(choice);};view.body.append(button);}
+  for(const [label,choice] of [['Pull','remote'],['Push','local']] as const){const button=document.createElement('button');button.textContent=label;button.onclick=()=>{view.close();void sync.load(choice);};view.body.append(button);}
  };
  window.addEventListener('online',()=>{if(sync.phase==='Failed')void sync.load();});
  document.addEventListener('visibilitychange',()=>{if(document.hidden)void sync.save();});
