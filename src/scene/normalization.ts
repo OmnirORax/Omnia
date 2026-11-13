@@ -3,9 +3,9 @@ export const NORMALIZATION_VERSION=1;
 export const NORMALIZATION_FUNCTION='scene.normalize';
 export const NORMALIZATION_FIELDS=[
  {key:'enabled',label:'Normalize scene images',kind:'toggle',initial:true},
- {key:'luminanceMin',label:'Luminance minimum',kind:'number',initial:.1,min:0,max:1},
- {key:'luminanceMax',label:'Luminance maximum',kind:'number',initial:0,min:0,max:1},
- {key:'contrastMin',label:'Contrast minimum',kind:'number',initial:.66,min:0,max:1},
+ {key:'luminanceMin',label:'Luminance minimum',kind:'number',initial:.2,min:0,max:1},
+ {key:'luminanceMax',label:'Luminance maximum',kind:'number',initial:.2,min:0,max:1},
+ {key:'contrastMin',label:'Contrast minimum',kind:'number',initial:.61,min:0,max:1},
  {key:'contrastMax',label:'Contrast maximum',kind:'number',initial:.02,min:0,max:1},
  {key:'saturationMin',label:'Saturation minimum',kind:'number',initial:1,min:0,max:1},
  {key:'saturationMax',label:'Saturation maximum',kind:'number',initial:1,min:0,max:1},
