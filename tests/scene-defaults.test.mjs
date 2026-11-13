@@ -42,3 +42,7 @@ test('audio defaults connect trusted origins, preserve explicit stops and requir
   for(const raw of ['broken','{"version":2,"code":"","enabled":true}']){values.set(SYSTEM_AUDIO_PREFERENCE_KEY,raw);assert.equal(shouldStartSystemAudio(prod),false);pauseRememberedSystemAudio();assert.equal(values.get(SYSTEM_AUDIO_PREFERENCE_KEY),raw);}
  }finally{if(old)Object.defineProperty(globalThis,'localStorage',old);else delete globalThis.localStorage;}
 });
+
+test('fresh world includes the shared text appearance from the supplied workspace',()=>{
+ const {appearance}=emptyWorld();assert.equal(appearance.text.color,'#ff00ae');assert.equal(appearance.text.glow,1);assert.equal(appearance.text.translucency,0);assert.match(appearance.text.font,/^data:font\/ttf;base64,/);assert.equal(appearance.background.translucency,1);
+});
