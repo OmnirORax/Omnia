@@ -1,0 +1,85 @@
+import type { Component, Recipe } from './model.ts';
+import { validateRecipe } from './model.ts';
+import { applicableParameters, definition,parameterValue, type Parameter, type Value } from './registry.ts';
+import { legalAtoms, atomnicSettings } from './atomnic.ts';
+import { componentIndex, rootTargets, memberTargets } from './componentTargets.ts';
+import { editableDegrees, vectorDegrees, type EditableDegree, type FreedomAdjuster } from '../properties/editableDegrees.ts';
+
+const components=(items:readonly Component[]):Component[]=>items.flatMap(item=>[item,...components(item.children??[])]);
+/** Capabilities come from the existing generator's validated parameter adapter.
+ * Realistic atom radius is a substrate setting, not a selected-target freedom. */
+export function targetDegrees(recipe:Recipe,ids:readonly string[],adjusters:readonly FreedomAdjuster[]=[],fixed:readonly string[]=[],coverage:'common'|'available'='common'):EditableDegree[] {
+  const index=new Map([...components(recipe.components),...recipe.operations].map(item=>[item.id,item]));
+  if(!ids.length||ids.some(id=>!index.has(id)))return [];
+  return editableDegrees(ids.map(id=>{const item=index.get(id)!;const spec='generator' in item?definition(item.generator,true)!:definition(item.operator)!;return {id,inputs:applicableParameters(spec,item.params).filter(input=>!fixed.includes(input.property))};}),adjusters,coverage);
+}
+/** Editor entry points expose vector DOFs without changing scalar measurement adapters. */
+export function targetEditorDegrees(...args:Parameters<typeof targetDegrees>){
+ const [recipe,ids,adjusters=[],fixed=[],coverage='common']=args;
+ const raw=targetDegrees(recipe,ids,[],fixed,coverage),editorProperties=new Set(raw.filter(d=>d.targets[0]?.input.freedom?.vector||(d.targets[0]?.input as Parameter).editor).flatMap(d=>d.properties));
+ // Declared editors own their value/tuple; legacy action adjusters remain
+ // available through action routing without swallowing their editor inputs.
+ return vectorDegrees(targetDegrees(recipe,ids,adjusters.filter(a=>!a.adjusts.some(p=>editorProperties.has(p))),fixed,coverage));
+}
+/** The selected-owner editor scope is shared by radial and keyboard entry. */
+export function selectedEditorDegrees(recipe:Recipe,ids:readonly string[]):EditableDegree[] {
+  const index=componentIndex(recipe),group=ids.some(id=>index.get(id)?.component.generator==='group');
+  return targetEditorDegrees(recipe,group?memberTargets(recipe,ids):ids,[],recipe.atomnic?.active&&atomnicSettings(recipe).mode==='constrained'?['omnic.extent']:[],group?'available':'common');
+}
+/** Default placement entry derives from declared coordinate measurements, not
+ * a preset, target ID, parameter name or UI position in the DOF list. */
+export function targetPlacementDegree(recipe:Recipe,ids:readonly string[]):EditableDegree|undefined{
+ return targetEditorDegrees(recipe,ids).find(degree=>degree.axes?.some(axis=>targetParameter(axis).measurement==='center-x')&&degree.axes.some(axis=>targetParameter(axis).measurement==='center-y'));
+}
+/** Identity-only references for categorical inputs still require the same
+ * declared writable freedom and value kind; no numeric measure is fabricated. */
+export function compatibleReferenceSource(recipe:Recipe,degree:EditableDegree,id:string):boolean{
+ return targetDegrees(recipe,[id]).some(other=>degree.properties.every(property=>other.properties.includes(property))&&targetParameter(other).kind===targetParameter(degree).kind);
+}
+export type DegreeEditValue=Value|Readonly<Record<string,number>>;
+/** One legal editor domain for every owner of the selected shared property. */
+export function targetParameter(degree:EditableDegree):Parameter {
+  const first=degree.targets[0].input as Parameter,inputs=degree.targets.map(target=>target.input as Parameter);
+  return first.kind==='number'?{...first,min:Math.max(...inputs.map(input=>input.min!)),max:Math.min(...inputs.map(input=>input.max!)),step:Math.max(...inputs.map(input=>input.step??1))}:first;
+}
+export function targetDegreeValue(recipe:Recipe,degree:EditableDegree):Value {
+  const target=degree.targets[0],component=[...components(recipe.components),...recipe.operations].find(item=>item.id===target.id)!;
+  return parameterValue(target.input as Parameter,component?.params??{});
+}
+export function writeTargetDegree(recipe:Recipe,degree:EditableDegree,value:DegreeEditValue):Recipe {
+ const vector=typeof value==='object';
+ if(degree.properties.length!==1&&(!degree.axes||!vector))throw Error('This freedom requires a vector value.');
+ if(vector&&(!degree.axes||!Object.keys(value).length||Object.keys(value).some(key=>!degree.properties.includes(key)||!Number.isFinite(value[key]))))throw Error('Invalid vector components.');
+ // A shared placement field translates the selected structure; it must not
+ // collapse each member onto the same absolute coordinates. Scalar match stays separate.
+ if(vector&&new Set(degree.targets.map(target=>target.id)).size>1){
+  const axes=degree.axes??[],x=axes.find(axis=>targetParameter(axis).measurement==='center-x'),y=axes.find(axis=>targetParameter(axis).measurement==='center-y');
+  if(x&&y){const delta={x:value[x.properties[0]]===undefined?0:value[x.properties[0]]-Number(targetDegreeValue(recipe,x)),y:value[y.properties[0]]===undefined?0:value[y.properties[0]]-Number(targetDegreeValue(recipe,y))};return translateTargets(recipe,new Set(rootTargets(recipe,degree.targets.map(target=>target.id))),delta);}
+ }
+ const targets=new Map<string,Record<string,Value>>();
+ for(const target of degree.targets){const next=vector?value[target.input.property]:value;if(next===undefined)continue;targets.set(target.id,{...targets.get(target.id),[target.input.key]:next});}
+ const current=new Set([...components(recipe.components),...recipe.operations].map(item=>item.id));
+ if([...targets.keys()].some(id=>!current.has(id)))throw Error('The target no longer exists. Right-click the current pattern again.');
+ const walk=(items:Component[]):Component[]=>items.map(item=>({...item,
+  ...(targets.has(item.id)?{params:{...item.params,...targets.get(item.id)}}:{}),...(item.children?{children:walk(item.children)}:{})}));
+ const next=validateRecipe({...recipe,components:walk(recipe.components),operations:recipe.operations.map(item=>targets.has(item.id)?{...item,params:{...item.params,...targets.get(item.id)}}:item)});
+ if(!legalAtoms(next))throw Error('That edit is outside the Realistic touching-lattice profile.');return next;
+}
+
+/** Translate authored targets once each; selected ancestors own their children. */
+export function translateTargets(recipe:Recipe,ids:ReadonlySet<string>,delta:{x:number;y:number}):Recipe {
+  const index=new Map(components(recipe.components).map(item=>[item.id,item]));
+  if(!ids.size||[...ids].some(id=>!index.has(id)))throw Error('The movement target no longer exists.');
+  const walk=(items:Component[]):Component[]=>items.map(item=>{
+    if(ids.has(item.id)){
+      const parameters=definition(item.generator,true)!.parameters;
+      const x=parameters.find(p=>p.property==='omnic.coordinate.x'),y=parameters.find(p=>p.property==='omnic.coordinate.y');
+      if(!x||!y)throw Error('This target has no position adapter.');
+      return {...item,params:{...item.params,[x.key]:Number(item.params[x.key]??x.initial)+delta.x,[y.key]:Number(item.params[y.key]??y.initial)+delta.y}};
+    }
+    return item.children?{...item,children:walk(item.children)}:item;
+  });
+  const next=validateRecipe({...recipe,components:walk(recipe.components)});
+  if(!legalAtoms(next))throw Error('That movement is outside the Realistic touching-lattice profile.');
+  return next;
+}

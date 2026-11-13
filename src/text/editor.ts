@@ -1,3 +1,4 @@
+import {lexiconAnnotations,workspaceLexicon,refreshLexicon} from './lexicon.ts';
 import { EditorState, Prec, type StateCommand } from '@codemirror/state';
 import { EditorView, drawSelection, keymap } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, indentLess, indentMore, indentWithTab } from '@codemirror/commands';
@@ -18,7 +19,8 @@ import { locate } from '../core/model.ts';
 import { fromSource, glyphField, glyphHistory, sliceSource, sourceTransaction, toSource, type Edit } from './source.ts';
 import { capitalizeSentence, codeBlock, deleteParagraph, heading, list, moveLines, singleCursor, wrap } from './commands.ts';
 import { documentMouseSelection } from './mouse.ts';
-import { documentPresentation } from './presentation.ts';
+import {createGlyphPresentation} from '../omnic/presentation.ts';
+import { documentPresentation,refreshDocumentGlyphs } from './presentation.ts';
 
 export function editDocument(origin: Origin, read: () => World, commit: (text: NodeText) => void, feedback: (message: string) => void, closed?: () => void) {
   const current = locate(read(), origin); if (!current) return;
@@ -65,7 +67,7 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
     return true;
   };
   editor = new EditorView({ parent:host, state:EditorState.create({ doc:source.text, extensions:[
-    EditorState.allowMultipleSelections.of(true), glyphField.init(() => source.glyphs), glyphHistory, history(),
+    EditorState.allowMultipleSelections.of(true), glyphField.init(() => source.glyphs), glyphHistory, history(),lexiconAnnotations(read),
     EditorView.clickAddsSelectionRange.of(event => event.altKey), documentMouseSelection(), drawSelection({drawRangeCursor:true,cursorBlinkRate:1000}), EditorView.lineWrapping,
     markdown({ extensions:[Strikethrough,TaskList],addKeymap:false }), documentPresentation(read),
     syntaxHighlighting(HighlightStyle.define([
@@ -106,13 +108,15 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
     EditorView.updateListener.of(update => { if (update.docChanged) save(); }),
     EditorView.theme({ '&':{ backgroundColor:'transparent',fontSize:'inherit',color:'inherit' },'.cm-content':{fontFamily:'inherit',padding:'0',minHeight:'120px'},'.cm-scroller':{overflow:'auto',fontFamily:'inherit'},'&.cm-focused':{outline:'none'},'.cm-cursor, &.cm-focused .cm-cursor':{borderLeft:'2px solid #ffffff',marginLeft:'-1px'},'&.cm-editor .cm-scroller > .cm-selectionLayer .cm-selectionBackground, &.cm-editor.cm-focused .cm-scroller > .cm-selectionLayer .cm-selectionBackground':{backgroundColor:'#245eac',outline:'1px solid #85baff',outlineOffset:'-1px'},'.cm-panels':{backgroundColor:'#191c1b',color:'inherit'},'.cm-search':{fontSize:'11px',padding:'4px'},'.cm-search label':{display:'inline-flex'},'.cm-search input':{width:'90px'},'.cm-search input[type=checkbox]':{width:'auto'} }, {dark:true}),
   ] }) });
-  let previousPaint='';
+  let previousLexicon=workspaceLexicon(read()),previousPaint='',previousGlyphs=createGlyphPresentation(read());
   function refreshAppearance(){
     if(!locate(read(),origin))return;
+    const dictionary=workspaceLexicon(read());if(dictionary!==previousLexicon){previousLexicon=dictionary;queueMicrotask(()=>{if(view.root.isConnected)editor?.dispatch({effects:refreshLexicon.of()});});}
+    const glyphs=createGlyphPresentation(read());if(glyphs!==previousGlyphs){previousGlyphs=glyphs;queueMicrotask(()=>{if(view.root.isConnected)editor?.dispatch({effects:refreshDocumentGlyphs.of()});});}
     const paint=readPaint(read(),'nodeText',origin),key=JSON.stringify(paint);if(key===previousPaint)return;previousPaint=key;
     Object.assign(host.style,textStyle(paint));
     host.style.setProperty('--visual-text-bold-stroke',`${emboldenStrokeEm(paint.embolden)}em currentColor`);
     editor?.requestMeasure();
   }
-  refreshAppearance();editor.focus(); return {...view,refreshAppearance};
+  refreshAppearance();queueMicrotask(()=>{if(view.root.isConnected)editor?.dispatch({effects:refreshLexicon.of()});});editor.focus(); return {...view,refreshAppearance};
 }

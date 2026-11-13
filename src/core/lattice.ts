@@ -1,3 +1,4 @@
+import {definitionRecipe} from '../omnic/definition.ts';
 import { cellAt, cellPoint, nearestCell, prepareLattice, latticeMove, type Cell } from '../graph/lattice.ts';
 import type { Document, XYZ } from '../graph/geometryTypes.ts';
 import type { Origin, Structure, Vec3, World } from './model.ts';
@@ -57,6 +58,7 @@ export function inherited(node: Structure, world: World): Structure {
     for (const key of ['color', 'label', 'text', 'visual', 'opacity', 'glow', 'translucency', 'translucencyRadius','scene','textAppearance'] as const) {
       if (!overrides.has(key)) Object.assign(next, { [key]: base[key] });
     }
+    if(base.omnic||current.omnicEdits){next.omnic=definitionRecipe(current,world);if(current.omnicEdits!==undefined)next.visual={...next.visual,assetId:undefined,character:undefined,omnicEntityId:JSON.stringify(current.origin)};}
     return next;
   }; return read(node);
 }
