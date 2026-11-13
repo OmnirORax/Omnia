@@ -3,7 +3,7 @@ import { emboldenStrokeEm } from '../properties/embolden.ts';
 
 export function textStyle(paint?: Paint) {
   const value={...TEXT_DEFAULTS,...paint};
-  return {color:paintColor(value),fontFamily:fontFamily(value.font),textShadow:value.glow?`0 0 ${value.glow*10}px ${value.color}`:'none',WebkitTextStroke:`${emboldenStrokeEm(value.embolden)}em currentColor`};
+  return {color:paintColor(value),fontFamily:fontFamily(value.font),textShadow:value.glow?`0 0 ${value.glow*10}px ${value.color}`:'none'};
 }
 let previous='';
 export function updateUIAppearance(appearance?: Appearance) {
@@ -12,7 +12,8 @@ export function updateUIAppearance(appearance?: Appearance) {
   document.documentElement.toggleAttribute('data-visual-text',!!appearance?.text);
   document.documentElement.toggleAttribute('data-visual-background',!!appearance?.background);
   const text=appearance?.text;
-  for(const [name,value] of Object.entries(text ? textStyle(text) : {color:'',fontFamily:'',textShadow:'',WebkitTextStroke:''})) {
+  root.setProperty('--visual-text-bold-stroke',`${emboldenStrokeEm(text?.embolden ?? 0)}em currentColor`);
+  for(const [name,value] of Object.entries(text ? textStyle(text) : {color:'',fontFamily:'',textShadow:''})) {
     root.setProperty(`--visual-text-${name}`,value);
   }
   const background=appearance?.background;
