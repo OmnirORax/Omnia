@@ -1,6 +1,5 @@
 import * as T from 'three';
 import { TEXT_DEFAULTS, fontFamily, type Paint } from '../properties/visual.ts';
-import { drawEmboldenedText } from '../properties/embolden.ts';
 import { isImportedFont } from '../properties/importedFont.ts';
 import { translucentOpacity } from '../properties/translucency.ts';
 export function label(caption: string, paint?: Paint) {
@@ -12,7 +11,7 @@ export function label(caption: string, paint?: Paint) {
     context.font = font;context.textAlign = 'center'; context.textBaseline = 'middle';
     context.clearRect(0,0,canvas.width,canvas.height);
     context.fillStyle = style.color; context.shadowColor = style.glow?style.color:'#101113'; context.shadowBlur = style.glow?style.glow*16:8;
-    lines.forEach((line, i) => drawEmboldenedText(context, line.trim(), canvas.width / 2, 36 + i * 48, style.embolden, 32));
+    lines.forEach((line, i) => context.fillText(line.trim(), canvas.width / 2, 36 + i * 48));
   }
   draw();
   const texture = new T.CanvasTexture(canvas); texture.colorSpace = T.SRGBColorSpace;
