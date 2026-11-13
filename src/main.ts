@@ -1,3 +1,6 @@
+import {createDraftSync,type Marker} from './cloud/sync.ts';
+import {createDraftClient} from './cloud/client.ts';
+import {panel} from './ui/panel.ts';
 import {readPaint,writePaint} from './core/appearance.ts';
 import {visualProperties,type Paint} from './properties/visual.ts';
 import vfxFunction from './scene/vfx.function.ts';
@@ -225,10 +228,11 @@ function searchSettings() {
   input.addEventListener('input',render);input.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();results.querySelector<HTMLElement>('input,select')?.focus();}});
   positionMenu();input.focus();
 }
+let draftControl:HTMLButtonElement|undefined;
 let workspaceView: ReturnType<typeof workspacePanel> | undefined;
 function openWorkspace() {
   close(); if (workspaceView?.root.isConnected) { workspaceView.root.focus(); return; }
-  workspaceView = workspacePanel({ selected: () => selectedOrigins().map(origin => JSON.stringify(origin)), read: () => store.world, replace: world => { store.replace(world); selection.set([]); search.value = ''; refresh(); }, recover: () => { store.recover(); selection.set([]); search.value = ''; refresh(); }, beforeReplace: () => {
+  workspaceView = workspacePanel({ draft:draftControl, selected: () => selectedOrigins().map(origin => JSON.stringify(origin)), read: () => store.world, replace: world => { store.replace(world); selection.set([]); search.value = ''; refresh(); }, recover: () => { store.recover(); selection.set([]); search.value = ''; refresh(); }, beforeReplace: () => {
     documentEpoch++; view?.cancel(); close(); selection.cancel(); sceneView?.close();
     for (const document of documents.values()) document?.close();
     if ([...documents.values()].some(document => document?.root.isConnected)) throw Error('An open document could not close. Preserve it before importing.');
@@ -350,3 +354,26 @@ document.addEventListener('keydown', event => {
   if (event.key === 'Delete' && selection.values.length && !selection.requesting) { event.preventDefault(); attempt(remove); }
 });
 refresh();
+
+// Builds share one draft; production retains its published starting state.
+if(location.hostname==='omnium.nexus'||location.hostname==='omnia-web-bae.pages.dev'||location.hostname.endsWith('.omnia-web-bae.pages.dev')){
+ const api=createDraftClient(),indicator=document.createElement('button');indicator.type='button';indicator.setAttribute('aria-label','Shared draft');draftControl=indicator;
+ let draftView:ReturnType<typeof panel>|undefined;
+ let issue='',hasLocal=true;try{hasLocal=!!(localStorage.getItem('omnium.v2.world.2')??localStorage.getItem('omnium.v2.world.1'));}catch{/* Preserve recovery mode. */}
+ const sync=createDraftSync({
+  read:()=>store.world,hasLocal,autoLoad:location.hostname.endsWith('.omnia-web-bae.pages.dev'),
+  load:()=>api.load(),save:(world,revision)=>api.save(world,revision),
+  marker:()=>{try{const value=JSON.parse(localStorage.getItem('omnium.shared-draft.base.1')??'null');return value&&Number.isSafeInteger(value.revision)&&typeof value.signature==='string'?value as Marker:null;}catch{return null;}},
+  remember:value=>{localStorage.setItem('omnium.shared-draft.base.1',JSON.stringify(value));},
+  replace:async world=>{const before=store.world;await api.restore(world);if(store.world!==before)throw Error('Workspace changed while loading.');for(const doc of documents.values())doc?.close();sceneView?.close();if(store.world!==before)throw Error('Finish local edits before loading the shared draft.');store.replace(world);selection.set([]);refresh();},
+  status:(phase,error)=>{indicator.textContent=`Draft · ${phase}`;issue=error??'';},
+ });
+ store.subscribe(sync.changed);
+ indicator.onclick=()=>{if(draftView?.root.isConnected){draftView.root.focus();return;}const view=panel('Shared draft');draftView=view;const output=document.createElement('output');output.textContent=issue;view.body.append(output);
+  if(sync.phase==='Failed'){const retry=document.createElement('button');retry.textContent='Retry';retry.onclick=()=>{view.close();void sync.load();};view.body.append(retry);return;}
+  for(const [label,choice] of [['Pull','remote'],['Push','local']] as const){const button=document.createElement('button');button.textContent=label;button.onclick=()=>{view.close();void sync.load(choice);};view.body.append(button);}
+ };
+ window.addEventListener('online',()=>{if(sync.phase==='Failed')void sync.load();});
+ document.addEventListener('visibilitychange',()=>{if(document.hidden)void sync.save();});
+ void sync.load();
+}

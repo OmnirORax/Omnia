@@ -50,7 +50,7 @@ if (uploaded) {
 }
 const asset = (await readdir('dist/assets')).find(file => file.endsWith('.js'));
 if (!asset) throw new Error('Build before checking preview protection.');
-const paths = ['/', '/index.html', '/source.json', '/favicon.svg', `/assets/${encodeURIComponent(asset)}`];
+const paths = ['/api/draft', '/api/draft?asset=sha256:0000000000000000000000000000000000000000000000000000000000000000', '/', '/index.html', '/source.json', '/favicon.svg', `/assets/${encodeURIComponent(asset)}`];
 for (const host of hosts) {
   for (const path of paths) {
     const response = await fetch(`https://${host}${path}`, {

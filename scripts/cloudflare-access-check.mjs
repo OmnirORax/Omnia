@@ -55,7 +55,7 @@ async function main() {
   const assets = await readdir('dist/assets');
   const asset = assets.find(file => file.endsWith('.js'));
   if (!asset) fail('Build dist before running Access checks.');
-  const paths = ['/', '/index.html', `/assets/${encodeURIComponent(asset)}`, '/favicon.svg', '/source.json'];
+  const paths = ['/api/draft', '/api/draft?asset=sha256:0000000000000000000000000000000000000000000000000000000000000000', '/', '/index.html', `/assets/${encodeURIComponent(asset)}`, '/favicon.svg', '/source.json'];
   let failures = 0;
   for (const host of [...hosts].sort()) {
     for (const path of paths) {
