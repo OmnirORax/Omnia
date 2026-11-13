@@ -19,7 +19,7 @@ export type Structure = { origin: Origin; label: string; position: Vec3; color: 
 export type Relationship = { from: Binding; to: Binding; label: string; kind: string };
 export type World = { format: 'omnium-world'; version: 1 | 2; nodes: Structure[]; assets?: VisualAsset[]; relationships?: Relationship[]; scene?: SceneSettings; appearance?: Appearance;
   settings?: { latticeScale: number; names: 'all' | 'expanded' | 'selection' } };
-export const emptyWorld = (): World => ({ format: 'omnium-world', version: 2, nodes: [], assets: [], relationships: [], scene: defaultScene(), settings: { latticeScale: 1, names: 'expanded' } });
+export const emptyWorld = (): World => ({ format: 'omnium-world', version: 2, nodes: [], assets: [], relationships: [], appearance:{background:{translucency:1}}, scene: defaultScene(), settings: { latticeScale: 1, names: 'expanded' } });
 export const samePoint = (a: Vec3, b: Vec3) => a.every((n, i) => n === b[i]);
 export const sameOrigin = (a: Origin, b: Origin) => a.born === b.born && samePoint(a.at, b.at);
 export const locate = (world: World, origin: Origin) => world.nodes.find(node => sameOrigin(node.origin, origin));

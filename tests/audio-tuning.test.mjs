@@ -11,7 +11,7 @@ test('legacy scalar scenes acquire maxima and cooldown without altering their or
  const raw={pulseAmount:1,audioBounce:1.2,pulseSensitivity:4,pulseHzMax:500,bassAttack:50};
  const settings=normalizeSceneVfx(raw);assert.deepEqual(settings.audioResponse,defaultAudioResponse(1,1.2));
  assert.equal(raw.audioResponse,undefined);assert.equal(settings.pulseSensitivity,4);assert.equal(settings.pulseHzMax,500);
- assert.equal(settings.pulseTintHigh,'#172f35');assert.equal(settings.imageTint,'#ff00ea');
+ assert.equal(settings.pulseTintHigh,'#0008ff');assert.equal(settings.imageTint,'#ff00ea');
  for(const key of ['waveAmplitudeX','waveAmplitudeY','waveFrequencyX','waveFrequencyY','waveSpeedX','waveSpeedY'])assert.equal(settings[key],DEFAULT_SCENE_VFX[key]);
 });
 test('old graph preferences convert to maxima and remain recoverable as inactive data',()=>{

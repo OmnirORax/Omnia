@@ -6,7 +6,7 @@ export const PULSE_CONTROLS=[
  {key:'pulseAudioLow',label:'Audio lower threshold',initial:.01,min:0,max:1,step:.01,integer:false},
  {key:'pulseAudioHigh',label:'Audio upper threshold',initial:1,min:0,max:1,step:.01,integer:false},
  {key:'pulseExponent',label:'Audio exponent',initial:.1,min:0,max:4,step:.1,integer:false},
- {key:'pulseAmount',label:'Audio amount',initial:1.7,min:0,max:2,step:.05,integer:false},
+ {key:'pulseAmount',label:'Audio amount',initial:.5,min:0,max:2,step:.05,integer:false},
 ] as const;
 export type PulseKey=typeof PULSE_CONTROLS[number]['key'];
 export function referencePulse(bands:ArrayLike<number>,min:number,max:number,low:number,high:number,power:number,amount:number){
