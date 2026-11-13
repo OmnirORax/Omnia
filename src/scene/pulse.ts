@@ -14,7 +14,24 @@ export function referencePulse(bands:ArrayLike<number>,min:number,max:number,low
  let sum=0;for(let channel=0;channel<2;channel++)for(let band=first;band<=last;band++)sum+=bands[channel*16+band]||0;
  const value=sum/((last-first+1)*2),a=Math.min(low,high),b=Math.max(low,high);
  const x=b>a?Math.max(0,Math.min(1,(value-a)/(b-a))):Number(value>a);
- return Math.max(0,Math.min(1,Math.pow(x*x*(3-2*x),power)))*amount;
+ return x>0?Math.max(0,Math.min(1,Math.pow(x*x*(3-2*x),power)))*amount:0;
+}
+/** V1's 16 log-spaced bands, prepared once per audio connection. */
+export const PULSE_FFT_SIZE=2048;
+export function createPulseBandSampler(sampleRate:number){
+ const bins=PULSE_FFT_SIZE/2,hz=sampleRate/PULSE_FFT_SIZE,upper=Math.min(20000,sampleRate/2);
+ const first=new Uint16Array(16),last=new Uint16Array(16),bands=new Float32Array(32);
+ for(let band=0;band<16;band++){
+  first[band]=Math.max(0,Math.min(bins-1,Math.floor(20*Math.pow(upper/20,band/16)/hz)));
+  last[band]=Math.max(first[band]+1,Math.min(bins,Math.ceil(20*Math.pow(upper/20,(band+1)/16)/hz)));
+ }
+ return(spectra:readonly ArrayLike<number>[])=>{
+  for(let channel=0;channel<2;channel++)for(let band=0;band<16;band++){
+   let sum=0;for(let i=first[band];i<last[band];i++)sum+=spectra[channel]?.[i]??0;
+   bands[channel*16+band]=sum/(255*(last[band]-first[band]));
+  }
+  return bands;
+ };
 }
 export const REFERENCE_PULSE_GLSL=`
  vec3 referencePulse(vec3 image,vec3 tintLow,vec3 tintHigh,float pulse){

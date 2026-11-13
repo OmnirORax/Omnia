@@ -20,7 +20,7 @@ test('old graph preferences convert to maxima and remain recoverable as inactive
  assert.deepEqual(converted.retiredCurves,original);assert.notEqual(converted.retiredCurves,original);assert.equal(original.version,1);
  const world=emptyWorld();world.scene.vfx.audioResponse=original;assert.doesNotThrow(()=>validateWorld(world));
 });
-test('maxima and cooldown remain independent of light shaping and retired scalar maxima',()=>{
+test('only the three current settings control behavior, independently of retired scalars',()=>{
  const response=defaultAudioResponse();const a=normalizeSceneVfx({audioResponse:response}),b=normalizeSceneVfx({audioResponse:response,pulseSensitivity:8,pulseAmount:0,audioBounce:1,pulseInterval:1500});
  assert.deepEqual(a.audioResponse,b.audioResponse);
 });
@@ -33,13 +33,4 @@ test('invalid settings and future formats are rejected before replacing saved da
  for(const corrupt of [{...defaultAudioResponse(),version:3},{...defaultAudioResponse(),lightMax:NaN},{...defaultAudioResponse(),bounceMax:1},{...defaultAudioResponse(),cooldownMs:-1},{...defaultAudioResponse(),retiredCurves:{version:1}},{...oldCurves(),light:{loudness:[1],recurrence:Array(16).fill(1)}}]){
   assert.throws(()=>validateAudioResponse(corrupt),/audio response/);const world=emptyWorld();world.scene.vfx.audioResponse=corrupt;assert.throws(()=>validateWorld(world),/audio response/);
  }
-});
-test('restored light controls write saved tuning while retaining response maxima and cooldown',async()=>{
- const {default:bindings}=await import('../src/scene/vfx.function.ts');
- const state={sceneVfx:normalizeSceneVfx(undefined)},response=structuredClone(state.sceneVfx.audioResponse);
- let current=state;
- for(const [key,value] of Object.entries({pulseSensitivity:4,pulseDropContrast:2,audioNoiseFloor:.005,audioNoiseKnee:.01,pulseDuration:500,pulseAttackFraction:.3})){
-  current=bindings.inputs[`scene.${key}`].write(current,value);assert.equal(current.sceneVfx[key],value);
- }
- const restored=JSON.parse(serializeSceneVfx(current.sceneVfx));assert.deepEqual(restored,current.sceneVfx);assert.deepEqual(restored.audioResponse,response);
 });

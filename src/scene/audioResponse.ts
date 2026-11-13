@@ -1,4 +1,3 @@
-import type {LightResponseTuning} from './audioTuning.ts';
 export const RESPONSE_HZ = 60, HISTORY_SECONDS = 8;
 const WINDOW=RESPONSE_HZ*HISTORY_SECONDS, PATTERN_AXIS=8, PATTERNS=PATTERN_AXIS*PATTERN_AXIS;
 type LegacyCurve=readonly number[];
@@ -42,21 +41,20 @@ export function createAudioMeasurement(){
 }
 /** Smooth rise and rounded return, with zero slope at each end and the peak. */
 export const ATTACK_SECONDS=.06, RELEASE_SECONDS=.24;
-export function pulseValue(from:number,peak:number,age:number,attack=ATTACK_SECONDS,release=RELEASE_SECONDS){
+export function pulseValue(from:number,peak:number,age:number){
  if(age<0||!Number.isFinite(age))return 0;
- if(age<attack){const x=age/attack;return from+(peak-from)*x*x*(3-2*x);}
- const x=Math.min(1,(age-attack)/release);return peak*(1-x*x*(3-2*x));
+ if(age<ATTACK_SECONDS){const x=age/ATTACK_SECONDS;return from+(peak-from)*x*x*(3-2*x);}
+ const x=Math.min(1,(age-ATTACK_SECONDS)/RELEASE_SECONDS);return peak*(1-x*x*(3-2*x));
 }
 /** Fixed storage, per-pattern accepted timestamps, and a recent peak reference. */
 export function createAudioResponse(initial=defaultAudioResponse()){
- let lightTuning:LightResponseTuning|undefined,lightAttack=ATTACK_SECONDS,lightRelease=RELEASE_SECONDS;
- let settings=initial,slot=-1,cursor=0,peak=0,previous=0;
- const levels=new Float64Array(WINDOW),lastReaction=new Float64Array(PATTERNS).fill(-Infinity);
+ let settings=initial,slot=-1,cursor=0,peak=0,previous=0,previousLight=0;
+ const levels=new Float64Array(WINDOW),lastReaction={light:new Float64Array(PATTERNS).fill(-Infinity),bounce:new Float64Array(PATTERNS).fill(-Infinity)};
  const result={intensity:0,light:0,bounce:0,reacted:false};
  const pulses={light:{at:-Infinity,from:0,peak:0},bounce:{at:-Infinity,from:0,peak:0}};
- function read(now:number){result.light=Math.min(settings.lightMax,pulseValue(pulses.light.from,pulses.light.peak,now-pulses.light.at,lightAttack,lightRelease));result.bounce=Math.min(settings.bounceMax,pulseValue(pulses.bounce.from,pulses.bounce.peak,now-pulses.bounce.at));return result;}
- function clearLevels(){levels.fill(0);cursor=0;peak=0;previous=0;}
- function reset(){clearLevels();lastReaction.fill(-Infinity);for(const p of [pulses.light,pulses.bounce]){p.at=-Infinity;p.from=p.peak=0;}slot=-1;result.intensity=result.light=result.bounce=0;result.reacted=false;}
+ function read(now:number){result.light=Math.min(settings.lightMax,pulseValue(pulses.light.from,pulses.light.peak,now-pulses.light.at));result.bounce=Math.min(settings.bounceMax,pulseValue(pulses.bounce.from,pulses.bounce.peak,now-pulses.bounce.at));return result;}
+ function clearLevels(){levels.fill(0);cursor=0;peak=0;previous=0;previousLight=0;}
+ function reset(){clearLevels();lastReaction.light.fill(-Infinity);lastReaction.bounce.fill(-Infinity);for(const p of [pulses.light,pulses.bounce]){p.at=-Infinity;p.from=p.peak=0;}slot=-1;result.intensity=result.light=result.bounce=0;result.reacted=false;}
  function insert(level:number){
   const expired=levels[cursor];levels[cursor]=level;cursor=(cursor+1)%WINDOW;
   if(level>=peak)peak=level;
@@ -65,17 +63,14 @@ export function createAudioResponse(initial=defaultAudioResponse()){
  return{
   result,reset,read,
   due(now:number){return Number.isFinite(now)&&Math.floor(now*RESPONSE_HZ+1e-6)!==slot;},
-  configure(value:AudioResponse,tuning?:LightResponseTuning){
-   lightTuning=tuning;
-   lightAttack=tuning?tuning.pulseDuration/1000*tuning.pulseAttackFraction:ATTACK_SECONDS;
-   lightRelease=tuning?tuning.pulseDuration/1000*(1-tuning.pulseAttackFraction):RELEASE_SECONDS;
+  configure(value:AudioResponse){
    for(const key of ['light','bounce'] as const){
     const before=key==='light'?settings.lightMax:settings.bounceMax,after=key==='light'?value.lightMax:value.bounceMax;
     if(before!==after){const scale=before?after/before:0;pulses[key].from*=scale;pulses[key].peak*=scale;result[key]*=scale;}
    }
    settings=value;
   },
-  sample(rms:number,now:number,pattern=0){
+  sample(rms:number,now:number,pattern=0,lightInput?:number){
    if(!Number.isFinite(now)||now<0)return result;
    const next=Math.floor(now*RESPONSE_HZ+1e-6);if(next===slot)return result;
    if(slot>=0&&next<slot)reset();
@@ -86,23 +81,19 @@ export function createAudioResponse(initial=defaultAudioResponse()){
    insert(amplitude);result.intensity=peak>0?amplitude/peak:0;
    read(now);
    const rising=amplitude-previous>1e-7;previous=amplitude;
-   // Light shaping is independent of bounce and reuses the existing waveform sample.
-   let lightIntensity=result.intensity;
-   if(lightTuning){
-    const knee=Math.max(.001,lightTuning.audioNoiseKnee),x=Math.max(0,Math.min(1,(amplitude-lightTuning.audioNoiseFloor)/knee));
-    lightIntensity=Math.pow(Math.min(1,result.intensity*lightTuning.pulseSensitivity/2),lightTuning.pulseDropContrast)*x*x*(3-2*x);
-   }
-   if(rising&&(settings.lightMax*lightIntensity>0||settings.bounceMax>0)){
-    const index=Number.isFinite(pattern)?Math.max(0,Math.min(PATTERNS-1,Math.floor(pattern))):0;
-    const band=Math.floor(index/PATTERN_AXIS),shape=index%PATTERN_AXIS;
-    let accepted=-Infinity;
-    for(let a=Math.max(0,band-1);a<=Math.min(7,band+1);a++)for(let b=Math.max(0,shape-1);b<=Math.min(7,shape+1);b++)accepted=Math.max(accepted,lastReaction[a*PATTERN_AXIS+b]);
+   const lightLevel=lightInput===undefined?result.intensity*settings.lightMax:Number.isFinite(lightInput)?Math.max(0,Math.min(settings.lightMax,lightInput)):0;
+   const lightRising=lightInput===undefined?rising:lightLevel-previousLight>1e-7;previousLight=lightLevel;
+   const index=Number.isFinite(pattern)?Math.max(0,Math.min(PATTERNS-1,Math.floor(pattern))):0;
+   const band=Math.floor(index/PATTERN_AXIS),shape=index%PATTERN_AXIS;
+   for(const key of ['light','bounce'] as const){
+    const target=key==='light'?lightLevel:result.intensity*settings.bounceMax;
+    if(!(key==='light'?lightRising:rising)||target<=0)continue;
+    // Separate timers keep light-band edits and attacks from stealing bounce reactions.
+    const times=lastReaction[key];let accepted=-Infinity;
+    for(let a=Math.max(0,band-1);a<=Math.min(7,band+1);a++)for(let b=Math.max(0,shape-1);b<=Math.min(7,shape+1);b++)accepted=Math.max(accepted,times[a*PATTERN_AXIS+b]);
     if(now-accepted+1e-9>=settings.cooldownMs/1000){
-     lastReaction[index]=now;result.reacted=true;
-     for(const key of ['light','bounce'] as const){
-      const maximum=key==='light'?settings.lightMax:settings.bounceMax,target=(key==='light'?lightIntensity:result.intensity)*maximum;
-      if(target>result[key]){pulses[key].at=now;pulses[key].from=result[key];pulses[key].peak=target;}
-     }
+     times[index]=now;result.reacted=true;
+     if(target>result[key]){pulses[key].at=now;pulses[key].from=result[key];pulses[key].peak=target;}
     }
    }
    if(result.light<1e-7)result.light=0;if(result.bounce<1e-7)result.bounce=0;
