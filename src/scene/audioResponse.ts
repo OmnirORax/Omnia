@@ -15,7 +15,7 @@ export function validateAudioResponse(value:unknown):asserts value is AudioRespo
  if(legacy(value))return;
  if(!v||v.version!==2||!finite(v.lightMax,0,2)||!finite(v.bounceMax,0,.5)||!finite(v.cooldownMs,0,10000)||(v.retiredCurves!==undefined&&!legacy(v.retiredCurves)))throw Error('Unsupported or invalid audio response settings.');
 }
-export function defaultAudioResponse(light=1.5,bounce=1.15):AudioResponse{
+export function defaultAudioResponse(light=1.5,bounce=1):AudioResponse{
  return{version:2,lightMax:Math.max(0,Math.min(2,light)),bounceMax:Math.max(0,Math.min(.5,Math.round((bounce-1)*1000)/1000)),cooldownMs:300};
 }
 export function audioResponse(value:unknown,light?:number,bounce?:number):AudioResponse{

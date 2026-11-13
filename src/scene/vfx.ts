@@ -24,10 +24,10 @@ export const RETIRED_LIGHT_CONTROLS = [
 /** Current sine-wave approximation: exposed independently for live user tuning.
  * Displacement is percent of viewport UV span; frequency is cycles across its driving axis. */
 export const WAVE_CONTROLS = [
- {key:'waveAmplitudeX',label:'Horizontal displacement (%)',initial:.1,min:0,max:5,step:.025},
- {key:'waveAmplitudeY',label:'Vertical displacement (%)',initial:.1,min:0,max:5,step:.025},
- {key:'waveFrequencyX',label:'Horizontal wave count',initial:2.5,min:0,max:40,step:.25},
- {key:'waveFrequencyY',label:'Vertical wave count',initial:7.5,min:0,max:40,step:.25},
+ {key:'waveAmplitudeX',label:'Horizontal displacement (%)',initial:.05,min:0,max:5,step:.025},
+ {key:'waveAmplitudeY',label:'Vertical displacement (%)',initial:.05,min:0,max:5,step:.025},
+ {key:'waveFrequencyX',label:'Horizontal wave count',initial:1,min:0,max:40,step:.25},
+ {key:'waveFrequencyY',label:'Vertical wave count',initial:40,min:0,max:40,step:.25},
  {key:'waveSpeedX',label:'Horizontal phase speed (rad/s)',initial:4,min:-20,max:20,step:.05},
  {key:'waveSpeedY',label:'Vertical phase speed (rad/s)',initial:3,min:-20,max:20,step:.05},
 ] as const;
@@ -41,7 +41,7 @@ const WAVE_DEFAULTS=Object.fromEntries(WAVE_CONTROLS.map(({key,initial})=>[key,i
 export type SceneLightKey = typeof RETIRED_LIGHT_CONTROLS[number]['key'];
 export type SceneVfx = AudioTuning & { audioResponse:AudioResponse; pulseRangeMode:"manual"|"auto";pulseSensitivity:number;pulseInterval:number;pulseDropContrast:number; audioLight: string; audioBounce: number; waves: boolean; distortion: number; glitching: number; maxFps: number; lightModel:"pulse"|"legacy"; pulseTintLow:string; pulseTintHigh:string;imageTintEnabled:boolean;imageTint:string } & Record<WaveKey,number> & Record<RetiredFlareKey,number> & Record<PulseKey,number> & Record<SceneLightKey,number>;
 const LIGHT_DEFAULTS=Object.fromEntries(RETIRED_LIGHT_CONTROLS.map(({key,initial})=>[key,initial])) as Record<SceneLightKey,number>;
-export const DEFAULT_SCENE_VFX: Readonly<SceneVfx> = Object.freeze({...AUDIO_TUNING_DEFAULTS,audioResponse:defaultAudioResponse(),pulseRangeMode:'auto',pulseSensitivity:2,pulseInterval:100,pulseDropContrast:1,audioLight:'#aa3300',audioBounce:1.1,waves:true,distortion:.4,glitching:.3,maxFps:SCENE_VFX_FPS,imageTintEnabled:false,imageTint:'#ff00ea',lightModel:'pulse',pulseTintLow:'#e1fefb',pulseTintHigh:'#3c3271',...Object.fromEntries(PULSE_CONTROLS.map(c=>[c.key,c.initial])) as Record<PulseKey,number>,...Object.fromEntries(RETIRED_FLARE_CONTROLS.map(c=>[c.key,c.initial])) as Record<RetiredFlareKey,number>,...LIGHT_DEFAULTS,...WAVE_DEFAULTS});
+export const DEFAULT_SCENE_VFX: Readonly<SceneVfx> = Object.freeze({...AUDIO_TUNING_DEFAULTS,audioResponse:defaultAudioResponse(),pulseRangeMode:'auto',pulseSensitivity:2,pulseInterval:100,pulseDropContrast:1,audioLight:'#aa3300',audioBounce:1.1,waves:true,distortion:.4,glitching:.3,maxFps:SCENE_VFX_FPS,imageTintEnabled:false,imageTint:'#ff00ea',lightModel:'pulse',pulseTintLow:'#e1fefb',pulseTintHigh:'#172f35',...Object.fromEntries(PULSE_CONTROLS.map(c=>[c.key,c.initial])) as Record<PulseKey,number>,...Object.fromEntries(RETIRED_FLARE_CONTROLS.map(c=>[c.key,c.initial])) as Record<RetiredFlareKey,number>,...LIGHT_DEFAULTS,...WAVE_DEFAULTS});
 export function normalizeSceneVfx(raw: unknown): SceneVfx {
  const r=(raw&&typeof raw==='object'?raw:{}) as Partial<SceneVfx>;
  const number=(v:unknown,f:number,min:number,max:number)=>typeof v==='number'&&Number.isFinite(v)?Math.max(min,Math.min(max,v)):f;

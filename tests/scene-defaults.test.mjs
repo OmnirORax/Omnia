@@ -14,9 +14,10 @@ test('fresh scenes use the uploaded settings, modes and original portable backgr
  const scene=defaultScene(),bytes=await readFile(new URL(`../public${DEFAULT_BACKGROUND_URL}`,import.meta.url));
  assert.equal(scene.image,DEFAULT_BACKGROUND.id);assert.equal(`sha256:${createHash('sha256').update(bytes).digest('hex')}`,scene.image);
  assert.equal(bytes.length,DEFAULT_BACKGROUND.size);assert.equal(bytes.readUInt32BE(16),DEFAULT_BACKGROUND.width);assert.equal(bytes.readUInt32BE(20),DEFAULT_BACKGROUND.height);
- assert.deepEqual(scene.vfx.audioResponse,{version:2,lightMax:1.5,bounceMax:.15,cooldownMs:300});
+ assert.deepEqual(scene.vfx.audioResponse,{version:2,lightMax:1.5,bounceMax:0,cooldownMs:300});
+ for(const [key,value] of Object.entries({waveAmplitudeX:.05,waveAmplitudeY:.05,waveFrequencyX:1,waveFrequencyY:40,waveSpeedX:4,waveSpeedY:3}))assert.equal(scene.vfx[key],value);
  assert.equal(scene.vfx.pulseRangeMode,'auto');assert.equal(scene.vfx.lightModel,'pulse');assert.equal(scene.vfx.imageTintEnabled,false);
- assert.equal(scene.vfx.pulseTintLow,'#e1fefb');assert.equal(scene.vfx.pulseTintHigh,'#3c3271');assert.equal(scene.vfx.imageTint,'#ff00ea');
+ assert.equal(scene.vfx.pulseTintLow,'#e1fefb');assert.equal(scene.vfx.pulseTintHigh,'#172f35');assert.equal(scene.vfx.imageTint,'#ff00ea');
  const normalization=scene.normalization;assert.equal(normalization.enabled,true);assert.equal(normalization.luminanceMin,0);assert.equal(normalization.luminanceMax,.1);assert.equal(normalization.contrastMin,.02);assert.equal(normalization.contrastMax,.66);
  const world=emptyWorld(),image={id:scene.image,name:DEFAULT_BACKGROUND.name,type:DEFAULT_BACKGROUND.type,data:encodeBytes(bytes)};
  const restored=parseWorkspaceFile(JSON.stringify({format:'omnium-v2-workspace',version:1,world,scenes:[image]}));
