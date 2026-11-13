@@ -60,19 +60,19 @@ export function scenePanel(host: Host) {
     for (const item of items) {
       const row = document.createElement('div'); row.className = 'scene-image-row';
       button(`${currentImage() === item.id ? '✓ ' : ''}${item.name}`, () => { assign(item.id); return images(); }, row);
-      button('↓', async () => downloadScene(await localSceneBlob(item.id), item.name), row).title = 'Download original';
+      button('↓', async () => downloadScene(await localSceneBlob(item.id), item.name), row);
       if(item.id!==DEFAULT_BACKGROUND.id)button('×', async () => {
         if (!confirm(`Delete “${item.name}” from this browser? Download it first to retain the original image.`)) return;
         host.change(world => { if (world.scene?.image === item.id) world.scene.image = null; for (const node of world.nodes) if (node.scene === item.id) delete node.scene; });
         await deleteLocalScene(item.id); await images();
-      }, row).title = 'Delete image'; list.append(row);
+      }, row); list.append(row);
     }
   }
   function controls(group: 'waves' | 'pulse' | 'normalization' | 'prompt') {
     clear();
     if (group === 'waves') {
       const row = document.createElement('div'); row.className = 'preset-row';
-      button('+', () => { update(settings => { settings.presets = appendWavePreset(settings.presets, settings.vfx.waves, settings.vfx); }); controls('waves'); }, row).title = 'Save current waves as preset';
+      button('+', () => { update(settings => { settings.presets = appendWavePreset(settings.presets, settings.vfx.waves, settings.vfx); }); controls('waves'); }, row);
       for (const [index, preset] of WAVE_PRESETS.entries()) button(String(index + 1), () => { update(settings => { Object.assign(settings.vfx, preset); }); controls('waves'); }, row);
       for (const preset of readWavePresets(host.read().scene?.presets)) button(preset.id.slice(6), () => { update(settings => { Object.assign(settings.vfx, preset.values, { waves: preset.waves }); }); controls('waves'); }, row);
       body.append(row);

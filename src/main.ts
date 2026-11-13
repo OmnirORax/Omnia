@@ -64,7 +64,7 @@ function refresh() {
   element('empty').hidden = store.world.nodes.length > 0;
   element<HTMLButtonElement>('undo').disabled = !store.canUndo;
   element<HTMLButtonElement>('redo').disabled = !store.canRedo;
-  if (view) status.textContent = store.message || message || (selection.requesting ? 'Choose a reference · Esc cancels' : selectedOrigins().length ? `${selectedOrigins().length} selected` : 'Drag to move · Alt-click to ride · Alt-drag to paint');
+  if (view) status.textContent = store.message || message;
 }
 store.subscribe(refresh);
 function open(title: string) {
@@ -152,12 +152,12 @@ function parts() {
     const targets = resolve(binding, store.world), mark = binding.mode === 'follow' ? '↫' : binding.mode === 'position' ? '●' : '⚬';
     const target = button(`${index + 1} ${mark} ${targets.length ? targets.map(n => n.label || '•').join(', ') : 'Unresolved'}`, () => {
       if (targets.length) { selection.set(targets.map(node => node.origin)); close(); refresh(); }
-    }, row); target.className = `target${targets.length ? '' : ' warning'}`; target.title = JSON.stringify(binding);
+    }, row); target.className = `target${targets.length ? '' : ' warning'}`;
     for (const [symbol, offset] of [['↑', -1], ['↓', 1]] as const) {
       const b = button(symbol, () => { store.change(world => { const owner = locate(world, origin)!; const [part] = owner.parts.splice(index, 1); owner.parts.splice(index + offset, 0, part); }); parts(); }, row);
-      b.disabled = index + offset < 0 || index + offset >= node.parts.length; b.title = offset < 0 ? 'Earlier in composition' : 'Later in composition';
+      b.disabled = index + offset < 0 || index + offset >= node.parts.length;
     }
-    button('×', () => { store.change(world => { locate(world, origin)!.parts.splice(index, 1); }); parts(); }, row).title = 'Remove this reference';
+    button('×', () => { store.change(world => { locate(world, origin)!.parts.splice(index, 1); }); parts(); }, row);
     tools.append(row);
   });
   button('Include…', chooseReference); positionMenu();
