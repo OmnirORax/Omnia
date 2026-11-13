@@ -1,3 +1,4 @@
+import { validateAudioResponse } from '../scene/audioResponse.ts';
 import { validateAppearance, validatePaint, type Appearance, type Paint } from '../properties/visual.ts';
 import { creationCell } from './lattice.ts';
 import { SPHERE_VISUAL_DEFAULTS } from '../properties/sphereVisualDefaults.ts';
@@ -18,7 +19,7 @@ export type Structure = { origin: Origin; label: string; position: Vec3; color: 
 export type Relationship = { from: Binding; to: Binding; label: string; kind: string };
 export type World = { format: 'omnium-world'; version: 1 | 2; nodes: Structure[]; assets?: VisualAsset[]; relationships?: Relationship[]; scene?: SceneSettings; appearance?: Appearance;
   settings?: { latticeScale: number; names: 'all' | 'expanded' | 'selection' } };
-export const emptyWorld = (): World => ({ format: 'omnium-world', version: 2, nodes: [], assets: [], relationships: [], scene: defaultScene(), settings: { latticeScale: 1, names: 'expanded' } });
+export const emptyWorld = (): World => ({ format: 'omnium-world', version: 2, nodes: [], assets: [], relationships: [], appearance:{background:{translucency:1}}, scene: defaultScene(), settings: { latticeScale: 1, names: 'expanded' } });
 export const samePoint = (a: Vec3, b: Vec3) => a.every((n, i) => n === b[i]);
 export const sameOrigin = (a: Origin, b: Origin) => a.born === b.born && samePoint(a.at, b.at);
 export const locate = (world: World, origin: Origin) => world.nodes.find(node => sameOrigin(node.origin, origin));
@@ -133,6 +134,7 @@ export function validateWorld(value: unknown): World {
   }
   if (w.settings && (!Number.isFinite(w.settings.latticeScale) || w.settings.latticeScale <= 0 || !['all','expanded','selection'].includes(w.settings.names))) throw Error('Invalid world settings.');
   if (w.scene && (!w.scene.vfx || !w.scene.normalization || typeof w.scene.prompt !== 'string' || w.scene.prompt.length > 4000 || !['label','notes','label-and-notes'].includes(w.scene.source))) throw Error('Invalid scene settings.');
+  if (w.scene?.vfx?.audioResponse !== undefined) validateAudioResponse(w.scene.vfx.audioResponse);
   if (w.relationships && (!Array.isArray(w.relationships) || w.relationships.length > 2000)) throw Error('Too many relationships.');
   for (const relation of w.relationships ?? []) {
     if (typeof relation.label !== 'string' || relation.label.length > 500 || typeof relation.kind !== 'string' || relation.kind.length > 100) throw Error('Invalid relationship.');

@@ -1,3 +1,4 @@
+import {isImportedFont,importedFontFamily} from './importedFont.ts';
 import { property } from './pool.ts';
 import { translucentOpacity } from './translucency.ts';
 
@@ -18,14 +19,14 @@ export const font = property({key:'font',label:'Font',kind:'select',options:FONT
 export const visualProperties = (text: boolean) => text ? [color,translucency,glow,font] : [color,translucency,glow];
 export const TEXT_DEFAULTS = {color:'#eeeee8',translucency:0,glow:0,font:'system'};
 export const BACKGROUND_DEFAULTS = {color:'#191c1b',translucency:.04,glow:0};
-export const fontFamily = (id?: string) => FONT_OPTIONS.find(font=>font.id===id)?.family ?? FONT_OPTIONS[0].family;
+export const fontFamily = (id?: string) => (id&&isImportedFont(id)?importedFontFamily(id):FONT_OPTIONS.find(font=>font.id===id)?.family) ?? FONT_OPTIONS[0].family;
 export const paintColor = (paint: Paint) => `${paint.color}${Math.round(translucentOpacity(1,paint.translucency)*255).toString(16).padStart(2,'0')}`;
 export function validatePaint(paint: Paint | undefined, text: boolean) {
   if(paint===undefined)return;
   if(!paint || typeof paint!=='object' || Array.isArray(paint) ||
     paint.color!==undefined&&!/^#[\da-f]{6}$/i.test(paint.color) ||
     ['translucency','glow'].some(key=>paint[key as 'glow']!==undefined&&(!Number.isFinite(paint[key as 'glow'])||paint[key as 'glow']!<0||paint[key as 'glow']!>1)) ||
-    paint.font!==undefined&&(!text||!FONT_OPTIONS.some(font=>font.id===paint.font)))throw Error('Invalid visual properties.');
+    paint.font!==undefined&&(!text||!FONT_OPTIONS.some(font=>font.id===paint.font)&&!isImportedFont(paint.font)))throw Error('Invalid visual properties.');
 }
 export function validateAppearance(value: Appearance | undefined) {
   if(value===undefined)return;

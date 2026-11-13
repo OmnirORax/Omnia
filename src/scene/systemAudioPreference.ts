@@ -1,3 +1,4 @@
+import {systemAudioOriginSupported,systemAudioRequiresPairing} from './nativePcm.ts';
 /** Device-local connection preference, deliberately excluded from workspace/export/history. */
 export const SYSTEM_AUDIO_PREFERENCE_KEY='omnium.system-audio.connection.v1';
 export type SystemAudioPreference={version:1;code:string;enabled:boolean};
@@ -19,5 +20,13 @@ export function saveSystemAudioPreference(code:string,enabled:boolean):boolean{
   localStorage.setItem(SYSTEM_AUDIO_PREFERENCE_KEY,JSON.stringify({version:1,code,enabled}));return true;
  }catch{return false;}
 }
-export function pauseRememberedSystemAudio(){const saved=readSystemAudioPreference();if(saved)saveSystemAudioPreference(saved.code,false);}
+/** Fresh trusted origins need no pairing; previews still require a device-local code. */
+export function shouldStartSystemAudio(origin:string):boolean{
+ if(!systemAudioOriginSupported(origin))return false;
+ try{
+  const raw=localStorage.getItem(SYSTEM_AUDIO_PREFERENCE_KEY),saved=parse(raw);
+  return saved?saved.enabled&&(!systemAudioRequiresPairing(origin)||validPairingCode(saved.code)):raw===null&&!systemAudioRequiresPairing(origin);
+ }catch{return false;}
+}
+export function pauseRememberedSystemAudio(){const saved=readSystemAudioPreference();saveSystemAudioPreference(saved?.code??'',false);}
 export function forgetSystemAudioPreference(){try{localStorage.removeItem(SYSTEM_AUDIO_PREFERENCE_KEY);}catch{/* Connection can still stop when storage is blocked. */}}

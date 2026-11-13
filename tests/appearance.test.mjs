@@ -47,7 +47,7 @@ test('appearance survives save, export, reload and undo without damaging other s
   store.change(world=>{origin=addStructure(world,[0,0,0],1).origin;});
   store.change(world=>{writePaint(world,'nodeText',[origin],{color:'#123456',translucency:.4,font:'electric'});writePaint(world,'background',[],{glow:1});});
   const restored=createStore({getItem:()=>saved,setItem:()=>{}}).world;
-  const exported=parseWorkspaceFile(JSON.stringify({format:'omnium-v2-workspace',version:1,world:restored,scenes:[]}));
+  const exported=parseWorkspaceFile(JSON.stringify({format:'omnium-v2-workspace',version:1,world:{...restored,scene:{...restored.scene,image:null}},scenes:[]}));
   assert.deepEqual(exported.world.appearance,store.world.appearance);assert.deepEqual(locate(exported.world,origin).textAppearance,locate(store.world,origin).textAppearance);
   store.undo();assert.equal(locate(store.world,origin).textAppearance,undefined);store.redo();assert.equal(locate(store.world,origin).textAppearance.font,'electric');
   const settings=structuredClone(store.world.settings);store.change(world=>resetPaint(world,'background',[]));assert.deepEqual(store.world.settings,settings);

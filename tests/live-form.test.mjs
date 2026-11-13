@@ -8,8 +8,9 @@ test('live edits commit the latest value once per frame, flush before closing an
   globalThis.cancelAnimationFrame = id => frames.delete(id);
   const { liveForm } = await import('../src/ui/liveForm.ts');
   const form = new EventTarget(); let valid = true, value = '', writes = [];
+  form.isConnected = true;
   form.checkValidity = () => valid;
-  liveForm(form, group => writes.push({value, group}));
+  const dispose=liveForm(form, group => writes.push({value, group}));
   value='a';form.dispatchEvent(new Event('input'));
   value='ab';form.dispatchEvent(new Event('input'));
   assert.equal(frames.size,1);assert.equal(writes.length,0);
@@ -27,4 +28,14 @@ test('live edits commit the latest value once per frame, flush before closing an
   assert.equal(writes.at(-1).value,'undoable');assert.equal(frames.size,0);
   value='saved';form.dispatchEvent(new Event('input'));window.dispatchEvent(new Event('pagehide'));
   assert.equal(writes.at(-1).value,'saved');assert.equal(frames.size,0);
+  for(const type of ['color','range']){
+    value=type;const input=new Event('input');Object.defineProperty(input,'target',{value:{type}});
+    form.dispatchEvent(input);assert.equal(writes.at(-1).value,type);assert.equal(frames.size,0);
+  }
+  const before=writes.length;
+  form.isConnected=false;form.dispatchEvent(new Event('input'));window.dispatchEvent(new Event('pagehide'));assert.equal(writes.length,before);
+  form.isConnected=true;form.dispatchEvent(new Event('input'));dispose();assert.equal(frames.size,0);
+  document.dispatchEvent(new Event('pointerdown'));assert.equal(writes.length,before);
+  form.dispatchEvent(new Event('input'));assert.equal(frames.size,0);
+
 });

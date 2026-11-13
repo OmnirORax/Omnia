@@ -6,6 +6,7 @@ import { createStore } from '../src/core/store.ts';
 
 function fixture() {
   const world = emptyWorld(), a = addStructure(world, [1, 2, 3], 10), b = addStructure(world, [4, 5, 6], 11);
+  world.scene.image = null;
   a.invariant = true; a.label = 'Shared'; b.parts = ['follow', 'position', 'structure'].map(mode => bind(a, mode, world));
   return world;
 }

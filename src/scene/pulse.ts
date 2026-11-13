@@ -1,4 +1,3 @@
-import { AUDIO_TUNING_DEFAULTS,type AudioTuning } from './audioTuning.ts';
 /** Port of supplied pulse.vert/pulse.frag + common_blending.h, BLENDMODE 9.
  * Band mapping into Wallpaper Engine's undocumented spectrum remains approximate. */
 export const PULSE_CONTROLS=[
@@ -7,7 +6,7 @@ export const PULSE_CONTROLS=[
  {key:'pulseAudioLow',label:'Audio lower threshold',initial:.01,min:0,max:1,step:.01,integer:false},
  {key:'pulseAudioHigh',label:'Audio upper threshold',initial:1,min:0,max:1,step:.01,integer:false},
  {key:'pulseExponent',label:'Audio exponent',initial:.1,min:0,max:4,step:.1,integer:false},
- {key:'pulseAmount',label:'Audio amount',initial:1.7,min:0,max:2,step:.05,integer:false},
+ {key:'pulseAmount',label:'Audio amount',initial:.5,min:0,max:2,step:.05,integer:false},
 ] as const;
 export type PulseKey=typeof PULSE_CONTROLS[number]['key'];
 export function referencePulse(bands:ArrayLike<number>,min:number,max:number,low:number,high:number,power:number,amount:number){
@@ -15,7 +14,24 @@ export function referencePulse(bands:ArrayLike<number>,min:number,max:number,low
  let sum=0;for(let channel=0;channel<2;channel++)for(let band=first;band<=last;band++)sum+=bands[channel*16+band]||0;
  const value=sum/((last-first+1)*2),a=Math.min(low,high),b=Math.max(low,high);
  const x=b>a?Math.max(0,Math.min(1,(value-a)/(b-a))):Number(value>a);
- return Math.max(0,Math.min(1,Math.pow(x*x*(3-2*x),power)))*amount;
+ return x>0?Math.max(0,Math.min(1,Math.pow(x*x*(3-2*x),power)))*amount:0;
+}
+/** V1's 16 log-spaced bands, prepared once per audio connection. */
+export const PULSE_FFT_SIZE=2048;
+export function createPulseBandSampler(sampleRate:number){
+ const bins=PULSE_FFT_SIZE/2,hz=sampleRate/PULSE_FFT_SIZE,upper=Math.min(20000,sampleRate/2);
+ const first=new Uint16Array(16),last=new Uint16Array(16),bands=new Float32Array(32);
+ for(let band=0;band<16;band++){
+  first[band]=Math.max(0,Math.min(bins-1,Math.floor(20*Math.pow(upper/20,band/16)/hz)));
+  last[band]=Math.max(first[band]+1,Math.min(bins,Math.ceil(20*Math.pow(upper/20,(band+1)/16)/hz)));
+ }
+ return(spectra:readonly ArrayLike<number>[])=>{
+  for(let channel=0;channel<2;channel++)for(let band=0;band<16;band++){
+   let sum=0;for(let i=first[band];i<last[band];i++)sum+=spectra[channel]?.[i]??0;
+   bands[channel*16+band]=sum/(255*(last[band]-first[band]));
+  }
+  return bands;
+ };
 }
 export const REFERENCE_PULSE_GLSL=`
  vec3 referencePulse(vec3 image,vec3 tintLow,vec3 tintHigh,float pulse){
@@ -28,104 +44,10 @@ export function referencePulseRGB(image:readonly number[],low:readonly number[],
 }
 
 
-export const MAX_PULSE_COLORS=8;
-export function pulsePalette(value:unknown):string[]{
- if(typeof value!=='string')return [];
- return [...new Set(value.slice(0,200).split(/[\s,;]+/).filter(c=>/^#[a-f\d]{6}$/i.test(c)).map(c=>c.toLowerCase()))].slice(0,MAX_PULSE_COLORS);
-}
-/** Archived from the superseded separate-slider preview; never rendered or edited. */
-export const RETIRED_OMNI_BRIGHTNESS_CONTROLS=[
- {key:'pulseOmniLowBrightness',label:'Base brightness',initial:.5,min:0,max:2,step:.01},
- {key:'pulseOmniHighBrightness',label:'Flash brightness',initial:1.5,min:0,max:4,step:.01},
-] as const;
-export type RetiredOmniBrightnessKey=typeof RETIRED_OMNI_BRIGHTNESS_CONTROLS[number]['key'];
-export const PULSE_COLOUR_GLSL=`
+export const SCENE_COLOR_SPACE_GLSL=`
  vec3 displayColour(vec3 c){return mix(c*12.92,1.055*pow(max(c,vec3(0.0)),vec3(1.0/2.4))-.055,step(vec3(.0031308),c));}
  vec3 linearColour(vec3 c){return mix(c/12.92,pow((c+.055)/1.055,vec3(2.4)),step(vec3(.04045),c));}
- #if PULSE_ALL_COLORS
- vec3 pulseSourceTint(vec3 image){
-  float hi=max(image.r,max(image.g,image.b)),lo=min(image.r,min(image.g,image.b));
-  float delta=hi-lo;
-  return delta>.000001?(image-vec3(lo))/delta:vec3(1.0);
- }
- uniform vec3 pulseOmniTint;uniform vec3 pulseOmniTintLow;
- vec3 omniHighTint(vec3 image,vec3 control){
-  float value=max(control.r,max(control.g,control.b));
-  float saturation=value>0.0?1.0-min(control.r,min(control.g,control.b))/value:0.0;
-  return mix(vec3(1.0),pulseSourceTint(image),saturation)*value;
- }
- #endif
 `;
-/** Numerical contract for independent coloured responses and source-hue All. */
-export function sourcePulseTint(image:readonly number[]):number[]{
- const hi=Math.max(...image),lo=Math.min(...image),delta=hi-lo;
- return image.map(c=>delta>.000001?(c-lo)/delta:1);
-}
-
-/** Normal HSV saturation/value, with hue supplied independently by each image region. */
-export function omniHighTintRGB(image:readonly number[],control:readonly number[]){
- const value=Math.max(...control),saturation=value?1-Math.min(...control)/value:0;
- return sourcePulseTint(image).map(c=>(1-saturation+saturation*c)*value);
-}
-
-
-/** Byte FFT decode for Automatic's -100..0 dB range. Reused across frames. */
-const AUTOMATIC_AMPLITUDES=Float32Array.from({length:256},(_,i)=>i?Math.pow(10,(-100+i/255*100)/20):0);
-/** Absolute amplitude floor (-40 dB), with a soft knee up to roughly -30 dB.
- * Adaptive gain and sensitivity must never amplify background noise past it. */
-export function audioNoiseGate(amplitude:number,tuning:AudioTuning=AUDIO_TUNING_DEFAULTS){
- const x=Math.max(0,Math.min(1,(amplitude-tuning.audioNoiseFloor)/tuning.audioNoiseKnee));
- return x*x*(3-2*x);
-}
-/** One rounded pulse per interval; a sustained input must settle before rearming. */
-export function createPulseEnvelope(){
- let cooldown=0,age=1,peak=0,armed=true,duration=.2,attack=.25;
- return {
-  reset(){cooldown=0;age=1;peak=0;armed=true;},
-  sample(input:number,seconds:number,intervalMs:number,tuning:AudioTuning=AUDIO_TUNING_DEFAULTS){
-   const dt=Math.max(0,Math.min(.1,seconds)); cooldown=Math.max(0,cooldown-dt);age+=dt;
-   if(input<=tuning.pulseTrigger)armed=true;
-   if(input>tuning.pulseTrigger&&armed&&cooldown<=1e-9){peak=input;age=0;cooldown=Math.max(5,Math.min(1500,intervalMs))/1000;armed=false;duration=Math.min(tuning.pulseDuration/1000,cooldown*tuning.pulseIntervalFill);attack=tuning.pulseAttackFraction;}
-   // Rounded rise/fade fits inside short intervals, with rest before retriggering.
-   const rise=duration*attack,fade=duration*(1-attack);
-   const x=age<rise?age/rise:Math.max(0,1-(age-rise)/fade);
-   return peak*x*x*(3-2*x);
-  },
- };
-}
-/** Frequency-local rises drive flashes; sustained energy calibrates gain only. */
-export function createAutomaticPulse(){
- let range=.03;
- const profiles=new Float32Array(2048),measurement={level:0,change:0,changeLevel:0};
- return {
-  reset(){range=.03;profiles.fill(0);},
-  /** Reuses one result object. Consume it before reading the other channel. */
-  spectrum(buffer:ArrayLike<number>,channel:number,first:number,last:number,seconds:number,tuning:AudioTuning=AUDIO_TUNING_DEFAULTS){
-   const blend=1-Math.exp(-Math.max(1/1000,Math.min(.1,seconds))/(tuning.pulseOnsetTime/1000));
-   measurement.level=measurement.change=measurement.changeLevel=0;
-   for(let i=first;i<last;i++){
-    const value=AUTOMATIC_AMPLITUDES[buffer[i]],index=channel*1024+i;
-    measurement.level=Math.max(measurement.level,value);
-    const rise=value-profiles[index];
-    if(rise>measurement.change){measurement.change=rise;measurement.changeLevel=value;}
-    profiles[index]+=(value-profiles[index])*blend;
-   }
-   return measurement;
-  },
-  sample(signal:number,seconds:number,sensitivity:number,amount:number,onset=signal,onsetLevel=signal,dropContrast=1,tuning:AudioTuning=AUDIO_TUNING_DEFAULTS){
-   const dt=Math.max(0,Math.min(.1,seconds));
-   const change=onset;
-   const level=onsetLevel;
-   // Sensitivity owns admission, independently of brightness and drop contrast.
-   const admitted=Math.max(0,change-Math.max(tuning.pulseOnsetFloor,range*tuning.pulseReferenceWeight/sensitivity));
-   const normalized=level/(level+range*tuning.pulseReferenceWeight);
-   const strength=Math.pow(normalized,dropContrast);
-   const output=level>0?audioNoiseGate(level,tuning)*strength*Math.min(1,admitted/level)*amount:0;
-   if(signal>0)range+=(Math.max(tuning.pulseReferenceMin,Math.min(1,signal))-range)*(1-Math.exp(-dt/tuning.pulseReferenceTime));
-   return output;
-  },
- };
-}
 
 /** Archived rollback preferences; no active UI, gain or glow renderer. */
 export const RETIRED_FLARE_CONTROLS=[
