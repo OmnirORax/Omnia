@@ -2,7 +2,7 @@ import { field } from '../ui/fields.ts';
 import { liveForm } from '../ui/liveForm.ts';
 import { property } from '../properties/pool.ts';
 import type { AudioResponse } from './audioResponse.ts';
-const definitions=[
+export const definitions=[
  {key:'lightMax',property:property({key:'audio.lightMax',label:'Light max (%)',kind:'number',min:0,max:200}),scale:100},
  {key:'bounceMax',property:property({key:'audio.bounceMax',label:'Bounce max (%)',kind:'number',min:0,max:50}),scale:100},
  {key:'cooldownMs',property:property({key:'audio.cooldownMs',label:'Cooldown (ms)',kind:'number',min:0,max:10000}),scale:1},

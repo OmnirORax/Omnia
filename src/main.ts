@@ -1,3 +1,9 @@
+import {readPaint,writePaint} from './core/appearance.ts';
+import {visualProperties,type Paint} from './properties/visual.ts';
+import vfxFunction from './scene/vfx.function.ts';
+import {definitions as audioDefinitions} from './scene/audioControls.ts';
+import {defaultScene} from './scene/state.ts';
+import {NORMALIZATION_FIELDS} from './scene/normalization.ts';
 import './style.css';
 import { paintForm } from './ui/visualControls.ts';
 import { updateUIAppearance } from './ui/appearance.ts';
@@ -194,6 +200,31 @@ function context(position: Vec3) {
   button('Focus', () => { view?.focus(selectedOrigins(), true); close(); });
   button('Remove', remove);
 }
+function searchSettings() {
+  open('Settings');tools.querySelector('input[type=search]')?.remove();
+  const input=document.createElement('input');input.type='search';input.placeholder='Search settings';input.setAttribute('aria-label','Search settings');
+  const results=document.createElement('div');tools.append(input,results);
+  const origins=[...selectedOrigins()],selected=origins[0]&&locate(store.world,origins[0]);
+  const nodeEntries=selected?capabilities(inherited(selected,store.world)).flatMap(capability=>capability.properties.map((binding,index)=>({label:`${capability.label} · ${binding.property.label}`,keywords:'selected node',definition:binding.property,read:()=>binding.read(),write:(world:World,value:string|number|boolean)=>{if(capability.key==='move'){const first=locate(world,origins[0]);if(first){const delta:Vec3=[0,0,0];delta[index]=Number(value)-first.position[index];translate(world,origins,delta);}return;}for(const origin of origins){const node=locate(world,origin);if(!node)continue;const target=capabilities(node).find(item=>item.key===capability.key);if(!target)continue;target.properties[index].write(String(value));if(node.variantOf)node.overrides=[...new Set([...(node.overrides??[]),binding.property.key])];}}}))):[];
+  const visualEntries=(['text','background',...(origins.length?['nodeText' as const,'nodes' as const]:[])] as const).flatMap(target=>visualProperties(target==='text'||target==='nodeText').map(definition=>({label:`${target} · ${definition.label}`,keywords:'appearance visual color',definition,read:()=>readPaint(store.world,target,origins[0])[definition.key as keyof Paint]!,write:(world:World,value:string|number|boolean)=>writePaint(world,target,origins,{[definition.key]:value})})));
+  const worldEntries=[
+    {label:'Lattice scale',keywords:'world lattice',definition:{key:'latticeScale',label:'Lattice scale',kind:'number' as const,min:1e-9},read:()=>store.world.settings?.latticeScale??1,write:(world:World,value:string|number|boolean)=>{world.settings??={latticeScale:1,names:'expanded'};world.settings.latticeScale=Number(value);}},
+    {label:'Names',keywords:'world names',definition:{key:'names',label:'Names',kind:'select' as const,options:[{id:'expanded',label:'Expanded'},{id:'all',label:'All'},{id:'selection',label:'Selected'}]},read:()=>store.world.settings?.names??'expanded',write:(world:World,value:string|number|boolean)=>{world.settings??={latticeScale:1,names:'expanded'};world.settings.names=value as 'all'|'expanded'|'selection';}},
+  ];
+  const entries=[...nodeEntries,...visualEntries,...worldEntries,
+    ...Object.entries(vfxFunction.inputs).map(([key,binding])=>({label:binding.definition.label,keywords:`scene ${key}`,definition:{...binding.definition,key},read:()=>binding.read({sceneVfx:(store.world.scene??defaultScene()).vfx}),write:(world:World,value:string|number|boolean)=>{world.scene??=defaultScene();world.scene.vfx=binding.write({sceneVfx:world.scene.vfx},value).sceneVfx;}})),
+    ...audioDefinitions.map(d=>({label:d.property.label,keywords:'scene audio',definition:d.property,read:()=>((store.world.scene??defaultScene()).vfx.audioResponse[d.key] as number)*d.scale,write:(world:World,value:string|number|boolean)=>{world.scene??=defaultScene();world.scene.vfx.audioResponse[d.key]=Number(value)/d.scale;}})),
+    ...NORMALIZATION_FIELDS.map(d=>({label:d.label,keywords:'scene normalization',definition:{key:`normalize.${d.key}`,label:d.label,kind:d.kind,...(d.kind==='number'?{min:d.min,max:d.max,step:.01}:{})},read:()=>(store.world.scene??defaultScene()).normalization[d.key],write:(world:World,value:string|number|boolean)=>{world.scene??=defaultScene();(world.scene.normalization as unknown as Record<string,number|boolean>)[d.key]=value as number|boolean;}})),
+  ];
+  const render=()=>{results.replaceChildren();const query=input.value.trim().toLocaleLowerCase();if(!query)return;
+    for(const item of entries.filter(item=>`${item.label} ${item.keywords}`.toLocaleLowerCase().includes(query))){
+      const form=document.createElement('form'),control=field(item.definition,item.read());form.append(control.row);results.append(form);
+      liveForm(form,group=>attempt(()=>store.change(world=>item.write(world,control.value()),group)));
+    }
+  };
+  input.addEventListener('input',render);input.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();results.querySelector<HTMLElement>('input,select')?.focus();}});
+  positionMenu();input.focus();
+}
 let workspaceView: ReturnType<typeof workspacePanel> | undefined;
 function openWorkspace() {
   close(); if (workspaceView?.root.isConnected) { workspaceView.root.focus(); return; }
@@ -314,6 +345,7 @@ document.addEventListener('keydown', event => {
     message = ''; refresh(); return;
   }
   if (editing) return;
+  if(event.key.toLowerCase()==='s'&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&!event.repeat){event.preventDefault();searchSettings();return;}
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') { event.preventDefault(); element<HTMLButtonElement>(event.shiftKey ? 'redo' : 'undo').click(); }
   if (event.key === 'Delete' && selection.values.length && !selection.requesting) { event.preventDefault(); attempt(remove); }
 });
