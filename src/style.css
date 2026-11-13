@@ -59,6 +59,8 @@ header button { width: 28px; height: 28px; font-size: 18px; }
 .document-content { min-height:120px; padding:7px; outline:none; overflow-wrap:anywhere; white-space:pre-wrap; font-size:13px; line-height:1.55; }
 .document-content img { max-height:1.25em; vertical-align:middle; }
 .document-content p { margin:.4em 0; }
+/* Only content explicitly marked Bold receives synthetic stroke expansion. */
+.document-content strong { -webkit-text-stroke: var(--visual-text-bold-stroke, 0em currentColor); }
 .document-content ul,.document-content ol { margin:.4em 0; padding-left:1.7em; white-space:normal; }
 .document-content h1,.document-content h2,.document-content h3 { margin:.6em 0 .3em; line-height:1.2; }
 .document-content [data-node-glyph] { display:inline-block; }
@@ -70,7 +72,7 @@ header button.wordmark { width:auto; font-size:15px; }
 
 /* Surface alpha never fades its text or controls. Shared paint uses V1's
    independent transmission, text-shadow and surface-shadow semantics. */
-:root[data-visual-text] { color:var(--visual-text-color,#deded7); font-family:var(--visual-text-fontFamily,ui-sans-serif,system-ui,sans-serif); text-shadow:var(--visual-text-textShadow,none); -webkit-text-stroke:var(--visual-text-WebkitTextStroke,0em currentColor); }
+:root[data-visual-text] { color:var(--visual-text-color,#deded7); font-family:var(--visual-text-fontFamily,ui-sans-serif,system-ui,sans-serif); text-shadow:var(--visual-text-textShadow,none); }
 :root[data-visual-background] :is(header, #tools, .panel, .panel > header, #status, .cm-panels) {
   background-color:var(--visual-background);
   box-shadow:var(--visual-background-glow,0 6px 24px #0005);
@@ -79,7 +81,6 @@ header button.wordmark { width:auto; font-size:15px; }
   color:var(--visual-text-color);
   font-family:var(--visual-text-fontFamily,inherit);
   text-shadow:var(--visual-text-textShadow,inherit);
-  -webkit-text-stroke:var(--visual-text-WebkitTextStroke,0em currentColor);
 }
 
 .transfer-parts { margin: 0; padding: 4px; min-width: 0; }
