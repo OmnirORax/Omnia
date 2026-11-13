@@ -17,7 +17,12 @@ export function liveForm(form: HTMLFormElement, commit: (group: string) => void)
     pending.delete(flush);
     if (live && form.isConnected && form.checkValidity()) commit(group);
   };
-  form.addEventListener('input', () => { if (live && !frame) { pending.add(flush); frame = requestAnimationFrame(flush); } });
+  form.addEventListener('input', event => {
+    const type=(event.target as HTMLInputElement | null)?.type;
+    // Continuous controls must reach the renderer before its next scheduled paint.
+    if(type==='color'||type==='range'){flush();return;}
+    if(live&&!frame){pending.add(flush);frame=requestAnimationFrame(flush);}
+  });
   form.addEventListener('change', flush);
   form.addEventListener('submit', event => { event.preventDefault(); flush(); });
   return () => { live = false; if (frame) cancelAnimationFrame(frame); frame = 0; pending.delete(flush); };

@@ -28,6 +28,10 @@ test('live edits commit the latest value once per frame, flush before closing an
   assert.equal(writes.at(-1).value,'undoable');assert.equal(frames.size,0);
   value='saved';form.dispatchEvent(new Event('input'));window.dispatchEvent(new Event('pagehide'));
   assert.equal(writes.at(-1).value,'saved');assert.equal(frames.size,0);
+  for(const type of ['color','range']){
+    value=type;const input=new Event('input');Object.defineProperty(input,'target',{value:{type}});
+    form.dispatchEvent(input);assert.equal(writes.at(-1).value,type);assert.equal(frames.size,0);
+  }
   const before=writes.length;
   form.isConnected=false;form.dispatchEvent(new Event('input'));window.dispatchEvent(new Event('pagehide'));assert.equal(writes.length,before);
   form.isConnected=true;form.dispatchEvent(new Event('input'));dispose();assert.equal(frames.size,0);
