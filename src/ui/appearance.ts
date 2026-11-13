@@ -1,4 +1,5 @@
 import { BACKGROUND_DEFAULTS, TEXT_DEFAULTS, fontFamily, paintColor, type Appearance, type Paint } from '../properties/visual.ts';
+import { emboldenStrokeEm } from '../properties/embolden.ts';
 
 export function textStyle(paint?: Paint) {
   const value={...TEXT_DEFAULTS,...paint};
@@ -11,6 +12,7 @@ export function updateUIAppearance(appearance?: Appearance) {
   document.documentElement.toggleAttribute('data-visual-text',!!appearance?.text);
   document.documentElement.toggleAttribute('data-visual-background',!!appearance?.background);
   const text=appearance?.text;
+  root.setProperty('--visual-text-bold-stroke',`${emboldenStrokeEm(text?.embolden ?? 0)}em currentColor`);
   for(const [name,value] of Object.entries(text ? textStyle(text) : {color:'',fontFamily:'',textShadow:''})) {
     root.setProperty(`--visual-text-${name}`,value);
   }

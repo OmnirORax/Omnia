@@ -20,7 +20,7 @@ test('partial files round trip and settings-only imports preserve content and un
   const choice = { nodes:[], settings:true, scene:false, appearance:false };
   const file = parsePartsFile(JSON.stringify(createPartsFile(source,choice)));
   const next = preparePartsImport(current,file,availableChoice(file),false);
-  assert.deepEqual(next.nodes,current.nodes); assert.deepEqual(next.scene,current.scene); assert.equal(next.appearance,undefined); assert.equal(next.settings.names,'all');
+  assert.deepEqual(next.nodes,current.nodes); assert.deepEqual(next.scene,current.scene); assert.deepEqual(next.appearance,current.appearance); assert.equal(next.settings.names,'all');
   assert.throws(() => preparePartsImport(current,file,choice,true),/complete/);
   assert.throws(() => preparePartsImport(current,file,{...choice,appearance:true},false),/present/);
 });
@@ -39,7 +39,7 @@ test('adding copies remaps birth anchors, position bindings, glyphs, hierarchy a
   assert.deepEqual(current,source); validateWorld(next);
 });
 test('replacement restores only selected parts and legacy full backups remain supported', () => {
-  const source=emptyWorld(); addStructure(source,[0,0,0],1); source.settings.names='all';
+  const source=emptyWorld(); source.scene.image=null; addStructure(source,[0,0,0],1); source.settings.names='all';
   const current=emptyWorld(); current.appearance={background:{color:'#123456'}};
   const legacy=parsePartsFile(JSON.stringify({format:'omnium-v2-workspace',version:1,world:source,scenes:[]}));
   const choice={...fullChoice(source),appearance:false,scene:false,settings:false};
@@ -47,7 +47,7 @@ test('replacement restores only selected parts and legacy full backups remain su
   assert.deepEqual(next.nodes,source.nodes); assert.deepEqual(next.appearance,current.appearance); assert.deepEqual(next.settings,current.settings);
 });
 test('malformed choices and unresolved merge references fail without changing either world', () => {
-  const source=emptyWorld(), node=addStructure(source,[0,0,0],1); node.parts=[{mode:'follow',origin:{born:99,at:[9,9,9]}}];
+  const source=emptyWorld(), node=addStructure(source,[0,0,0],1); source.scene.image=null; node.parts=[{mode:'follow',origin:{born:99,at:[9,9,9]}}];
   const file=createPartsFile(source,fullChoice(source)), current=emptyWorld(), before=structuredClone(file);
   assert.throws(()=>preparePartsImport(current,file,availableChoice(file),false),/unresolved/);
   assert.deepEqual(file,before); assert.deepEqual(current,emptyWorld());

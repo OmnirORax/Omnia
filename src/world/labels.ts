@@ -1,5 +1,6 @@
 import * as T from 'three';
 import { TEXT_DEFAULTS, fontFamily, type Paint } from '../properties/visual.ts';
+import { isImportedFont } from '../properties/importedFont.ts';
 import { translucentOpacity } from '../properties/translucency.ts';
 export function label(caption: string, paint?: Paint) {
   const style={...TEXT_DEFAULTS,...paint},font=`32px ${fontFamily(style.font)}`;
@@ -16,7 +17,7 @@ export function label(caption: string, paint?: Paint) {
   const texture = new T.CanvasTexture(canvas); texture.colorSpace = T.SRGBColorSpace;
   texture.generateMipmaps = true; texture.minFilter = T.LinearMipmapLinearFilter; texture.magFilter = T.LinearFilter;
   const sprite = new T.Sprite(new T.SpriteMaterial({ map: texture, opacity:translucentOpacity(1,style.translucency),transparent: true, depthWrite: false })); sprite.scale.set(canvas.width / 52, canvas.height / 52, 1); sprite.userData.aspect = canvas.width / canvas.height;
-  if(style.font==='electric')void document.fonts.load(font).then(()=>{
+  if(style.font==='electric'||isImportedFont(style.font))void document.fonts.load(font).then(()=>{
     if(sprite.userData.disposed)return;
     const previousWidth=canvas.width;context.font=font;canvas.width=Math.max(64,Math.ceil(Math.max(...lines.map(line=>context.measureText(line.trim()).width)))+24);
     draw();texture.needsUpdate=true;sprite.scale.x*=canvas.width/previousWidth;sprite.userData.aspect=canvas.width/canvas.height;
