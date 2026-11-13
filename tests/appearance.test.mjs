@@ -67,8 +67,10 @@ test('invalid paint values cannot be committed or imported',()=>{
 
 test('forced boldness is an independent reusable text property',()=>{
   assert.equal(emboldenStrokeEm(0),0);
-  assert.equal(emboldenStrokeEm(10),.25);
-  assert.equal(emboldenStrokeEm(6),0.15);
+  assert.equal(emboldenStrokeEm(10),.09);
+  assert.ok(emboldenStrokeEm(6) > 0.05 && emboldenStrokeEm(6) < 0.07);
+  assert.ok(emboldenStrokeEm(2) > 0.02 && emboldenStrokeEm(2) < 0.03);
+  assert.ok(emboldenStrokeEm(10) < .1, 'avoid sealing glyph counters at high strength');
   assert.equal('WebkitTextStroke' in textStyle({embolden:6}),false);
   const world=emptyWorld(),node=addStructure(world,[0,0,0],1);
   writePaint(world,'text',[],{embolden:5});
