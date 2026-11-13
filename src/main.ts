@@ -193,7 +193,7 @@ function openComposer(origin?:Origin){
  for(const composer of composers)if(!composer.root.isConnected)composers.delete(composer);
  const existing=[...composers].find(c=>origin&&c.origin?sameOrigin(origin,c.origin):!origin&&!c.origin);if(existing){existing.root.focus();return;}
  const id=origin?key(origin):'new';if(openingComposers.has(id))return;openingComposers.add(id);const epoch=documentEpoch;
- void import('./omnic/editor.ts').then(({composerPanel})=>{if(epoch!==documentEpoch||origin&&!locate(store.world,origin))return;composers.add(composerPanel({surface:surface=>view?.editOmnic(surface)??(()=>{}),redraw:()=>view?.request(),read:()=>store.world,change:store.change,select:origin=>{const node=locate(store.world,origin);if(node?.variantOf)view?.variants(node.variantOf,true);pick(origin);},feedback,subscribe:store.subscribe},origin));}).catch(error=>feedback(String(error))).finally(()=>openingComposers.delete(id));
+ void import('./omnic/editor.ts').then(({composerPanel})=>{if(epoch!==documentEpoch||origin&&!locate(store.world,origin))return;composers.add(composerPanel({library:openLibrary,surface:surface=>view?.editOmnic(surface)??(()=>{}),redraw:()=>view?.request(),read:()=>store.world,change:store.change,select:origin=>{const node=locate(store.world,origin);if(node?.variantOf)view?.variants(node.variantOf,true);pick(origin);},feedback,subscribe:store.subscribe},origin));}).catch(error=>feedback(String(error))).finally(()=>openingComposers.delete(id));
 }
 let library:ReturnType<typeof libraryPanel>|undefined,openingLibrary=false;
 function openLibrary(){close();if(library?.root.isConnected){library.root.focus();return;}if(openingLibrary)return;openingLibrary=true;const epoch=documentEpoch;

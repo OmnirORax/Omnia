@@ -1,0 +1,78 @@
+import {protectWorkspacePrimaryPress} from './shortcutBlocking.ts';
+import {controlInputOwner} from './inputOwnership.ts';
+import { useLayoutEffect, useMemo, useRef, useSyncExternalStore, type ReactNode } from "react";
+import { FEATURE_ACTIONS, featureActionRuntime, recordedShortcutTail, type ActionInput, type FeatureActionFor, type FeatureOwner } from "../featureActions.ts";
+import { isTypingTarget, preferredFeatureKey, pointerFeatureKey, matchesPointerShortcut, normalizeKey, shortcutBinding } from "../workspaceActions.ts";
+import { useUI, useUITracked } from "./context";
+
+import { useToolCursor, type ToolCursorOptions } from "./toolCursor";
+import { ToolGlyph } from "./toolIcon";
+
+import { ContextDOFConfiguration } from './ContextTargetController';
+import { eventPathMatches } from './pointerOwnership';
+import { contextTargets } from './contextTargets';
+const noContextSubscription=()=>()=>{};
+const noContextSnapshot=()=>0;
+type Handlers<Owner extends FeatureOwner> = Record<FeatureActionFor<Owner>, { enabled: boolean|(()=>boolean); run: (input: ActionInput) => void; configuration?: ReactNode;cursor?:boolean|ToolCursorOptions }>;
+/** A feature cannot install a binding absent from the shared catalog. Its command
+ * buttons, runtime input and shortcut rows all use these same registered IDs. */
+export function useFeatureActions<Owner extends FeatureOwner>(owner: Owner, handlers: Handlers<Owner>, contextActive = true) {
+  const ui = useUITracked(ui=>[ui.registerFunction]), latest = useRef({ ui, handlers, active: contextActive }); latest.current = { ui, handlers, active: contextActive };
+  const definitions = FEATURE_ACTIONS.filter(action => action.owner === owner).sort((a, b) => Number(a.scope === "global") - Number(b.scope === "global"));
+  const contextual=definitions.some(action=>'contextual' in action&&action.contextual);
+  useSyncExternalStore(contextual?contextTargets.subscribe:noContextSubscription,contextual?contextTargets.getSnapshot:noContextSnapshot);
+  const effective=(id:FeatureActionFor<Owner>)=>{
+    const handler=latest.current.handlers[id],original={...handler,enabled:latest.current.active&&(typeof handler.enabled==='function'?handler.enabled():handler.enabled)},definition=definitions.find(action=>action.id===id)!;
+    if(!('contextual' in definition)||!contextTargets.override(id))return original;
+    const resolved=contextTargets.resolve(id);
+    return {...original,enabled:latest.current.active&&!!resolved,configuration:resolved?.command.configuration??(resolved?.command.degrees?.length?<ContextDOFConfiguration action={id}/>:undefined),run:()=>{contextTargets.invoke(id);}};
+  };
+  const effectiveRef=useRef(effective);effectiveRef.current=effective;
+  const active=contextActive?definitions.find(action=>!!handlers[action.id as FeatureActionFor<Owner>].cursor&&'toolIcon' in action):undefined;
+  const cursor=active?handlers[active.id as FeatureActionFor<Owner>].cursor:undefined,cursorKey=JSON.stringify(cursor);
+  const cursorRequest=useMemo(()=>active&&'toolIcon' in active?{key:active.id,icon:<ToolGlyph icon={active.toolIcon}/>,...(typeof cursor==='object'?cursor:{})}:null,[active?.id,cursorKey]);
+  useToolCursor(cursorRequest);
+  const configurations = JSON.stringify(definitions.map(action => effective(action.id as FeatureActionFor<Owner>).configuration !== undefined));
+  const availability = JSON.stringify(definitions.map(action => effective(action.id as FeatureActionFor<Owner>).enabled));
+  useLayoutEffect(() => {
+    const cleanups = definitions.flatMap(action => {
+      const id = action.id as FeatureActionFor<Owner>;
+      return [featureActionRuntime.register(id, { enabled: () => effectiveRef.current(id).enabled, run: input => effectiveRef.current(id).run(input) }),
+        ui.registerFunction({ id, tool:'toolIcon' in action?id:undefined, label: action.label, category: action.category, configuration: effective(id).configuration === undefined ? undefined : <ConfigurationContent render={() => effectiveRef.current(id).configuration} />, available: effective(id).enabled,
+          element: <button type="button" disabled={!effective(id).enabled} title={action.description}
+            onClick={() => featureActionRuntime.invoke(id)}>{action.label}</button> })];
+    });
+    return () => { for (const cleanup of cleanups.reverse()) cleanup(); };
+  }, [owner, ui.registerFunction, availability, configurations]);
+  const api = useRef({
+    blocked: () => !!latest.current.ui.shortcutCapturing || !!latest.current.ui.shortcutsBlocked,
+    binding: (id: FeatureActionFor<Owner>) => shortcutBinding(id, latest.current.ui.shortcutBindings ?? {}),
+    matches: (id: FeatureActionFor<Owner>, event: KeyboardEvent | MouseEvent, gestureModifiers = true) => {
+      const current = latest.current;
+      const definition = FEATURE_ACTIONS.find(action => action.id === id)!;
+      if (event instanceof MouseEvent && protectWorkspacePrimaryPress(!!current.ui.layout.panels['@workspaceOnly'],event.button,event.ctrlKey||event.altKey||event.shiftKey||event.metaKey,controlInputOwner(event.target as Element,event.composedPath()))) return false;
+      if ("gestureSurface" in definition && event instanceof MouseEvent && !eventPathMatches(event,definition.gestureSurface)) return false;
+      if (current.ui.shortcutCapturing || current.ui.shortcutsBlocked && !("allowBlocked" in definition && definition.allowBlocked) || event.defaultPrevented || !effectiveRef.current(id).enabled) return false;
+      if (event instanceof MouseEvent && recordedShortcutTail(event)) return false;
+      if (event instanceof KeyboardEvent && (event.repeat && !('held' in definition && definition.held) || isTypingTarget(event.target) && !("allowTyping" in definition && definition.allowTyping))) return false;
+      return event instanceof KeyboardEvent
+        ? preferredFeatureKey(current.ui.shortcutBindings ?? {}, normalizeKey(event), candidate => featureActionRuntime.available(candidate), isTypingTarget(event.target), !!current.ui.shortcutsBlocked) === id
+        : matchesPointerShortcut(id,current.ui.shortcutBindings??{},event,false)
+          ? pointerFeatureKey(current.ui.shortcutBindings??{},event,candidate=>featureActionRuntime.available(candidate),!!current.ui.shortcutsBlocked)===id
+          : matchesPointerShortcut(id,current.ui.shortcutBindings??{},event,gestureModifiers);
+    },
+    invoke: (id: FeatureActionFor<Owner>, input?: ActionInput) => featureActionRuntime.invoke(id, input),
+    available: (id:FeatureActionFor<Owner>) => effectiveRef.current(id).enabled,
+    handle: (event: KeyboardEvent | MouseEvent, accepts: (id: FeatureActionFor<Owner>) => boolean = () => true) => {
+      // Explicit modified commands take priority over gesture-transparent matches.
+      for (const gestureModifiers of [false, true]) for (const definition of definitions) {
+        const id = definition.id as FeatureActionFor<Owner>;
+        if (accepts(id) && api.current.matches(id, event, gestureModifiers)) return api.current.invoke(id, event);
+      }
+      return false;
+    },
+  });
+  return api.current;
+}
+
+function ConfigurationContent({ render }: { render: () => ReactNode }) { useUI(); return render(); }

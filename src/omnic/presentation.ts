@@ -17,14 +17,14 @@ function buildGlyphPresentation(world:World,previewDrafts:boolean){
  return (node:Structure,time=0,preview?:OmnicSurface['preview'])=>{
   const owner=node.visual?.omnicEntityId??JSON.stringify(node.origin),recipe=preview?.recipe??recipes.get(owner);
   if(!recipe)return undefined;
-  const selection=preview?.evaluation.selection.join('|')??'',bucket=Math.floor(time*RENDER_BUDGET.omnicFps),known=cache.get(owner);
+  const selection=preview?JSON.stringify([preview.evaluation.selection,preview.hovered,preview.pivot,preview.ghost,preview.gridPitch,preview.bounds]):'',bucket=Math.floor(time*RENDER_BUDGET.omnicFps),known=cache.get(owner);
   if(known&&known.recipe===recipe&&known.selection===selection&&(!known.motion||known.bucket===bucket)){cache.delete(owner);cache.set(owner,known);return known;}
   if(!known&&cache.size>=RENDER_BUDGET.omnicSceneSources){const oldest=cache.keys().next().value!;cache.delete(oldest);animated.delete(oldest);}
   const evaluation=preview?.evaluation??evaluateRecipe(recipe,resolve,animated.size<RENDER_BUDGET.omnicSceneSources?time:0);
   if(evaluation.motion){if(evaluation.nodes.length>RENDER_BUDGET.omnicAnimatedRoles||!animated.has(owner)&&animated.size>=RENDER_BUDGET.omnicSceneSources){evaluation.motion=false;}else animated.add(owner);}
-  const bounds=atomnicViewBounds(recipe.atomnic),svg=renderSVG(evaluation,{bounds,selected:preview?.evaluation.selection});
+  const bounds=preview?.bounds??atomnicViewBounds(recipe.atomnic),svg=renderSVG(evaluation,{bounds,selected:preview?.evaluation.selection,hovered:preview?.hovered,pivot:preview?.pivot,ghost:preview?.ghost,gridPitch:preview?.gridPitch});
   const asset:VisualAsset={id:'omnic-render',name:locate(world,JSON.parse(owner))?.label??'Omnic',kind:'image',dataUrl:svgDataUrl(svg)};
-  rememberVectorAsset(asset,glyphVectorPlan(selection?{...evaluation,nodes:[...evaluation.nodes,...selectionFeedback(evaluation,preview?.evaluation.selection)]}:evaluation,bounds));
+  if(!preview?.ghost&&!preview?.pivot&&!preview?.hovered?.length&&!preview?.gridPitch)rememberVectorAsset(asset,glyphVectorPlan(selection?{...evaluation,nodes:[...evaluation.nodes,...selectionFeedback(evaluation,preview?.evaluation.selection)]}:evaluation,bounds));
   cache.delete(owner);const result={asset,motion:evaluation.motion,key:`${owner}:${++serial}`,recipe,bucket,selection};cache.set(owner,result);return result;
  };
 }
