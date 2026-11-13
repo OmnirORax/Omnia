@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createAudioResponse,defaultAudioResponse,createAudioMeasurement,RESPONSE_HZ,ATTACK_SECONDS} from '../src/scene/audioResponse.ts';
+import {createAudioResponse,defaultAudioResponse,createAudioMeasurement,RESPONSE_HZ,ATTACK_SECONDS,RELEASE_SECONDS} from '../src/scene/audioResponse.ts';
 const near=(actual,expected)=>assert.ok(Math.abs(actual-expected)<1e-10,`${actual} != ${expected}`);
 const settings=()=>({version:2,lightMax:2,bounceMax:.4,cooldownMs:1000});
 function hit(engine,at,amplitude=.1,pattern=0){if(at>0)engine.sample(0,at-1/60,pattern);engine.sample(amplitude,at,pattern);return engine.read(at+ATTACK_SECONDS);}
@@ -85,7 +85,9 @@ test('permitted reactions rise smoothly instead of jumping to the maximum',()=>{
  assert.equal(e.read(0).light,0);
  assert.ok(Math.abs(e.read(ATTACK_SECONDS/2).light-1)<1e-12);
  assert.equal(e.read(ATTACK_SECONDS).light,2);
- assert.ok(e.read(ATTACK_SECONDS+.08).light<1);
+ assert.ok(2-e.read(ATTACK_SECONDS+.001).light<.0002);
+ near(e.read(ATTACK_SECONDS+RELEASE_SECONDS/2).light,1);
+ assert.equal(e.read(ATTACK_SECONDS+RELEASE_SECONDS).light,0);
 });
 test('render-time release changes between audio samples and is independent of refresh rate',()=>{
  const a=createAudioResponse(settings()),b=createAudioResponse(settings());a.sample(.1,0);b.sample(.1,0);
@@ -94,7 +96,7 @@ test('render-time release changes between audio samples and is independent of re
   if(i%2===0)assert.equal(a.read(t).light,output);
  }
  const e=createAudioResponse(settings());e.sample(.1,0);
- assert.ok(e.read(.051).light>e.read(.055).light);
+ assert.ok(e.read(ATTACK_SECONDS+.051).light>e.read(ATTACK_SECONDS+.055).light);
 });
 test('a new permitted attack starts from the existing tail without a discontinuity',()=>{
  const e=createAudioResponse({...settings(),cooldownMs:0});e.sample(.1,0);e.sample(0,.05);

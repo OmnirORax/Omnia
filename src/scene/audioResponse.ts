@@ -39,12 +39,12 @@ export function createAudioMeasurement(){
   result.pattern=band*PATTERN_AXIS+shape;return result;
  };
 }
-/** A brief smooth attack, followed by continuous release; independent of capture cadence. */
-export const ATTACK_SECONDS=.025;
+/** Smooth rise and rounded return, with zero slope at each end and the peak. */
+export const ATTACK_SECONDS=.06, RELEASE_SECONDS=.24;
 export function pulseValue(from:number,peak:number,age:number){
  if(age<0||!Number.isFinite(age))return 0;
  if(age<ATTACK_SECONDS){const x=age/ATTACK_SECONDS;return from+(peak-from)*x*x*(3-2*x);}
- const value=peak*Math.exp(-(age-ATTACK_SECONDS)/.08);return value<1e-7?0:value;
+ const x=Math.min(1,(age-ATTACK_SECONDS)/RELEASE_SECONDS);return peak*(1-x*x*(3-2*x));
 }
 /** Fixed storage, per-pattern accepted timestamps, and a recent peak reference. */
 export function createAudioResponse(initial=defaultAudioResponse()){
