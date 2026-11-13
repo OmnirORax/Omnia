@@ -3,32 +3,34 @@ import assert from 'node:assert/strict';
 import {normalizeSceneVfx,DEFAULT_SCENE_VFX,serializeSceneVfx,WAVE_PRESETS} from '../src/scene/vfx.ts';
 import {emptyWorld,validateWorld} from '../src/core/model.ts';
 import {parseWorkspaceFile} from '../src/core/transfer.ts';
-import {defaultAudioResponse,validateAudioResponse} from '../src/scene/audioResponse.ts';
-import {makeCurve} from '../src/properties/curve.ts';
-import sceneFunction from '../src/scene/vfx.function.ts';
+import {defaultAudioResponse,validateAudioResponse,audioResponse} from '../src/scene/audioResponse.ts';
+const oldCurves=()=>({version:1,light:{loudness:Array(16).fill(.75),recurrence:Array(16).fill(1)},bounce:{loudness:Array(16).fill(.4),recurrence:Array(16).fill(1)}});
 
-test('old scenes gain editable curves without overwriting their saved tuning or visual defaults',()=>{
+test('legacy scalar scenes acquire maxima and cooldown without altering their original settings',()=>{
  assert.deepEqual(normalizeSceneVfx(undefined),DEFAULT_SCENE_VFX);
  const raw={pulseAmount:1,audioBounce:1.2,pulseSensitivity:4,pulseHzMax:500,bassAttack:50};
  const settings=normalizeSceneVfx(raw);assert.deepEqual(settings.audioResponse,defaultAudioResponse(1,1.2));
- assert.equal(settings.pulseSensitivity,4);assert.equal(settings.pulseHzMax,500);assert.equal(settings.bassAttack,50);assert.equal(raw.audioResponse,undefined);
+ assert.equal(raw.audioResponse,undefined);assert.equal(settings.pulseSensitivity,4);assert.equal(settings.pulseHzMax,500);
  assert.equal(settings.pulseTintHigh,'#0062ff');assert.equal(settings.imageTint,'#00eeff');
  for(const key of ['waveAmplitudeX','waveAmplitudeY','waveFrequencyX','waveFrequencyY','waveSpeedX','waveSpeedY'])assert.equal(settings[key],WAVE_PRESETS[1][key]);
 });
-test('explicit response curves own behavior independently of retired knobs and return independent arrays',()=>{
- const response=defaultAudioResponse();response.light.loudness=makeCurve(()=>.5);
- const a=normalizeSceneVfx({audioResponse:response}),b=normalizeSceneVfx({audioResponse:response,pulseSensitivity:8,pulseInterval:1500,pulseAmount:0,audioBounce:1,pulseHzMax:1});
- assert.deepEqual(a.audioResponse,b.audioResponse);assert.notEqual(a.audioResponse.light.loudness,response.light.loudness);
- assert.ok(!('scene.pulseSensitivity' in sceneFunction.inputs));assert.ok(!('scene.audioBounce' in sceneFunction.inputs));assert.ok(!('scene.pulseInterval' in sceneFunction.inputs));assert.ok(!('scene.bassAttack' in sceneFunction.inputs));
+test('old graph preferences convert to maxima and remain recoverable as inactive data',()=>{
+ const original=oldCurves(),converted=audioResponse(original);
+ assert.equal(converted.version,2);assert.equal(converted.lightMax,1.5);assert.equal(converted.bounceMax,.2);assert.equal(converted.cooldownMs,1000);
+ assert.deepEqual(converted.retiredCurves,original);assert.notEqual(converted.retiredCurves,original);assert.equal(original.version,1);
+ const world=emptyWorld();world.scene.vfx.audioResponse=original;assert.doesNotThrow(()=>validateWorld(world));
 });
-test('curve settings survive copy, save validation and workspace round trips',()=>{
- const world=emptyWorld();world.scene.vfx.audioResponse.bounce.recurrence=makeCurve(()=>.3);
- const text=serializeSceneVfx(world.scene.vfx);assert.deepEqual(JSON.parse(text),world.scene.vfx);
+test('only the three current settings control behavior, independently of retired scalars',()=>{
+ const response=defaultAudioResponse();const a=normalizeSceneVfx({audioResponse:response}),b=normalizeSceneVfx({audioResponse:response,pulseSensitivity:8,pulseAmount:0,audioBounce:1,pulseInterval:1500});
+ assert.deepEqual(a.audioResponse,b.audioResponse);
+});
+test('settings and archived curve data survive copy and workspace round trips',()=>{
+ const world=emptyWorld();world.scene.vfx.audioResponse={...audioResponse(oldCurves()),cooldownMs:2500};
+ assert.deepEqual(JSON.parse(serializeSceneVfx(world.scene.vfx)),world.scene.vfx);
  const restored=parseWorkspaceFile(JSON.stringify({format:'omnium-v2-workspace',version:1,world,scenes:[]}));assert.deepEqual(restored.world.scene.vfx.audioResponse,world.scene.vfx.audioResponse);
 });
-test('malformed or future curve data is rejected before replacing a saved world',()=>{
- for(const corrupt of [{...defaultAudioResponse(),version:2},{...defaultAudioResponse(),light:{loudness:[1],recurrence:makeCurve(()=>1)}},{...defaultAudioResponse(),bounce:{loudness:makeCurve(()=>1),recurrence:Array(16).fill(NaN)}}]){
-  assert.throws(()=>validateAudioResponse(corrupt),/audio response/);
-  const world=emptyWorld();world.scene.vfx.audioResponse=corrupt;assert.throws(()=>validateWorld(world),/audio response/);
+test('invalid settings and future formats are rejected before replacing saved data',()=>{
+ for(const corrupt of [{...defaultAudioResponse(),version:3},{...defaultAudioResponse(),lightMax:NaN},{...defaultAudioResponse(),bounceMax:1},{...defaultAudioResponse(),cooldownMs:-1},{...defaultAudioResponse(),retiredCurves:{version:1}},{...oldCurves(),light:{loudness:[1],recurrence:Array(16).fill(1)}}]){
+  assert.throws(()=>validateAudioResponse(corrupt),/audio response/);const world=emptyWorld();world.scene.vfx.audioResponse=corrupt;assert.throws(()=>validateWorld(world),/audio response/);
  }
 });

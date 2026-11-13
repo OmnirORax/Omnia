@@ -1,11 +1,11 @@
 import {readSystemAudioPreference,saveSystemAudioPreference,pauseRememberedSystemAudio,forgetSystemAudioPreference,validPairingCode} from './systemAudioPreference.ts';
 import {pcmWorkletSource,systemAudioOriginSupported,systemAudioRequiresPairing} from './nativePcm.ts';
 import {createNativeAudioTransport} from './nativeAudioTransport.ts';
-import {createAudioResponse,rmsLevel,type AudioResponse,RESPONSE_HZ} from './audioResponse.ts';
+import {createAudioResponse,createAudioMeasurement,type AudioResponse,RESPONSE_HZ} from './audioResponse.ts';
 /** Live PCM is ephemeral; remembered connection credentials stay device-local. */
 let context:AudioContext|null=null,source:AudioNode|null=null,splitter:ChannelSplitterNode|null=null;
 let analysers:AnalyserNode[]=[];
-const response=createAudioResponse(),samples=[new Float32Array(512),new Float32Array(512)];
+const response=createAudioResponse(),measure=createAudioMeasurement(),samples=[new Float32Array(512),new Float32Array(512)];
 let responseTimer:ReturnType<typeof setInterval>|undefined;
 export const readSceneAudioResponse=()=>response.result;
 export const configureSceneAudioResponse=(settings:AudioResponse)=>response.configure(settings);
@@ -16,7 +16,7 @@ function startResponse(){
   if(analysers.length!==2||!context||context.state!=='running')return;
   const now=performance.now()/1000;if(!response.due(now))return;
   for(let channel=0;channel<2;channel++)analysers[channel].getFloatTimeDomainData(samples[channel]);
-  response.sample(rmsLevel(samples),now);
+  const measured=measure(samples,context.sampleRate);response.sample(measured.rms,now,measured.pattern);
  },1000/RESPONSE_HZ);
 }
 let cleanupNative:(()=>void)|undefined;

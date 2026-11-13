@@ -84,9 +84,9 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
     const dt=last?Math.min(.1,(now-last)/1000):0;last=now;elapsed+=dt;
     const audio=readSceneAudioResponse();
     material.uniforms.time.value=elapsed;
-    material.uniforms.light.value=2*audio.light;
+    material.uniforms.light.value=audio.light;
     // Wave audio response is temporarily disabled; keep authored displacement unchanged.
-    material.uniforms.bounce.value=1+.5*audio.bounce;
+    material.uniforms.bounce.value=1+audio.bounce;
     requestPaint();schedule();
   };
   const visibility=()=>{cancel();schedule();};

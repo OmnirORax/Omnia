@@ -1,109 +1,81 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createAudioResponse,defaultAudioResponse,responseStrength,RESPONSE_HZ,HISTORY_SECONDS,LOUDNESS_BINS} from '../src/scene/audioResponse.ts';
-import {curveValue,makeCurve,CURVE_POINTS} from '../src/properties/curve.ts';
-import {paintCurve} from '../src/ui/curve.ts';
-const flat=value=>makeCurve(()=>value);
-const constantResponse=()=>({version:1,light:{loudness:flat(1),recurrence:flat(1)},bounce:{loudness:flat(1),recurrence:flat(1)}});
+import {createAudioResponse,defaultAudioResponse,createAudioMeasurement,RESPONSE_HZ} from '../src/scene/audioResponse.ts';
+const settings=()=>({version:2,lightMax:2,bounceMax:.4,cooldownMs:1000});
+function hit(engine,at,amplitude=.1,pattern=0){if(at>0)engine.sample(0,at-1/60,pattern);return engine.sample(amplitude,at,pattern);}
 
-test('curve interpolation includes both ends and independently shapes loudness and recurrence',()=>{
- const response={loudness:makeCurve(x=>x),recurrence:makeCurve(x=>1-x)};
- assert.equal(curveValue(response.loudness,0),0);assert.equal(curveValue(response.loudness,1),1);
- assert.ok(Math.abs(responseStrength(response,.8,.75)-.2)<1e-12);
- assert.equal(responseStrength({loudness:flat(1),recurrence:flat(1)},0,0),0);
+test('same pattern is blocked from its last reaction; rejected repeats do not restart cooldown',()=>{
+ const e=createAudioResponse(settings());assert.equal(hit(e,0).reacted,true);
+ for(const t of [.2,.4,.6,.8,.98])assert.equal(hit(e,t).reacted,false);
+ assert.equal(hit(e,1).reacted,true);assert.equal(hit(e,1.2).reacted,false);
+ assert.equal(hit(e,2).reacted,true);
 });
-test('drawing a range includes its endpoints, clamps strength and preserves other points',()=>{
- const source=flat(.5),next=paintCurve(source,{x:3/15,y:0},{x:10/15,y:1});
- assert.equal(next[3],0);assert.equal(next[10],1);assert.equal(next[2],.5);assert.equal(next[11],.5);
- assert.equal(source[3],.5);assert.ok(paintCurve(source,{x:10/15,y:1},{x:3/15,y:0}).every((v,i)=>Math.abs(v-next[i])<1e-12));
- assert.equal(paintCurve(source,{x:0,y:-10})[0],0);assert.equal(paintCurve(source,{x:1,y:10})[CURVE_POINTS-1],1);
+test('different patterns have independent timers, and neighboring signatures remain blocked',()=>{
+ const e=createAudioResponse(settings());assert.equal(hit(e,0,.1,9).reacted,true);
+ assert.equal(hit(e,.1,.1,18).reacted,false);
+ assert.equal(hit(e,.2,.1,63).reacted,true);
+ assert.equal(hit(e,.3,.1,9).reacted,false);assert.equal(hit(e,.4,.1,63).reacted,false);
 });
-test('loudness follows input amplitude on a fixed -60 to 0 dB scale',()=>{
- const engine=createAudioResponse(constantResponse());
- assert.equal(engine.sample(.001,0).loudness,0);
- assert.ok(Math.abs(engine.sample(.01,1/60).loudness-1/3)<1e-12);
- assert.ok(Math.abs(engine.sample(.1,2/60).loudness-2/3)<1e-12);
- assert.equal(engine.sample(1,3/60).loudness,1);
+test('attack strength is proportional to absolute intensity, rather than relative rise size',()=>{
+ const e=createAudioResponse({...settings(),cooldownMs:0});hit(e,0,.2);
+ const r=hit(e,1,.1);assert.equal(r.intensity,.5);assert.equal(r.light,1);assert.equal(r.bounce,.2);
+ e.sample(.11,2);assert.ok(Math.abs(e.result.light-1.1)<1e-12);assert.ok(Math.abs(e.result.bounce-.22)<1e-12);
 });
-test('repetition is elapsed-time occupancy of similar loudness, not spectral pitch',()=>{
- const engine=createAudioResponse(constantResponse());
- const first=engine.sample(.1,0).recurrence;assert.equal(first,1/(RESPONSE_HZ*HISTORY_SECONDS));
- for(let i=1;i<RESPONSE_HZ*HISTORY_SECONDS;i++)engine.sample(.1,i/RESPONSE_HZ);
- assert.equal(engine.result.recurrence,1);
- for(let i=480;i<960;i++)engine.sample(i%6===0?.1:0,i/RESPONSE_HZ);
- assert.ok(Math.abs(engine.result.counts.reduce((a,b)=>a+b,0)/engine.result.samples-1/6)<1e-12);
+test('recent strongest input reaches both configured maxima and adapts after it ages out',()=>{
+ const e=createAudioResponse(settings());let r=hit(e,0,.8);assert.equal(r.light,2);assert.equal(r.bounce,.4);
+ r=hit(e,2,.08);assert.ok(Math.abs(r.light-.2)<1e-12);
+ e.sample(0,8.1);r=hit(e,9,.08);assert.equal(r.light,2);assert.equal(r.bounce,.4);
 });
-test('repeated attacks can be suppressed independently by recurrence curves',()=>{
- const settings=constantResponse();settings.light.recurrence=makeCurve(x=>1-x);
- const engine=createAudioResponse(settings);
- for(let i=0;i<4800;i++)engine.sample(i%6===0?0:.1,i/60);
- engine.sample(0,4800/60);engine.sample(.1,4801/60);
- assert.ok(engine.result.light<engine.result.bounce*.2);assert.equal(engine.result.bounce,1);
+test('faint detail is not discarded by a loudness cutoff; silence causes no reaction',()=>{
+ const e=createAudioResponse(settings());hit(e,0,.1,0);
+ const r=hit(e,1,.00001,63);assert.equal(r.reacted,true);assert.ok(r.light>0&&r.light<.001);
+ e.reset();assert.equal(e.sample(0,0).reacted,false);assert.equal(e.result.light,0);
 });
-test('a muted loudness range contributes nothing, with independent light and bounce settings',()=>{
- const settings=constantResponse();settings.light.loudness=flat(0);
- const engine=createAudioResponse(settings);
- engine.sample(.1,0);
- assert.equal(engine.result.light,0);assert.equal(engine.result.bounce,1);
+test('steady levels do not hold or retrigger effects, and delayed reads release by elapsed time',()=>{
+ const e=createAudioResponse(settings());hit(e,0);
+ for(let i=1;i<120;i++){e.sample(.1,i/60);assert.equal(e.result.reacted,false);}
+ assert.equal(e.result.light,0);assert.equal(e.result.bounce,0);
+ e.reset();hit(e,0);e.sample(.1,.75);assert.ok(e.result.light<.0002);
 });
-test('silence and invalid levels release output and never create a new pulse',()=>{
- const engine=createAudioResponse(constantResponse());
- for(let i=0;i<10;i++)engine.sample(1,i/60);
- for(let i=10;i<160;i++)engine.sample(i%2?NaN:0,i/60);
- assert.equal(engine.result.light,0);assert.equal(engine.result.bounce,0);assert.equal(engine.result.loudness,0);
- engine.reset();assert.equal(engine.sample(Infinity,0).light,0);
+test('zero cooldown allows every new attack; changing cooldown retains accepted timestamps',()=>{
+ const e=createAudioResponse({...settings(),cooldownMs:0});assert.equal(hit(e,0).reacted,true);assert.equal(hit(e,.1).reacted,true);
+ e.configure({...settings(),cooldownMs:2000});assert.equal(hit(e,1).reacted,false);
+ assert.equal(hit(e,2.1).reacted,true);
 });
-test('duplicate render/frame reads cannot increase repetition or change response',()=>{
- const a=createAudioResponse(),b=createAudioResponse();
- for(let i=0;i<1000;i++){
-  a.sample(i%7<2?.1:0,i/60);b.sample(i%7<2?.1:0,i/60);b.sample(.9,i/60+.0001);
- }
- assert.deepEqual(a.result,b.result);
+test('muted effects do not consume a reaction timer and settings edits do not manufacture attacks',()=>{
+ const e=createAudioResponse({...settings(),lightMax:0,bounceMax:0});assert.equal(hit(e,0).reacted,false);
+ e.configure(settings());assert.equal(e.result.light,0);assert.equal(hit(e,.1).reacted,true);
+ e.configure({...settings(),lightMax:0});assert.equal(e.result.light,0);assert.equal(e.result.bounce,.4);
+ e.configure(settings());assert.equal(e.result.light,0);assert.equal(hit(e,.2).reacted,false);
 });
-test('history ages out, large gaps reset, and missing samples are not invented',()=>{
- const e=createAudioResponse();e.sample(.1,0);e.sample(.1,1);
- assert.equal(e.result.counts.reduce((a,b)=>a+b,0),2);
- e.sample(.1,20);assert.equal(e.result.recurrence,1/480);
- e.sample(.1,0);assert.equal(e.result.recurrence,1/480);
- e.reset();assert.equal(e.result.light,0);assert.equal(e.result.counts.reduce((a,b)=>a+b,0),0);
+test('a long sampling gap expires intensity history without prematurely clearing a longer cooldown',()=>{
+ const e=createAudioResponse({...settings(),cooldownMs:10000});assert.equal(hit(e,0).reacted,true);
+ assert.equal(hit(e,9).reacted,false);assert.equal(hit(e,10).reacted,true);
+ e.reset();assert.equal(hit(e,0).reacted,true);
 });
-test('live configuration preserves recent history and takes effect without waiting for adaptation',()=>{
- const e=createAudioResponse();for(let i=0;i<30;i++)e.sample(.1,i/60);
- const before=e.result.recurrence,settings=defaultAudioResponse();settings.light.loudness=flat(0);
- e.configure(settings);assert.equal(e.result.recurrence,before);assert.equal(e.result.light,0);
+test('sample slots are frame-independent and invalid input cannot inject an effect',()=>{
+ const a=createAudioResponse(settings()),b=createAudioResponse(settings());
+ for(let i=0;i<1200;i++){const level=i%6<3?.1:0;a.sample(level,i/60,18);b.sample(level,i/60,18);b.sample(.9,i/60+.0001,63);}
+ assert.deepEqual(a.result,b.result);a.reset();a.sample(NaN,0);assert.equal(a.result.reacted,false);
+ a.sample(Infinity,1);assert.equal(a.result.light,0);a.sample(.1,NaN);assert.equal(a.result.light,0);
 });
-test('long sessions keep fixed storage, a reused output object and bounded values',()=>{
- const e=createAudioResponse(),result=e.result,counts=result.counts;
- for(let i=0;i<60000;i++){const r=e.sample((i%137)/136,i/60);assert.equal(r,result);assert.equal(r.counts,counts);assert.ok(r.light>=0&&r.light<=1&&r.bounce>=0&&r.bounce<=1&&r.recurrence>=0&&r.recurrence<=1);}
- assert.equal(counts.length,LOUDNESS_BINS);assert.ok(counts.reduce((a,b)=>a+b,0)<=480);
+test('stereo measurement preserves opposite-phase energy and uses a reused result',()=>{
+ const measure=createAudioMeasurement();let r=measure([new Float32Array([.5,-.5]),new Float32Array([-.5,.5])],48000);
+ assert.equal(r.rms,.5);const before=r;
+ r=measure([new Float32Array([1,1]),new Float32Array([0,0])],48000);assert.equal(r,before);assert.ok(Math.abs(r.rms-Math.SQRT1_2)<1e-12);
 });
-test('loudness combines stereo energy without cancellation or channel-maximum bias',async()=>{
- const {rmsLevel}=await import('../src/scene/audioResponse.ts');
- assert.equal(rmsLevel([new Float32Array([.5,-.5]),new Float32Array([-.5,.5])]),.5);
- assert.ok(Math.abs(rmsLevel([new Float32Array([1,1]),new Float32Array([0,0])])-Math.SQRT1_2)<1e-12);
- assert.equal(rmsLevel([new Float32Array([0,0])]),0);assert.equal(rmsLevel([]),0);
+test('coarse waveform signatures distinguish separated patterns and survive volume changes',()=>{
+ const measure=createAudioMeasurement(),wave=(hz,gain)=>new Float32Array(Array.from({length:512},(_,i)=>gain*Math.sin(2*Math.PI*hz*i/48000)));
+ const low=measure([wave(110,.2),wave(110,.2)],48000).pattern;
+ const quieter=measure([wave(110,.02),wave(110,.02)],48000).pattern;
+ const high=measure([wave(4000,.2),wave(4000,.2)],48000).pattern;
+ assert.equal(low,quieter);assert.ok(Math.abs(Math.floor(low/8)-Math.floor(high/8))>1);
 });
-test('a sustained level attacks immediately and releases instead of holding either effect',()=>{
- const e=createAudioResponse(constantResponse());e.sample(.1,0);
- assert.equal(e.result.light,1);assert.equal(e.result.bounce,1);
- const output=[e.result.light];for(let i=1;i<90;i++){e.sample(.1,i/60);output.push(e.result.light);}
- assert.ok(output[6]<.3);assert.equal(output.at(-1),0);assert.equal(e.result.bounce,0);
- assert.ok(output.every((value,i)=>!i||value<=output[i-1]));
+test('long sessions keep bounded outputs and fixed result storage',()=>{
+ const e=createAudioResponse(settings()),result=e.result;
+ for(let i=0;i<60000;i++){assert.equal(e.sample((i%137)/136,i/RESPONSE_HZ,i%64),result);assert.ok(result.light>=0&&result.light<=2&&result.bounce>=0&&result.bounce<=.4&&result.intensity>=0&&result.intensity<=1);}
+ assert.deepEqual(defaultAudioResponse(1.5,1.2),{version:2,lightMax:1.5,bounceMax:.2,cooldownMs:1000});
 });
-test('new rises retrigger from an existing sustained level, with relative attack strength',()=>{
- const e=createAudioResponse(constantResponse());for(let i=0;i<120;i++)e.sample(.1,i/60);
- assert.equal(e.result.light,0);e.sample(.2,2);assert.equal(e.result.light,.5);
- for(let i=121;i<240;i++)e.sample(.2,i/60);
- assert.equal(e.result.light,0);e.sample(.21,4);assert.ok(e.result.light>0&&e.result.light<.05);
-});
-test('editing response curves does not create a held level or retrigger an expired attack',()=>{
- const e=createAudioResponse(constantResponse());for(let i=0;i<120;i++)e.sample(.1,i/60);
- e.configure(constantResponse());assert.equal(e.result.light,0);
- e.sample(0,2);e.sample(.1,121/60);assert.equal(e.result.light,1);
- const muted=constantResponse();muted.light.loudness=flat(0);e.configure(muted);assert.equal(e.result.light,0);assert.equal(e.result.bounce,1);
- e.configure(constantResponse());assert.equal(e.result.light,0);
-});
-test('a delayed sample releases by elapsed time instead of extending the hold',()=>{
- const e=createAudioResponse(constantResponse());e.sample(.1,0);e.sample(.1,.75);
- assert.ok(e.result.light<.0001);assert.ok(e.result.bounce<.0001);
+test('even quiet dominant attacks reach the chosen maximum without an artificial gain floor',()=>{
+ const e=createAudioResponse(settings());const r=hit(e,0,.00001);assert.equal(r.intensity,1);assert.equal(r.light,2);assert.equal(r.bounce,.4);
 });

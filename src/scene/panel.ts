@@ -1,4 +1,4 @@
-import { responseEditor } from './responseEditor.ts';
+import { audioControls } from './audioControls.ts';
 import { normalizeSceneVfx } from './vfx.ts';
 import { panel } from '../ui/panel.ts';
 import { field } from '../ui/fields.ts';
@@ -115,9 +115,9 @@ export function scenePanel(host: Host) {
     clear();
     const code = document.createElement('input'); code.type = 'password'; code.placeholder = 'Helper pairing code'; code.setAttribute('aria-label', 'System audio pairing code'); code.autocomplete = 'off'; code.value = readSystemAudioPreference()?.code ?? ''; body.append(code);
     button('System audio', () => toggleSceneSystemAudio(code.value)); button('Forget connection', () => { forgetSceneSystemAudio(); code.value = ''; });
-    const response=responseEditor({
+    const response=audioControls({
       read:()=>normalizeSceneVfx(host.read().scene?.vfx).audioResponse,
-      commit:(target,dimension,value)=>update(settings=>{const vfx=normalizeSceneVfx(settings.vfx);settings.vfx={...vfx,audioResponse:{...vfx.audioResponse,[target]:{...vfx.audioResponse[target],[dimension]:[...value]}}};}),
+      write:(value,group)=>update(settings=>{settings.vfx={...normalizeSceneVfx(settings.vfx),audioResponse:value};},group),
       subscribe:host.subscribe,
       error:error=>host.feedback(error instanceof Error?error.message:String(error)),
     });

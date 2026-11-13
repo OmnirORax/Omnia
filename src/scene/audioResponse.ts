@@ -1,80 +1,89 @@
-import { curveValue, makeCurve, validCurve, type Curve } from '../properties/curve.ts';
-
-export const RESPONSE_HZ = 60, HISTORY_SECONDS = 8, LOUDNESS_BINS = 32;
-const TARGETS=['light','bounce'] as const;
-const WINDOW = RESPONSE_HZ*HISTORY_SECONDS;
-export type Response = { loudness: Curve; recurrence: Curve };
-export type AudioResponse = { version: 1; light: Response; bounce: Response };
-export function defaultAudioResponse(light = 1.7, bounce = 1.3): AudioResponse {
-  const response = (amount: number): Response => ({ loudness:makeCurve(x => Math.max(0,(x-.4)/.6)*amount),recurrence:makeCurve(x => 1-x) });
-  return {version:1,light:response(Math.max(0,Math.min(1,light/2))),bounce:response(Math.max(0,Math.min(1,(bounce-1)/.5)))};
+export const RESPONSE_HZ = 60, HISTORY_SECONDS = 8;
+const WINDOW=RESPONSE_HZ*HISTORY_SECONDS, PATTERN_AXIS=8, PATTERNS=PATTERN_AXIS*PATTERN_AXIS;
+type LegacyCurve=readonly number[];
+type LegacyResponse={version:1;light:{loudness:LegacyCurve;recurrence:LegacyCurve};bounce:{loudness:LegacyCurve;recurrence:LegacyCurve}};
+export type AudioResponse={version:2;lightMax:number;bounceMax:number;cooldownMs:number;retiredCurves?:LegacyResponse};
+const finite=(value:unknown,min:number,max:number):value is number=>typeof value==='number'&&Number.isFinite(value)&&value>=min&&value<=max;
+function legacy(value:unknown):value is LegacyResponse{
+ const v=value as LegacyResponse;
+ const curve=(x:unknown):x is LegacyCurve=>Array.isArray(x)&&x.length===16&&x.every(n=>finite(n,0,1));
+ return !!v&&v.version===1&&!!v.light&&!!v.bounce&&curve(v.light.loudness)&&curve(v.light.recurrence)&&curve(v.bounce.loudness)&&curve(v.bounce.recurrence);
 }
-export function validateAudioResponse(value: unknown): asserts value is AudioResponse {
-  const v = value as AudioResponse;
-  if (!v || v.version !== 1 || !v.light || !v.bounce || !validCurve(v.light.loudness) || !validCurve(v.light.recurrence) || !validCurve(v.bounce.loudness) || !validCurve(v.bounce.recurrence)) throw Error('Unsupported or invalid audio response curves.');
+export function validateAudioResponse(value:unknown):asserts value is AudioResponse|LegacyResponse{
+ const v=value as AudioResponse;
+ if(legacy(value))return;
+ if(!v||v.version!==2||!finite(v.lightMax,0,2)||!finite(v.bounceMax,0,.5)||!finite(v.cooldownMs,0,10000)||(v.retiredCurves!==undefined&&!legacy(v.retiredCurves)))throw Error('Unsupported or invalid audio response settings.');
 }
-export function audioResponse(value: unknown, light?: number, bounce?: number): AudioResponse {
-  if (value === undefined) return defaultAudioResponse(light,bounce);
-  validateAudioResponse(value);
-  return {version:1,light:{loudness:[...value.light.loudness],recurrence:[...value.light.recurrence]},bounce:{loudness:[...value.bounce.loudness],recurrence:[...value.bounce.recurrence]}};
+export function defaultAudioResponse(light=1.7,bounce=1.3):AudioResponse{
+ return{version:2,lightMax:Math.max(0,Math.min(2,light)),bounceMax:Math.max(0,Math.min(.5,Math.round((bounce-1)*1000)/1000)),cooldownMs:1000};
 }
-export function responseStrength(response: Response, loudness: number, recurrence: number) {
-  return loudness > 0 ? curveValue(response.loudness,loudness)*curveValue(response.recurrence,recurrence) : 0;
+export function audioResponse(value:unknown,light?:number,bounce?:number):AudioResponse{
+ if(value===undefined)return defaultAudioResponse(light,bounce);
+ validateAudioResponse(value);
+ if(value.version===1)return{version:2,lightMax:2*Math.max(...value.light.loudness)*Math.max(...value.light.recurrence),bounceMax:.5*Math.max(...value.bounce.loudness)*Math.max(...value.bounce.recurrence),cooldownMs:1000,retiredCurves:structuredClone(value)};
+ return{...value,...(value.retiredCurves?{retiredCurves:structuredClone(value.retiredCurves)}:{})};
 }
-/** Combine channel energy before taking RMS; phase-opposed stereo must not cancel. */
-export function rmsLevel(channels: readonly Float32Array[]): number {
-  let sum=0,count=0;
-  for(const channel of channels){for(let i=0;i<channel.length;i++)sum+=channel[i]*channel[i];count+=channel.length;}
-  return count?Math.sqrt(sum/count):0;
-}
-/** One RMS input, a 480-entry ring and 32 counters; no spectrum or sound classification. */
-export function createAudioResponse(initial = defaultAudioResponse()) {
-  let settings = initial, cursor = 0, slot = -1, previousAmplitude = 0;
-  const events={light:{loudness:0,recurrence:0,gain:0},bounce:{loudness:0,recurrence:0,gain:0}};
-  const ring = new Int8Array(WINDOW).fill(-1), counts = new Uint16Array(LOUDNESS_BINS);
-  const result = { loudness:0,recurrence:0,light:0,bounce:0,counts,samples:WINDOW };
-  function reset() { ring.fill(-1);counts.fill(0);cursor=0;slot=-1;previousAmplitude=0;for(const key of TARGETS)events[key].loudness=events[key].recurrence=events[key].gain=0;result.loudness=result.recurrence=result.light=result.bounce=0; }
-  function insert(bin: number) {
-    const old = ring[cursor];if (old >= 0) counts[old]--;
-    ring[cursor] = bin;if (bin >= 0) counts[bin]++;
-    cursor = (cursor+1)%WINDOW;
+/** Reused measurement storage; waveform crossings and crest distinguish coarse patterns without FFT. */
+export function createAudioMeasurement(){
+ const result={rms:0,pattern:0};
+ return(channels:readonly Float32Array[],sampleRate:number)=>{
+  let sum=0,count=0,peak=0,crossings=0,intervals=0;
+  for(const channel of channels){
+   for(let i=0;i<channel.length;i++){const v=channel[i];sum+=v*v;peak=Math.max(peak,Math.abs(v));if(i&&((v>=0)!==(channel[i-1]>=0)))crossings++;}
+   count+=channel.length;intervals+=Math.max(0,channel.length-1);
   }
-  return {
-    result, reset,
-    due(now: number) { return Number.isFinite(now) && Math.floor(now*RESPONSE_HZ+1e-6) !== slot; },
-    configure(value: AudioResponse) {
-      settings = value;
-      // Reweight an existing tail, never manufacture an attack from a settings edit.
-      for(const key of TARGETS){
-        const event=events[key], gain=responseStrength(settings[key],event.loudness,event.recurrence);
-        result[key]=event.gain>0?Math.min(1,result[key]*gain/event.gain):0;event.gain=gain;
-      }
-    },
-    sample(rms: number, now: number) {
-      if (!Number.isFinite(now)) return result;
-      const next = Math.floor(now*RESPONSE_HZ+1e-6);if (next === slot) return result;
-      if (slot >= 0 && (next < slot || next-slot >= WINDOW)) reset();
-      const elapsed = slot < 0 ? 1/RESPONSE_HZ : (next-slot)/RESPONSE_HZ;
-      // Missing samples are unknown, rather than invented repeated sounds.
-      if (slot >= 0) for (let i=slot+1;i<next;i++) insert(-1);
-      slot = next;
-      const amplitude = Number.isFinite(rms) ? Math.max(0,Math.min(1,rms)) : 0;
-      result.loudness = amplitude > .001 ? Math.max(0,Math.min(1,(20*Math.log10(amplitude)+60)/60)) : 0;
-      const bin = result.loudness > 0 ? Math.min(LOUDNESS_BINS-1,Math.floor(result.loudness*LOUDNESS_BINS)) : -1;
-      insert(bin);
-      // Neighbor buckets avoid a discontinuity when nearly equal levels straddle an edge.
-      result.recurrence = bin < 0 ? 0 : ((counts[bin-1]??0)+counts[bin]+(counts[bin+1]??0))/WINDOW;
-      // Relative positive waveform-energy rises are attacks; a plateau adds no energy.
-      const attack=amplitude>previousAmplitude?(amplitude-previousAmplitude)/amplitude:0;
-      previousAmplitude=amplitude;
-      const release=Math.exp(-elapsed/.08);
-      for (const key of TARGETS) {
-        const gain=responseStrength(settings[key],result.loudness,result.recurrence), trigger=gain*attack;
-        result[key]*=release;
-        if(trigger>result[key]){result[key]=trigger;events[key].loudness=result.loudness;events[key].recurrence=result.recurrence;events[key].gain=gain;}
-        if (result[key] < .00001) result[key] = 0;
-      }
-      return result;
-    },
-  };
+  result.rms=count?Math.sqrt(sum/count):0;
+  const hz=intervals?crossings/intervals*sampleRate/2:0;
+  const band=Math.max(0,Math.min(7,Math.floor(Math.log2(Math.max(1,hz/55))))),crest=result.rms?peak/result.rms:1;
+  const shape=Math.max(0,Math.min(7,Math.floor((crest-1)*2)));
+  result.pattern=band*PATTERN_AXIS+shape;return result;
+ };
+}
+/** Fixed storage, per-pattern accepted timestamps, and a recent peak reference. */
+export function createAudioResponse(initial=defaultAudioResponse()){
+ let settings=initial,slot=-1,cursor=0,peak=0,previous=0;
+ const levels=new Float64Array(WINDOW),lastReaction=new Float64Array(PATTERNS).fill(-Infinity);
+ const result={intensity:0,light:0,bounce:0,reacted:false};
+ function clearLevels(){levels.fill(0);cursor=0;peak=0;previous=0;}
+ function reset(){clearLevels();lastReaction.fill(-Infinity);slot=-1;result.intensity=result.light=result.bounce=0;result.reacted=false;}
+ function insert(level:number){
+  const expired=levels[cursor];levels[cursor]=level;cursor=(cursor+1)%WINDOW;
+  if(level>=peak)peak=level;
+  else if(expired>=peak){peak=0;for(let i=0;i<WINDOW;i++)peak=Math.max(peak,levels[i]);}
+ }
+ return{
+  result,reset,
+  due(now:number){return Number.isFinite(now)&&Math.floor(now*RESPONSE_HZ+1e-6)!==slot;},
+  configure(value:AudioResponse){
+   if(settings.lightMax!==value.lightMax)result.light=settings.lightMax?Math.min(value.lightMax,result.light*value.lightMax/settings.lightMax):0;
+   if(settings.bounceMax!==value.bounceMax)result.bounce=settings.bounceMax?Math.min(value.bounceMax,result.bounce*value.bounceMax/settings.bounceMax):0;
+   settings=value;
+  },
+  sample(rms:number,now:number,pattern=0){
+   if(!Number.isFinite(now)||now<0)return result;
+   const next=Math.floor(now*RESPONSE_HZ+1e-6);if(next===slot)return result;
+   if(slot>=0&&next<slot)reset();
+   const elapsed=slot<0?1/RESPONSE_HZ:(next-slot)/RESPONSE_HZ;
+   if(slot>=0&&next-slot>=WINDOW)clearLevels();
+   else if(slot>=0)for(let i=slot+1;i<next;i++)insert(0);
+   slot=next;result.reacted=false;
+   const amplitude=Number.isFinite(rms)?Math.max(0,Math.min(1,rms)):0;
+   insert(amplitude);result.intensity=peak>0?amplitude/peak:0;
+   const release=Math.exp(-elapsed/.08);result.light*=release;result.bounce*=release;
+   const rising=amplitude-previous>1e-7;previous=amplitude;
+   if(rising&&(settings.lightMax>0||settings.bounceMax>0)){
+    const index=Number.isFinite(pattern)?Math.max(0,Math.min(PATTERNS-1,Math.floor(pattern))):0;
+    const band=Math.floor(index/PATTERN_AXIS),shape=index%PATTERN_AXIS;
+    let accepted=-Infinity;
+    for(let a=Math.max(0,band-1);a<=Math.min(7,band+1);a++)for(let b=Math.max(0,shape-1);b<=Math.min(7,shape+1);b++)accepted=Math.max(accepted,lastReaction[a*PATTERN_AXIS+b]);
+    if(now-accepted+1e-9>=settings.cooldownMs/1000){
+     lastReaction[index]=now;result.reacted=true;
+     result.light=Math.max(result.light,result.intensity*settings.lightMax);
+     result.bounce=Math.max(result.bounce,result.intensity*settings.bounceMax);
+    }
+   }
+   if(result.light<1e-7)result.light=0;if(result.bounce<1e-7)result.bounce=0;
+   return result;
+  },
+ };
 }
