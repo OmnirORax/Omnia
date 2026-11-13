@@ -93,7 +93,7 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
       finally{material.uniforms.worldLayer.value=null;material.uniforms.compositeWorld.value=0;}
     },
     configure(value:SceneVfx){
-      settings=normalizeSceneVfx(value);configureSceneAudioResponse(settings.audioResponse);
+      settings=normalizeSceneVfx(value);configureSceneAudioResponse(settings);
       for(const {key} of WAVE_CONTROLS)material.uniforms[key].value=settings[key];
       for(const key of ['pulseTintLow','pulseTintHigh','imageTint'] as const){
         const rgb=new THREE.Color(settings[key]).getRGB({r:0,g:0,b:0},THREE.SRGBColorSpace);

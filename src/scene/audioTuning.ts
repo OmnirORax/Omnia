@@ -1,4 +1,4 @@
-/** Retired tuning values, preserved for saved-data recovery; no active controls or analysis. */
+/** Shared tuning definitions; only the light envelope/noise subset is active. */
 export const AUDIO_TUNING_CONTROLS = [
  {key:'audioNoiseFloor',label:'Noise floor',initial:.01,min:0,max:.1,step:.001},
  {key:'audioNoiseKnee',label:'Noise soft knee',initial:.02,min:.001,max:.2,step:.001},
@@ -27,3 +27,7 @@ export const AUDIO_TUNING_DEFAULTS: Readonly<AudioTuning> = Object.freeze(Object
 export function normalizeAudioTuning(raw: Record<string,unknown>): AudioTuning {
  return Object.fromEntries(AUDIO_TUNING_CONTROLS.map(c=>[c.key,typeof raw[c.key]==='number'&&Number.isFinite(raw[c.key])?Math.max(c.min,Math.min(c.max,raw[c.key] as number)):c.initial])) as AudioTuning;
 }
+
+export const LIGHT_RESPONSE_KEYS=['pulseSensitivity','pulseDropContrast','audioNoiseFloor','audioNoiseKnee','pulseDuration','pulseAttackFraction'] as const;
+export type LightResponseTuning=Pick<AudioTuning,'audioNoiseFloor'|'audioNoiseKnee'|'pulseDuration'|'pulseAttackFraction'>&{pulseSensitivity:number;pulseDropContrast:number};
+export const LIGHT_TUNING_CONTROLS=AUDIO_TUNING_CONTROLS.filter(control=>LIGHT_RESPONSE_KEYS.some(key=>key===control.key));

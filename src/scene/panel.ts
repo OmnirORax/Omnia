@@ -1,3 +1,4 @@
+import {LIGHT_RESPONSE_KEYS} from './audioTuning.ts';
 import { DEFAULT_BACKGROUND } from './defaultBackground.ts';
 import { audioControls } from './audioControls.ts';
 import { normalizeSceneVfx } from './vfx.ts';
@@ -68,7 +69,7 @@ export function scenePanel(host: Host) {
       }, row).title = 'Delete image'; list.append(row);
     }
   }
-  function controls(group: 'waves' | 'pulse' | 'normalization' | 'prompt') {
+  function controls(group: 'waves' | 'pulse' | 'light' | 'normalization' | 'prompt') {
     clear();
     if (group === 'waves') {
       const row = document.createElement('div'); row.className = 'preset-row';
@@ -92,7 +93,8 @@ export function scenePanel(host: Host) {
       const state = { sceneVfx: host.read().scene?.vfx ?? defaultScene().vfx };
       for (const [key, binding] of Object.entries(vfxFunction.inputs)) {
         const wave = key === 'scene.waves' || key === 'scene.maxFps' || WAVE_CONTROLS.some(control => `scene.${control.key}` === key);
-        if(wave !== (group === 'waves')) continue;
+        const light=LIGHT_RESPONSE_KEYS.some(name=>`scene.${name}`===key);
+        if(group==='light'?!light:light||wave !== (group === 'waves')) continue;
         const input = field({ ...binding.definition, key }, binding.read(state)); form.append(input.row); values.push({ key, get: input.value });
 
       }
@@ -116,6 +118,7 @@ export function scenePanel(host: Host) {
     clear();
     const code = document.createElement('input'); code.type = 'password'; code.placeholder = 'Helper pairing code'; code.setAttribute('aria-label', 'System audio pairing code'); code.autocomplete = 'off'; code.value = readSystemAudioPreference()?.code ?? ''; body.append(code);
     button('System audio', () => toggleSceneSystemAudio(code.value)); button('Forget connection', () => { forgetSceneSystemAudio(); code.value = ''; });
+    button('Light tuning',()=>controls('light'));
     const response=audioControls({
       read:()=>normalizeSceneVfx(host.read().scene?.vfx).audioResponse,
       write:(value,group)=>update(settings=>{settings.vfx={...normalizeSceneVfx(settings.vfx),audioResponse:value};},group),

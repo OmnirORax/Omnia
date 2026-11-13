@@ -104,3 +104,27 @@ test('a new permitted attack starts from the existing tail without a discontinui
  assert.equal(e.read(t).light,before);assert.ok(e.read(t+ATTACK_SECONDS/2).light>before);
  near(e.read(t+ATTACK_SECONDS).light,2);
 });
+
+const lightTuning=()=>({pulseSensitivity:2,pulseDropContrast:1,audioNoiseFloor:0,audioNoiseKnee:.001,pulseDuration:300,pulseAttackFraction:.2});
+test('restored sensitivity and contrast shape light independently of bounce and cooldown',()=>{
+ const peakWith=tuning=>{const e=createAudioResponse(settings());e.configure(settings(),tuning);hit(e,0,.5);return {...hit(e,1,.1)};};
+ const original=peakWith(lightTuning()),sensitive=peakWith({...lightTuning(),pulseSensitivity:4}),contrast=peakWith({...lightTuning(),pulseDropContrast:2});
+ near(original.light,.4);near(sensitive.light,.8);near(contrast.light,.08);
+ for(const r of [original,sensitive,contrast]){near(r.bounce,.08);assert.equal(r.reacted,true);}
+ const e=createAudioResponse(settings());e.configure(settings(),{...lightTuning(),pulseSensitivity:8});hit(e,0);assert.equal(hit(e,.5,.1).reacted,false);assert.equal(hit(e,1,.1).reacted,true);
+});
+test('restored noise floor and soft knee affect light without filtering bounce',()=>{
+ const e=createAudioResponse(settings());e.configure(settings(),{...lightTuning(),audioNoiseFloor:.02,audioNoiseKnee:.02});
+ let r=hit(e,0,.01);near(r.light,0);near(r.bounce,.4);
+ r=hit(e,1,.03);near(r.light,1);near(r.bounce,.4);
+ r=hit(e,2,.04);near(r.light,2);near(r.bounce,.4);
+});
+test('light duration and rise fraction control its envelope while bounce retains its timing',()=>{
+ const e=createAudioResponse(settings());e.configure(settings(),{...lightTuning(),pulseDuration:1000,pulseAttackFraction:.5});
+ e.sample(.1,0);near(e.read(.25).light,1);near(e.read(.5).light,2);near(e.read(.75).light,1);near(e.read(1).light,0);
+ near(e.read(ATTACK_SECONDS).bounce,.4);near(e.read(ATTACK_SECONDS+RELEASE_SECONDS).bounce,0);
+});
+test('noise rejected with bounce muted does not consume the pattern timer',()=>{
+ const config={...settings(),bounceMax:0},e=createAudioResponse(config);e.configure(config,{...lightTuning(),audioNoiseFloor:.02});
+ assert.equal(hit(e,0,.01).reacted,false);assert.equal(hit(e,.1,.1).reacted,true);
+});

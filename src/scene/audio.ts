@@ -1,14 +1,15 @@
+import type {SceneVfx} from './vfx.ts';
 import {shouldStartSystemAudio,readSystemAudioPreference,saveSystemAudioPreference,pauseRememberedSystemAudio,forgetSystemAudioPreference,validPairingCode} from './systemAudioPreference.ts';
 import {pcmWorkletSource,systemAudioOriginSupported,systemAudioRequiresPairing} from './nativePcm.ts';
 import {createNativeAudioTransport} from './nativeAudioTransport.ts';
-import {createAudioResponse,createAudioMeasurement,type AudioResponse,RESPONSE_HZ} from './audioResponse.ts';
+import {createAudioResponse,createAudioMeasurement,RESPONSE_HZ} from './audioResponse.ts';
 /** Live PCM is ephemeral; remembered connection credentials stay device-local. */
 let context:AudioContext|null=null,source:AudioNode|null=null,splitter:ChannelSplitterNode|null=null;
 let analysers:AnalyserNode[]=[];
 const response=createAudioResponse(),measure=createAudioMeasurement(),samples=[new Float32Array(512),new Float32Array(512)];
 let responseTimer:ReturnType<typeof setInterval>|undefined;
 export const readSceneAudioResponse=()=>response.read(performance.now()/1000);
-export const configureSceneAudioResponse=(settings:AudioResponse)=>response.configure(settings);
+export const configureSceneAudioResponse=(settings:SceneVfx)=>response.configure(settings.audioResponse,settings);
 function stopResponse(){if(responseTimer!==undefined)clearInterval(responseTimer);responseTimer=undefined;response.reset();}
 function startResponse(){
  if(responseTimer!==undefined||!connected||!context||context.state!=='running'||document.hidden)return;
