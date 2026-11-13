@@ -80,3 +80,8 @@ header button.wordmark { width:auto; font-size:15px; }
   font-family:var(--visual-text-fontFamily,inherit);
   text-shadow:var(--visual-text-textShadow,inherit);
 }
+
+.transfer-parts { margin: 0; padding: 4px; min-width: 0; }
+.transfer-parts > div { max-height: 40svh; overflow: auto; }
+.transfer-parts label { display: flex; align-items: center; gap: 4px; min-height: 24px; }
+.transfer-parts input[type="checkbox"] { width: auto; margin: 0; }
