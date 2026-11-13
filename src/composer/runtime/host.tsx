@@ -11,9 +11,11 @@ import {ContextTargetController} from './ui/ContextTargetController';
 import {ValueFieldBehavior} from './ui/ValueFieldBehavior';
 import {defaultSettings} from './workspaceActions';
 import {type Controller} from './appearance/model';
+import {useCursorTracking} from './ui/cursorPosition';
 const unavailable=()=>{};
 /** Host the original interaction systems without the V1 UI-authoring application. */
 export function ComposerRuntime({children,functions=[]}:{children:ReactNode;functions?:UIFunction[]}){
+ useCursorTracking();
  const [layout,setLayout]=useState(emptyUILayout),[registered,setRegistered]=useState<Record<string,UIFunction>>({}),[controller,setController]=useState<Controller|undefined>();
  const sources=useRef(new Map<string,Map<symbol,UIFunction>>()),live=useRef(true);
  const [publish]=useState(()=>createRegistrationBatch<UIFunction>(patch=>{if(live.current)setRegistered(old=>Object.entries(patch).every(([key,value])=>old[key]===value)?old:{...old,...patch});}));

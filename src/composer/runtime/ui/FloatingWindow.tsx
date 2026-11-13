@@ -1,6 +1,6 @@
 import {residentRenderSlice} from './renderSubscriptions';
 import { activateFrameContext } from "./ActiveContext";
-import { useEffect, useLayoutEffect, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
 import { Rnd } from "react-rnd";
 import { createPortal } from "react-dom";
 import { fitWindow, getContainer, ownerOf, releaseResident, reopenContainer, type WindowState } from "./layout";
@@ -67,6 +67,7 @@ export function FloatingWindow({
 }) {
   const ui = useUITracked(ui=>residentRenderSlice(ui,`window:${id}`));
   const { ref, bounds } = useFrameBounds();
+  const dragged=useRef(false);
   const initial: WindowState = {
     x: x ?? (window.innerWidth - width) / 2,
     y: y ?? Math.max(8, (window.innerHeight - height) / 2),
@@ -200,7 +201,7 @@ export function FloatingWindow({
         maxWidth={saved.floatingOverflow && !owner ? undefined : available.width}
         maxHeight={stacked || saved.floatingOverflow && !owner ? undefined : available.height}
         dragHandleClassName="floating-title"
-        cancel="button,input,select,a"
+        cancel="input,select,a,button:not([data-ui-frame-toggle])"
         disableDragging={!ui.canMove(key)}
         enableResizing={!state.viewport && !dockFill && !stacked && ui.canMove(key) && !state.collapsed}
         dragGrid={[8, 8]}
@@ -211,8 +212,10 @@ export function FloatingWindow({
           // must not raise the library/inspector that opened it above itself.
           event.stopPropagation();
           if (!(event.currentTarget instanceof Element) || !event.currentTarget.contains(event.target as Node)) return;
-          raise();
+          dragged.current=false;raise();
         }}
+        onDragStart={()=>{dragged.current=false;}}
+        onDrag={(_,data)=>{if(Math.hypot(data.x-visible.x,data.y-visible.y)>=3)dragged.current=true;}}
         onDragStop={(_, data) => { set({ x: data.x, y: data.y }); }}
         onResizeStop={(_, __, ref, ___, position) =>
           set({ width: ref.offsetWidth, height: ref.offsetHeight, ...(owner ? {} : position) })
@@ -225,6 +228,7 @@ export function FloatingWindow({
         <div
           ref={ref}
           onClickCapture={(event)=>{
+            if(dragged.current){dragged.current=false;event.preventDefault();event.stopPropagation();return;}
             // Shared window interaction commits only after the drag guard accepts
             // a click. Mouse-down may raise/focus a window, but cannot pin/activate it.
             if(!event.defaultPrevented&&event.currentTarget.contains(event.target as Node))onInteract?.();

@@ -145,12 +145,13 @@ export function FrameChrome({
         <div
           className={`ui-frame-handle ${style.mode === "icon" ? `icon-handle shape-${style.geometry}` : ""}`}
           data-ui-drag={fixed ? undefined : container}
-          draggable={!fixed && ui.canMove(container)}
+          draggable={container!=="window:omnic-composer"&&!fixed && ui.canMove(container)}
           onDragStart={(e) => startResidentDrag(e, container)}
           title={tooltip ?? (ui.layout.hideNames ? title : "")}
           data-ui-tooltip={tooltip}
         >
           <button
+            data-ui-frame-toggle=""
             data-ui-name={title}
             data-ui-symbol={nameSymbol(container, defaultTitle)}
             aria-label={`Toggle frame ${title}`}

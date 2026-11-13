@@ -2,6 +2,7 @@ import {glyphSurfacePoint,type OmnicSurface} from './omnic/surface.ts';
 import {createGlyphPresentation} from './omnic/presentation.ts';
 import {RENDER_BUDGET} from './renderBudget.ts';
 import * as T from 'three';
+import {pointerPlane} from './navigation/pointerPlane.ts';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { prepareWorld, sameOrigin, type Origin, type Structure, type Vec3, type World } from './core/model.ts';
 import { geometry, lattice, inherited, prepareTranslation, address as key, point, vector } from './core/lattice.ts';
@@ -217,7 +218,7 @@ export function createWorld(host: HTMLElement, input: Input) {
     controls.enabled=false;input.pick(origin,false,false);rebuildPicks();input.feedback('Driving · click an empty cell to park · Esc cancels');request();
   }
   function cancelDrive() { const active=drive.active;drive.cancel();mountedWorld=undefined;navigatorOffset.set(0,0,0);controls.enabled=true;edges.visible=true;rebuildPicks();request();return active; }
-  type Gesture={pointer:number;button:number;alt:boolean;start:Point;end:Point;origin?:Origin;edge?:Edge;anchor:T.Vector3;mode:'move'|'range'|'view'|'drive'|'paint';dragged:boolean;origins:readonly Origin[];moving?:Set<string>;resolve?:ReturnType<typeof import('./core/lattice.ts').prepareTranslation>};
+  type Gesture={pointer:number;button:number;alt:boolean;start:Point;end:Point;origin?:Origin;edge?:Edge;anchor:T.Vector3;mode:'move'|'range'|'view'|'drive'|'paint';dragged:boolean;origins:readonly Origin[];moving?:Set<string>;project?:ReturnType<typeof pointerPlane>;resolve?:ReturnType<typeof import('./core/lattice.ts').prepareTranslation>};
   let gesture:Gesture|undefined;
   let stroke:{points:Vec3[];seen:Set<string>;previous:Vec3;source?:Origin;preview:T.InstancedMesh}|undefined;
   function paintPoint(p: Point) {
@@ -241,7 +242,8 @@ export function createWorld(host: HTMLElement, input: Input) {
     }
     if(moving&&!event.altKey&&!selected.some(origin=>sameOrigin(origin,hit.origin!)))input.pick(hit.origin!,false,false);
     const anchor=hit.origin?visuals.get(key(hit.origin))!.group.position:controls.target;
-    gesture={pointer:event.pointerId,button:event.button,alt:event.altKey,start:p,end:p,...hit,anchor:at(p,anchor),mode,dragged:false,origins:[...selected]};
+    const project=mode==='move'?pointerPlane(camera,canvas.getBoundingClientRect(),anchor):undefined;
+    gesture={project,pointer:event.pointerId,button:event.button,alt:event.altKey,start:p,end:p,...hit,anchor:project?project(p):at(p,anchor),mode,dragged:false,origins:[...selected]};
     if(['move','range','drive','paint'].includes(mode)||input.picking()) {controls.enabled=false;event.stopImmediatePropagation();canvas.setPointerCapture(event.pointerId);}
   },true);
   function processPointer(){
@@ -249,7 +251,7 @@ export function createWorld(host: HTMLElement, input: Input) {
     if(g){g.end=p;g.dragged ||= Math.hypot(p.x-g.start.x,p.y-g.start.y)>=4;
       if(g.mode==='paint'){if(g.dragged)paintPoint(p);return;}
       if(g.dragged&&g.mode==='move'){
-        const delta=at(p,g.anchor).sub(g.anchor).divideScalar(scale);
+        const delta=(g.project?.(p)??at(p,g.anchor)).sub(g.anchor).divideScalar(scale);
         // Same lattice transform used by numerical operation commits; preparation is once per gesture.
         g.resolve??=prepareTranslation(world,g.origins);
         if(gesture!==g)return;const targets=g.resolve(xyz(delta));
@@ -271,7 +273,7 @@ export function createWorld(host: HTMLElement, input: Input) {
       if(g.mode==='paint'){if(g.dragged){paintPoint(g.end);finishPaint();return;}finishPaint(true);}
       if(g.dragged&&g.mode==='move'){
         g.moving??=new Set(branch(world,g.origins).map(key));
-        const target=pointed(g.end,g.moving).origin,delta=xyz(at(g.end,g.anchor).sub(g.anchor).divideScalar(scale));
+        const target=pointed(g.end,g.moving).origin,delta=xyz((g.project?.(g.end)??at(g.end,g.anchor)).sub(g.anchor).divideScalar(scale));
         if(target)input.adopt(g.origins,target,delta);else input.move(g.origins,delta);return;
       }
       if(g.dragged&&g.mode==='range'){
