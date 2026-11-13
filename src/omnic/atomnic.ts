@@ -40,7 +40,7 @@ export function placementPoint(point:Point,settings:Params):Point {
   const step=Number(settings.step);return {x:Math.round(point.x/step)*step,y:Math.round(point.y/step)*step};
 }
 export function legalAtoms(recipe:Recipe):boolean {
-  const settings=atomnicSettings(recipe);if(settings.mode!=='constrained')return true;
+  const settings=atomnicSettings(recipe);if(!settings.active||settings.mode!=='constrained')return true;
   const list=atoms(recipe),pitch=Number(settings.size)*2;
   for(let i=0;i<list.length;i++) {
     const a=list[i],slot=snapLattice(a,pitch);
