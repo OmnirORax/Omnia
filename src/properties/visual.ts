@@ -16,7 +16,7 @@ export const color = property({key:'color',label:'Color',kind:'color'});
 export const translucency = property({key:'translucency',label:'Translucency',kind:'number',min:0,max:1,step:.01});
 export const glow = property({key:'glow',label:'Glow',kind:'number',min:0,max:1,step:.01});
 export const font = property({key:'font',label:'Font',kind:'select',options:FONT_OPTIONS});
-export const embolden = property({key:'embolden',label:'Forced boldness',kind:'number',min:0,max:10,step:.25});
+export const embolden = property({key:'embolden',label:'Bold strength',kind:'number',presentation:'slider',min:0,max:10,step:.25});
 export const visualProperties = (text: boolean) => text ? [color,translucency,glow,embolden,font] : [color,translucency,glow];
 export const TEXT_DEFAULTS = {color:'#eeeee8',translucency:0,glow:0,font:'system',embolden:0};
 export const BACKGROUND_DEFAULTS = {color:'#191c1b',translucency:.04,glow:0};
