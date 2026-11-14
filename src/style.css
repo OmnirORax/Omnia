@@ -88,3 +88,11 @@ header button.wordmark { width:auto; font-size:15px; }
 .transfer-parts > div { max-height: 40svh; overflow: auto; }
 .transfer-parts label { display: flex; align-items: center; gap: 4px; min-height: 24px; }
 .transfer-parts input[type="checkbox"] { width: auto; margin: 0; }
+.omnic-composer{width:min(760px,95vw);height:min(580px,85vh)}
+.omnic-composer>.panel-body,.omnic-composer>.content{height:calc(100% - 30px)}
+.omnic-layout{display:grid;grid-template-columns:125px 1fr;height:360px;min-height:160px}
+.omnic-tree{overflow:auto}.omnic-tree>div{display:flex;gap:2px}.omnic-canvas{overflow:hidden;touch-action:none;min-width:0}.omnic-canvas svg{width:100%;height:100%;display:block}
+.omnic-menu{position:absolute;z-index:10;background:#000;border:1px solid #888;padding:4px;width:230px;max-height:70%;overflow:auto}.omnic-menu>div>button{display:block}.omnic-menu label{display:flex;justify-content:space-between}.omnic-menu input{max-width:120px}
+.omnic-library{width:430px;height:440px}.omnic-library .panel-body{display:flex;flex-direction:column;height:calc(100% - 25px);gap:4px}.omnic-library-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(75px,1fr));gap:4px;overflow:auto;flex:1}.omnic-library-item{display:flex;flex-direction:column;align-items:center;padding:4px;min-height:85px;overflow:hidden}.omnic-library-item svg{width:60px;height:60px}.omnic-library-item span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.omnic-composer .panel-body{height:calc(100% - 25px);display:flex;flex-direction:column}.omnic-composer .omnic-layout{flex:1;min-height:100px;height:auto}.omnic-menu>div{max-height:260px;overflow:auto}.omnic-menu button{display:block;width:100%;text-align:left}.omnic-menu input{max-width:100%}
+.omnic-tree [data-selected=true]{outline:1px solid #00d8ff}.omnic-canvas [data-omnic-selected=true]{outline:1px solid #00d8ff;outline-offset:2px}.omnic-composer nav{display:flex;flex-wrap:wrap;gap:2px}.omnic-composer nav>input{min-width:50px;width:100px}
+.omnic-state-field{display:block;width:180px;height:150px;margin:auto}.omnic-state-values{display:flex;flex-wrap:wrap;gap:2px}.omnic-menu .omnic-state-values button{width:auto}.omnic-state-field circle{cursor:pointer}

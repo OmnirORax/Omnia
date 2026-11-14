@@ -1,3 +1,10 @@
+import {validateFilter} from '../omnic/filter.ts';
+import {validateRecipe,referenceComponents,type Recipe} from '../omnic/model.ts';
+import {recipeSpecification} from '../omnic/specification.ts';
+import {referenceBinding} from '../omnic/bindings.ts';
+import {definitionRecipe} from '../omnic/definition.ts';
+import type {AtlasView,Catalog} from '../omnic/atlas.ts';
+import type {RecipeEdit} from '../omnic/delta.ts';
 import {DEFAULT_TEXT_FONT} from '../properties/defaultFont.ts';
 import { validateAudioResponse } from '../scene/audioResponse.ts';
 import { validateAppearance, validatePaint, type Appearance, type Paint } from '../properties/visual.ts';
@@ -14,11 +21,12 @@ export type Binding =
   | { mode: 'structure'; specification: string };
 export type Structure = { origin: Origin; label: string; position: Vec3; color: string; invariant: boolean; parts: Binding[];
   parent?: Origin; variantOf?: Origin; overrides?: string[]; hidden?: boolean; collapsed?: boolean;
+  omnic?:Recipe;omnicDraft?:Recipe;omnicEdits?:RecipeEdit[];omnicRevision?:number;omnicHistory?:Recipe[];catalog?:Catalog;lexiconWords?:string[];
   text?: NodeText; textAppearance?: Paint; visual?: Visual; scene?: string | null;
   opacity?: number; glow?: number; translucency?: number; translucencyRadius?: number;
 };
 export type Relationship = { from: Binding; to: Binding; label: string; kind: string };
-export type World = { format: 'omnium-world'; version: 1 | 2; nodes: Structure[]; assets?: VisualAsset[]; relationships?: Relationship[]; scene?: SceneSettings; appearance?: Appearance;
+export type World = { format: 'omnium-world'; version: 1 | 2 | 3; atlases?:AtlasView[];activeAtlas?:number; nodes: Structure[]; assets?: VisualAsset[]; relationships?: Relationship[]; scene?: SceneSettings; appearance?: Appearance;
   settings?: { latticeScale: number; names: 'all' | 'expanded' | 'selection' } };
 export const emptyWorld = (): World => ({ format: 'omnium-world', version: 2, nodes: [], assets: [], relationships: [], appearance:{background:{translucency:1},text:{font:DEFAULT_TEXT_FONT,color:'#ff000d',glow:1}}, scene: defaultScene(), settings: { latticeScale: 1, names: 'expanded' } });
 export const samePoint = (a: Vec3, b: Vec3) => a.every((n, i) => n === b[i]);
@@ -38,11 +46,13 @@ export function prepareWorld(world: World) {
     const known = cached.get(node); if (known) return known;
     active.add(node);
     const base = node.variantOf && anchors.get(JSON.stringify(node.variantOf));
-    const value = base && !node.parts.length ? signature(base) : JSON.stringify(node.parts.length ? ['composition', ...(base ? [signature(base)] : []), ...node.parts.map(binding => {
+    const program=definitionRecipe(node,world);
+    const composition = program ? JSON.stringify(['composition',...(function parts(current:Structure,seen=new Set<Structure>()):Binding[]{if(seen.has(current))throw Error('Circular Omnic inheritance.');seen.add(current);const parent=current.variantOf&&anchors.get(JSON.stringify(current.variantOf));return [...(parent?parts(parent,seen):[]),...current.parts];})(node).map(binding=>{if(binding.mode==='structure')return binding.specification;const child=target(binding);return child?signature(child):['unresolved',binding];})]) : base && !node.parts.length ? signature(base) : JSON.stringify(node.parts.length ? ['composition', ...(base ? [signature(base)] : []), ...node.parts.map(binding => {
       if (binding.mode === 'structure') return binding.specification;
       const child = target(binding);
       return child ? signature(child) : ['unresolved', binding];
     })] : ['unit']);
+    const value=program?JSON.stringify([composition,recipeSpecification(program)]):composition;
     active.delete(node);
     if (value.length > 16000) throw new Error('Composition exceeds the initial structural budget.');
     cached.set(node, value); return value;
@@ -82,6 +92,7 @@ export function addStructure(world: World, position: Vec3, born = Date.now()): S
 
 export function setInvariant(world: World, node: Structure, enabled: boolean) {
   if (enabled) {
+    if(world.version===3&&!node.parts.length&&!definitionRecipe(node,world))throw Error('Define this draft before activating it.');
     const key = specification(node, world);
     if (world.nodes.some(other => other !== node && other.invariant && specification(other, world) === key)) {
       throw new Error('An equivalent invariant already exists.');
@@ -92,10 +103,13 @@ export function setInvariant(world: World, node: Structure, enabled: boolean) {
 
 export function validateWorld(value: unknown): World {
   const w = value as World;
-  if (!w || w.format !== 'omnium-world' || ![1, 2].includes(w.version) || !Array.isArray(w.nodes) || w.nodes.length > 4000) throw new Error('Unsupported world format.');
+  if (!w || w.format !== 'omnium-world' || ![1, 2, 3].includes(w.version) || !Array.isArray(w.nodes) || w.nodes.length > 4000) throw new Error('Unsupported world format.');
   const point = (p: unknown): p is Vec3 => Array.isArray(p) && p.length === 3 && p.every(n => typeof n === 'number' && Number.isFinite(n) && Math.abs(n) <= 1e7);
   const origin = (o: Origin) => o && Number.isFinite(o.born) && point(o.at);
   validateAppearance(w.appearance);
+  if(w.activeAtlas!==undefined&&!w.atlases)throw Error('Invalid active atlas.');
+  if(w.atlases!==undefined){if(w.version!==3||!Array.isArray(w.atlases)||w.atlases.length>32||!Number.isInteger(w.activeAtlas??0)||(w.activeAtlas??0)<0||(w.activeAtlas??0)>=w.atlases.length)throw Error('Invalid atlas views.');for(const view of w.atlases){if(typeof view.name!=='string'||!view.name.trim()||view.name.length>100||!view.filter||typeof view.filter!=='object')throw Error('Invalid atlas view.');if(view.roots!==undefined&&(!Array.isArray(view.roots)||view.roots.length>4000))throw Error('Invalid atlas scope.');for(const root of view.roots??[])referenceBinding(JSON.stringify(root));validateFilter(view.filter);}}
+
   const assets = w.assets ?? [];
   if (!Array.isArray(assets) || assets.length > 100) throw Error('Invalid visual library.');
   const assetKeys = new Set<string>();
@@ -114,6 +128,17 @@ export function validateWorld(value: unknown): World {
     if (node.hidden !== undefined && typeof node.hidden !== 'boolean' || node.collapsed !== undefined && typeof node.collapsed !== 'boolean') throw Error('Invalid node visibility.');
     if (node.scene !== undefined && node.scene !== null && (typeof node.scene !== 'string' || node.scene.length > 200)) throw Error('Invalid node scene.');
     for (const key of ['opacity','glow','translucency','translucencyRadius'] as const) if (node[key] !== undefined && (!Number.isFinite(node[key]) || node[key]! < 0 || node[key]! > 1)) throw Error('Invalid carrier appearance.');
+    if(['omnic','omnicDraft','omnicEdits','omnicRevision','omnicHistory','catalog','lexiconWords'].some(key=>node[key as keyof Structure]!==undefined)){
+      if(w.version!==3)throw Error('Omnic structures require world version 3.');
+      if(node.omnicDraft!==undefined)validateRecipe(node.omnicDraft);
+      if(node.omnic!==undefined){if(node.variantOf)throw Error('Variants store definition deltas.');validateRecipe(node.omnic);}
+      if(node.omnicEdits!==undefined){if(!Array.isArray(node.omnicEdits))throw Error('Invalid definition delta.');if(!node.variantOf)throw Error('A definition delta needs a base.');definitionRecipe(node,w);}
+      if(node.omnicRevision!==undefined&&(!Number.isSafeInteger(node.omnicRevision)||node.omnicRevision<0))throw Error('Invalid definition revision.');
+      if(node.omnicHistory!==undefined){if(!Array.isArray(node.omnicHistory)||node.omnicHistory.length>128)throw Error('Invalid pinned history.');const revisions=new Set<number>();for(const recipe of node.omnicHistory){validateRecipe(recipe);if(revisions.has(recipe.revision))throw Error('Duplicate pinned revision.');revisions.add(recipe.revision);}}
+      if(node.lexiconWords!==undefined&&(!Array.isArray(node.lexiconWords)||node.lexiconWords.length>256||node.lexiconWords.some(word=>typeof word!=='string'||!word.trim()||word.length>200)))throw Error('Invalid glyph words.');
+      if(node.catalog!==undefined){if(!node.catalog||typeof node.catalog!=='object')throw Error('Invalid library metadata.');for(const key of ['tags','collections'] as const)if(!Array.isArray(node.catalog[key])||node.catalog[key].length>128||node.catalog[key].some(value=>typeof value!=='string'||value.length>100))throw Error('Invalid library metadata.');}
+      size+=new TextEncoder().encode(JSON.stringify([node.omnic,node.omnicDraft,node.omnicEdits,node.omnicHistory,node.catalog,node.lexiconWords])).length;if(size>3500000)throw Error('Definition library exceeds storage budget.');
+    }
     validatePaint(node.textAppearance,true);
     if (node.text) validateNodeText(node.text, glyphs);
     validateVisual(node.visual, assets);
@@ -157,5 +182,19 @@ export function validateWorld(value: unknown): World {
     if (node.invariant) invariants.add(key);
     visit(node);
   }
+  const definitions=new Map(w.nodes.map(node=>[node,definitionRecipe(node,w)]));
+  const programs=new Set<Recipe>(),stack=new Set<Recipe>();
+  function checkProgram(recipe:Recipe,depth=0){
+    if(stack.has(recipe)||depth>12)throw Error('Circular or excessively deep Omnic reference.');
+    if(programs.has(recipe))return;stack.add(recipe);
+    for(const reference of referenceComponents(recipe)){
+      const binding=referenceBinding(reference.reference!),matches=prepared.resolve(binding);
+      if(matches.length!==1)continue;
+      const node=matches[0],target=reference.referenceRevision===undefined?definitions.get(node):node.omnicHistory?.find(r=>r.revision===reference.referenceRevision);
+      if(target)checkProgram(target,depth+1);
+    }
+    stack.delete(recipe);programs.add(recipe);
+  }
+  for(const node of w.nodes){const recipe=definitions.get(node);if(recipe)checkProgram(recipe);if(node.omnicDraft)checkProgram(node.omnicDraft);for(const pin of node.omnicHistory??[])checkProgram(pin);}
   return w;
 }

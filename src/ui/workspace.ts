@@ -4,7 +4,7 @@ import { availableChoice, createPartsFile, fullChoice, hasChoice, parsePartsFile
 import type { World } from '../core/model.ts';
 import { listLocalScenes, localSceneBlob, prepareLocalScene, saveLocalScenes, downloadScene, deleteLocalScene, type StoredScene } from '../scene/library.ts';
 
-type Host = { draft?: HTMLButtonElement; read: () => World; replace: (world: World) => void; recover: () => void; beforeReplace: () => void; selected?: () => string[] };
+type Host = { omnic?:()=>void;atlas?:()=>void;draft?: HTMLButtonElement; read: () => World; replace: (world: World) => void; recover: () => void; beforeReplace: () => void; selected?: () => string[] };
 export function workspacePanel(host: Host) {
   let live = true, busy = false;
   const view = panel('Workspace', () => { if (busy) return false; live = false; });
@@ -57,6 +57,7 @@ export function workspacePanel(host: Host) {
     finally { busy = false; options.disabled = false; filename.disabled = false; buttons.forEach(button => button.disabled = false); }
   }
   function button(label: string, action: () => void) { const b = document.createElement('button'); b.textContent = label; b.onclick = action; buttons.push(b); actions.append(b); }
+  if(host.omnic)button('Omnic',host.omnic);if(host.atlas)button('Atlas',host.atlas);
   button('Export', () => void run(async () => {
     if (source) throw Error('Choose New export first.');
     const file = createPartsFile(structuredClone(checkedWorld(host.read())), choice), references = sceneReferences(file.world);

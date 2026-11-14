@@ -1,0 +1,944 @@
+import {prepareSelectionSnapshot} from './selectionSnapshot';
+import { selectionSurfaces, spatialSelectionRange, selectionPointerMode, type SelectionUnit } from "./selectionSurfaces";
+import { orderedSelectionRange, rangeWorkingScope, selectorOpenPhase, selectorEscapePhase, selectorCanCancel } from "./selectionRange";
+import {SELECTION_GEOMETRY_ATTRIBUTES,selectionGeometryStyleChanged,DEFAULT_LENS_RADIUS,resizeSelectionLens,nearestLensBoundary,selectionLensTarget,selectionDetectionMode} from './selectionLens';
+import {selectionRequest,selectionRequestOwnsInput,type SelectionRequestSurface,selectionConfirmation,selectionDecision,type SelectionDecision} from './selectionRequest';
+import { appendTransient, stepTransient } from '../ui/transientTimeline';
+import { PAGE_INPUT_SUSPEND } from "../ui/pageInputBoundary";
+import { useCallback, createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type ComponentProps } from "react";
+import { createPortal } from "react-dom";
+import { claimUIPress, eventPathMatches } from "../ui/pointerOwnership";
+import { cursorPosition } from "../ui/cursorPosition";
+import { useFeatureActions } from "../ui/useFeatureActions";
+import { clearRecordedShortcutPress, recordedShortcutTail } from "../featureActions";
+import { selectionFeedbackVisible, type SelectionView, APPEARANCE_EDITOR } from "./interactionHold";
+import { VisualSelectionOverlay } from "./VisualSelectionOverlay";
+import { SelectorSymbol, type SelectorConfiguration } from "./SelectorSymbol";
+import { SelectorCursor } from "./SelectorCursor";
+import { SelectionController } from "./SelectionController";
+import { describeSelectedParts } from "./selectedParts";
+import { PROPERTY_REGISTRY, TARGETS } from "./registry";
+import { resolvePropertyTarget, selfInventory, type SelfInventoryNode } from "../properties/registry";
+import { DEFAULT_SELECTION_MASK, continuityWorkingScope, workingGeometry, detectionGeometry, geometryBaseline, geometryMaskChange, selectionToggleRule, selectionRemovalRule, type SelectionMask, type MaskPart } from "./selectionToggle";
+import { selectedPartTarget } from "./selectionCoupling";
+import { nextPatternMode, relativePoint, toggleSelectionRegion, pathVertices, pathEdges, selectionWheelRotation, PATTERN_MODE_GROUPS, PATTERN_SYMBOLS,
+  type Point, type PathCondition, type PatternMode, type SelectionSide } from "./selectionGeometry";
+import {
+  createVisualMeasurements, boundaryCandidates, boundaryFor, boundaryElement, boundaryRect, collectVisualParts, matchingVisualParts,
+  orderedSelectionUnits, selectionRangeUnit, partAt, partPaint, patternTarget, patternTargetPath, pointerInSelectionScope, resolveVisualSelection, selectionLineGuide, selectorChrome,
+  type SelectionBoundary, type SelectionConstraint, type SelectionRule, type VisualPart, type VisualRole,
+} from "./visualSelection";
+
+type SelectionState = { surfaces?:Record<string,readonly string[]>; boundary: SelectionBoundary | null; scope: SelectionConstraint | null; mask: SelectionMask | null; rules: SelectionRule[]; objects: string[] };
+export type ReferenceSelection={element:Element;boundary:SelectionBoundary;constraint:SelectionConstraint;parts:readonly VisualPart[];point:Point;};
+type VisualSelection = SelectionState & { cursorConfiguration:SelectorConfiguration; requesting:boolean;setElements:(elements:readonly Element[])=>void;undoSelection:()=>void;redoSelection:()=>void;canUndo:boolean;canRedo:boolean;requestPick:(accept:(selection:ReferenceSelection)=>SelectionDecision,cancel:()=>void,options?:{mode?:PatternMode;surface?:SelectionRequestSurface})=>()=>void; parts: VisualPart[]; properties: string[]; clear: () => void; selectObject: (id: string) => void; inspectionKey: string; feedbackVisible: boolean; feedbackAvailable: boolean; toggleFeedback: () => void; feedbackBinding: string; selectTarget: (id: string) => void; targetSelection: ReadonlyMap<string, { included: number; total: number }> };
+type Pick = { rule: SelectionRule; definesScope: boolean; maskChange?: SelectionRule[] };
+type Phase = "off" | "configure" | "aim" | "edit";
+type Gesture = { id: number; start: Point; element: Element; mode: PatternMode; points: Point[]; sample?: VisualPart };
+const Context = createContext<VisualSelection | null>(null);
+export const useVisualSelection = () => useContext(Context);
+const emptySelection = (): SelectionState => ({ boundary: null, scope: null, mask: null, rules: [], objects: [] });
+const noParts: VisualPart[] = [];
+const constraintKey = (rule: SelectionConstraint): string => `${rule.boundary.key}:${rule.backgrounds ?? ""}:${rule.region ?? ""}:${rule.contour ?? ""}:${rule.role ?? ""}:${rule.target ?? ""}:${rule.part ?? ""}:${JSON.stringify(rule.parts??null)}:${JSON.stringify(rule.line ?? rule.path ?? null)}:${rule.geometryId ?? ""}:${rule.scope ? constraintKey(rule.scope) : ""}`;
+const ruleKey = (rule: SelectionRule) => `${rule.include}:${constraintKey(rule)}`;
+const roleNames: Record<VisualRole, string> = { text: "Text", background: "Backgrounds", contour: "Contours", icon: "Icons", indicator: "Indicators" };
+const roleSymbols: Record<VisualRole, string> = { text: "T", background: "□", contour: "○", icon: "◆", indicator: "◉" };
+const isLine = (mode: PatternMode) => mode === "axis" || mode === "direction" || mode === "position";
+const isPath = (mode: PatternMode) => mode === "rectangle" || mode === "ellipse" || mode === "polygon" || mode === "freehand";
+
+/** Geometry defines a working set; later include/exclude rules refine it. */
+export function VisualSelectionProvider({ children, onInspect }: { children: ReactNode; onInspect?: (key: string) => void; masterOpen?: boolean }) {
+  const [view, setView] = useState<SelectionView>("auto");
+  const [timeline, setTimeline] = useState(() => ({ states: [emptySelection()], index: 0 }));
+  const selection = timeline.states[timeline.index];
+  const appliedSurfaces=useRef<Record<string,readonly string[]>>({});
+  useEffect(()=>{
+    const next=selection.surfaces??{},previous=appliedSurfaces.current;appliedSurfaces.current=next;
+    for(const id of new Set([...Object.keys(previous),...Object.keys(next)]))if(JSON.stringify(previous[id])!==JSON.stringify(next[id]))selectionSurfaces.apply(id,next[id]??[]);
+  },[selection.surfaces]);
+  const requestedPick=useRef<{accept:(selection:ReferenceSelection)=>boolean;cancel:()=>void;opened:boolean;surface?:SelectionRequestSurface}|null>(null);
+  const requestCheckpoint=useRef<{timeline:typeof timeline;configuration:SelectorConfiguration}|null>(null);
+  const [pickFeedback,setPickFeedback]=useState<string|null>(null),pickFeedbackRef=useRef(pickFeedback);pickFeedbackRef.current=pickFeedback;
+ const [phase, setPhase] = useState<Phase>("off");
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [configuration, setConfiguration] = useState<SelectorConfiguration>({ ...DEFAULT_SELECTION_MASK, pattern: "pattern", patternRole: null,
+    bounded: false, stopAtPaint: false, closed: false, rotation: 0 });
+  const [lensRadius,setLensRadius]=useState(DEFAULT_LENS_RADIUS),[lensActive,setLensActive]=useState(false);
+  const lensActiveRef=useRef(false);
+  const [catalog, setCatalog] = useState<VisualPart[]>([]);
+  const [candidate, setCandidate] = useState<Pick | null>(null);
+  const [geometry, setGeometry] = useState(0);
+  const [inspectionRequest, requestInspection] = useState(0);
+  const baselineSource=useRef<Element|null>(null);
+  const baselineAt=(element:Element)=>selectionSurfaces.baseline(element)??(element.closest(selectorChrome)&&baselineSource.current?selectionSurfaces.baseline(baselineSource.current):undefined);
+  const [inventoryOpen, setInventoryOpen] = useState(false);
+  const nativeGesture=useRef<{id:number;start:Point;end:Point;finish:(end:Point)=>void;preview:(end:Point)=>{parts:VisualPart[];units:readonly SelectionUnit[]}|undefined}|null>(null);
+  const [nativeMarquee,setNativeMarquee]=useState<{start:Point;end:Point;parts:VisualPart[];units:readonly SelectionUnit[]}|null>(null);
+  const [drawing, setDrawing] = useState(false);
+  const [automaticRegion, setAutomaticRegion] = useState<SelectionSide>("inside");
+  const point = useRef<{ x: number; y: number; element: Element } | null>(null);
+  const settledPoint = useRef<Point | null>(null);
+  const retainedPreview = useRef(false);
+  const depth=useRef(0),candidateRef = useRef<Pick | null>(null), geometrySequence = useRef(0);
+  const rangeAnchor=useRef<SelectionBoundary|null>(null);
+  const selectedRef = useRef<VisualPart[]>([]), gesture = useRef<Gesture | null>(null);
+  const polygon = useRef<Gesture | null>(null);
+  const measurements = useMemo(() => {const prepared=createVisualMeasurements();for(const part of catalog)prepared.partRelation(part);return prepared;}, [catalog, geometry]);
+  const detection=useMemo(()=>prepareSelectionSnapshot(catalog,measurements,configuration.pattern,selection.scope),[catalog,measurements,configuration.pattern,selection.scope]);
+  const toggleCandidate = useRef<{ catalog: VisualPart[]; selection: SelectionState; measurements: ReturnType<typeof createVisualMeasurements>; picks: Map<string, Pick> } | null>(null);
+  const latest = useRef({ phase, configuration, catalog, selection, measurements,detection });
+  latest.current = { phase, configuration, catalog, selection, measurements,detection };
+  const hasSelection = () => !!latest.current.selection.boundary || !!latest.current.selection.objects.length || selectedRef.current.length > 0 || Object.values(latest.current.selection.surfaces??{}).some(ids=>ids.length>0);
+  const lens=useRef({radius:lensRadius});lens.current.radius=lensRadius;
+  const lensPart=(parts:VisualPart[],x:number,y:number)=>nearestLensBoundary(parts,{x,y},lens.current.radius,part=>latest.current.detection.lensGeometry.get(part)!);
+  const feedbackVisible = selectionFeedbackVisible(view);
+  const setCandidatePick = useCallback((next: Pick | null) => {
+    if (next && next.rule.backgrounds === undefined) next = { ...next,
+      rule: { ...next.rule, backgrounds: latest.current.configuration.backgrounds },
+      ...(next.maskChange ? { maskChange: next.maskChange.map(rule => ({ ...rule, backgrounds: latest.current.configuration.backgrounds })) } : {}) };
+    const previous = candidateRef.current;
+    if (previous === next || previous && next && previous.definesScope === next.definesScope && ruleKey(previous.rule) === ruleKey(next.rule)) return;
+    if(pickFeedbackRef.current)setPickFeedback(null);
+    candidateRef.current = next; setCandidate(next);
+  }, []);
+  const record = useCallback((change: (current: SelectionState) => SelectionState) => setTimeline(previous => {
+    const current = previous.states[previous.index], next = change(current);
+    if (next === current) return previous;
+    return appendTransient(previous,next);
+  }), []);
+  // A completed press releases the gesture, not an explicitly opened MS session.
+  // Native modifier picks begun while off stay off; accepted references end MS.
+  const completeSelection=useCallback((endSession=false)=>{gesture.current=null;polygon.current=null;setDrawing(false);setCandidatePick(null);setInventoryOpen(false);setPhase(before=>!endSession&&(before==='aim'||before==='configure')?'aim':'off');},[setCandidatePick]);
+  const cancelDrawing = () => { nativeGesture.current=null;setNativeMarquee(null);setNativeMarquee(null);gesture.current = null; polygon.current = null; setDrawing(false); setCandidatePick(null); };
+  const toggleSelection = (constraint: SelectionConstraint) => record(current => {
+    const parts = latest.current.catalog;
+    const included = resolveVisualSelection(parts, current.boundary, current.rules).included;
+    const rule = selectionToggleRule(parts, included, constraint);
+    if (!matchingVisualParts(parts, rule).length) return current;
+    return { ...current, boundary: current.boundary ?? rule.boundary, rules: [...current.rules, rule], objects: [] };
+  });
+  const selectTarget = useCallback((target: string) => {
+    const current = latest.current;
+    const constraint: SelectionConstraint = { boundary: boundaryFor(document.body), target,
+      backgrounds: current.configuration.backgrounds,
+      ...(current.selection.scope ? { scope: workingGeometry(current.selection.scope, current.configuration) } : {}) };
+    record(selection => {
+      const included = resolveVisualSelection(current.catalog, selection.boundary, selection.rules, current.measurements).included;
+      const rule = selectionToggleRule(current.catalog, included, constraint, current.measurements);
+      if (!matchingVisualParts(current.catalog, rule, current.measurements).length) return selection;
+      return { ...selection, boundary: selection.boundary ?? rule.boundary, rules: [...selection.rules, rule], objects: [] };
+    });
+    completeSelection();
+  }, [record, completeSelection]);
+  const prepareToggle = (constraint: SelectionConstraint) => {
+    constraint = { ...constraint, backgrounds: latest.current.configuration.backgrounds };
+    const { catalog, selection, measurements } = latest.current, key = constraintKey(constraint);
+    let cache = toggleCandidate.current;
+    if (!cache || cache.catalog !== catalog || cache.selection !== selection || cache.measurements !== measurements) {
+      cache = { catalog, selection, measurements, picks: new Map() }; toggleCandidate.current = cache;
+    }
+    let pick = cache.picks.get(key);
+    if (!pick) {
+      pick = { definesScope: false, rule: selectionToggleRule(catalog, selectedRef.current, constraint, measurements) };
+      // Bound the cache even when individual picking visits thousands of hosts.
+      if (cache.picks.size >= 128) cache.picks.delete(cache.picks.keys().next().value!);
+      cache.picks.set(key, pick);
+    }
+    setCandidatePick(pick);
+  };
+  const pickAt = (element: Element, x: number, y: number) => {
+    const current = latest.current, config = current.configuration;
+    if (element.closest(APPEARANCE_EDITOR)) { setCandidatePick(null); return; }
+    point.current = { element, x, y };
+    const drag = gesture.current ?? polygon.current;
+    if (!drag && settledPoint.current && Math.hypot(x - settledPoint.current.x, y - settledPoint.current.y) < 3) { setCandidatePick(null); return; }
+    if (!drag && element.closest(selectorChrome)) { setCandidatePick(null); return; }
+    const include = true;
+    const parentScope = current.selection.scope ? { scope: current.selection.scope } : {};
+    const configuredMode = drag?.mode ?? config.pattern;
+    const surface=element.closest('[data-selection-lens]'),declared=element.closest('[data-selection-boundary]');
+    if(lensActiveRef.current!==!!surface){lensActiveRef.current=!!surface;setLensActive(!!surface);}
+    const mode=selectionDetectionMode({...config,pattern:configuredMode},!!current.selection.scope,!!declared,!!surface);
+    const app = boundaryFor(document.body);
+    if (isLine(mode)) {
+      const start = drag?.start ?? { x, y }, box = boundaryRect(app)!;
+      const end = drag && Math.hypot(x - start.x, y - start.y) >= 4 ? { x, y } : { x: start.x, y: start.y - (mode === "position" ? 2 : 24) };
+      const sample = drag?.sample ?? partAt(config.patternRole ? current.catalog.filter(part => part.role === config.patternRole) : current.catalog, element, start.x, start.y, current.measurements);
+      if (config.stopAtPaint && !sample) { setCandidatePick(null); return; }
+      setCandidatePick({ definesScope: true, rule: { boundary: app, include, ...parentScope, contour: config.contour,
+        ...(config.patternRole || config.stopAtPaint ? { role: config.patternRole ?? sample!.role } : {}),
+        line: { mode: mode as "axis" | "direction" | "position", start: relativePoint(start, box), end: relativePoint(end, box),
+          bounded: config.bounded, rotation: config.rotation, ...(config.stopAtPaint ? { stopAtPaint: partPaint(sample!) } : {}) } } });
+      return;
+    }
+    if (isPath(mode)) {
+      if (!drag) { setCandidatePick(null); return; }
+      const box = boundaryRect(app)!;
+      const points = mode === "polygon" ? [...drag.points, { x, y }] : mode === "freehand" ? drag.points : [drag.start, { x, y }];
+      const path: PathCondition = { kind: mode as PathCondition["kind"], points: points.map(p => relativePoint(p, box)),
+        closed: mode !== "freehand" || config.closed, rotation: config.rotation };
+      setCandidatePick({ definesScope: true, rule: { boundary: app, include, ...parentScope, path, contour: config.contour,
+        ...(config.region ? { region: config.region } : {}), ...(config.patternRole ? { role: config.patternRole } : {}) } });
+      return;
+    }
+    if (mode === "boundary") {
+      const pointed=partAt(current.catalog,element,x,y,current.measurements);
+      const sampled=surface?selectionLensTarget(current.catalog.filter(part=>surface.contains(part.element)&&(config.backgrounds||part.role!=='background')),{x,y},lens.current.radius,part=>current.detection.lensGeometry.get(part)!,pointed?.element.hasAttribute('data-selection-geometry')?pointed:undefined):pointed;
+      const options=surface?[]:boundaryCandidates(element);
+      const boundary=surface?sampled&&boundaryFor(sampled.element):depth.current===0&&declared?boundaryFor(declared):depth.current===0&&sampled?boundaryFor(sampled.element):options[Math.min(depth.current,options.length-1)];
+      if(surface&&sampled)point.current={element:sampled.element,x,y};
+      if (!boundary) { setCandidatePick(null); return; }
+      setCandidatePick({ definesScope: true, rule: { boundary, include, ...parentScope, ownerFrame: true, ...(sampled ? { framePart: sampled.key } : {}), contour: config.contour,
+        path: { kind: "rectangle", points: [{ x: 0, y: 0 }, { x: 1, y: 1 }], closed: true, rotation: config.rotation },
+        ...(config.region ? { region: config.region } : {}), ...(config.patternRole ? { role: config.patternRole } : {}) } });
+      return;
+    }
+    const scope = current.selection.scope ? detectionGeometry(current.selection.scope, config, element, { x, y },current.measurements) : null;
+    if (scope && !pointerInSelectionScope(scope, element, { x, y },current.measurements)) { setCandidatePick(null); return; }
+    const available=(scope?matchingVisualParts(current.catalog,{...scope,include:true},current.measurements):current.catalog).filter(part=>config.backgrounds||part.role!=='background');
+    const pointed=partAt(current.catalog,element,x,y,current.measurements),permitted=new Set(available.map(part=>part.key));
+    const hit=pointed&&permitted.has(pointed.key)?pointed:surface?lensPart(available.filter(part=>surface.contains(part.element)),x,y):undefined;
+    const part = hit && (config.backgrounds || hit.role !== "background") && (!scope || matchingVisualParts([hit], { ...scope, include: true }, current.measurements).length) ? hit : undefined;
+    if(surface&&part)point.current={element:part.element,x,y};
+    if(mode==='continuity'){
+      if(!part){setCandidatePick(null);return;}
+      const continuity=current.detection.continuity,members=continuity?.groups.get(part.key);
+      if(!members){setCandidatePick(null);setPickFeedback(continuity?.complete===false?'Narrow the working scope to resolve continuity':'No continuity geometry adapter for this part');return;}
+      prepareToggle({boundary:app,...(scope?{scope}:{}),parts:members.filter(key=>permitted.has(key))});return;
+    }
+    if (part) prepareToggle({ boundary: app, ...(scope ? { scope } : {}),
+      ...(mode === "pattern" ? { role: config.patternRole ?? part.role, target: patternTarget(part) } : { part: part.key }) });
+    else setCandidatePick(null);
+  };
+  const resumeBaseline=(element:Element,p:Point)=>{
+    if(requestedPick.current||!selectionSurfaces.baseline(element)||element.closest(selectorChrome))return false;
+    baselineSource.current=element.closest('[data-selection-lens]')??element;
+    if(latest.current.phase==='configure')return true;
+    if(latest.current.phase!=='aim'||!selectionSurfaces.sessionOwns(element)){
+      selectionSurfaces.beginSession(element);const catalog=collectVisualParts(),measurements=createVisualMeasurements();
+      const detection=prepareSelectionSnapshot(catalog,measurements,latest.current.configuration.pattern,latest.current.selection.scope);
+      latest.current={...latest.current,phase:'aim',catalog,measurements,detection};setCatalog(catalog);setInventoryOpen(false);setPhase('aim');
+    }
+    point.current={...p,element};return true;
+  };
+  const accept = (geometryOnly = false) => {
+    const pick = candidateRef.current;
+    if (!pick) {if(requestedPick.current)setPickFeedback('No target here');else if(point.current)selectionSurfaces.baseline(point.current.element)?.pick([],{x:point.current.x,y:point.current.y},'select');return;}
+    const request=requestedPick.current;
+    if(request){const p=point.current;if(p&&request.accept({element:p.element,boundary:pick.rule.boundary,constraint:pick.rule,parts:matchingVisualParts(latest.current.catalog,pick.rule,latest.current.measurements),point:{x:p.x,y:p.y}})){
+      requestedPick.current=null;completeSelection(true);
+    }return;}
+    const baseline=point.current&&selectionSurfaces.baseline(point.current.element);
+    if(baseline&&!geometryOnly){const parts=matchingVisualParts(latest.current.catalog,pick.rule,latest.current.measurements);baseline.pick(parts.map(part=>part.element),{x:point.current!.x,y:point.current!.y},'select');setCandidatePick(null);return;}
+    if (pick.definesScope) {
+      const { include: _include, backgrounds: _backgrounds, ...constraint } = pick.rule;
+      const mask = { contour: geometryOnly ? false : latest.current.configuration.contour, region: geometryOnly ? null : latest.current.configuration.region, backgrounds: latest.current.configuration.backgrounds };
+      const scope = workingGeometry({ ...constraint, geometryId: `geometry-${++geometrySequence.current}` }, mask);
+      record(current => ({ ...current, boundary: scope.boundary, scope, mask, rules: geometryOnly ? current.rules : [...current.rules, ...geometryBaseline(scope, mask)], objects: [] }));
+      // Retain the working set for subsequent pattern/part targeting.
+      setConfiguration(config => ({ ...config, pattern: "pattern", ...(geometryOnly ? { contour: false, region: null } : {}) }));
+    } else toggleSelection(pick.rule);
+    if(baseline&&geometryOnly){const parts=matchingVisualParts(latest.current.catalog,pick.rule,latest.current.measurements);baseline.pick(parts.map(part=>part.element),{x:point.current!.x,y:point.current!.y},'select');}
+    settledPoint.current = point.current;
+    setCandidatePick(null);
+    if(!geometryOnly)setPhase("aim");
+  };
+  const clear = useCallback(() => {
+    rangeAnchor.current=null;
+    setView("auto");
+    gesture.current = null; polygon.current = null; setDrawing(false);
+    record(current => current.boundary || current.rules.length || current.objects.length ? emptySelection() : current); setCandidatePick(null);
+  }, [record, setCandidatePick]);
+  const selectObject = useCallback((id: string) => {
+    resolvePropertyTarget(PROPERTY_REGISTRY, id);
+    setView("auto");
+    gesture.current = null; polygon.current = null; setDrawing(false); setCandidatePick(null);
+    record(current => current.objects.includes(id) ? { ...current, objects: current.objects.filter(selected => selected !== id) } : { ...emptySelection(), objects: [id] });
+    requestInspection(value => value + 1); completeSelection();
+  }, [record, setCandidatePick, completeSelection]);
+  const close = () => { selectionSurfaces.endSession();const request=requestedPick.current;requestedPick.current=null;if(request)request.cancel();cancelDrawing(); setInventoryOpen(false); setPhase("off"); };
+  const disable = () => { const cursor=cursorPosition(),element=document.elementFromPoint(cursor.x,cursor.y),baseline=element&&baselineAt(element);if(baseline&&!requestedPick.current&&latest.current.phase!=='configure'&&!nativeGesture.current&&!gesture.current&&!polygon.current){baseline.cancel();clear();aim();return;} if(selectorEscapePhase(latest.current.phase)==="aim"){cancelDrawing();aim();return;}if(nativeGesture.current){cancelDrawing();setDrawing(false);return;}const requested=!!requestedPick.current;close();if(!requested)clear(); };
+  const undo = () => { cancelDrawing(); setTimeline(previous => stepTransient(previous,-1)); };
+  const redo = () => { cancelDrawing(); setTimeline(previous => stepTransient(previous,1)); };
+  const aim = () => { retainedPreview.current = !!candidateRef.current; toggleCandidate.current = null; setCatalog(collectVisualParts()); setInventoryOpen(false); setPhase("aim"); };
+  const edit = (x: number, y: number) => {
+    if (!hasSelection()) return;
+    if (latest.current.selection.objects.length) { requestInspection(value => value + 1); return; }
+    cancelDrawing(); setPosition({ x, y }); setPhase("edit");
+  };
+  const updateScope = (change: (scope: SelectionConstraint) => SelectionConstraint) => record(current => {
+    const scope = current.scope;
+    if (!scope) return current;
+    const next = change(scope);
+    if (next === scope) return current;
+    const replace = (constraint: SelectionConstraint): SelectionConstraint => constraint.geometryId === scope.geometryId
+      ? { ...constraint, boundary: next.boundary, path: next.path, line: next.line, scope: constraint.scope ? replace(constraint.scope) : undefined }
+      : { ...constraint, scope: constraint.scope ? replace(constraint.scope) : undefined };
+    return { ...current, scope: next, rules: current.rules.map(rule => ({ ...rule, ...replace(rule) })) };
+  });
+  const applyMask = (mask: SelectionMask, part: MaskPart) => {
+    setConfiguration(config => ({ ...config, ...mask }));
+    record(current => {
+      if (!current.scope) return current;
+      const scope = workingGeometry(current.scope, mask);
+      return { ...current, scope, mask, rules: [...current.rules, ...geometryMaskChange(scope, mask, part)] };
+    });
+    setCandidatePick(null);
+  };
+  const rotateGeometry = (degrees: number, target: "pending" | "placed") => {
+    setCandidatePick(null); settledPoint.current = null;
+    if (target === "pending") {
+      setConfiguration(config => ({ ...config, rotation: config.rotation + degrees }));
+      return;
+    }
+    updateScope(scope => ({ ...scope, line: scope.line ? { ...scope.line, rotation: (scope.line.rotation ?? 0) + degrees } : undefined,
+      path: scope.path ? { ...scope.path, rotation: (scope.path.rotation ?? 0) + degrees } : undefined }));
+  };
+  const chooseRegion = (side: SelectionSide) => {
+    const current=latest.current,region=toggleSelectionRegion(current.configuration.region,side);
+    applyMask({contour:current.configuration.contour,region,backgrounds:current.configuration.backgrounds},side);
+    if(region&&!current.selection.scope&&(current.configuration.pattern==='item'||current.configuration.pattern==='continuity'))chooseMode('boundary');
+  };
+  const toggleContour = () => applyMask({ contour: !latest.current.configuration.contour, region: latest.current.configuration.region, backgrounds: latest.current.configuration.backgrounds }, "contour");
+  const chooseMode = (pattern: PatternMode) => { cancelDrawing(); depth.current=0;settledPoint.current=null;
+    if(pattern==='continuity')record(current=>{const scope=continuityWorkingScope(current.scope);return scope===current.scope?current:{...current,scope,mask:null};});
+    const work=pattern==='continuity'?continuityWorkingScope(latest.current.selection.scope):latest.current.selection.scope;
+    setConfiguration(config => ({ ...config, pattern, rotation: 0,...(pattern==='continuity'&&!work?{contour:false,region:null}:{}) })); };
+  const cyclePattern = () => chooseMode(nextPatternMode(latest.current.configuration.pattern));
+  const finishPolygon = () => {
+    const draft = polygon.current;
+    if (!draft || draft.points.length < 3) return;
+    const box = boundaryRect(boundaryFor(document.body))!;
+    setCandidatePick({ definesScope: true, rule: { boundary: boundaryFor(document.body), include: true,
+      ...(latest.current.selection.scope ? { scope: latest.current.selection.scope } : {}),
+      path: { kind: "polygon", points: draft.points.map(p => relativePoint(p, box)), closed: true, rotation: latest.current.configuration.rotation },
+      contour: latest.current.configuration.contour, ...(latest.current.configuration.region ? { region: latest.current.configuration.region } : {}),
+      ...(latest.current.configuration.patternRole ? { role: latest.current.configuration.patternRole } : {}) } });
+    accept(true); polygon.current = null; setDrawing(false);
+  };
+  const applySurfacePick=(transaction:NonNullable<ReturnType<typeof selectionSurfaces.prepare>>,completedAt?:Point)=>{
+    const request=requestedPick.current;requestedPick.current=null;if(request)request.cancel();
+    cancelDrawing();
+    const finish=()=>{if(completedAt){completeSelection();selectionSurfaces.complete(transaction.id,transaction.after,completedAt);}else setPhase('aim');};
+    if(transaction.elements){setElements(transaction.elements);finish();return true;}
+    setTimeline(previous=>{
+      const current=previous.states[previous.index],before={...current,boundary:current.boundary??boundaryFor(document.body),surfaces:{...current.surfaces,[transaction.id]:transaction.before}};
+      const states=previous.states.map((state,index)=>index===previous.index?before:state);
+      return appendTransient({...previous,states},{...before,surfaces:{...before.surfaces,[transaction.id]:transaction.after}});
+    });
+    finish();return true;
+  };
+  const spatialPick=(mode:'toggle'|'range',p:{x:number;y:number},nativeOnly=false)=>{
+    const element=document.elementFromPoint(p.x,p.y);if(!element||element.closest(selectorChrome))return false;
+    const transaction=selectionSurfaces.prepare(element,p,mode,nativeOnly);if(transaction&&latest.current.phase==='off'&&!requestedPick.current)selectionSurfaces.beginSession(element);return transaction?applySurfacePick(transaction):false;
+  };
+  const beginSurfacePointer=(event:PointerEvent)=>{
+    const mode=selectionPointerMode(event);if(!mode||!(event.target instanceof Element))return false;
+    const start={x:event.clientX,y:event.clientY},finish=selectionSurfaces.beginPointer(event.target,start,mode,event.composedPath());if(!finish)return false;
+    const request=requestedPick.current;requestedPick.current=null;if(request)request.cancel();
+    let parts:VisualPart[]|undefined;
+    cancelDrawing();nativeGesture.current={id:event.pointerId,start,end:start,finish:end=>{const transaction=finish(end);if(transaction)applySurfacePick(transaction,end);},preview:end=>{
+      const transaction=finish.preview(end);if(!transaction)return;
+      if(!transaction.elements)return {parts:[],units:transaction.units};
+      parts??=collectVisualParts();const elements=new Set(transaction.elements);
+      return {parts:parts.filter(part=>elements.has(part.element)),units:[]};
+    }};
+    setDrawing(true);return true;
+  };
+  const pointedMembership=(mode:'toggle'|'range',input?:KeyboardEvent|MouseEvent)=>{
+    const p=inputPosition(input);if(spatialPick(mode,p))return;
+    const element=document.elementFromPoint(p.x,p.y);if(!element||element.closest(selectorChrome))return;
+    const current=latest.current,working=rangeWorkingScope(current.selection.scope);
+    const eligible=(working?matchingVisualParts(current.catalog,{...working,include:true},current.measurements):current.catalog).filter(part=>current.configuration.backgrounds||part.role!=='background');
+    const surface=element.closest('[data-selection-lens]'),hit=surface?lensPart(eligible.filter(part=>surface.contains(part.element)),p.x,p.y):partAt(eligible,element,p.x,p.y,current.measurements);
+    if(!hit)return;const endpoint=boundaryFor(selectionRangeUnit(hit.element));
+    if(mode==='toggle'){rangeAnchor.current=endpoint;toggleSelection({boundary:endpoint,backgrounds:current.configuration.backgrounds});}
+    else{
+      const units=orderedSelectionUnits(eligible,endpoint.element),boxes=units.flatMap(unit=>{const box=boundaryRect(unit);return box?[{id:unit.key,box}]:[];});
+      const ids=new Set(spatialSelectionRange(boxes,rangeAnchor.current?.key,endpoint.key));
+      record(selection=>({...selection,boundary:boundaryFor(document.body),scope:working,mask:working?selection.mask:null,objects:[],rules:[...selection.rules,...units.filter(unit=>ids.has(unit.key)).map(boundary=>({boundary,include:true,backgrounds:current.configuration.backgrounds,...(working?{scope:working}:{})}))]}));
+      if(!rangeAnchor.current)rangeAnchor.current=endpoint;
+    }
+    cancelDrawing();setPhase('aim');
+  };
+  const begin = (event: MouseEvent) => {
+    if (!(event.target instanceof Element)) return;
+    if(event instanceof PointerEvent&&beginSurfacePointer(event))return;
+    const config = latest.current.configuration, p = { x: event.clientX, y: event.clientY };
+    settledPoint.current = null;
+    setPhase("aim");
+    const pElement=event.target;
+    if(!requestedPick.current){
+      if((event.shiftKey||!isLine(config.pattern)&&!isPath(config.pattern))&&spatialPick(event.shiftKey?'range':'toggle',p,!event.shiftKey))return;
+      selectionSurfaces.anchor(pElement,p);
+    }
+    const checkpoint=event.shiftKey?requestCheckpoint.current:null;
+    if(event.shiftKey&&requestedPick.current){const request=requestedPick.current;requestedPick.current=null;request.cancel();setPhase('aim');}
+    if(!requestedPick.current){
+      const current=checkpoint?{...latest.current,selection:checkpoint.timeline.states[checkpoint.timeline.index]}:latest.current;
+      const working=event.shiftKey?rangeWorkingScope(current.selection.scope):current.selection.scope;
+      const eligible=(working?matchingVisualParts(current.catalog,{...working,include:true},current.measurements):current.catalog).filter(part=>config.backgrounds||part.role!=='background');
+      const surface=event.target.closest('[data-selection-lens]');
+      const hit=surface?lensPart(eligible.filter(part=>surface.contains(part.element)),p.x,p.y):partAt(eligible,event.target,p.x,p.y,current.measurements);
+      if(hit){
+        const endpoint=boundaryFor(selectionRangeUnit(hit.element));
+        const units=event.shiftKey?orderedSelectionUnits(eligible,endpoint.element):[];
+        const anchor=rangeAnchor.current&&boundaryElement(rangeAnchor.current);
+        const from=anchor?boundaryFor(anchor).key:undefined;
+        if(event.shiftKey){
+          const range=orderedSelectionRange(units,from,endpoint.key,unit=>unit.key);
+          if(range.length){
+            if(!units.some(unit=>unit.key===from))rangeAnchor.current=endpoint;
+            record(selection=>({...selection,boundary:boundaryFor(document.body),scope:working,mask:working?selection.mask:null,objects:[],rules:[...selection.rules,...range.map(boundary=>({boundary,include:true,backgrounds:config.backgrounds,...(working?{scope:working}:{})}))]}));
+            cancelDrawing();return;
+          }
+        }
+        rangeAnchor.current=endpoint;
+      }
+    }
+    if (config.pattern === "polygon") {
+      if (polygon.current && polygon.current.points.length >= 3 && Math.hypot(p.x - polygon.current.start.x, p.y - polygon.current.start.y) <= 8) {
+        finishPolygon(); return;
+      }
+      const draft = polygon.current ?? { id: -1, element: event.target, start: p, mode: "polygon" as const, points: [] };
+      draft.points.push(p); polygon.current = draft; setDrawing(true);
+      pickAt(event.target, p.x, p.y); return;
+    }
+    if (isLine(config.pattern) || isPath(config.pattern)) {
+      gesture.current = { id: event instanceof PointerEvent ? event.pointerId : -1, start: p, element: event.target,
+        mode: config.pattern, points: [p], sample: partAt(config.patternRole ? latest.current.catalog.filter(part => part.role === config.patternRole) : latest.current.catalog, event.target, p.x, p.y) };
+      setDrawing(true);
+    }
+    pickAt(event.target, p.x, p.y);
+    if (!gesture.current) accept();
+  };
+  useLayoutEffect(()=>{if(phase==='off')selectionSurfaces.endSession();},[phase]);
+  useEffect(()=>()=>selectionSurfaces.endSession(),[]);
+  const canConfigure = phase === "configure" || phase === "aim";
+  const lineMode = isLine(configuration.pattern);
+  const inputPosition = (input?: KeyboardEvent | MouseEvent) => input instanceof MouseEvent ? { x: input.clientX, y: input.clientY } : cursorPosition();
+  const pickSelection = (input: KeyboardEvent | MouseEvent | undefined) => {
+    if (input instanceof MouseEvent) { begin(input); return; }
+    const p = cursorPosition(), element = document.elementFromPoint(p.x, p.y);
+    settledPoint.current = null;
+    if (element && !element.closest(selectorChrome)) { pickAt(element, p.x, p.y); accept(); }
+  };
+  const deselectAt = (input?: KeyboardEvent | MouseEvent) => {
+    const p = inputPosition(input), element = input instanceof MouseEvent && input.target instanceof Element ? input.target : document.elementFromPoint(p.x, p.y);
+    if (!element) { clear(); return; }
+    const current = latest.current;
+    const pointed = partAt(current.catalog, element, p.x, p.y, current.measurements);
+    settledPoint.current = null;
+    pickAt(element, p.x, p.y);
+    const constraint = candidateRef.current?.rule ?? { boundary: boundaryFor(document.body), ...(pointed ? { part: pointed.key } : {}) };
+    const removal = selectionRemovalRule(current.catalog, selectedRef.current, pointed, constraint, current.measurements);
+    if (!removal) { clear(); return; }
+    cancelDrawing();
+    record(selection => ({ ...selection, rules: [...selection.rules, removal] }));
+    settledPoint.current = p;
+  };
+  const shortcuts = useFeatureActions("visualSelector", {
+    "selector.open": { enabled: true, run: input => {
+      const p=inputPosition(input),element=document.elementFromPoint(p.x,p.y)??document.body;
+      const firstRequestOpen=requestedPick.current&&!requestedPick.current.opened;
+      if(requestedPick.current)requestedPick.current.opened=true;
+      const outsideSource=!requestedPick.current&&selectionSurfaces.sessionScoped()&&!selectionSurfaces.sessionOwns(element)&&!element.closest('[data-visual-selector],[data-context-controller]');
+      const baseline=!requestedPick.current&&baselineAt(element);
+      const next=selectorOpenPhase(latest.current.phase==='configure'?'configure':outsideSource?'off':latest.current.phase,!!firstRequestOpen,!!baseline);
+      if(baseline)selectionSurfaces.beginSession(baselineSource.current??element);
+      if(next==='off'){close();return;}
+      if(next==='configure'){cancelDrawing();setCatalog(collectVisualParts());setPosition(p);setPhase('configure');return;}
+      const request=requestedPick.current,source=request?.surface?.();
+      if(request?.surface&&!source)selectionSurfaces.endSession();
+      else selectionSurfaces.beginSession(request?source??undefined:baseline?(baselineSource.current??element):element);
+      retainedPreview.current=false;settledPoint.current=null;setCandidatePick(null);
+      setCatalog(collectVisualParts());setPosition(p);point.current={...p,element};setInventoryOpen(false);setPhase('aim');
+    } },
+    "selector.togglePointed":{enabled:phase!=='off'||hasSelection(),run:input=>pointedMembership('toggle',input)},
+    "selector.extendSpatial":{enabled:phase!=='off'||hasSelection(),run:input=>pointedMembership('range',input)},
+    "selector.configure":{enabled:true,run:input=>{const p=inputPosition(input);setCatalog(collectVisualParts());setPosition(p);setPhase('configure');}},
+    "selector.selfInventory": { enabled: canConfigure, run: () => {
+      if (phase !== "configure") { const p = cursorPosition(); setPosition(p); setPhase("configure"); }
+      setInventoryOpen(open => !open);
+    } },
+    "selector.selectMouse": { enabled: canConfigure, run: () => selectObject("ui.mouse") },
+    "selector.pattern": { enabled: canConfigure, run: cyclePattern },
+    "selector.feedbackView": { enabled: phase !== "off" || hasSelection(), run: () => setView(feedbackVisible ? "preview" : "selection") },
+    "selector.deselect": { enabled: canConfigure, run: deselectAt },
+    "selector.edit": { enabled: hasSelection(), run: input => { const p = inputPosition(input); edit(p.x, p.y); } },
+    "selector.cancel": { enabled: ()=>selectorCanCancel(latest.current.phase,!!nativeGesture.current), run: disable },
+    "selector.undo": { enabled: canConfigure, run: undo },
+    "selector.redo": { enabled: canConfigure, run: redo },
+    "selector.redoAlternate": { enabled: canConfigure, run: redo },
+    "selector.clear": { enabled: phase!=="off"&&hasSelection(), run: clear },
+    "selector.confirm": { enabled:!!selectionConfirmation(phase,!!requestedPick.current,!!polygon.current), run:()=>{
+      const action=selectionConfirmation(latest.current.phase,!!requestedPick.current,!!polygon.current);
+      if(action==='aim')aim();else if(action==='accept')accept();
+    } },
+    "selector.aim": { enabled: phase !== "off" || hasSelection(), run: aim },
+    "selector.backgrounds": { enabled: canConfigure, run: () => {
+      setCandidatePick(null); setConfiguration(config => ({ ...config, backgrounds: !config.backgrounds,
+        patternRole: !config.backgrounds ? config.patternRole : config.patternRole === "background" ? null : config.patternRole }));
+    } },
+    "selector.boundary": { enabled: canConfigure, run: toggleContour },
+    "selector.inside": { enabled: canConfigure, run: () => chooseRegion("inside") },
+    "selector.outside": { enabled: canConfigure, run: () => chooseRegion("outside") },
+    "selector.include": { enabled: ()=>latest.current.phase==='aim'||latest.current.phase==='configure', run: pickSelection },
+    "selector.bounds": { enabled: canConfigure && lineMode && configuration.pattern !== "position", run: () => { setCandidatePick(null); setConfiguration(config => ({ ...config, bounded: !config.bounded })); } },
+    "selector.colorStop": { enabled: canConfigure && lineMode, run: () => { setCandidatePick(null); setConfiguration(config => ({ ...config, stopAtPaint: !config.stopAtPaint })); } },
+    "selector.finishGeometry": { enabled: canConfigure && drawing && !!polygon.current && polygon.current.points.length >= 3, run: finishPolygon },
+    "selector.releaseGeometry": { enabled: canConfigure && !!selection.scope, run: () => { cancelDrawing(); record(current => ({ ...current, scope: null })); } },
+    "selector.closePath": { enabled: canConfigure && configuration.pattern === "freehand", run: () => setConfiguration(config => ({ ...config, closed: !config.closed })) },
+  });
+  const contextPick=(element:Element,p:Point)=>{
+    if(requestedPick.current)return false;const baseline=selectionSurfaces.baseline(element);if(!baseline)return false;
+    pickAt(element,p.x,p.y);const pick=candidateRef.current;if(!pick)return false;
+    baseline.pick(matchingVisualParts(latest.current.catalog,pick.rule,latest.current.measurements).map(part=>part.element),p,'edit');setCandidatePick(null);return true;
+  };
+  const actions = useRef({ contextPick,pickAt, close, accept, edit, begin, rotateGeometry, beginSurfacePointer });
+  actions.current = { contextPick,pickAt, close, accept, edit, begin, rotateGeometry, beginSurfacePointer };
+  const matches = useMemo(() => resolveVisualSelection(catalog, selection.boundary, selection.rules, measurements), [catalog, selection, geometry]);
+  selectedRef.current = matches.included;
+  const editableParts = useMemo(() => describeSelectedParts(matches.included), [matches]);
+  const nativeParts=nativeMarquee?.parts;
+  const preview = useMemo(() => {
+    if(nativeParts){const accepted=new Set(matches.included.map(part=>part.key));return nativeParts.filter(part=>!accepted.has(part.key));}
+    if (!candidate || (phase !== "aim" && phase !== "configure")) return noParts;
+    const changed = matchingVisualParts(catalog, candidate.rule, measurements);
+    const selected = new Set(matches.included.map(part => part.key));
+    return changed.filter(part => candidate.rule.include ? !selected.has(part.key) : selected.has(part.key));
+  }, [catalog, candidate, measurements, matches.included, phase,nativeParts]);
+  const feedbackSelected = useMemo(() => {
+    if (candidate?.rule.include !== false || !preview.length) return matches.included;
+    const removed = new Set(preview.map(part => part.key));
+    return matches.included.filter(part => !removed.has(part.key));
+  }, [candidate, preview, matches.included]);
+  const guide = useMemo(() => candidate?.rule.line ? selectionLineGuide(catalog, candidate.rule, measurements) : null, [catalog, candidate, geometry]);
+  const guides = useMemo(() => {
+    const chain: SelectionConstraint[] = [];
+    for (let scope = selection.scope; scope; scope = scope.scope ?? null) chain.unshift(scope);
+    return chain.flatMap(scope => {
+      const points = scope.line && selectionLineGuide(catalog, { ...scope, include: true }, measurements);
+      return points ? [{ key: scope.geometryId ?? constraintKey(scope), points, include: true, direction: scope.line?.mode === "direction" }] : [];
+    });
+  }, [catalog, selection.scope, geometry]);
+  const workingScope = useMemo(() => selection.scope && !configuration.contour && !configuration.region && selection.scope.path?.closed
+    ? { ...selection.scope, region: automaticRegion } : selection.scope, [selection.scope, configuration.contour, configuration.region, automaticRegion]);
+  const patternGroups = useMemo(() => {
+    const parts = matchingVisualParts(catalog, { ...(workingScope ?? { boundary: boundaryFor(document.body) }), include: true, backgrounds: configuration.backgrounds }, measurements);
+    return (Object.keys(roleNames) as VisualRole[]).flatMap(role => { const peers = parts.filter(part => part.role === role); return peers.length ? [{ role, parts: peers }] : []; });
+  }, [catalog, workingScope, geometry, configuration.backgrounds]);
+  const properties = useMemo(() => [...new Set(editableParts.flatMap(part => selectedPartTarget(part).properties ?? []))], [editableParts]);
+  const targetSelection = useMemo(() => {
+    const selected = new Set(matches.included.map(part => part.key));
+    const counts = new Map<string, { included: number; total: number }>();
+    // Reuse the already cached work-area peers; no extra discovery/geometry pass.
+    for (const group of patternGroups) for (const part of group.parts) for (const id of patternTargetPath(part)) {
+      const count = counts.get(id) ?? { included: 0, total: 0 };
+      count.total++; if (selected.has(part.key)) count.included++;
+      counts.set(id, count);
+    }
+    return counts;
+  }, [patternGroups, matches.included]);
+  useEffect(() => {
+    let frame = 0, commandButton = -1, consumedPointer: number | null = null, consumedUntil = 0, contextHandoff = false;
+    const shortcutUI = (event: Event) => eventPathMatches(event,".shortcut-display,.binding-row,[data-ui-resident-root='window:settings']");
+    const requestOwns = (event:Event) => !requestedPick.current||selectionRequestOwnsInput(requestedPick.current.surface,event.target,event.composedPath());
+    const outsideChrome = (event: Event) => event.target instanceof Element && !eventPathMatches(event,`${selectorChrome},${APPEARANCE_EDITOR}`);
+    const down = (event: PointerEvent) => {
+      clearRecordedShortcutPress(); commandButton = -1; contextHandoff = false; consumedUntil=0;
+      if (shortcuts.blocked() || shortcutUI(event) || !(event.target instanceof Element) || event.target.closest("omnium-appearance-recovery")) return;
+      if(!requestOwns(event)&&!eventPathMatches(event,'[data-visual-selector],[data-context-controller]')){consumedPointer=null;return;}
+      if(!eventPathMatches(event,`${selectorChrome},${APPEARANCE_EDITOR}`))resumeBaseline(event.target,{x:event.clientX,y:event.clientY});
+      // A normal registered-surface session never owns another window's press.
+      // Borrowed requests yield without canceling or changing the editor context.
+      if(latest.current.phase!=='off'&&!requestedPick.current&&!selectionSurfaces.sessionOwns(event.target,event.composedPath())&&!eventPathMatches(event,'[data-visual-selector],[data-context-controller]')&&!nativeGesture.current&&!gesture.current&&!polygon.current){
+        consumedPointer=null;actions.current.close();return;
+      }
+      // The registered surface owns modifier selection even before MS opens.
+      // Active MS dispatches through its normal command router into begin().
+      if(outsideChrome(event)&&(latest.current.phase==='off')&&actions.current.beginSurfacePointer(event)){
+        commandButton=event.button;consumedPointer=event.pointerId;consumedUntil=performance.now()+1500;
+        claimUIPress(event.pointerId,event.pointerType,event.buttons);
+        event.preventDefault();event.stopImmediatePropagation();return;
+      }
+      // Accepted selection yields to declared editor context menus. The new
+      // secondary press owns its native tail; no primary tail may suppress it.
+      if(event.button===2&&actions.current.contextPick(event.target,{x:event.clientX,y:event.clientY})){
+        commandButton=2;consumedPointer=event.pointerId;consumedUntil=performance.now()+1500;claimUIPress(event.pointerId,event.pointerType,event.buttons);event.preventDefault();event.stopImmediatePropagation();return;
+      }
+      if (event.button === 2 && eventPathMatches(event,'[data-context-menu-owner]')&&!nativeGesture.current&&!gesture.current&&!polygon.current) {
+        contextHandoff = true; consumedPointer = null; consumedUntil = 0;
+        actions.current.close(); return;
+      }
+      if (shortcuts.handle(event, id => id === "selector.open" || outsideChrome(event))) {
+        commandButton = event.button; consumedPointer = event.pointerId; consumedUntil = performance.now() + 1500;
+        claimUIPress(event.pointerId, event.pointerType, event.buttons);
+        event.preventDefault(); event.stopImmediatePropagation(); return;
+      }
+      if (latest.current.phase === "off") return;
+      if (!outsideChrome(event)) { claimUIPress(event.pointerId, event.pointerType, event.buttons); return; }
+      if (latest.current.phase === "edit") {
+        if (event.button === 0) actions.current.close();
+        return;
+      }
+      claimUIPress(event.pointerId, event.pointerType, event.buttons);
+      // MS owns the native click tail even when the saved command does not match.
+      commandButton = event.button; consumedPointer = event.pointerId; consumedUntil = performance.now() + 1500;
+      // Cleared/rebound commands have no private primary-button fallback.
+      event.preventDefault(); event.stopImmediatePropagation();
+    };
+    const up = (event: PointerEvent) => {
+      const native=nativeGesture.current;
+      if(native&&native.id===event.pointerId){
+        nativeGesture.current=null;cancelAnimationFrame(frame);frame=0;setNativeMarquee(null);setDrawing(false);
+        const end={x:event.clientX,y:event.clientY};
+        native.finish(end);
+        commandButton=event.button;consumedPointer=null;consumedUntil=performance.now()+1500;
+        event.preventDefault();event.stopImmediatePropagation();return;
+      }
+
+      if (event.pointerId === consumedPointer) {
+        consumedPointer = null; consumedUntil = performance.now() + 1500;
+        event.preventDefault(); event.stopImmediatePropagation();
+      }
+      const draft = gesture.current;
+      if (!draft || draft.id !== event.pointerId) return;
+      event.preventDefault(); event.stopImmediatePropagation();
+      cancelAnimationFrame(frame); frame = 0;
+      if (!shortcuts.blocked()) {
+        const hit = document.elementFromPoint(event.clientX, event.clientY) ?? draft.element;
+        if (draft.mode === "freehand") draft.points.push({ x: event.clientX, y: event.clientY });
+        actions.current.pickAt(hit, event.clientX, event.clientY);
+        const length = Math.hypot(event.clientX - draft.start.x, event.clientY - draft.start.y);
+        if (isLine(draft.mode) || length >= 4 || draft.mode === "freehand" && draft.points.length > 2) actions.current.accept(true);
+      }
+      gesture.current = null; setDrawing(false); consumedUntil = performance.now() + 1500;
+    };
+    const move = (event: PointerEvent) => {
+      const native=nativeGesture.current;
+      if(native&&native.id===event.pointerId){
+        native.end={x:event.clientX,y:event.clientY};event.preventDefault();event.stopImmediatePropagation();
+        if(!frame)frame=requestAnimationFrame(()=>{frame=0;const current=nativeGesture.current;if(!current)return;const feedback=current.preview(current.end);setNativeMarquee(previous=>{
+          if(!feedback)return null;
+          const sameParts=previous?.parts.length===feedback.parts.length&&previous.parts.every((part,index)=>part===feedback.parts[index]);
+          const sameUnits=previous?.units.length===feedback.units.length&&previous.units.every((unit,index)=>unit===feedback.units[index]);
+          return {start:current.start,end:current.end,parts:sameParts?previous!.parts:feedback.parts,units:sameUnits?previous!.units:feedback.units};
+        });});return;
+      }
+
+      if(event.target instanceof Element&&!event.target.closest(selectorChrome)&&!selectionSurfaces.baseline(event.target))baselineSource.current=null;
+      if(event.target instanceof Element&&!event.buttons)resumeBaseline(event.target,{x:event.clientX,y:event.clientY});
+      // Parked MS ignores pointer motion; ordinary app input remains live.
+      if (latest.current.phase === "edit") return;
+      if (event.target instanceof Element && event.target.closest(APPEARANCE_EDITOR)) { setCandidatePick(null); return; }
+      if (shortcuts.blocked() || shortcutUI(event) || !(event.target instanceof Element)) return;
+      if(!requestOwns(event)||!requestedPick.current&&!selectionSurfaces.sessionOwns(event.target,event.composedPath())){cancelAnimationFrame(frame);frame=0;setCandidatePick(null);return;}
+      point.current = { element: event.target, x: event.clientX, y: event.clientY };
+      const current = latest.current;
+      if (current.phase === "aim" && current.selection.scope && !current.configuration.contour && !current.configuration.region && current.selection.scope.path?.closed && outsideChrome(event)) {
+        const scope = detectionGeometry(current.selection.scope, current.configuration, event.target, point.current,current.measurements);
+        setAutomaticRegion(scope.region === "inside" ? "inside" : "outside");
+      }
+      if (latest.current.phase === "off" && latest.current.selection.boundary && event.buttons) {
+        if (!frame) frame = requestAnimationFrame(() => { frame = 0; setGeometry(value => value + 1); });
+        return;
+      }
+      if (latest.current.phase !== "aim" || !gesture.current && !outsideChrome(event)) return;
+      retainedPreview.current = false;
+      const draft = gesture.current;
+      if (draft?.mode === "freehand") {
+        const previous = draft.points.at(-1)!;
+        if (Math.hypot(event.clientX - previous.x, event.clientY - previous.y) >= 3) {
+          if (draft.points.length >= 512) draft.points = draft.points.filter((_, index) => index % 2 === 0);
+          draft.points.push({ x: event.clientX, y: event.clientY });
+        }
+      }
+      if (!frame) frame = requestAnimationFrame(() => {
+        frame = 0; const p = point.current;
+        if (p && latest.current.phase === "aim") actions.current.pickAt(p.element, p.x, p.y);
+      });
+    };
+    const preventClick = (event: MouseEvent) => {
+      if (contextHandoff && event.button === 2) return;
+      if (!event.isTrusted || shortcuts.blocked() || shortcutUI(event)) return;
+      if (event.button === commandButton || performance.now() < consumedUntil && outsideChrome(event)) {
+        event.preventDefault(); event.stopImmediatePropagation();
+        if (event.type === "click" || event.type === "auxclick") commandButton = -1;
+      }
+    };
+    const wheel = (event: WheelEvent) => {
+      if (shortcuts.blocked() || shortcutUI(event) || !outsideChrome(event) ||
+          (latest.current.phase !== "aim" && latest.current.phase !== "configure")) return;
+      if(!requestOwns(event)||!requestedPick.current&&event.target instanceof Element&&!selectionSurfaces.sessionOwns(event.target,event.composedPath()))return;
+      const current = latest.current;
+      if(event.target instanceof Element&&selectionSurfaces.wheelOwner(event.target,event,event.composedPath())==='surface')return;
+      const rotation = selectionWheelRotation(event, current.configuration.pattern, !!current.selection.scope, innerHeight);
+      if (rotation) {
+        event.preventDefault(); event.stopImmediatePropagation();
+        actions.current.rotateGeometry(rotation.degrees, rotation.target); return;
+      }
+      const surface=event.target instanceof Element&&event.target.closest('[data-selection-lens]');
+      if(!surface){
+        if(current.selection.scope||event.shiftKey||current.configuration.pattern!=='boundary')return;
+        event.preventDefault();event.stopImmediatePropagation();
+        const p=point.current;if(!p)return;
+        depth.current=Math.max(0,Math.min(boundaryCandidates(p.element).length-1,depth.current+(event.deltaY<0?1:-1)));
+        actions.current.pickAt(p.element,p.x,p.y);return;
+      }
+      if(event.ctrlKey||event.shiftKey||isLine(current.configuration.pattern)||isPath(current.configuration.pattern))return;
+      event.preventDefault();event.stopImmediatePropagation();
+      const radius=resizeSelectionLens(lens.current.radius,event.deltaY*(event.deltaMode===1?16:event.deltaMode===2?innerHeight:1));
+      lens.current.radius=radius;setLensRadius(radius);settledPoint.current=null;
+      const p=point.current;if(p)actions.current.pickAt(p.element,p.x,p.y);
+    };
+    const focus = (event: FocusEvent) => {
+      if(latest.current.phase==='off'||requestedPick.current||nativeGesture.current||gesture.current||polygon.current||!(event.target instanceof Element))return;
+      if(selectionSurfaces.sessionScoped()&&!selectionSurfaces.sessionOwns(event.target,event.composedPath())&&!eventPathMatches(event,'[data-visual-selector],[data-context-controller]'))actions.current.close();
+    };
+    const key = (event: KeyboardEvent) => {
+      if (event.target instanceof Element && event.target.closest("omnium-appearance-recovery")) return;
+      if (shortcuts.handle(event)) { event.preventDefault(); event.stopImmediatePropagation(); }
+    };
+    const context = (event: MouseEvent) => {
+      if (contextHandoff||!requestOwns(event)) return;
+      if (recordedShortcutTail(event)) { event.preventDefault(); event.stopImmediatePropagation(); return; }
+      if (shortcuts.blocked() || shortcutUI(event) || !(event.target instanceof Element) || event.target.closest("omnium-appearance-recovery") || !outsideChrome(event)) return;
+      const keyboard = event.button !== 2 && event.clientX === 0 && event.clientY === 0;
+      if (hasSelection() && keyboard) {
+        event.preventDefault(); event.stopImmediatePropagation();
+        const rect = event.target.getBoundingClientRect();
+        actions.current.edit(rect.left + rect.width / 2, rect.top + rect.height / 2);
+      } else if (latest.current.phase !== "off" || performance.now() < consumedUntil) {
+        event.preventDefault(); event.stopImmediatePropagation();
+      }
+    };
+    const cancel = () => {
+      // Browser chrome is outside the app: release unfinished input without
+      // accepting, clearing, closing or changing the current selection/preview.
+      cancelAnimationFrame(frame); frame = 0;
+      nativeGesture.current=null;setNativeMarquee(null);gesture.current = null; polygon.current = null; setDrawing(false);
+      commandButton = -1; consumedPointer = null; consumedUntil = 0; contextHandoff = false;
+    };
+    const blur = () => {
+      retainedPreview.current = !!candidateRef.current;
+      cancel();
+    };
+    const hidden = () => { if (document.hidden) blur(); };
+    window.addEventListener("pointerdown", down, true);
+    window.addEventListener("pointerup", up, true);
+    window.addEventListener("pointercancel", cancel, true);
+    window.addEventListener("pointermove", move, true);
+    window.addEventListener("mousedown", preventClick, true);
+    window.addEventListener("mouseup", preventClick, true);
+    window.addEventListener("click", preventClick, true);
+    window.addEventListener("auxclick", preventClick, true);
+    window.addEventListener("wheel", wheel, { capture: true, passive: false });
+    window.addEventListener("keydown", key, true);
+    window.addEventListener("focusin", focus, true);
+    window.addEventListener("contextmenu", context, true);
+    window.addEventListener(PAGE_INPUT_SUSPEND, blur);
+    document.addEventListener("visibilitychange", hidden);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("pointerdown", down, true);
+      window.removeEventListener("pointerup", up, true);
+      window.removeEventListener("pointercancel", cancel, true);
+      window.removeEventListener("pointermove", move, true);
+      window.removeEventListener("mousedown", preventClick, true);
+      window.removeEventListener("mouseup", preventClick, true);
+      window.removeEventListener("click", preventClick, true);
+      window.removeEventListener("auxclick", preventClick, true);
+      window.removeEventListener("wheel", wheel, true);
+      window.removeEventListener("keydown", key, true);
+      window.removeEventListener("focusin", focus, true);
+      window.removeEventListener("contextmenu", context, true);
+      window.removeEventListener(PAGE_INPUT_SUSPEND, blur);
+      document.removeEventListener("visibilitychange", hidden);
+    };
+  }, []);
+  const inspectionKey = useMemo(() => selection.boundary || selection.rules.length || selection.objects.length
+    ? `${inspectionRequest}:${timeline.index}:${selection.objects.join("|")}:${selection.scope ? constraintKey(selection.scope) : ""}` : "", [selection, timeline.index, inspectionRequest]);
+  useEffect(() => { onInspect?.(inspectionKey); }, [inspectionKey, onInspect]);
+  const toggleFeedback = useCallback(() => { shortcuts.invoke("selector.feedbackView"); }, [shortcuts]);
+  const setElements=useCallback((elements:readonly Element[])=>{
+    if(requestedPick.current)return;
+    const parts=collectVisualParts(),measure=createVisualMeasurements();
+    const rules=elements.map(element=>({boundary:boundaryFor(element),include:true,backgrounds:true}));
+    const wanted=new Set(rules.flatMap(rule=>matchingVisualParts(parts,rule,measure).map(p=>p.key))),current=latest.current.selection;
+    const included=resolveVisualSelection(parts,current.boundary,current.rules,measure).included;
+    if(!current.objects.length&&included.length===wanted.size&&included.every(p=>wanted.has(p.key)))return;
+    if(elements.length)rangeAnchor.current=boundaryFor(selectionRangeUnit(elements[0]));
+    setCatalog(parts);cancelDrawing();record(()=>({...emptySelection(),boundary:rules.length?boundaryFor(document.body):null,rules}));
+    setPhase(before=>before==='aim'||before==='configure'?'aim':'off');
+  },[record]);
+  const requestPick=useCallback((accept:(selection:ReferenceSelection)=>SelectionDecision,cancel:()=>void,options?:{mode?:PatternMode;surface?:SelectionRequestSurface})=>{
+    const retained=requestCheckpoint.current??{timeline,configuration:{...configuration}};
+    const previous=requestedPick.current;requestedPick.current=null;if(previous)previous.cancel();
+    requestCheckpoint.current=retained;const checkpoint=retained.timeline,config=retained.configuration;
+    const restore=()=>{setPickFeedback(null);requestCheckpoint.current=null;gesture.current=null;polygon.current=null;setDrawing(false);setTimeline(checkpoint);setConfiguration(config);setPhase('off');setInventoryOpen(false);};
+    const request=Object.assign(selectionRequest<ReferenceSelection>(selection=>{const result=selectionDecision(accept(selection));setPickFeedback(result.message);return result.accepted;},cancel,restore),{opened:false,surface:options?.surface});requestedPick.current=request;
+    setPickFeedback(null);setCandidatePick(null);setTimeline({states:[emptySelection()],index:0});if(options?.mode)setConfiguration(before=>({...before,pattern:options.mode!}));shortcuts.invoke('selector.open');
+    return()=>{if(requestedPick.current===request){requestedPick.current=null;request.cancel();}};
+  },[timeline,configuration,setCandidatePick]);
+  const feedbackAvailable = phase !== "off" || hasSelection();
+  const feedbackBinding = shortcuts.binding("selector.feedbackView");
+  const requesting=!!requestedPick.current;
+  const contextValue = useMemo(() => ({ ...selection,cursorConfiguration:configuration,requesting,setElements,undoSelection:undo,redoSelection:redo,canUndo:timeline.index>0,canRedo:timeline.index<timeline.states.length-1, parts: matches.included, properties, clear, selectObject, inspectionKey,
+    feedbackVisible, feedbackAvailable, toggleFeedback, feedbackBinding, selectTarget, targetSelection,requestPick }),
+    [selection,configuration,requesting,setElements,timeline.index,timeline.states.length, matches.included, properties, clear, selectObject, inspectionKey, feedbackVisible, feedbackAvailable, toggleFeedback, feedbackBinding, selectTarget, targetSelection,requestPick]);
+  const active = phase !== "off" || !!selection.boundary || !!nativeMarquee;
+  useEffect(() => {
+    if (!active) return;
+    let frame = 0;
+    const refresh = () => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => { frame = 0; setCatalog(collectVisualParts()); setGeometry(value => value + 1); });
+    };
+    const observer = new MutationObserver(records => {
+      if (records.some(record => {
+        const element=record.target instanceof Element?record.target:record.target.parentElement;
+        if(element?.closest(`${selectorChrome},${APPEARANCE_EDITOR}`))return false;
+        return record.attributeName!=='style'||selectionGeometryStyleChanged(record.oldValue??'',element?.getAttribute('style')??'');
+      })) refresh();
+    });
+    observer.observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true,
+      attributeOldValue:true,attributeFilter: [...SELECTION_GEOMETRY_ATTRIBUTES,"style","class", "hidden", "open", "data-ui-native-hidden", "data-ui-native-icon", "data-ui-resident-root"] });
+    window.addEventListener("resize", refresh);
+    window.addEventListener("scroll", refresh, true);
+    return () => { observer.disconnect(); cancelAnimationFrame(frame); window.removeEventListener("resize", refresh); window.removeEventListener("scroll", refresh, true); };
+  }, [active]);
+  // Re-evaluate the pointed preview when resuming or changing the tool, not
+  // when entering an editor. Meta-view toggles retain the pointed preview until
+  // actual aiming motion; opening/closing chrome is not a new hover decision.
+  useEffect(() => {
+    if (phase !== "aim" || retainedPreview.current) return;
+    const p = point.current;
+    if (!p) return;
+    const element = document.elementFromPoint(p.x, p.y);
+    if (element) actions.current.pickAt(element, p.x, p.y);
+  }, [phase, configuration, catalog, geometry]);
+  const left = Math.max(8, Math.min(position.x - 88, innerWidth - 184));
+  const top = Math.max(8, Math.min(position.y - 84, innerHeight - 242));
+  const scopeChain = (scope: SelectionConstraint | null): SelectionConstraint[] => scope ? [...scopeChain(scope.scope ?? null), scope] : [];
+  useEffect(() => {
+    const scope = selection.scope, mask = selection.mask;
+    if (!scope || !mask) return;
+    setConfiguration(config => ({ ...config, ...mask, closed: scope.path?.kind === "freehand" ? scope.path.closed : config.closed }));
+  }, [selection.scope, selection.mask]);
+  const paths = [...scopeChain(selection.scope), (phase === "aim" || phase === "configure") && candidate?.definesScope ? candidate.rule : null].flatMap((constraint, index, constraints) => {
+    const box = constraint && boundaryRect(constraint.boundary);
+    const root=constraint&&boundaryElement(constraint.boundary);
+    return constraint?.path && box ? [{ surface:false,native:constraint.ownerFrame&&root?measurements.shape(root):null, key: `${index}:${constraintKey(constraint)}`, points: pathVertices(constraint.path, box),
+      closed: constraint.path.closed, disabledEdges: constraint.path.disabledEdges ?? [], preview: index === constraints.length - 1 && !!candidate?.definesScope,
+      include: index === constraints.length - 1 && candidate?.definesScope && (configuration.contour || configuration.region) ? candidate.rule.include : undefined }] : [];
+  });
+  if(nativeMarquee){const {start:a,end:b}=nativeMarquee;paths.push({surface:true,native:null,key:'native-selection-marquee',points:[a,{x:b.x,y:a.y},b,{x:a.x,y:b.y}],closed:true,disabledEdges:[],preview:true,include:undefined});}
+  for(const unit of nativeMarquee?.units??[]){const {left,top,right,bottom}=unit.box;paths.push({surface:true,native:null,key:`native-selection-unit:${unit.id}`,points:[{x:left,y:top},{x:right,y:top},{x:right,y:bottom},{x:left,y:bottom}],closed:true,disabledEdges:[],preview:true,include:true});}
+  const toggleEdge = (index: number) => updateScope(scope => {
+    if (!scope.path) return scope;
+    const disabled = scope.path.disabledEdges ?? [];
+    return { ...scope, path: { ...scope.path, disabledEdges: disabled.includes(index) ? disabled.filter(edge => edge !== index) : [...disabled, index] } };
+  });
+  const inventory = inventoryOpen ? selfInventory(PROPERTY_REGISTRY, consumer => !TARGETS.find(target => target.id === consumer.id)?.hidden) : [];
+  const inventoryRow = (target: SelfInventoryNode): ReactNode => <li key={target.id}>
+    <button type="button" aria-pressed={selection.objects.includes(target.id)}
+      title={`${selection.objects.includes(target.id) ? "Deselect" : "Select"} ${target.label}`}
+      onClick={() => selectObject(target.id)}>{selection.objects.includes(target.id) ? "●" : "○"} {target.label}</button>
+    {target.children.length > 0 && <ul>{target.children.map(inventoryRow)}</ul>}
+  </li>;
+  const activePath = workingScope?.path, activeBox = workingScope && boundaryRect(workingScope.boundary);
+  const edges = activePath && activeBox && !(workingScope?.ownerFrame&&measurements.shape(boundaryElement(workingScope.boundary)??workingScope.boundary.element)) ? pathEdges(pathVertices(activePath, activeBox), activePath.closed) : [];
+  const liveFeedback: ComponentProps<typeof VisualSelectionOverlay> = {
+    selected: feedbackSelected, excluded: noParts, preview, measurements,
+    candidate: (phase === "aim" || phase === "configure") && candidate ? candidate.rule : null,
+    guide: phase === "aim" || phase === "configure" ? guide : null, guides, paths,
+  };
+  return <Context.Provider value={contextValue}>
+    {children}
+    {active && feedbackVisible && createPortal(<VisualSelectionOverlay {...liveFeedback} />, document.body)}
+    {(phase === "aim") && createPortal(<SelectorCursor feedback={pickFeedback} radius={lensActive?lensRadius:undefined} configuration={configuration} include={true} initial={point.current ?? position} />, document.body)}
+    {phase === "edit" && createPortal(<SelectionController parts={editableParts} position={position} onClose={close} onResume={aim} />, document.body)}
+    {phase === "configure" && createPortal(<div data-visual-selector className="visual-selector" role="dialog" aria-label="Visual selection controller"
+      style={{ left, top }} onContextMenu={event => { event.preventDefault(); event.stopPropagation(); }}>
+      <SelectorSymbol configuration={configuration} include={true} precision patternBinding={shortcuts.binding("selector.pattern")} actions={{
+        contour: () => shortcuts.invoke("selector.boundary"), pattern: () => shortcuts.invoke("selector.pattern"),
+        region: side => shortcuts.invoke(side === "inside" ? "selector.inside" : "selector.outside"),
+      }} />
+      <div className="visual-selector-conditions">
+        {lineMode && <>
+          <button type="button" aria-label="Finite drag bounds" aria-pressed={configuration.bounded || configuration.pattern === "position"}
+            disabled={configuration.pattern === "position"} title="Limit the line to its dragged segment" onClick={() => shortcuts.invoke("selector.bounds")}>↦↤</button>
+          <button type="button" aria-label="Stop at color change" aria-pressed={configuration.stopAtPaint} title="Stop at the first differently painted peer"
+            onClick={() => shortcuts.invoke("selector.colorStop")}>◐</button>
+        </>}
+        {configuration.pattern === "freehand" && <button type="button" aria-label="Close freehand path" aria-pressed={configuration.closed}
+          title="Close the drawn path to enable inside/outside" onClick={() => shortcuts.invoke("selector.closePath")}>○</button>}
+        {selection.scope && <button type="button" aria-label="Release working geometry" title="Keep selections, return to matching across the app"
+          onClick={() => shortcuts.invoke("selector.releaseGeometry")}>↗</button>}
+      </div>
+      <button type="button" className="visual-selector-inventory" data-ui-id="self-inventory" aria-label="Self inventory"
+        aria-expanded={inventoryOpen} title="Self inventory" onClick={() => shortcuts.invoke("selector.selfInventory")}>◎</button>
+      {inventoryOpen && <div className="visual-selector-self-inventory" role="region" aria-label="Self inventory"
+        style={{ left: Math.max(8, Math.min(left + 184, innerWidth - 248)), top: Math.max(8, Math.min(top, innerHeight - 328)) }}>
+        <header><strong>Self inventory</strong><button type="button" aria-label="Close Self inventory" onClick={() => setInventoryOpen(false)}>×</button></header>
+        <ul>{inventory.map(inventoryRow)}</ul>
+      </div>}
+      <div className="visual-selector-tool-toggles" role="group" aria-label="Selector view and background detection">
+        <SelectionPreviewToggle compact />
+        <button type="button" data-ui-id="detect-bg" aria-label="Include BG in selection detection" aria-pressed={!!configuration.backgrounds}
+          title={`BG: backgrounds / empty space. Shortcut: ${shortcuts.binding("selector.backgrounds") || "Unassigned (Shortcuts → Visual selector)"}. Preserves existing selections.`} onClick={() => shortcuts.invoke("selector.backgrounds")}>BG</button>
+      </div>
+      <div className="visual-selector-actions">
+        <button type="button" aria-label="Undo selection operation" title={`Undo (${shortcuts.binding("selector.undo")})`} disabled={timeline.index === 0} onClick={() => shortcuts.invoke("selector.undo")}>↶</button>
+        <button type="button" aria-label="Redo selection operation" title={`Redo (${shortcuts.binding("selector.redo")})`} disabled={timeline.index === timeline.states.length - 1} onClick={() => shortcuts.invoke("selector.redo")}>↷</button>
+        <output aria-label={`${matches.included.length + selection.objects.length} selected targets`}>{matches.included.length + selection.objects.length}</output>
+        <button type="button" aria-label="Clear visual selection" title="Clear selection" onClick={() => shortcuts.invoke("selector.clear")}>×</button>
+        <button type="button" aria-label="Edit selected appearance" title={`Edit selected appearance${shortcuts.binding("selector.edit") ? ` (${shortcuts.binding("selector.edit")})` : ""}`} disabled={!hasSelection()} onClick={() => shortcuts.invoke("selector.edit")}>☷</button>
+        <button type="button" aria-label={polygon.current ? "Finish polygon" : "Start aiming"} title={polygon.current ? "Finish polygon (Enter)" : `Resume selection (${shortcuts.binding("selector.open")})`}
+          onClick={() => shortcuts.invoke(polygon.current ? "selector.finishGeometry" : "selector.aim")}>✓</button>
+      </div>
+      <details className="visual-selector-patterns">
+        <summary title="Geometry modes, patterns and enabled edges">⠒</summary>
+        {PATTERN_MODE_GROUPS.map(group => <fieldset key={group.label} className="visual-selector-mode-group">
+          <legend>{group.label}</legend>
+          <div className="visual-selector-modes" aria-label={group.label}>
+            {group.modes.map(mode => <button type="button" key={mode} aria-label={`Selection mode: ${mode==='item'?'Exact':mode==='continuity'?'Continuity':mode}`} aria-pressed={configuration.pattern === mode}
+              title={mode === "item" ? "Exact: only the pointed registered part" : mode === "continuity" ? "Continuity: all actually touching or intersecting components; containment and authored grouping do not connect them" : mode === "boundary" ? "Use a pointed contour; wheel changes owner depth, or search radius on a lens-enabled surface" : mode}
+              onClick={() => chooseMode(mode)}>{PATTERN_SYMBOLS[mode]}</button>)}
+          </div>
+        </fieldset>)}
+        {patternGroups.map(group => {
+          const constraint: SelectionConstraint = { boundary: boundaryFor(document.body), ...(workingScope ? { scope: workingScope } : {}), role: group.role, backgrounds: configuration.backgrounds };
+          const rule = selectionToggleRule(catalog, matches.included, constraint, measurements);
+          return <div key={group.role}>
+            <button type="button" aria-pressed={configuration.patternRole === group.role} title={`${group.parts.length} matching parts. Toggle pattern filter`}
+              onClick={() => { setCandidatePick(null); setConfiguration(config => ({ ...config, patternRole: config.patternRole === group.role ? null : group.role })); }}>
+              {roleSymbols[group.role]} {roleNames[group.role]} <small>{group.parts.length}</small>
+            </button>
+            <button type="button" aria-label={`Toggle ${roleNames[group.role]} selection`} aria-pressed={!rule.include}
+              title={rule.include ? `Select ${roleNames[group.role]}` : `Deselect ${roleNames[group.role]}`}
+              onClick={() => { toggleSelection(constraint); setCandidatePick(null); }}>{rule.include ? "○" : "●"}</button>
+          </div>;
+        })}
+        {activePath && activePath.kind !== "ellipse" && edges.length > 0 && <div className="visual-selector-edges" aria-label="Geometry edges">
+          {edges.map((_, index) => <button type="button" key={index} aria-label={`Geometry edge ${index + 1}`} aria-pressed={!activePath.disabledEdges?.includes(index)}
+            title={`Toggle edge ${index + 1} intersections`} onClick={() => toggleEdge(index)}>{index + 1}</button>)}
+        </div>}
+      </details>
+    </div>, document.body)}
+  </Context.Provider>;
+}
+
+/** Shared view control: never clears membership or releases held feedback. */
+export function SelectionPreviewToggle({ compact = false }: { compact?: boolean }) {
+  const selection = useVisualSelection();
+  if (!selection?.feedbackAvailable) return null;
+  return <button type="button" className="selection-preview-toggle" data-ui-id="selection-preview" aria-label="Selection / Preview"
+    aria-pressed={!selection.feedbackVisible} title={`${selection.feedbackVisible
+      ? "Switch to Preview: hide selection marks, keep targets selected"
+      : "Switch to Selection: show selected targets"}. Shortcut: ${selection.feedbackBinding || "Unassigned (Shortcuts → Visual selector)"}`} onClick={selection.toggleFeedback}>
+    {compact ? (selection.feedbackVisible ? "Selection" : "Preview")
+      : `${selection.feedbackVisible ? "Selection" : "Preview"} · ${selection.parts.length + selection.objects.length} selected`}
+  </button>;
+}

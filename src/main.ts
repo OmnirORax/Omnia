@@ -1,3 +1,6 @@
+import {visibleInAtlas} from './omnic/atlas.ts';
+import type {composerPanel} from './omnic/editor.ts';
+import type {libraryPanel} from './omnic/library.ts';
 import {createDraftSync,type Marker} from './cloud/sync.ts';
 import {createDraftClient} from './cloud/client.ts';
 import {panel} from './ui/panel.ts';
@@ -61,7 +64,9 @@ function refresh() {
   updateUIAppearance(store.world.appearance);
   for (const document of documents.values()) document?.refreshAppearance();
   const query = search.value.trim().toLocaleLowerCase();
-  shown = query ? new Set(store.world.nodes.filter(node => node.label.toLocaleLowerCase().includes(query)).map(node => key(node.origin))) : undefined;
+  const atlas=visibleInAtlas(store.world);
+  shown = query ? new Set(store.world.nodes.filter(node => node.label.toLocaleLowerCase().includes(query)).map(node => key(node.origin))) : atlas;
+  if(atlas&&shown)shown=new Set([...shown].filter(id=>atlas.has(id)));
   selection.set(selection.values.filter(target => isNode(target) ? !!locate(store.world, target) : target.kind === 'part' ? !!locate(store.world, target.owner)?.parts[target.index] : target.kind === 'variant' ? !!locate(store.world,target.owner)?.variantOf : !!store.world.relationships?.[target.index]));
   view?.update(store.world, selectedOrigins(), shown, selection.values.filter((target): target is Edge => !isNode(target)));
   element('empty').hidden = store.world.nodes.length > 0;
@@ -182,11 +187,24 @@ function remove() {
   });
   selection.set([]); close(); refresh();
 }
+const composers=new Set<ReturnType<typeof composerPanel>>(),openingComposers=new Set<string>();
+function openComposer(origin?:Origin){
+ close();if(origin){const node=locate(store.world,origin);if(node?.visual?.omnicEntityId&&!node.omnic&&!node.omnicEdits)origin=JSON.parse(node.visual.omnicEntityId);}
+ for(const composer of composers)if(!composer.root.isConnected)composers.delete(composer);
+ const existing=[...composers].find(c=>origin&&c.origin?sameOrigin(origin,c.origin):!origin&&!c.origin);if(existing){existing.root.focus();return;}
+ const id=origin?key(origin):'new';if(openingComposers.has(id))return;openingComposers.add(id);const epoch=documentEpoch;
+ void import('./omnic/editor.ts').then(({composerPanel})=>{if(epoch!==documentEpoch||origin&&!locate(store.world,origin))return;composers.add(composerPanel({library:openLibrary,surface:surface=>view?.editOmnic(surface)??(()=>{}),redraw:()=>view?.request(),read:()=>store.world,change:store.change,select:origin=>{const node=locate(store.world,origin);if(node?.variantOf)view?.variants(node.variantOf,true);pick(origin);},feedback,subscribe:store.subscribe},origin));}).catch(error=>feedback(String(error))).finally(()=>openingComposers.delete(id));
+}
+let library:ReturnType<typeof libraryPanel>|undefined,openingLibrary=false;
+function openLibrary(){close();if(library?.root.isConnected){library.root.focus();return;}if(openingLibrary)return;openingLibrary=true;const epoch=documentEpoch;
+ void import('./omnic/library.ts').then(({libraryPanel})=>{if(epoch!==documentEpoch)return;library=libraryPanel({read:()=>store.world,change:store.change,open:origin=>openComposer(origin),focus:origin=>{pick(origin);view?.focus([origin],true);},feedback,subscribe:store.subscribe});}).catch(error=>feedback(String(error))).finally(()=>{openingLibrary=false;});
+}
+
 function context(position: Vec3) {
   const edge = selection.values.find((target): target is Edge => !isNode(target));
   if (edge) { edgeContext(edge); return; }
   open(selectedOrigins().length ? `${selectedOrigins().length} selected` : 'Omnium');
-  if (!selectedOrigins().length) { button('Create structure', () => create(position)); button('👁', appearance).setAttribute('aria-label', 'Appearance'); return; }
+  if (!selectedOrigins().length) { button('Create structure', () => create(position)); button('Omnic',()=>openComposer(undefined)); button('Library · Atlas',openLibrary); button('👁', appearance).setAttribute('aria-label', 'Appearance'); return; }
   const node = selectedNodes(store.world)[0]; if (!node) return;
   for (const capability of capabilities(node).filter(c => !['color','carrier'].includes(c.key))) button(capability.label, () => editCapability(capability.key));
   button('👁', appearance).setAttribute('aria-label', 'Appearance');
@@ -194,9 +212,10 @@ function context(position: Vec3) {
     const shortcut = button(`👁 ${capability.label}`, () => editCapability(capability.key)); shortcut.dataset.searchOnly = 'true'; shortcut.dataset.keywords = capability.properties.map(p => p.property.label).join(' ');
   }
   if (selectedOrigins().length === 1) { const shortcut = button('👁 Visual', visuals); shortcut.dataset.searchOnly = 'true'; shortcut.dataset.keywords = 'image SVG GLB character size text'; }
-  if (selectedOrigins().length === 1) { button('Composition', parts); button('Document', openDocument); button('Node tools…', nodeTools); }
+  if (selectedOrigins().length === 1) { button('Omnic',()=>openComposer(selectedOrigins()[0])); button('Library · Atlas',openLibrary); button('Composition', parts); button('Document', openDocument); button('Node tools…', nodeTools); }
   button('Include…', chooseReference);
   button(node.invariant ? '⚬ Release invariant' : '⚬ Activate invariant', () => {
+    if(!node.invariant&&!node.parts.length&&!node.omnic&&!node.omnicEdits){openComposer(node.origin);return;}
     store.change(world => { for (const target of selectedNodes(world)) setInvariant(world, target, !node.invariant); }); close();
   });
   for (const [name, action] of [['Scene', openScene], ['World', worldControls]] as const) { const shortcut = button(`👁 ${name}`, action); shortcut.dataset.searchOnly = 'true'; }
@@ -232,7 +251,8 @@ let draftControl:HTMLButtonElement|undefined;
 let workspaceView: ReturnType<typeof workspacePanel> | undefined;
 function openWorkspace() {
   close(); if (workspaceView?.root.isConnected) { workspaceView.root.focus(); return; }
-  workspaceView = workspacePanel({ draft:draftControl, selected: () => selectedOrigins().map(origin => JSON.stringify(origin)), read: () => store.world, replace: world => { store.replace(world); selection.set([]); search.value = ''; refresh(); }, recover: () => { store.recover(); selection.set([]); search.value = ''; refresh(); }, beforeReplace: () => {
+  workspaceView = workspacePanel({ omnic:()=>openComposer(),atlas:openLibrary,draft:draftControl, selected: () => selectedOrigins().map(origin => JSON.stringify(origin)), read: () => store.world, replace: world => { store.replace(world); selection.set([]); search.value = ''; refresh(); }, recover: () => { store.recover(); selection.set([]); search.value = ''; refresh(); }, beforeReplace: () => {
+    for(const composer of composers.values())composer.close(); library?.close();
     documentEpoch++; view?.cancel(); close(); selection.cancel(); sceneView?.close();
     for (const document of documents.values()) document?.close();
     if ([...documents.values()].some(document => document?.root.isConnected)) throw Error('An open document could not close. Preserve it before importing.');
@@ -359,7 +379,7 @@ refresh();
 if(location.hostname==='omnium.nexus'||location.hostname==='omnia-web-bae.pages.dev'||location.hostname.endsWith('.omnia-web-bae.pages.dev')){
  const api=createDraftClient(),indicator=document.createElement('button');indicator.type='button';indicator.setAttribute('aria-label','Shared draft');draftControl=indicator;
  let draftView:ReturnType<typeof panel>|undefined;
- let issue='',hasLocal=true;try{hasLocal=!!(localStorage.getItem('omnium.v2.world.2')??localStorage.getItem('omnium.v2.world.1'));}catch{/* Preserve recovery mode. */}
+ let issue='',hasLocal=true;try{hasLocal=!!(localStorage.getItem('omnium.v2.world.3')??localStorage.getItem('omnium.v2.world.2')??localStorage.getItem('omnium.v2.world.1'));}catch{/* Preserve recovery mode. */}
  const sync=createDraftSync({
   read:()=>store.world,hasLocal,autoLoad:location.hostname.endsWith('.omnia-web-bae.pages.dev'),
   load:()=>api.load(),save:(world,revision)=>api.save(world,revision),

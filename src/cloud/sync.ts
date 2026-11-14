@@ -29,7 +29,7 @@ export function createDraftSync(host:{read:()=>World;replace:(world:World)=>Prom
    if(choice==='local'){fresh=false;ready=true;dirty=true;}
    else if(choice==='remote'||localHash===remoteHash||(host.autoLoad&&(fresh||marker?.signature===localHash))){
     if(localHash!==remoteHash){applying=true;try{await host.replace(remote.world);}finally{applying=false;}}
-    await remember(remote.world);fresh=false;dirty=false;ready=true;status('Saved');
+    await remember(host.read());fresh=false;dirty=false;ready=true;status('Saved');
    }else if(marker?.revision===revision&&host.autoLoad){ready=true;dirty=true;}
    else status(host.autoLoad?'Conflict':'Published');
   }catch(error){status('Failed',error instanceof Error?error.message:String(error));}

@@ -56,7 +56,7 @@ export function concatSource(...sources: Source[]): Source {
 }
 export const literal = (text: string): Source => ({ text, glyphs: [] });
 export type Edit = { from: number; to: number; insert: Source };
-export function sourceTransaction(state: EditorState, edits: readonly Edit[], ranges?: readonly { anchor: number; head: number }[]) {
+export function sourceTransactionSpec(state: EditorState, edits: readonly Edit[], ranges?: readonly { anchor: number; head: number }[]) {
   const specs: ChangeSpec[] = edits.map(e => ({ from: e.from, to: e.to, insert: e.insert.text })), changes = state.changes(specs);
   const glyphs: Glyph[] = [];
   for (const edit of edits) {
@@ -64,5 +64,7 @@ export function sourceTransaction(state: EditorState, edits: readonly Edit[], ra
     glyphs.push(...edit.insert.glyphs.map(g => ({ ...g, at: offset + g.at })));
   }
   glyphs.sort((a, b) => a.at - b.at);
-  return state.update({ changes, effects: addGlyphs.of(glyphs), annotations:isolateHistory.of('full'), ...(ranges ? { selection: EditorSelection.create(ranges.map(r => EditorSelection.range(r.anchor, r.head)), state.selection.mainIndex) } : {}), scrollIntoView: true, userEvent: 'input' });
+  return { changes, effects: addGlyphs.of(glyphs), annotations:isolateHistory.of('full'), ...(ranges ? { selection: EditorSelection.create(ranges.map(r => EditorSelection.range(r.anchor, r.head)), state.selection.mainIndex) } : {}), scrollIntoView: true, userEvent: 'input' };
 }
+
+export function sourceTransaction(...args:Parameters<typeof sourceTransactionSpec>){return args[0].update(sourceTransactionSpec(...args));}

@@ -29,7 +29,8 @@ export function branch(world: World, roots: readonly Origin[]) {
 }
 export function copyNode(world: World, source: Structure, position: Vec3) {
   const actual = inherited(source, world), node = addStructure(world, position);
-  for (const key of ['label','color','text','visual','opacity','glow','translucency','translucencyRadius','parts','scene','textAppearance'] as const) if (actual[key] !== undefined) Object.assign(node, { [key]: structuredClone(actual[key]) });
+  for (const key of ['label','color','text','visual','opacity','glow','translucency','translucencyRadius','parts','scene','textAppearance','catalog'] as const) if (actual[key] !== undefined) Object.assign(node, { [key]: structuredClone(actual[key]) });
+  if(actual.omnic)node.visual={size:actual.visual?.size,showText:actual.visual?.showText,omnicEntityId:JSON.stringify(source.origin)};
   return node;
 }
 export function childNode(world: World, owner: Origin, variant = false) {
@@ -44,7 +45,7 @@ export function detachNode(world: World, origin: Origin) {
   const node = locate(world, origin); if (!node) return;
   const parent = node.parent && locate(world, node.parent);
   if (node.variantOf) Object.assign(node, structuredClone(inherited(node, world)));
-  delete node.parent; delete node.variantOf; delete node.overrides;
+  delete node.parent; delete node.variantOf; delete node.overrides; delete node.omnicEdits;delete node.omnicRevision;
   if (parent) parent.parts = parent.parts.filter(binding => binding.mode !== 'follow' || !sameOrigin(binding.origin, origin));
 }
 export function removeNodes(world: World, selected: readonly Origin[]) {

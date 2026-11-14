@@ -1,3 +1,5 @@
+import {vectorAsset} from './omnic/vectorPlan.ts';
+import {vectorGlyph} from './vectorGlyph.ts';
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import type { Visual, VisualAsset } from "./graph/assets.ts";
@@ -27,6 +29,8 @@ export function visualObject(
     if (appearance.textColor !== undefined) update();
   };
   const asset = assets.find((a) => a.id === visual.assetId);
+  const plan=asset&&vectorAsset(asset);
+  if(plan&&!visual.character&&!_rasterFallback){const child=vectorGlyph(plan,appearance);group.add(child);restyle.push(()=>child.userData.setAppearance?.(appearance));return group;}
   const fallback = () => {
     if (!group.userData.disposed) {
       const label = makeText("?");
