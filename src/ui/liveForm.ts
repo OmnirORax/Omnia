@@ -20,8 +20,8 @@ export function liveForm(form: HTMLFormElement, commit: (group: string) => void)
   };
   form.addEventListener('input', event => {
     const type=(event.target as HTMLInputElement | null)?.type;
-    // Continuous controls must reach the renderer before its next scheduled paint.
-    if(type==='color'||type==='range'){flush();return;}
+    // Range scrubs are already frame-bounded; native color input can burst.
+    if(type==='range'){flush();return;}
     if(live&&!frame){pending.add(flush);frame=requestAnimationFrame(flush);}
   });
   form.addEventListener('change', flush);

@@ -28,10 +28,17 @@ test('live edits commit the latest value once per frame, flush before closing an
   assert.equal(writes.at(-1).value,'undoable');assert.equal(frames.size,0);
   value='saved';form.dispatchEvent(new Event('input'));window.dispatchEvent(new Event('pagehide'));
   assert.equal(writes.at(-1).value,'saved');assert.equal(frames.size,0);
-  for(const type of ['color','range']){
+  for(const type of ['range']){
     value=type;const input=new Event('input');Object.defineProperty(input,'target',{value:{type}});
     form.dispatchEvent(input);assert.equal(writes.at(-1).value,type);assert.equal(frames.size,0);
   }
+  const colorInput=()=>{const input=new Event('input');Object.defineProperty(input,'target',{value:{type:'color'}});form.dispatchEvent(input);};
+  const beforeColor=writes.length;
+  value='#001122';colorInput();value='#112233';colorInput();
+  assert.equal(writes.length,beforeColor);assert.equal(frames.size,1);
+  [...frames.values()][0]();assert.equal(writes.at(-1).value,'#112233');assert.equal(frames.size,0);
+  value='#223344';colorInput();form.dispatchEvent(new Event('change'));
+  assert.equal(writes.at(-1).value,'#223344');assert.equal(frames.size,0);
   const before=writes.length;
   form.isConnected=false;form.dispatchEvent(new Event('input'));window.dispatchEvent(new Event('pagehide'));assert.equal(writes.length,before);
   form.isConnected=true;form.dispatchEvent(new Event('input'));dispose();assert.equal(frames.size,0);
