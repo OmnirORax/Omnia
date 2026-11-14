@@ -4,7 +4,7 @@ import { EditorState, EditorSelection } from '@codemirror/state';
 import { history, undo, redo } from '@codemirror/commands';
 import { markdown, markdownKeymap } from '@codemirror/lang-markdown';
 import { Strikethrough, TaskList } from '@lezer/markdown';
-import { fromSource, toSource, glyphField, glyphHistory, sliceSource, sourceTransaction } from '../src/text/source.ts';
+import { fromSource, toSource, glyphField, glyphHistory, sliceSource, sourceTransaction, sourceRefreshSpec } from '../src/text/source.ts';
 import { wrap, heading, list, moveLines, deleteLines, deleteParagraph, capitalizeSentence, codeBlock, singleCursor } from '../src/text/commands.ts';
 
 const glyph={glyph:'{"born":1,"at":[0,0,0]}',word:'shape'};
@@ -118,4 +118,16 @@ test('bold and italic expand cursors and partial word selections, merging duplic
  const phrase=editor(['one two'],[[1,5]]);phrase.run(wrap('*'));assert.equal(phrase.state.doc.toString(),'o*ne t*wo');
  const blank=editor(['one  two'],[[4,4]]);blank.run(wrap('**'));assert.equal(blank.state.doc.toString(),'one **** two');
  const code=editor(['example'],[[3,3]]);code.run(wrap('`'));assert.equal(code.state.doc.toString(),'exa``mple');
+});
+
+test('external undo refresh preserves cursor location and does not request a scroll to the top',()=>{
+ const before='first\nsecond\nthird edited\nlast',e=editor([before],[[23,23],[28,28]]);
+ const next=toSource({version:1,content:['first\nsecond\nthird\nlast']});
+ const spec=sourceRefreshSpec(e.state,next),tr=e.state.update(spec);
+ assert.equal(tr.scrollIntoView,false);e.dispatch(tr);
+ assert.deepEqual(e.state.selection.ranges.map(r=>r.head),[18,21]);
+ assert.equal(e.state.doc.toString(),next.text);
+ const glyphDoc=editor(['a',glyph,'b'],[[2,2]]),replacement={...glyph,word:'updated'};
+ glyphDoc.dispatch(glyphDoc.state.update(sourceRefreshSpec(glyphDoc.state,toSource({version:1,content:['a',replacement,'b']}))));
+ assert.equal(glyphDoc.state.selection.main.head,2);assert.deepEqual(glyphDoc.text().content,['a',replacement,'b']);
 });

@@ -1,4 +1,4 @@
-import { EditorSelection, StateEffect, StateField, MapMode, type EditorState, type ChangeDesc, type ChangeSpec } from '@codemirror/state';
+import { EditorSelection, Transaction, StateEffect, StateField, MapMode, type EditorState, type ChangeDesc, type ChangeSpec } from '@codemirror/state';
 import { invertedEffects, isolateHistory } from '@codemirror/commands';
 import { normalizeText, type NodeText, type TextPart } from './model.ts';
 
@@ -15,11 +15,12 @@ function mapped(glyphs: readonly Glyph[], changes: ChangeDesc): Glyph[] {
   });
   return result;
 }
+const replaceGlyphs = StateEffect.define<readonly Glyph[]>();
 export const glyphField = StateField.define<readonly Glyph[]>({
   create: () => [],
   update(value, tr) {
     const next = tr.docChanged ? mapped(value, tr.changes) : [...value];
-    for (const effect of tr.effects) if (effect.is(addGlyphs)) next.push(...effect.value);
+    for (const effect of tr.effects) {if (effect.is(addGlyphs)) next.push(...effect.value);else if(effect.is(replaceGlyphs))return effect.value;}
     return next.sort((a,b) => a.at-b.at);
   },
 });
@@ -68,3 +69,12 @@ export function sourceTransactionSpec(state: EditorState, edits: readonly Edit[]
 }
 
 export function sourceTransaction(...args:Parameters<typeof sourceTransactionSpec>){return args[0].update(sourceTransactionSpec(...args));}
+
+/** Refresh external history without mapping every cursor through a full-document deletion. */
+export function sourceRefreshSpec(state:EditorState,next:Source){
+  const before=state.doc.toString();let from=0,oldEnd=before.length,newEnd=next.text.length;
+  while(from<oldEnd&&from<newEnd&&before[from]===next.text[from])from++;
+  while(oldEnd>from&&newEnd>from&&before[oldEnd-1]===next.text[newEnd-1]){oldEnd--;newEnd--;}
+  const changes=state.changes({from,to:oldEnd,insert:next.text.slice(from,newEnd)});
+  return {changes,effects:replaceGlyphs.of(next.glyphs),selection:state.selection.map(changes),annotations:Transaction.addToHistory.of(false),scrollIntoView:false};
+}

@@ -16,7 +16,7 @@ import { normalizeText, validateNodeText, type NodeText, type TextPart } from '.
 import type { Origin, World } from '../core/model.ts';
 import { inherited } from '../core/lattice.ts';
 import { locate } from '../core/model.ts';
-import { fromSource, glyphField, glyphHistory, sliceSource, sourceTransaction, sourceTransactionSpec, toSource, type Edit } from './source.ts';
+import { fromSource, glyphField, glyphHistory, sliceSource, sourceTransaction, sourceRefreshSpec, toSource, type Edit } from './source.ts';
 import { capitalizeSentence, codeBlock, deleteLines, heading, list, moveLines, singleCursor, wrap } from './commands.ts';
 import { documentMouseSelection } from './mouse.ts';
 import {createGlyphPresentation} from '../omnic/presentation.ts';
@@ -116,7 +116,7 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
       const current=fromSource(sliceSource(editor.state));
       if(node&&JSON.stringify(current)!==JSON.stringify(text??{version:1,content:[]})){
         const next=toSource(text??{version:1,content:[]});
-        queueMicrotask(()=>{if(!view.root.isConnected||!editor)return;syncing=true;try{editor.dispatch(editor.state.update(sourceTransactionSpec(editor.state,[{from:0,to:editor.state.doc.length,insert:next}]),{annotations:Transaction.addToHistory.of(false)}));}finally{syncing=false;}});
+        queueMicrotask(()=>{if(!view.root.isConnected||!editor)return;syncing=true;try{editor.dispatch(editor.state.update(sourceRefreshSpec(editor.state,next),{annotations:Transaction.addToHistory.of(false)}));}finally{syncing=false;}});
       }
     }
 
