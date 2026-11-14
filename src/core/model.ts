@@ -1,3 +1,5 @@
+import { validateNavigation,type NavigationOptions } from '../navigation/options.ts';
+import type { Rotation } from '../navigation/transforms.ts';
 import {validateFilter} from '../omnic/filter.ts';
 import {validateRecipe,referenceComponents,type Recipe} from '../omnic/model.ts';
 import {recipeSpecification} from '../omnic/specification.ts';
@@ -22,12 +24,12 @@ export type Binding =
 export type Structure = { origin: Origin; label: string; position: Vec3; color: string; invariant: boolean; parts: Binding[];
   parent?: Origin; variantOf?: Origin; overrides?: string[]; hidden?: boolean; collapsed?: boolean;
   omnic?:Recipe;omnicDraft?:Recipe;omnicEdits?:RecipeEdit[];omnicRevision?:number;omnicHistory?:Recipe[];catalog?:Catalog;lexiconWords?:string[];
-  text?: NodeText; textAppearance?: Paint; visual?: Visual; scene?: string | null;
+  orientation?: Rotation; text?: NodeText; textAppearance?: Paint; visual?: Visual; scene?: string | null;
   opacity?: number; glow?: number; translucency?: number; translucencyRadius?: number;
 };
 export type Relationship = { from: Binding; to: Binding; label: string; kind: string };
 export type World = { format: 'omnium-world'; version: 1 | 2 | 3; atlases?:AtlasView[];activeAtlas?:number; nodes: Structure[]; assets?: VisualAsset[]; relationships?: Relationship[]; scene?: SceneSettings; appearance?: Appearance;
-  settings?: { latticeScale: number; names: 'all' | 'expanded' | 'selection' } };
+  settings?: { latticeScale: number; names: 'all' | 'expanded' | 'selection'; navigation?: NavigationOptions } };
 export const emptyWorld = (): World => ({ format: 'omnium-world', version: 2, nodes: [], assets: [], relationships: [], appearance:{background:{translucency:1},text:{font:DEFAULT_TEXT_FONT,color:'#ff000d',glow:1}}, scene: defaultScene(), settings: { latticeScale: 1, names: 'expanded' } });
 export const samePoint = (a: Vec3, b: Vec3) => a.every((n, i) => n === b[i]);
 export const sameOrigin = (a: Origin, b: Origin) => a.born === b.born && samePoint(a.at, b.at);
@@ -107,6 +109,7 @@ export function validateWorld(value: unknown): World {
   const point = (p: unknown): p is Vec3 => Array.isArray(p) && p.length === 3 && p.every(n => typeof n === 'number' && Number.isFinite(n) && Math.abs(n) <= 1e7);
   const origin = (o: Origin) => o && Number.isFinite(o.born) && point(o.at);
   validateAppearance(w.appearance);
+  validateNavigation(w.settings?.navigation);
   if(w.activeAtlas!==undefined&&!w.atlases)throw Error('Invalid active atlas.');
   if(w.atlases!==undefined){if(w.version!==3||!Array.isArray(w.atlases)||w.atlases.length>32||!Number.isInteger(w.activeAtlas??0)||(w.activeAtlas??0)<0||(w.activeAtlas??0)>=w.atlases.length)throw Error('Invalid atlas views.');for(const view of w.atlases){if(typeof view.name!=='string'||!view.name.trim()||view.name.length>100||!view.filter||typeof view.filter!=='object')throw Error('Invalid atlas view.');if(view.roots!==undefined&&(!Array.isArray(view.roots)||view.roots.length>4000))throw Error('Invalid atlas scope.');for(const root of view.roots??[])referenceBinding(JSON.stringify(root));validateFilter(view.filter);}}
 
@@ -139,6 +142,7 @@ export function validateWorld(value: unknown): World {
       if(node.catalog!==undefined){if(!node.catalog||typeof node.catalog!=='object')throw Error('Invalid library metadata.');for(const key of ['tags','collections'] as const)if(!Array.isArray(node.catalog[key])||node.catalog[key].length>128||node.catalog[key].some(value=>typeof value!=='string'||value.length>100))throw Error('Invalid library metadata.');}
       size+=new TextEncoder().encode(JSON.stringify([node.omnic,node.omnicDraft,node.omnicEdits,node.omnicHistory,node.catalog,node.lexiconWords])).length;if(size>3500000)throw Error('Definition library exceeds storage budget.');
     }
+    if(node.orientation!==undefined){const q=node.orientation;if(!q||!['x','y','z','w'].every(key=>typeof q[key as 'x']==='number'&&Number.isFinite(q[key as 'x']))||Math.abs(Math.hypot(q.x,q.y,q.z,q.w)-1)>.001)throw Error('Invalid node orientation.');}
     validatePaint(node.textAppearance,true);
     if (node.text) validateNodeText(node.text, glyphs);
     validateVisual(node.visual, assets);

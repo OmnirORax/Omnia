@@ -96,3 +96,16 @@ header button.wordmark { width:auto; font-size:15px; }
 .omnic-library{width:430px;height:440px}.omnic-library .panel-body{display:flex;flex-direction:column;height:calc(100% - 25px);gap:4px}.omnic-library-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(75px,1fr));gap:4px;overflow:auto;flex:1}.omnic-library-item{display:flex;flex-direction:column;align-items:center;padding:4px;min-height:85px;overflow:hidden}.omnic-library-item svg{width:60px;height:60px}.omnic-library-item span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.omnic-composer .panel-body{height:calc(100% - 25px);display:flex;flex-direction:column}.omnic-composer .omnic-layout{flex:1;min-height:100px;height:auto}.omnic-menu>div{max-height:260px;overflow:auto}.omnic-menu button{display:block;width:100%;text-align:left}.omnic-menu input{max-width:100%}
 .omnic-tree [data-selected=true]{outline:1px solid #00d8ff}.omnic-canvas [data-omnic-selected=true]{outline:1px solid #00d8ff;outline-offset:2px}.omnic-composer nav{display:flex;flex-wrap:wrap;gap:2px}.omnic-composer nav>input{min-width:50px;width:100px}
 .omnic-state-field{display:block;width:180px;height:150px;margin:auto}.omnic-state-values{display:flex;flex-wrap:wrap;gap:2px}.omnic-menu .omnic-state-values button{width:auto}.omnic-state-field circle{cursor:pointer}
+
+/* V1 camera compass and readout layout. */
+.camera-guide { width: 246px; max-width: 100%; box-sizing: border-box; padding: 9px; font-size: 11px; font-variant-numeric: tabular-nums; }
+.camera-guide-heading, .camera-guide-body, .camera-guide-actions { display: flex; align-items: center; gap: 6px; }
+.camera-guide-heading { justify-content: space-between; }
+.camera-guide-heading output { font-weight: 600; font-size: 13px; }
+.camera-guide-body svg { width: 96px; height: 96px; flex: 0 0 96px; overflow: visible; }
+.camera-guide-body small { font-size: 10px; color: #a3b9cd; }
+.camera-guide dl { margin: 2px 0 8px; }
+.camera-guide dt { color: #a3b9cd; margin-top: 4px; font-size: 10px; }
+.camera-guide dd { margin: 0; overflow-wrap: anywhere; }
+.camera-guide-actions { flex-wrap: wrap; }
+.camera-guide :is(button.ui-function.function-text, button) { font-size: 11px; min-height: 25px; padding: 3px 6px; }

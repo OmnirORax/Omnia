@@ -1,8 +1,6 @@
+import {universalHistory} from '../core/universalHistory.ts';
 import {createRoot,type Root} from 'react-dom/client';
-import {useEffect,useSyncExternalStore} from 'react';
-import {isTypingTarget,normalizeKey,preferredFeatureKey} from './runtime/workspaceActions.ts';
-import {featureActionRuntime} from './runtime/featureActions.ts';
-import {useUI} from './runtime/ui/context.tsx';
+import {useSyncExternalStore} from 'react';
 import {locate,addStructure,sameOrigin,type Origin,type World} from '../core/model.ts';
 import {childNode} from '../core/nodeOperations.ts';
 import {saveDefinition,definitionRecipe} from '../omnic/atlas.ts';
@@ -16,7 +14,6 @@ import {composerAtlas} from './atlasAdapter.ts';
 import {ComposerRuntime} from './runtime/host.tsx';
 import {OmnicComposer} from './runtime/omnic/Composer.tsx';
 import {FloatingWindow} from './runtime/ui/FloatingWindow.tsx';
-import {createActionHistory} from './runtime/ui/actionHistory.ts';
 import type {AtomnicInteraction} from './runtime/omnic/atomnicInteraction.ts';
 import type {UIFunction} from './runtime/ui/context.tsx';
 import './runtime/host.css';
@@ -24,8 +21,8 @@ import {setToolCursorZone} from './runtime/ui/toolCursorZone.ts';
 export type ComposerHost={surface?:(surface:OmnicSurface)=>()=>void;redraw?:()=>void;library?:()=>void;read:()=>World;change:(edit:(world:World)=>void,group?:string)=>void;select:(origin:Origin)=>void;feedback:(message:string)=>void;subscribe:(listener:()=>void)=>()=>void};
 const seed=():Recipe=>({version:2,revision:0,atomnic:{active:true},components:[{id:'unit',generator:'dot',params:{size:10,color:'#ffffff',thickness:.25}}],operations:[],frames:[]});
 let active:{close:()=>void}|undefined;
-const journal=createActionHistory({categories:['omnium'],steps:1,limit:10,minimum:1});
-function ComposerHistory(){const ui=useUI();useEffect(()=>{const key=(event:KeyboardEvent)=>{if(event.defaultPrevented||event.repeat||isTypingTarget(event.target))return;const normalized=normalizeKey(event);if(preferredFeatureKey(ui.shortcutBindings??{},normalized,id=>featureActionRuntime.available(id)))return;const direction=normalized==='Ctrl+Z'?'undo':normalized==='Ctrl+Y'||normalized==='Ctrl+Shift+Z'?'redo':undefined;if(!direction)return;event.preventDefault();event.stopImmediatePropagation();journal.travel(direction);};window.addEventListener('keydown',key,true);return()=>window.removeEventListener('keydown',key,true);},[ui.shortcutBindings]);return null;}
+const journal=universalHistory;
+
 /** Preserve the V1 UI; bridge its state owner and actual geometry into V2. */
 export function composerPanel(host:ComposerHost,initial?:Origin){
  active?.close();let origin=initial,closed=false,writing=false,epoch=0,preview:Recipe|undefined,editing:AtomnicInteraction|undefined,knownDraft='',lastWorld:World|undefined,atlas:ReturnType<typeof composerAtlas>,cached:Evaluation|undefined,cachedRecipe:Recipe|undefined,cachedWorld:World|undefined,cachedBucket=-1;
@@ -56,6 +53,6 @@ export function composerPanel(host:ComposerHost,initial?:Origin){
  const unsubscribe=host.subscribe(()=>{if(closed)return;const node=locate(host.read(),origin!);if(!node){close();return;}if(writing)return;const next=JSON.stringify(readDraft());if(next!==knownDraft){knownDraft=next;epoch++;draftStore=ownerStore(origin!);preview=undefined;editing=undefined;}lastWorld=undefined;revision++;notify();});
  const clearHelp=(element:Element)=>{if(element.hasAttribute('title'))element.removeAttribute('title');if(element.hasAttribute('data-ui-tooltip'))element.removeAttribute('data-ui-tooltip');for(const node of element.querySelectorAll('[title],[data-ui-tooltip],svg title')){if(node.localName==='title')node.remove();else {node.removeAttribute('title');node.removeAttribute('data-ui-tooltip');}}};
  const observer=new MutationObserver(records=>{for(const record of records){if(record.type==='attributes')clearHelp(record.target as Element);for(const node of record.addedNodes)if(node instanceof Element)clearHelp(node);}});observer.observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['title','data-ui-tooltip']});
- function View(){useSyncExternalStore(subscribe,()=>revision);const data=current(),functions:UIFunction[]=[{id:'omnic.library',label:'Omnic library',element:<button onClick={()=>host.library?.()}>☷</button>}];return <ComposerRuntime functions={functions}><ComposerHistory/><FloatingWindow id="omnic-composer" title={`Omnic · ${data.entity.label||'object'}`} shape="circle" width={360} height={360} onClose={close}><OmnicComposer radar key={`${data.entity.id}:${epoch}`} workspaceId="omnium-v2" entity={data.entity} objects={data.objects} presetIds={data.presetIds} history={journal} resolveReference={data.resolveReference} referenceObject={data.referenceObject} draftStore={draftStore} initialRecipe={readDraft()} isNew={!data.entity.omnic} onPreview={observePreview} onSave={(recipe,label)=>accept(recipe,label)} onCopy={(recipe,label)=>accept(recipe,label,true)} onClose={close}/></FloatingWindow></ComposerRuntime>;}
+ function View(){useSyncExternalStore(subscribe,()=>revision);const data=current(),functions:UIFunction[]=[{id:'omnic.library',label:'Omnic library',element:<button onClick={()=>host.library?.()}>☷</button>}];return <ComposerRuntime functions={functions}><FloatingWindow id="omnic-composer" title={`Omnic · ${data.entity.label||'object'}`} shape="circle" width={360} height={360} onClose={close}><OmnicComposer radar key={`${data.entity.id}:${epoch}`} workspaceId="omnium-v2" entity={data.entity} objects={data.objects} presetIds={data.presetIds} history={journal} resolveReference={data.resolveReference} referenceObject={data.referenceObject} draftStore={draftStore} initialRecipe={readDraft()} isNew={!data.entity.omnic} onPreview={observePreview} onSave={(recipe,label)=>accept(recipe,label)} onCopy={(recipe,label)=>accept(recipe,label,true)} onClose={close}/></FloatingWindow></ComposerRuntime>;}
  react.render(<View/>);host.select(origin!);active={close};root.addEventListener('pointerdown',()=>{releaseSurface?.();releaseSurface=host.surface?.(surface);});return {root,close,get origin(){return origin;}};
 }

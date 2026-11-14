@@ -11,7 +11,7 @@ export function geometry(world: World): Document {
   const nodes = new Map(world.nodes.map(node => [address(node.origin), node]));
   return { placements: world.nodes.map(node => {
     const parent = node.parent && nodes.get(address(node.parent));
-    return { id: address(node.origin), parentId: parent ? address(parent.origin) : null, position: { x: 0, y: 0 },
+    return { id: address(node.origin), parentId: parent ? address(parent.origin) : null, position: { x: 0, y: 0 },orientation:node.orientation,
       spatialPosition: point(parent ? node.position.map((n, i) => n - parent.position[i]) as Vec3 : node.position),
       ...(node.variantOf ? { variantOwner: { placementId: address(node.variantOf) } } : {}),
     };

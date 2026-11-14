@@ -1,3 +1,7 @@
+import {universalHistory} from './core/universalHistory.ts';
+import {installHistoryBindings} from './ui/historyBindings.ts';
+import { transformNodes } from './core/navigation.ts';
+import {NAV_DEFAULTS,MODES,type NavigationOptions} from './navigation/options.ts';
 import {visibleInAtlas} from './omnic/atlas.ts';
 import type {composerPanel} from './omnic/editor.ts';
 import type {libraryPanel} from './omnic/library.ts';
@@ -20,13 +24,13 @@ import { createSelection } from './core/selection.ts';
 import { createStore } from './core/store.ts';
 import { createWorld, type Edge } from './world.ts';
 import { moveBranch, inherited } from './core/lattice.ts';
-import { adoptNodes, childNode, copyNode, detachNode, removeNodes } from './core/nodeOperations.ts';
+import { adoptNodes, childNode, copyNode, detachNode, removeNodes, toggleSubtree } from './core/nodeOperations.ts';
 import type { editDocument } from './text/editor.ts';
 import { scenePanel } from './scene/panel.ts';
 import { validateAsset, MAX_ASSET_BYTES, type VisualAsset } from './graph/assets.ts';
 import { workspacePanel } from './ui/workspace.ts';
 import { field } from './ui/fields.ts';
-import { liveForm } from './ui/liveForm.ts';
+import { liveForm,flushLiveForms } from './ui/liveForm.ts';
 
 installPrimaryClickGate();
 const element = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -36,13 +40,13 @@ const isNode = (target: Target): target is Origin => 'born' in target;
 const selection = createSelection<Target>((a, b) => isNode(a) && isNode(b) ? sameOrigin(a, b) : !isNode(a) && !isNode(b) && JSON.stringify(a) === JSON.stringify(b));
 const selectedOrigins = () => selection.values.filter(isNode);
 const storage = { getItem: (key: string) => localStorage.getItem(key), setItem: (key: string, value: string) => localStorage.setItem(key, value) };
-const store = createStore(storage);
+const store = createStore(storage,universalHistory);
 let message = '', menuPoint = { x: 20, y: 60 }, shown: Set<string> | undefined;
 const key = (origin: Origin) => JSON.stringify(origin);
 function feedback(text: string) { message = text; refresh(); }
 function attempt(action: () => void) { try { action(); } catch (error) { feedback(error instanceof Error ? error.message : String(error)); } }
 function close() { tools.hidden = true; view?.update(store.world, selectedOrigins(), shown, selection.values.filter((target): target is Edge => !isNode(target))); }
-function pick(origin: Origin, extend = false, toggle = false) { selection.pick(origin, extend, toggle); refresh(); }
+function pick(origin: Origin, extend = false, toggle = false) { universalHistory.activeContext=`node:${key(origin)}`;universalHistory.contextPath=['omnium',universalHistory.activeContext]; selection.pick(origin, extend, toggle); refresh(); }
 function selectedNodes(world: World) { return world.nodes.filter(node => selection.has(node.origin)); }
 const view = (() => {
   try {
@@ -51,10 +55,13 @@ const view = (() => {
       range(origins, extend) { if (!selection.requesting) { selection.set(extend ? [...selectedOrigins(), ...origins] : origins); refresh(); } },
       clear() { if (selection.requesting) return; close(); selection.set([]); refresh(); },
       menu(origin, point, position, edge) { if (selection.requesting) return; message = ''; if (edge) selection.set([edge]); else if (origin && !selection.has(origin)) pick(origin); menuPoint = point; refresh(); context(position); },
+      navigationSettings:openNavigation,
+      transform(origins,rotation,pivot,layout){store.change(world=>transformNodes(world,origins,rotation,pivot,layout));},
       move(origins, delta) { store.change(world => translate(world, origins, delta)); },
       adopt(origins, owner, delta) { store.change(world => adoptNodes(world, origins, owner, delta)); },
       park(origin, position) { message = ''; store.change(world => moveBranch(world, origin, position)); return store.world; },
       paint(positions, source) { store.change(world => { const node = source && locate(world, source); for (const position of positions) { if (node) copyNode(world, node, position).parts = []; else addStructure(world, position); } }); },
+      subtree(origin) { store.change(world => toggleSubtree(world, origin)); },
       expand(origin) { store.change(world => { const node = locate(world, origin)!; node.collapsed = !node.collapsed; }); },
       edge(edge) { selection.set([edge]); refresh(); },
       feedback,
@@ -77,6 +84,7 @@ function refresh() {
   if (view) status.textContent = store.message || message;
 }
 store.subscribe(refresh);
+universalHistory.subscribe(()=>{element<HTMLButtonElement>('undo').disabled=!store.canUndo;element<HTMLButtonElement>('redo').disabled=!store.canRedo;});
 function open(title: string) {
   tools.replaceChildren(); tools.hidden = false;
   const row = document.createElement('div'); row.className = 'title';
@@ -315,12 +323,33 @@ function appearance() {
   });
 }
 
+function openHistory(){
+  open('History');const form=document.createElement('form'),options=universalHistory.options;
+  const mode=field({key:'history.mode',label:'Scope',kind:'select',options:[{id:'recent',label:'All actions'},{id:'context',label:'Current context'},{id:'selective',label:'Selected categories'}]},options.mode);
+  const steps=field({key:'history.steps',label:'Steps',kind:'number',min:1,max:10,step:1},options.steps);
+  form.append(mode.row,steps.row);
+  const categories=(['omnium','ui','appearance','settings','camera']as const).map(id=>{const entry=field({key:`history.${id}`,label:id==='omnium'?'Nodes / documents':id,kind:'toggle'},options.categories.includes(id));form.append(entry.row);return {id,entry};});
+  liveForm(form,()=>universalHistory.configure({mode:mode.value()as typeof options.mode,steps:Number(steps.value()),categories:categories.filter(c=>c.entry.value()).map(c=>c.id)}));tools.append(form);
+  button('Undo',()=>store.undo());button('Redo',()=>store.redo());positionMenu();
+}
+function openNavigation(){
+  open('Camera & rotation');const form=document.createElement('form'),current={...NAV_DEFAULTS,...store.world.settings?.navigation};
+  const options={mode:MODES,actor:[{id:'auto',label:'From context'},{id:'camera',label:'Camera'},{id:'object',label:'Object'}],pivot:['focus','selection','pointed','origin'].map(id=>({id,label:id})),target:['selection','pointed'].map(id=>({id,label:id})),axis:['free','x','y','z'].map(id=>({id,label:id}))};
+  const inputs=Object.entries(current).map(([key,value])=>{
+    const choices=options[key as keyof typeof options];const entry=field({key:`navigation.${key}`,label:({mode:'Movement',actor:'Rotate',pivot:'Pivot',target:'Node targets',axis:'World axis',upright:'Ground walking',descendants:'Include descendants',speed:'Sensitivity'})[key]??key,kind:choices?'select':typeof value==='boolean'?'toggle':'number',options:choices,min:.1,max:2,step:.05},value);form.append(entry.row);return {key,entry};
+  });
+  liveForm(form,group=>attempt(()=>store.change(world=>{world.settings??={latticeScale:1,names:'expanded'};world.settings.navigation=Object.fromEntries(inputs.map(({key,entry})=>[key,entry.value()])) as NavigationOptions;},group)));tools.append(form);
+  for(const [id,label]of [['zoom100','100%'],['cameraOrigin','Origin'],['front','Front'],['all','Fit all'],['back','Back']]as const)button(label,()=>view?.camera(id));positionMenu();
+}
 function worldControls() {
   open('World');
   const form = document.createElement('form'), scale = field({ key:'latticeScale',label:'Lattice scale',kind:'number',min:1e-9 }, store.world.settings?.latticeScale ?? 1);
   const names = field({ key:'names',label:'Names',kind:'select',options:[{id:'expanded',label:'Expanded'},{id:'all',label:'All'},{id:'selection',label:'Selected'}] }, store.world.settings?.names ?? 'expanded');
   form.append(scale.row,names.row);
-  liveForm(form, group => attempt(() => store.change(world => { world.settings = { latticeScale:Number(scale.value()),names:names.value() as 'all'|'expanded'|'selection' }; }, group))); tools.append(form);
+  liveForm(form, group => attempt(() => store.change(world => { world.settings = { ...world.settings,latticeScale:Number(scale.value()),names:names.value() as 'all'|'expanded'|'selection' }; }, group))); tools.append(form);
+  button('History',openHistory);
+  button('Camera & rotation',openNavigation);
+  button('Camera HUD',()=>{view?.showCamera();close();});
   button('Show all nodes', () => { store.change(world => { for (const node of world.nodes) {node.hidden=false;node.collapsed=false;} });search.value='';close();refresh(); });
   button('Fit all', () => { view?.focus(store.world.nodes.map(node => node.origin),true);close(); });positionMenu();
 }
@@ -372,9 +401,10 @@ document.addEventListener('keydown', event => {
   }
   if (editing) return;
   if(event.key.toLowerCase()==='s'&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&!event.repeat){event.preventDefault();searchSettings();return;}
-  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') { event.preventDefault(); element<HTMLButtonElement>(event.shiftKey ? 'redo' : 'undo').click(); }
+
   if (event.key === 'Delete' && selection.values.length && !selection.requesting) { event.preventDefault(); attempt(remove); }
 });
+installHistoryBindings({undo:()=>element<HTMLButtonElement>('undo').click(),redo:()=>element<HTMLButtonElement>('redo').click(),configure:openHistory,flush:flushLiveForms});
 refresh();
 
 // Builds share one draft; production retains its published starting state.
