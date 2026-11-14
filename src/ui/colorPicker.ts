@@ -10,6 +10,7 @@ export function openColorPicker(field:HTMLInputElement){
  if(field.disabled||!field.isConnected)return;
  if(active?.field===field)return;
  active?.finish(true);
+ if(active)return;
  const root=document.createElement('section');root.className='color-picker';root.dataset.inputOwner='';root.dataset.hoverPreviewDisabled='';root.dataset.uiGestureOwner='content';root.dataset.contextController='';root.setAttribute('role','dialog');root.setAttribute('aria-label',field.getAttribute('aria-label')??'Color');
  const emit=(value:string,type:string)=>{field.value=value;field.dispatchEvent(new Event(type,{bubbles:true}));};
  const session=createColorSession(field.value,{preview:value=>{if(field.isConnected)emit(value,'input');},commit:value=>{if(field.isConnected){field.value=value;emit(value,'change');}},cancel:value=>{if(!field.isConnected)return;field.value=value;if(field.dispatchEvent(new Event(UI_CANCEL_EDIT,{cancelable:true}))) {emit(value,'input');emit(value,'change');}}});
