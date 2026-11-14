@@ -112,3 +112,7 @@ header button.wordmark { width:auto; font-size:15px; }
 
 input[type="number"]:enabled:not([readonly]), input[inputmode="numeric"]:enabled:not([readonly]), input[inputmode="decimal"]:enabled:not([readonly]), [data-value-drag]:enabled { cursor: ew-resize; }
 .value-dragging, .value-dragging * { cursor: ew-resize !important; user-select: none !important; }
+
+.settings-search-results { display: grid; gap: 4px; }
+.settings-search-results > button { text-align: left; padding: 6px 8px; }
+.node-body-editor { min-width: 240px; }

@@ -89,7 +89,7 @@ test('forced boldness is an independent reusable text property',()=>{
 test('global Nodes paint is a shared default for existing and new nodes with independent overrides',()=>{
  const world=emptyWorld(),a=addStructure(world,[0,0,0],1),b=addStructure(world,[5,0,0],2);
  const original=structuredClone(world.nodes);writePaint(world,'nodeDefaults',[],{color:'#123456',translucency:.2,glow:.8});
- assert.deepEqual(world.nodes,original);assert.deepEqual(readPaint(world,'nodes',a.origin),{color:'#123456',translucency:.2,glow:.8});
+ assert.deepEqual(world.nodes,original);assert.deepEqual(readPaint(world,'nodes',a.origin),{color:'#123456',brightness:1,opacity:1,translucency:.2,translucencyRadius:.76,glow:.8});
  const fresh=addStructure(world,[8,0,0],3);assert.equal(readPaint(world,'nodes',fresh.origin).color,'#123456');
  writePaint(world,'nodes',[b.origin],{color:'#ffb000',glow:.1});assert.equal(readPaint(world,'nodes',b.origin).color,'#ffb000');assert.equal(readPaint(world,'nodes',b.origin).glow,.1);
  writePaint(world,'nodeDefaults',[],{color:'#abcdef',glow:.9});assert.equal(readPaint(world,'nodes',a.origin).color,'#abcdef');assert.equal(readPaint(world,'nodes',b.origin).color,'#ffb000');

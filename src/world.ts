@@ -1,4 +1,5 @@
-import {resolveNodeAppearance} from './core/appearance.ts';
+import {resolveNodeAppearance,nodePaint} from './core/appearance.ts';
+import {brightHex} from './composer/runtime/appearance/resolve.ts';
 import {arrangeExpansions,labelSize} from './composer/runtime/graph/labels.ts';
 import {visualFootprint} from './composer/runtime/graph/assets.ts';
 import type {TextScene} from './world/v1/types.ts';
@@ -293,8 +294,8 @@ export function createWorld(host: HTMLElement, input: Input) {
     const p={x:event.clientX,y:event.clientY},hit=pointed(p),range=event.button===0&&(event.ctrlKey||event.metaKey),moving=event.button===0&&!!hit.origin&&!range&&!drive.active&&!input.picking();
     let mode:Gesture['mode']=drive.active&&event.button===0?'drive':range?'range':moving?'move':'view';
     if(event.button===0&&event.altKey&&!input.picking()){
-      cancelDrive();mode='paint';const actual=hit.origin&&visuals.get(key(hit.origin))?.actual;
-      const preview=new T.InstancedMesh(sphere,atomicCarrierMaterial(actual?.color??world.appearance?.nodes?.color??defaults.color,actual?.opacity??defaults.opacity,actual?.translucency??world.appearance?.nodes?.translucency??defaults.translucency,actual?.glow??world.appearance?.nodes?.glow??defaults.glow,actual?.translucencyRadius??defaults.translucencyRadius),256);preview.count=0;preview.frustumCulled=false;scene.add(preview);
+      cancelDrive();mode='paint';const paint=nodePaint(world),actual=hit.origin&&visuals.get(key(hit.origin))?.actual;
+      const preview=new T.InstancedMesh(sphere,atomicCarrierMaterial(actual?.color??brightHex(paint.color!,paint.brightness!),actual?.opacity??paint.opacity,actual?.translucency??paint.translucency,actual?.glow??paint.glow,actual?.translucencyRadius??paint.translucencyRadius),256);preview.count=0;preview.frustumCulled=false;scene.add(preview);
       stroke={points:[],seen:new Set(),previous:creationPoint(p),source:hit.origin,preview};
     }
     if(moving&&!event.altKey&&!event.shiftKey&&!selected.some(origin=>sameOrigin(origin,hit.origin!)))input.pick(hit.origin!,false,false);

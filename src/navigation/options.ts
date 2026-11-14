@@ -1,3 +1,4 @@
+import type {Property} from '../properties/pool.ts';
 
 export const NAVIGATION_ID = "world.navigation";
 export const MODES = [
@@ -28,3 +29,8 @@ export function navigationConstraint(options: NavigationOptions) {
   if (options.mode === "walk") return options.upright ? "ground plane · fixed height" : "camera plane";
   return "free · camera up/right · full turns";
 }
+
+export const NAVIGATION_CHOICES={mode:MODES,actor:[{id:'auto',label:'From context'},{id:'camera',label:'Camera'},{id:'object',label:'Object'}],pivot:['focus','selection','pointed','origin'].map(id=>({id,label:id})),target:['selection','pointed'].map(id=>({id,label:id})),axis:['free','x','y','z'].map(id=>({id,label:id}))};
+export const NAVIGATION_PROPERTIES:Property[]=Object.entries(NAV_DEFAULTS).map(([key,value])=>{
+ const choices=NAVIGATION_CHOICES[key as keyof typeof NAVIGATION_CHOICES];return {key:`navigation.${key}`,label:({mode:'Movement',actor:'Rotate',pivot:'Pivot',target:'Node targets',axis:'World axis',upright:'Ground walking',descendants:'Include descendants',speed:'Sensitivity'})[key]??key,kind:choices?'select':typeof value==='boolean'?'toggle':'number',options:choices,min:.1,max:2,step:.05};
+});

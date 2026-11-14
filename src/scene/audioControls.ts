@@ -1,3 +1,4 @@
+import {createFieldBinding} from '../ui/formState.ts';
 import { field } from '../ui/fields.ts';
 import { liveForm } from '../ui/liveForm.ts';
 import { property } from '../properties/pool.ts';
@@ -11,6 +12,7 @@ export function audioControls(host:{read:()=>AudioResponse;write:(value:AudioRes
  const root=document.createElement('form'),current=host.read();
  const fields=definitions.map(d=>{const entry=field(d.property,current[d.key]*d.scale);root.append(entry.row);return{...d,...entry};});
  const disposeForm=liveForm(root,group=>{try{const next={...host.read()};for(const f of fields)next[f.key]=Number(f.value())/f.scale;host.write(next,group);}catch(error){host.error(error);}});
- const unsubscribe=host.subscribe(()=>{const value=host.read();for(const f of fields)if(document.activeElement!==f.input)f.input.value=String(Math.round(value[f.key]*f.scale*10000)/10000);});
+ const sync=fields.map(f=>createFieldBinding({input:f.input,read:()=>Math.round(host.read()[f.key]*f.scale*10000)/10000}));
+ const unsubscribe=host.subscribe(()=>{for(const update of sync)update();});
  return{root,dispose(){disposeForm();unsubscribe();}};
 }

@@ -57,7 +57,7 @@ export function inherited(node: Structure, world: World): Structure {
     if (!parent) return current;
     const base = read(parent), overrides = new Set(current.overrides ?? []);
     const next = { ...current, parts: [...base.parts, ...current.parts] };
-    for (const key of ['color', 'label', 'text', 'visual', 'opacity', 'glow', 'translucency', 'translucencyRadius','scene','textAppearance'] as const) {
+    for (const key of ['brightness','color', 'label', 'text', 'visual', 'opacity', 'glow', 'translucency', 'translucencyRadius','scene','textAppearance'] as const) {
       if (!overrides.has(key)) Object.assign(next, { [key]: base[key] });
     }
     if(!overrides.has('color'))next.colorOverride=base.colorOverride;

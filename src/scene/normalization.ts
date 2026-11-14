@@ -1,5 +1,5 @@
 /** Portable, bounded scene correction. Original bytes never enter authored settings. */
-export const NORMALIZATION_VERSION=1;
+export const NORMALIZATION_VERSION=2;
 export const NORMALIZATION_FUNCTION='scene.normalize';
 export const NORMALIZATION_FIELDS=[
  {key:'enabled',label:'Normalize scene images',kind:'toggle',initial:true},
@@ -23,6 +23,15 @@ export function normalizationPreferences(values:Record<string,unknown>={}):Norma
  // A contradictory interval is interpreted as the same unordered pair in all readers.
  for(const name of ['luminance','contrast','saturation']){const a=`${name}Min`,b=`${name}Max`;if(Number(out[a])>Number(out[b]))[out[a],out[b]]=[out[b],out[a]];}
  return out as NormalizationPreferences;
+}
+/** During editing a moved bound pushes its partner instead of swapping field roles. */
+export function editNormalization(current:NormalizationPreferences,patch:Record<string,unknown>):NormalizationPreferences{
+ const next:Record<string,number|boolean>={};
+ for(const field of NORMALIZATION_FIELDS){const value=patch[field.key]??current[field.key];next[field.key]=field.kind==='toggle'?typeof value==='boolean'?value:current[field.key]:typeof value==='number'&&Number.isFinite(value)?clamp(value,field.min,field.max):current[field.key];}
+ for(const group of ['luminance','contrast','saturation']){const min=`${group}Min`,max=`${group}Max`;if(Number(next[min])<=Number(next[max]))continue;
+  if(min in patch&&!(max in patch))next[max]=next[min];else if(max in patch&&!(min in patch))next[min]=next[max];else [next[min],next[max]]=[next[max],next[min]];
+ }
+ return next as NormalizationPreferences;
 }
 export const defaultNormalizationPreferences=()=>normalizationPreferences();
 export function normalizationKey(p:NormalizationPreferences){const {enabled:_,...constraints}=p;return JSON.stringify([NORMALIZATION_VERSION,constraints]);}
@@ -74,19 +83,27 @@ export function planSceneNormalization(sample:Uint8ClampedArray,p:NormalizationP
  if(p.enabled&&before.samples&&violations(before,p,balanceAvailable).some(v=>v>0)){
   const score=(m:ImageMetrics,c:Corrections)=>violations(m,p,balanceAvailable).reduce((s,v)=>s+v*v,0)+.00005*(c.exposure*c.exposure+(c.contrast-1)**2+(c.saturation-1)**2+c.balance.reduce((s,v)=>s+(v-1)**2,0));
   let best=score(before,corrections);
-  const evaluate=(candidate:Corrections)=>{const m=analyzeScenePixels(transformScenePixels(sample,candidate)),s=score(m,candidate);if(s<best-1e-9){best=s;corrections=candidate;after=m;}};
-  // Small deterministic bounded coordinate search; every candidate is output-measured.
-  for(const scale of [1,.5,.25])for(const axis of ['exposure','contrast','saturation','balance'] as const){
-   if(axis==='saturation'&&gap(after.saturation,p.saturationMin,p.saturationMax)===0)continue;
-   if(axis==='balance'&&after.balance<=p.balanceTolerance)continue;
-   const current={...corrections,balance:[...corrections.balance]};
-   for(const sign of [-1,1]){
-    const candidate={...current,balance:[...current.balance]};
-    if(axis==='balance'){
-     if(!balanceAvailable)continue;candidate.balance=original.offsets.map((offset,i)=>clamp(current.balance[i]+sign*(1/(1+offset)-1)*scale,1-p.balanceLimit,1+p.balanceLimit));
-    }else{const limit=axis==='exposure'?p.exposureLimit:axis==='contrast'?p.contrastLimit:p.saturationLimit,neutral=axis==='exposure'?0:1;candidate[axis]=clamp(current[axis]+sign*limit*scale,neutral-limit,neutral+limit);}
-    evaluate(candidate);
+  const evaluate=(candidate:Corrections)=>{const metrics=analyzeScenePixels(transformScenePixels(sample,candidate)),value=score(metrics,candidate);if(value<best-1e-9){best=value;corrections=candidate;after=metrics;}return metrics;};
+  // Three bounded refinement passes, at most two measurements per axis: the
+  // same 24-candidate ceiling as before, without snapping to 1/2 or 1/4 steps.
+  for(let pass=0;pass<3;pass++)for(const axis of ['exposure','contrast','saturation','balance'] as const){
+   const metric=axis==='exposure'?'luminance':axis,low=axis==='exposure'?p.luminanceMin:axis==='contrast'?p.contrastMin:axis==='saturation'?p.saturationMin:0,
+    high=axis==='exposure'?p.luminanceMax:axis==='contrast'?p.contrastMax:axis==='saturation'?p.saturationMax:p.balanceTolerance;
+   if(axis==='balance'&&!balanceAvailable||gap(after[metric],low,high)===0)continue;
+   const desired=clamp(after[metric],low,high),current={...corrections,balance:[...corrections.balance]},currentMetric=after[metric],probe={...current,balance:[...current.balance]};
+   if(axis==='balance'){
+    if(p.balanceLimit===0)continue;
+    probe.balance=original.offsets.map(offset=>clamp(1/(1+offset),1-p.balanceLimit,1+p.balanceLimit));
+   }else{
+    const limit=axis==='exposure'?p.exposureLimit:axis==='contrast'?p.contrastLimit:p.saturationLimit;if(limit===0)continue;
+    probe[axis]=(axis==='exposure'?0:1)+(desired>currentMetric?limit:-limit);
    }
+   const measured=evaluate(probe)[metric],difference=measured-currentMetric;if(Math.abs(difference)<1e-9)continue;
+   const fraction=clamp((desired-currentMetric)/difference);if(fraction<=0||fraction>=1)continue;
+   const candidate={...current,balance:[...current.balance]};
+   if(axis==='balance')candidate.balance=current.balance.map((value,i)=>value+(probe.balance[i]-value)*fraction);
+   else candidate[axis]=current[axis]+(probe[axis]-current[axis])*fraction;
+   evaluate(candidate);
   }
  }
  const unmet=unmetNormalizationConstraints(after,p,balanceAvailable);

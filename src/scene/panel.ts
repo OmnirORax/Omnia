@@ -1,3 +1,4 @@
+import {watchFields} from '../ui/formState.ts';
 import { DEFAULT_BACKGROUND } from './defaultBackground.ts';
 import { audioControls } from './audioControls.ts';
 import { normalizeSceneVfx } from './vfx.ts';
@@ -7,7 +8,7 @@ import { liveForm } from '../ui/liveForm.ts';
 import { property, type Property, type Value } from '../properties/pool.ts';
 import vfxFunction from './vfx.function.ts';
 import { defaultScene, type SceneSettings } from './state.ts';
-import { NORMALIZATION_FIELDS, normalizationProperty, normalizationPreferences } from './normalization.ts';
+import { NORMALIZATION_FIELDS, normalizationProperty, editNormalization } from './normalization.ts';
 import { WAVE_CONTROLS, WAVE_PRESETS, serializeSceneVfx } from './vfx.ts';
 import { readWavePresets, appendWavePreset } from './wavePresets.ts';
 import { importLocalScene, listLocalScenes, localSceneBlob, downloadScene, deleteLocalScene, saveCopiedPrompt, type ScenePromptSnapshot } from './library.ts';
@@ -18,7 +19,9 @@ import { locate, sameOrigin, type Origin, type World } from '../core/model.ts';
 import type { createSceneSession } from './session.ts';
 
 type Host = { subscribe:(listener:()=>void)=>()=>void; read: () => World; selected: () => readonly Origin[]; change: (edit: (world: World) => void, group?: string) => void; preview: (world: World) => void; session: ReturnType<typeof createSceneSession>; feedback: (text: string) => void };
-export function scenePanel(host: Host) {
+export const SCENE_TABS=[['image','Image'],['waves','Waves'],['pulse','Pulse'],['audio','Audio'],['normalization','Normalize'],['prompt','Prompt']]as const;
+export type SceneTab=typeof SCENE_TABS[number][0];
+export function scenePanel(host: Host,initialTab:SceneTab='image') {
   let live = true; let target: Origin | undefined = host.selected()[0];
   const subscriptions: (() => void)[] = [];
   const view = panel('Scene', () => { live = false; for (const stop of subscriptions.splice(0)) stop(); host.preview(host.read()); });
@@ -77,33 +80,34 @@ export function scenePanel(host: Host) {
       for (const preset of readWavePresets(host.read().scene?.presets)) button(preset.id.slice(6), () => { update(settings => { Object.assign(settings.vfx, preset.values, { waves: preset.waves }); }); controls('waves'); }, row);
       body.append(row);
     }
-    const form = document.createElement('form'), values: { key: string; get: () => Value }[] = [];
+    const form = document.createElement('form'), values: { key: string; get: () => Value; input: HTMLInputElement|HTMLSelectElement }[] = [];
     if (group === 'normalization') {
       const settings = host.read().scene ?? defaultScene();
       for (const definition of NORMALIZATION_FIELDS) {
         const p = property({ key: normalizationProperty(definition.key), label: definition.label, kind: definition.kind, ...(definition.kind === 'number' ? { min: definition.min, max: definition.max, step: .01 } : {}) });
-        const input = field(p, settings.normalization[definition.key]); form.append(input.row); values.push({ key: p.key, get: input.value });
+        const input = field(p, settings.normalization[definition.key]); form.append(input.row); values.push({ key: p.key, get: input.value, input:input.input });
       }
     } else if (group === 'prompt') {
       const settings = host.read().scene ?? defaultScene();
       const definitions: Property[] = [{ key:'prompt',label:'Prompt',kind:'text' },{ key:'variable',label:'Variable',kind:'text' },{ key:'source',label:'Input',kind:'select',options:[{id:'label',label:'Label'},{id:'notes',label:'Document'},{id:'label-and-notes',label:'Label + document'}] }];
-      for (const p of definitions) { const input = field(property({ ...p, key: `scene.${p.key}` }), settings[p.key as 'prompt' | 'variable' | 'source']); form.append(input.row); values.push({ key: p.key, get: input.value }); }
+      for (const p of definitions) { const input = field(property({ ...p, key: `scene.${p.key}` }), settings[p.key as 'prompt' | 'variable' | 'source']); form.append(input.row); values.push({ key: p.key, get: input.value, input:input.input }); }
     } else {
       const state = { sceneVfx: host.read().scene?.vfx ?? defaultScene().vfx };
       for (const [key, binding] of Object.entries(vfxFunction.inputs)) {
         const wave = key === 'scene.waves' || key === 'scene.maxFps' || WAVE_CONTROLS.some(control => `scene.${control.key}` === key);
         if(wave !== (group === 'waves')) continue;
-        const input = field({ ...binding.definition, key }, binding.read(state)); form.append(input.row); values.push({ key, get: input.value });
+        const input = field({ ...binding.definition, key }, binding.read(state)); form.append(input.row); values.push({ key, get: input.value, input:input.input });
 
       }
     }
     const apply = (settings: SceneSettings) => {
       const entries = Object.fromEntries(values.map(input => [input.key, input.get()]));
-      if (group === 'normalization') settings.normalization = normalizationPreferences(entries);
+      if (group === 'normalization') settings.normalization = editNormalization(settings.normalization,Object.fromEntries(NORMALIZATION_FIELDS.filter(field=>entries[normalizationProperty(field.key)]!==settings.normalization[field.key]).map(field=>[field.key,entries[normalizationProperty(field.key)]])));
       else if (group === 'prompt') Object.assign(settings, entries);
       else for (const [key, value] of Object.entries(entries)) settings.vfx = vfxFunction.inputs[key].write({ sceneVfx: settings.vfx }, value).sceneVfx;
     };
     liveForm(form, undoGroup => { try { update(apply, undoGroup); } catch (error) { host.feedback(error instanceof Error ? error.message : String(error)); } });
+    watchFields(form,values.map(control=>({input:control.input,read:()=>{const settings=host.read().scene??defaultScene();if(group==='normalization')return settings.normalization[control.key.slice('scene.normalize.'.length) as keyof typeof settings.normalization];if(group==='prompt')return settings[control.key as 'prompt'|'variable'|'source'];return vfxFunction.inputs[control.key].read({sceneVfx:settings.vfx});}})));
     body.append(form);
     if (group === 'prompt') button('Copy resolved prompt', async () => { const input = promptSnapshot(); await navigator.clipboard.writeText(input.resolved); saveCopiedPrompt(input); host.feedback('Prompt copied. Import or paste the resulting image.'); });
     if (group === 'normalization') {
@@ -129,6 +133,7 @@ export function scenePanel(host: Host) {
     const statusUpdate = () => { output.textContent = sceneAudioSnapshot().status; };
     const unsubscribe = subscribeSceneAudio(() => { if (!output.isConnected) unsubscribe(); else statusUpdate(); }); subscriptions.push(unsubscribe); statusUpdate();
   }
-  for (const [label, action] of [['Image', () => void images()],['Waves', () => controls('waves')],['Pulse', () => controls('pulse')],['Audio', audio],['Normalize', () => controls('normalization')],['Prompt', () => controls('prompt')]] as const) button(label, action, navigation);
-  attempt(images); return view;
+  const show=(tab:SceneTab)=>{if(tab==='image')attempt(images);else if(tab==='audio')audio();else controls(tab);};
+  for(const [tab,label]of SCENE_TABS)button(label,()=>show(tab),navigation);
+  show(initialTab);return view;
 }
