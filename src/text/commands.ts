@@ -32,7 +32,13 @@ export function list(kind: 'bullet' | 'numbered' | 'cycle'): StateCommand {
 }
 export const wrap = (mark: string, end = mark): StateCommand => ({ state, dispatch }) => {
   const edits: Edit[] = [], destinations: { anchor: number; head: number }[] = []; let offset = 0;
-  for (const range of state.selection.ranges) {
+  const ranges = state.selection.ranges.map(range=>{
+    if(mark!=='**'&&mark!=='*')return range;
+    const word=state.wordAt(range.from);
+    if(!word||range.to>word.to)return range;
+    return EditorSelection.range(range.anchor<=range.head?word.from:word.to,range.anchor<=range.head?word.to:word.from);
+  });
+  for (const range of EditorSelection.create(ranges).ranges) {
     const source = sliceSource(state, range.from, range.to);
     const inside = source.text.startsWith(mark) && source.text.endsWith(end) && source.text.length >= mark.length + end.length;
     const outside = !inside && range.from >= mark.length && state.sliceDoc(range.from-mark.length,range.from) === mark && state.sliceDoc(range.to,range.to+end.length) === end;
@@ -48,8 +54,9 @@ export const codeBlock = wrap('```\n', '\n```');
 export const capitalizeSentence: StateCommand = ({ state, dispatch }) => {
   const edits: Edit[] = []; const seen = new Set<string>();
   for (const range of state.selection.ranges) {
-    const line = state.doc.lineAt(range.head), from = range.empty ? line.from : range.from, to = range.empty ? line.to : range.to;
-    const source = state.sliceDoc(from, to), starts = /(^|[.!?]\s+)([\p{L}])/gu;
+    const word = range.empty ? state.wordAt(range.head) : null;
+    const line = state.doc.lineAt(range.head), from = word?.from ?? (range.empty ? line.from : range.from), to = word?.to ?? (range.empty ? line.to : range.to);
+    const source = state.sliceDoc(from, to), starts = /(^[ \t]*|[.!?:]\s*)([\p{L}])/gmu;
     for (const match of source.matchAll(starts)) {
       const at = from + match.index! + match[1].length, text = match[2], key = `${at}:${at+text.length}`;
       if (!seen.has(key)) { seen.add(key); edits.push({ from: at, to: at + text.length, insert: literal(text.toLocaleUpperCase()) }); }

@@ -1,16 +1,18 @@
+import {documentBrackets} from '../src/text/brackets.ts';
+import {insertBracket,deleteBracketPair} from '@codemirror/autocomplete';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { EditorState, EditorSelection } from '@codemirror/state';
 import { history, undo, redo } from '@codemirror/commands';
 import { markdown, markdownKeymap } from '@codemirror/lang-markdown';
 import { Strikethrough, TaskList } from '@lezer/markdown';
-import { fromSource, toSource, glyphField, glyphHistory, sliceSource, sourceTransaction } from '../src/text/source.ts';
+import { fromSource, toSource, glyphField, glyphHistory, sliceSource, sourceTransaction, sourceRefreshSpec } from '../src/text/source.ts';
 import { wrap, heading, list, moveLines, deleteLines, deleteParagraph, capitalizeSentence, codeBlock, singleCursor } from '../src/text/commands.ts';
 
 const glyph={glyph:'{"born":1,"at":[0,0,0]}',word:'shape'};
 function editor(content, ranges=[[0,0]]) {
  const source=toSource({version:1,content});
- let state=EditorState.create({doc:source.text,selection:EditorSelection.create(ranges.map(([a,h])=>EditorSelection.range(a,h))),extensions:[EditorState.allowMultipleSelections.of(true),glyphField.init(()=>source.glyphs),glyphHistory,history(),markdown({extensions:[Strikethrough,TaskList]})]});
+ let state=EditorState.create({doc:source.text,selection:EditorSelection.create(ranges.map(([a,h])=>EditorSelection.range(a,h))),extensions:[EditorState.allowMultipleSelections.of(true),glyphField.init(()=>source.glyphs),glyphHistory,history(),documentBrackets,markdown({extensions:[Strikethrough,TaskList]})]});
  return {get state(){return state},dispatch(tr){state=tr.state},run(command){return command(this)},select(ranges){state=state.update({selection:EditorSelection.create(ranges.map(([a,h])=>EditorSelection.range(a,h)))}).state},text(){return fromSource(sliceSource(state))}};
 }
 test('existing mixed documents and literal object-replacement characters round-trip unchanged',()=>{
@@ -104,4 +106,62 @@ test('line deletion preserves adjoining lines in the same paragraph and supports
  const e=editor(['first\nsecond\nthird\nfourth'],[[7,7],[14,14]]);e.run(deleteLines);assert.equal(e.state.doc.toString(),'first\nfourth');e.run(undo);assert.equal(e.state.doc.toString(),'first\nsecond\nthird\nfourth');
  const last=editor(['first\nlast'],[[7,7]]);last.run(deleteLines);assert.equal(last.state.doc.toString(),'first');
  const boundary=editor(['one\ntwo\nthree'],[[0,4]]);boundary.run(deleteLines);assert.equal(boundary.state.doc.toString(),'two\nthree');
+});
+
+test('bold and italic expand cursors and partial word selections, merging duplicate word targets',()=>{
+ for(const mark of ['**','*']){
+  for(const selection of [[[3,3]],[[2,5]],[[5,2]],[[1,1],[4,4]]]){
+   const e=editor(['example'],selection);e.run(wrap(mark));assert.equal(e.state.doc.toString(),mark+'example'+mark);
+   e.run(wrap(mark));assert.equal(e.state.doc.toString(),'example');
+   e.run(undo);assert.equal(e.state.doc.toString(),mark+'example'+mark);
+  }
+ }
+ const multiple=editor(['one two'],[[1,1],[5,5]]);multiple.run(wrap('**'));assert.equal(multiple.state.doc.toString(),'**one** **two**');
+ const phrase=editor(['one two'],[[1,5]]);phrase.run(wrap('*'));assert.equal(phrase.state.doc.toString(),'o*ne t*wo');
+ const blank=editor(['one  two'],[[4,4]]);blank.run(wrap('**'));assert.equal(blank.state.doc.toString(),'one **** two');
+ const code=editor(['example'],[[3,3]]);code.run(wrap('`'));assert.equal(code.state.doc.toString(),'exa``mple');
+});
+
+test('external undo refresh preserves cursor location and does not request a scroll to the top',()=>{
+ const before='first\nsecond\nthird edited\nlast',e=editor([before],[[23,23],[28,28]]);
+ const next=toSource({version:1,content:['first\nsecond\nthird\nlast']});
+ const spec=sourceRefreshSpec(e.state,next),tr=e.state.update(spec);
+ assert.equal(tr.scrollIntoView,false);e.dispatch(tr);
+ assert.deepEqual(e.state.selection.ranges.map(r=>r.head),[18,21]);
+ assert.equal(e.state.doc.toString(),next.text);
+ const glyphDoc=editor(['a',glyph,'b'],[[2,2]]),replacement={...glyph,word:'updated'};
+ glyphDoc.dispatch(glyphDoc.state.update(sourceRefreshSpec(glyphDoc.state,toSource({version:1,content:['a',replacement,'b']}))));
+ assert.equal(glyphDoc.state.selection.main.head,2);assert.deepEqual(glyphDoc.text().content,['a',replacement,'b']);
+});
+
+test('Ctrl+3 capitalizes every selected row and text after periods and colons',()=>{
+ const text='  first: next. again\n\tsecond:more. done\nuntouched';
+ const e=editor([text],[[0,text.indexOf('\nuntouched')]]);e.run(capitalizeSentence);
+ assert.equal(e.state.doc.toString(),'  First: Next. Again\n\tSecond:More. Done\nuntouched');
+ e.run(undo);assert.equal(e.state.doc.toString(),text);
+ const row=editor(['leave me\n  change: this. too'],[[10,10]]);row.run(capitalizeSentence);
+ assert.equal(row.state.doc.toString(),'leave me\n  Change: This. Too');
+ const multi=editor(['one: two\nthree. four'],[[0,8],[9,20]]);multi.run(capitalizeSentence);
+ assert.equal(multi.state.doc.toString(),'One: Two\nThree. Four');
+});
+
+test('document parentheses and square brackets pair, skip closers and delete as pairs for every cursor',()=>{
+ for(const [open,close] of [['(',')'],['[',']']]){
+  const e=editor(['a\nb'],[[1,1],[3,3]]);e.dispatch(insertBracket(e.state,open));
+  assert.equal(e.state.doc.toString(),'a'+open+close+'\nb'+open+close);
+  assert.deepEqual(e.state.selection.ranges.map(r=>r.head),[2,6]);
+  e.run(deleteBracketPair);assert.equal(e.state.doc.toString(),'a\nb');
+  e.dispatch(insertBracket(e.state,open));e.dispatch(insertBracket(e.state,close));
+  assert.deepEqual(e.state.selection.ranges.map(r=>r.head),[3,7]);
+  const selected=editor(['word'],[[0,4]]);selected.dispatch(insertBracket(selected.state,open));
+  assert.equal(selected.state.doc.toString(),open+'word'+close);
+ }
+});
+
+test('Ctrl+3 at an unselected word capitalizes that word without needing a highlight',()=>{
+ const e=editor(['first example here'],[[9,9]]);e.run(capitalizeSentence);
+ assert.equal(e.state.doc.toString(),'first Example here');assert.equal(e.state.selection.main.head,9);
+ e.run(undo);assert.equal(e.state.doc.toString(),'first example here');
+ const multi=editor(['one two three'],[[1,1],[5,5],[11,11]]);multi.run(capitalizeSentence);
+ assert.equal(multi.state.doc.toString(),'One Two Three');
 });
