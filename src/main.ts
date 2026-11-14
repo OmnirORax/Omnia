@@ -11,6 +11,7 @@ import {definitions as audioDefinitions} from './scene/audioControls.ts';
 import {defaultScene} from './scene/state.ts';
 import {NORMALIZATION_FIELDS} from './scene/normalization.ts';
 import './style.css';
+import { installPrimaryClickGate } from './ui/primaryClick.ts';
 import { paintForm } from './ui/visualControls.ts';
 import { updateUIAppearance } from './ui/appearance.ts';
 import { addStructure, bind, locate, resolve, sameOrigin, setInvariant, type Binding, type Origin, type Vec3, type World } from './core/model.ts';
@@ -27,6 +28,7 @@ import { workspacePanel } from './ui/workspace.ts';
 import { field } from './ui/fields.ts';
 import { liveForm } from './ui/liveForm.ts';
 
+installPrimaryClickGate();
 const element = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const tools = element('tools'), status = element('status'), search = element<HTMLInputElement>('find');
 type Target = Origin | Edge;
