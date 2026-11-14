@@ -48,7 +48,7 @@ export function createViewHistory(history:ActionHistory,schedule:(fn:()=>void)=>
   menuRenderer(render:(spec:ViewSpec|null)=>void){renderMenu=render;},factory(kind:string,create:(spec:ViewSpec)=>void){factories.set(kind,create);},
   perform(action:()=>void,actionId?:string){history.transaction(()=>{depth++;try{action();}finally{depth--;}},actionId);},
   menu(spec:ViewSpec){change({...state,menu:{...spec,instance:++sequence}});applying=true;try{renderMenu(state.menu);}finally{applying=false;}},
-  query(value:string){if(state.menu&&state.menu.query!==value)change({...state,menu:{...state.menu,query:value}},`view-query:${state.menu.instance}`);},
+  query(value:string){if(state.menu&&(state.menu.query??'')!==value)change({...state,menu:{...state.menu,query:value}},`view-query:${state.menu.instance}`);},
   hideMenu(){if(state.menu!==null)change({...state,menu:null});renderMenu(null);},
   adopt(key:string,requested:ViewSpec,handle:Handle,restore?:ViewSpec,initial=false){
    const wanted=state.windows[key];

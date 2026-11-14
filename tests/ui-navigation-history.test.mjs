@@ -99,3 +99,11 @@ test('deferred mounts remain in restoration until their actual lifecycle complet
  const {views,frame}=fixture();let mounted;const ready=new Promise(resolve=>mounted=resolve),current={...handle(),ready};
  views.adopt('async',{kind:'async'},current);frame();assert.equal(views.restoring,true);mounted();await settle();frame();assert.equal(views.restoring,false);
 });
+test('initial menu filtering does not add an empty search action ahead of the first right-click',async()=>{
+ const {history,views,rendered}=fixture();
+ // Main menus run their initial filter on the next animation frame.
+ views.menu({kind:'context',point:{x:20,y:30}});await settle();views.query('');
+ assert.equal(history.candidates('undo').length,1);
+ assert.equal(history.travel('undo'),1);await settle();assert.equal(rendered.at(-1),null);assert.equal(views.state.menu,null);
+ assert.equal(history.travel('redo'),1);await settle();views.query('');assert.equal(rendered.at(-1),'context');assert.equal(history.candidates('redo').length,0);assert.equal(history.candidates('undo').length,1);
+});
