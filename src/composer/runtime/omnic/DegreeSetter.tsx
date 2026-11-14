@@ -20,7 +20,7 @@ type SetterProps={recipe:Recipe;degree:EditableDegree;onPreview:(value:string|nu
 export function DegreeSetter(props:SetterProps){
  const {recipe,degree,onPreview,onCommit}=props,parameter=targetParameter(degree),value=targetDegreeValue(recipe,degree),control=<DegreeControl {...props}/>;
  if(degree.axes||degree.properties.length!==1)return control;
- if(parameter.kind==='color'){const spectrum=colorSpectrum(String(value)),color=(h:number)=>h===spectrum.hue?String(value):spectrum.color(h);return <HoverValue value={spectrum.hue} min={0} max={359} step={1} preview={h=>onPreview(color(h))} commit={h=>onCommit(color(h))}>{control}</HoverValue>;}
+ if(parameter.kind==='color'){const spectrum=colorSpectrum(String(value)),color=(h:number)=>h===spectrum.hue?String(value):spectrum.color(h);return <HoverValue value={spectrum.hue} min={0} max={359} step={1} pixelsPerStep={1} preview={h=>onPreview(color(h))} commit={h=>onCommit(color(h))}>{control}</HoverValue>;}
  if(parameter.kind==='number')return <HoverValue value={Number(value)} min={parameter.min!} max={parameter.max!} step={parameter.step??1} preview={onPreview} commit={onCommit}>{control}</HoverValue>;
  const choices=parameter.kind==='toggle'?[false,true]:parameter.kind==='select'?parameter.options?.map(option=>option.id):undefined;
  if(choices?.length)return <HoverValue value={Math.max(0,choices.findIndex(option=>option===value))} min={0} max={choices.length-1} step={1} preview={i=>onPreview(choices[i])} commit={i=>onCommit(choices[i])}>{control}</HoverValue>;
@@ -45,11 +45,12 @@ function colorSpectrum(value:string){
  const rgb=[1,3,5].map(i=>parseInt(value.slice(i,i+2),16)/255),max=Math.max(...rgb),min=Math.min(...rgb),d=max-min;
  const hue=d===0?0:((max===rgb[0]?(rgb[1]-rgb[2])/d:max===rgb[1]?(rgb[2]-rgb[0])/d+2:(rgb[0]-rgb[1])/d+4)*60+360)%360;
  const color=(h:number)=>{const x=1-Math.abs((h/60)%2-1),parts=h<60?[1,x,0]:h<120?[x,1,0]:h<180?[0,1,x]:h<240?[0,x,1]:h<300?[x,0,1]:[1,0,x];return '#'+parts.map(v=>Math.round(v*255).toString(16).padStart(2,'0')).join('');};
- return {hue,color};
+ return {hue:Math.round(hue)%360,color};
 }
 function SpectrumSetter({value,onPreview,onCommit}:{value:string;onPreview:(value:string)=>void;onCommit:(value:string)=>void}){
- const {hue,color}=colorSpectrum(value);
- return <RangeControl aria-label="Color spectrum" value={hue} min={0} max={359} step={1} onValueChange={v=>onPreview(color(v))} onValueCommit={v=>onCommit(color(v))} onValueCancel={()=>onPreview(value)}/>;
+ const {hue,color}=colorSpectrum(value),editing=useRef(false),before=useRef(value);
+ if(!editing.current)before.current=value;
+ return <RangeControl aria-label="Color spectrum" value={hue} min={0} max={359} step={1} pixelsPerStep={1} onValueChange={v=>{editing.current=true;onPreview(color(v));}} onValueCommit={v=>{editing.current=false;onCommit(color(v));}} onValueCancel={()=>{editing.current=false;onPreview(before.current);}}/>;
 }
 
 /** One metadata-selected value editor for preset and selected-target requests. */

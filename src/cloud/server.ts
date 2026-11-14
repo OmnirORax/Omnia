@@ -44,7 +44,9 @@ export async function draftServer(request:Request,env:Environment){
    await db('rpc/omnium_put_draft_asset','POST',{asset_id:file.id,asset_name:file.name,asset_type:file.type,asset_data:file.data,asset_size:bytes.length});return json({saved:true});
   }
   if(payload.version!==1||!Number.isSafeInteger(payload.revision)||payload.revision<0)return json({error:'Unsupported draft format.'},400);
-  const world=checkedWorld(payload.world),revision=await db('rpc/omnium_save_draft','POST',{expected:payload.revision,snapshot:world});
+  const deleted=payload.deletedImages??[];
+  if(!Array.isArray(deleted)||deleted.length>1000||deleted.some((id:unknown)=>typeof id!=='string'||!/^sha256:[a-f0-9]{64}$/.test(id)))return json({error:'Invalid image deletions.'},400);
+  const world=checkedWorld(payload.world),revision=await db('rpc/omnium_save_draft','POST',{expected:payload.revision,snapshot:world,deleted_images:[...new Set(deleted)]});
   return revision===null?json({error:'Draft changed in another session.'},409):json({revision});
  }catch(error){return json({error:error instanceof Error?error.message:'Draft unavailable.'},400);}
  finally{if(ownsAsset)assetBusy=false;}

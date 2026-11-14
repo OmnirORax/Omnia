@@ -37,6 +37,7 @@ test('the storage endpoint validates snapshots and handles revision conflicts wi
   const put=()=>new Request('https://api.example/',{method:'PUT',headers,body:JSON.stringify({version:1,revision:1,world})});
   response=await draftServer(put(),env);assert.deepEqual(await response.json(),{revision:2});conflict=true;assert.equal((await draftServer(put(),env)).status,409);
   const before=calls;response=await draftServer(new Request('https://api.example/',{method:'PUT',headers,body:JSON.stringify({version:2,revision:1,world})}),env);assert.equal(response.status,400);assert.equal(calls,before);
+  response=await draftServer(new Request('https://api.example/',{method:'PUT',headers,body:JSON.stringify({version:1,revision:1,world,deletedImages:['invalid']})}),env);assert.equal(response.status,400);assert.equal(calls,before);
   assert.equal((await draftServer(new Request('https://api.example/'),env)).status,401);assert.equal(calls,before);
  }finally{globalThis.fetch=original;}
 });

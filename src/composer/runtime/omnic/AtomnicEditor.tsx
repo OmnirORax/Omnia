@@ -12,7 +12,7 @@ import {componentAttachments,detachComponentAttachment} from './componentAttachm
 import {surfaceOwnsInput} from '../ui/inputOwnership';
 import { useSelectionSurface } from "../appearance/useSelectionSurface";
 import { selectedEditorDegrees } from "./targetDegrees";
-import { commandDegree, repeatedDegree } from "./degreeCommands";
+import { commandDegree, repeatedDegree, selectionDegree } from "./degreeCommands";
 import {authoredNodeOwners} from './contextGeometry';
 import {selfReference} from '../properties/referenceUse';
 import {useVisualSelection} from '../appearance/VisualSelector';
@@ -178,14 +178,14 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
   const baselineCancel=()=>{cancelPreview?.();cancel();dismissPanel?.();setActiveDof(null);numericEditor.clearDegree?.();for(const id of referencePicker?.references.keys()??[])referencePicker?.choose(id);setPanel({kind:'functions'});setTool('select');ms?.clear();onSelect?.([]);};
   const baselinePick=(elements:readonly Element[],point:Point,intent:'select'|'edit')=>{
     const ids=[...new Set(elements.filter(element=>localSurface.current?.contains(element)).flatMap(element=>selectionOwners.get(element.getAttribute('data-omnic-role')??'')??[]))];
-    if(intent==='select'&&menu&&panel.kind==='degree'){
+    if(intent==='select'&&menu&&panel.kind==='degree'&&targetParameter(panel.degree).kind==='number'){
       if(!ids.length)ids.push('@environment');
       if(ids.length!==1){error('Choose one reference component.');return;}
       cancelPreview?.();if(referencePicker?.chooseReference(panel.degree,ids[0])){setMenu(point);setMessage('');}else error('This target cannot supply that DOF reference.');return;
     }
     if(intent==='edit'){const targets=contextEditTargets(recipeRef.current,normalSelection,ids);if(targets.length){onSelect?.(targets);showDegrees(targets,point);}return;}
     if(!ids.length)return;
-    const next=selectedEditorDegrees(recipeRef.current,ids),degree=activeDof?commandDegree(next,activeDof.property):targetPlacementDegree(recipeRef.current,ids);
+    const degree=selectionDegree(recipeRef.current,ids,activeDof?.property);
     onSelect?.(ids);selectedRef.current=new Set(ids);if(!degree)return;
     setTool('select');setActiveDof({ids,property:degree.id});referencePicker?.prepareReference(degree);setMenu(point);activateDegreePanel(degree,false,true);setPhase('configure');
   };

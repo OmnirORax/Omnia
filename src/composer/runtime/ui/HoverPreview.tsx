@@ -11,7 +11,10 @@ export function HoverPreviewScope({children}:{children:ReactNode}){
   const flush=()=>{cancelAnimationFrame(frame);frame=0;session.move(x);};
   const move=(e:PointerEvent)=>{if(!session.active()||e.buttons)return;if(e.target instanceof Element&&e.target.closest('[data-hover-preview-disabled]')){session.cancel();return;}x=e.clientX;if(!frame)frame=requestAnimationFrame(flush);};
   const consume=(e:Event)=>{e.preventDefault();e.stopImmediatePropagation();};
-  const down=(e:PointerEvent)=>{tail=false;if(!session.active())return;if(e.button!==0){session.cancel();return;}x=e.clientX;flush();if(session.commit()){tail=true;consume(e);}};
+  const down=(e:PointerEvent)=>{tail=false;if(!session.active())return;if(e.button!==0){session.cancel();return;}
+   // A real slider press starts its captured drag; a hover sample must not eat it.
+   if(e.target instanceof Element&&e.target.closest('[data-range-control]')){cancelAnimationFrame(frame);frame=0;flushSync(()=>session.cancel());return;}
+   x=e.clientX;flush();if(session.commit()){tail=true;consume(e);}};
   const after=(e:Event)=>{if(!tail)return;consume(e);if(e.type==='click')tail=false;};
   const cancel=()=>{cancelAnimationFrame(frame);frame=0;session.cancel();};
   const key=(e:KeyboardEvent)=>{if(e.key==='Escape'&&session.active()){cancel();consume(e);}};
@@ -21,8 +24,8 @@ export function HoverPreviewScope({children}:{children:ReactNode}){
  },[session]);
  return <Context.Provider value={session}>{children}</Context.Provider>;
 }
-export function HoverValue({value,min,max,step,preview,commit,children}:{value:number;min:number;max:number;step:number;preview:(n:number)=>void;commit:(n:number)=>void;children:ReactNode}){
- const session=useHoverPreview(),owner=useRef({}),latest=useRef({value,min,max,step,preview,commit});latest.current={value,min,max,step,preview,commit};
+export function HoverValue({value,min,max,step,pixelsPerStep,preview,commit,children}:{value:number;min:number;max:number;step:number;pixelsPerStep?:number;preview:(n:number)=>void;commit:(n:number)=>void;children:ReactNode}){
+ const session=useHoverPreview(),owner=useRef({}),latest=useRef({value,min,max,step,pixelsPerStep,preview,commit});latest.current={value,min,max,step,pixelsPerStep,preview,commit};
  const root=useRef<HTMLSpanElement>(null);
  useLayoutEffect(()=>{
   const element=root.current?.closest('.radial-menu-slot')??root.current;if(!element||!session)return;
@@ -32,7 +35,7 @@ export function HoverValue({value,min,max,step,preview,commit,children}:{value:n
    if(!element.isConnected)return;
    let scrub:ValueScrub,next=latest.current.value,before=next;
    const callbacks={preview:latest.current.preview,commit:latest.current.commit};
-   session.enter(owner.current,{start:x=>{element.setAttribute('data-hover-preview','');const state=latest.current;before=next=state.value;scrub=createValueScrub({origin:{x,y:0},width:160,value:before,min:state.min,max:state.max,step:state.step,axis:{x:1,y:0}});},move:x=>{const n=scrub.sample({x,y:0});if(n!==undefined&&n!==next){next=n;callbacks.preview(n);}},commit:()=>{element.removeAttribute('data-hover-preview');callbacks.commit(next);},cancel:()=>{element.removeAttribute('data-hover-preview');callbacks.preview(before);}},e.clientX);
+   session.enter(owner.current,{start:x=>{element.setAttribute('data-hover-preview','');const state=latest.current;before=next=state.value;scrub=createValueScrub({origin:{x,y:0},width:160,value:before,min:state.min,max:state.max,step:state.step,pixelsPerStep:state.pixelsPerStep,axis:{x:1,y:0}});},move:x=>{const n=scrub.sample({x,y:0});if(n!==undefined&&n!==next){next=n;callbacks.preview(n);}},commit:()=>{element.removeAttribute('data-hover-preview');callbacks.commit(next);},cancel:()=>{element.removeAttribute('data-hover-preview');callbacks.preview(before);}},e.clientX);
   };
   element.addEventListener('pointerenter',enter);
   return()=>{element.removeEventListener('pointerenter',enter);session.release(owner.current);};
