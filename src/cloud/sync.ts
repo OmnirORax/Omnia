@@ -1,4 +1,5 @@
 import type {World} from '../core/model.ts';
+import {DraftConflictError,REVISION_CONFLICT} from './errors.ts';
 export type Draft={revision:number;world:World};
 export type DraftPhase='Loading'|'Saving'|'Saved'|'Failed'|'Conflict'|'Published';
 export type Marker={revision:number;signature:string};
@@ -11,13 +12,13 @@ export function createDraftSync(host:{read:()=>World;replace:(world:World)=>Prom
  const cancel=()=>{if(timer!==undefined)clearTimeout(timer);timer=undefined;};
  function changed(){
   if(applying||closed)return;fresh=false;dirty=true;
-  if(phase==='Published'){status('Conflict');return;}
+  if(phase==='Published'){status('Conflict','You edited the published workspace. Pull replaces local work with the shared draft; Push replaces the shared draft with local work.');return;}
   if(ready&&!busy&&timer===undefined){status('Saving');timer=setTimeout(()=>{timer=undefined;void save();},1500);}
  }
  async function save(){
   if(!ready||busy||!dirty||closed)return;cancel();busy=true;dirty=false;status('Saving');const world=host.read();
   try{revision=await host.save(world,revision);await remember(world);if(!closed)status('Saved');}
-  catch(error){dirty=true;ready=false;status(error instanceof Error&&error.message==='Conflict'?'Conflict':'Failed',error instanceof Error?error.message:String(error));}
+  catch(error){dirty=true;ready=false;const conflict=error instanceof DraftConflictError||(error instanceof Error&&error.message==='Conflict');status(conflict?'Conflict':'Failed',conflict?REVISION_CONFLICT:error instanceof Error?error.message:String(error));}
   finally{busy=false;if(dirty&&ready)changed();}
  }
  async function load(choice?:'remote'|'local'){
@@ -25,13 +26,14 @@ export function createDraftSync(host:{read:()=>World;replace:(world:World)=>Prom
   try{
    const remote=await host.load(),localHash=await signature(before),remoteHash=await signature(remote.world),marker=host.marker();revision=remote.revision;
    if(closed)return;
-   if(host.read()!==before){status('Conflict');return;}
+   if(host.read()!==before){status('Conflict','Local work changed while the shared draft was loading. Finish editing, then choose Pull or Push.');return;}
    if(choice==='local'){fresh=false;ready=true;dirty=true;}
    else if(choice==='remote'||localHash===remoteHash||(host.autoLoad&&(fresh||marker?.signature===localHash))){
     if(localHash!==remoteHash){applying=true;try{await host.replace(remote.world);}finally{applying=false;}}
     await remember(host.read());fresh=false;dirty=false;ready=true;status('Saved');
    }else if(marker?.revision===revision&&host.autoLoad){ready=true;dirty=true;}
-   else status(host.autoLoad?'Conflict':'Published');
+   else if(host.autoLoad)status('Conflict',marker?'Local work and the shared draft have both changed. Pull replaces local work; Push replaces the shared draft.':'Local work differs from the shared draft, with no saved sync point. Pull replaces local work; Push replaces the shared draft.');
+   else status('Published','This page keeps the published workspace. Pull replaces local work with the shared draft; Push replaces the shared draft with local work.');
   }catch(error){status('Failed',error instanceof Error?error.message:String(error));}
   finally{busy=false;if(ready&&dirty)changed();}
  }
