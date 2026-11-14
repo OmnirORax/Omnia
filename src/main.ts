@@ -1,7 +1,8 @@
+import {installCursorTracking,cursorPosition} from './composer/runtime/ui/cursorPosition.ts';
 import {installValueDrag} from './ui/valueDrag.ts';
 import {closeActiveWindow} from './ui/windowDismissal.ts';
 import {uiPointerHeld} from './composer/runtime/ui/pointerOwnership.ts';
-import {universalHistory} from './core/universalHistory.ts';
+import {universalHistory,globalHistoryOptions,travelGlobalHistory} from './core/universalHistory.ts';
 import {installHistoryBindings} from './ui/historyBindings.ts';
 import { transformNodes } from './core/navigation.ts';
 import {NAV_DEFAULTS,MODES,type NavigationOptions} from './navigation/options.ts';
@@ -11,7 +12,7 @@ import type {libraryPanel} from './omnic/library.ts';
 import {createDraftSync,type Marker} from './cloud/sync.ts';
 import {createDraftClient} from './cloud/client.ts';
 import {panel} from './ui/panel.ts';
-import {readPaint,writePaint} from './core/appearance.ts';
+import {readPaint,writePaint,resolveNodeAppearance} from './core/appearance.ts';
 import {visualProperties,type Paint} from './properties/visual.ts';
 import vfxFunction from './scene/vfx.function.ts';
 import {definitions as audioDefinitions} from './scene/audioControls.ts';
@@ -37,6 +38,7 @@ import { liveForm,flushLiveForms } from './ui/liveForm.ts';
 
 installPrimaryClickGate();
 installValueDrag();
+installCursorTracking();
 const element = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const tools = element('tools'), status = element('status'), search = element<HTMLInputElement>('find');
 type Target = Origin | Edge;
@@ -58,7 +60,7 @@ const view = (() => {
       pick, picking: () => selection.requesting,
       range(origins, extend) { if (!selection.requesting) { selection.set(extend ? [...selectedOrigins(), ...origins] : origins); refresh(); } },
       clear() { if (selection.requesting) return; close(); selection.set([]); refresh(); },
-      menu(origin, point, position, edge) { if (selection.requesting) return; message = ''; if (edge) selection.set([edge]); else if (origin && !selection.has(origin)) pick(origin); menuPoint = point; refresh(); context(position); },
+      menu(origin, point, position, edge) { if (selection.requesting) return; message = ''; if(edge)selection.set([edge]);else if(origin)selection.set(selection.has(origin)?selectedOrigins():[origin]);else selection.set([]); menuPoint = point; refresh(); context(position,origin,edge); },
       navigationSettings:openNavigation,
       transform(origins,rotation,pivot,layout){store.change(world=>transformNodes(world,origins,rotation,pivot,layout));},
       move(origins, delta) { store.change(world => translate(world, origins, delta)); },
@@ -83,12 +85,12 @@ function refresh() {
   selection.set(selection.values.filter(target => isNode(target) ? !!locate(store.world, target) : target.kind === 'part' ? !!locate(store.world, target.owner)?.parts[target.index] : target.kind === 'variant' ? !!locate(store.world,target.owner)?.variantOf : !!store.world.relationships?.[target.index]));
   view?.update(store.world, selectedOrigins(), shown, selection.values.filter((target): target is Edge => !isNode(target)));
   element('empty').hidden = store.world.nodes.length > 0;
-  element<HTMLButtonElement>('undo').disabled = !store.canUndo;
-  element<HTMLButtonElement>('redo').disabled = !store.canRedo;
+  element<HTMLButtonElement>('undo').disabled = universalHistory.candidates('undo',globalHistoryOptions()).length===0;
+  element<HTMLButtonElement>('redo').disabled = universalHistory.candidates('redo',globalHistoryOptions()).length===0;
   if (view) status.textContent = store.message || message;
 }
 store.subscribe(refresh);
-universalHistory.subscribe(()=>{element<HTMLButtonElement>('undo').disabled=!store.canUndo;element<HTMLButtonElement>('redo').disabled=!store.canRedo;});
+universalHistory.subscribe(()=>{element<HTMLButtonElement>('undo').disabled=universalHistory.candidates('undo',globalHistoryOptions()).length===0;element<HTMLButtonElement>('redo').disabled=universalHistory.candidates('redo',globalHistoryOptions()).length===0;});
 function open(title: string) {
   tools.replaceChildren(); tools.hidden = false;
   const row = document.createElement('div'); row.className = 'title';
@@ -123,7 +125,7 @@ function create(position: Vec3) {
 }
 function editCapability(capabilityKey: string) {
   const origins = [...selectedOrigins()], first = locate(store.world, origins[0]); if (!first) return;
-  const capability = capabilities(inherited(first, store.world)).find(item => item.key === capabilityKey); if (!capability) return;
+  const capability = capabilities(resolveNodeAppearance(store.world,inherited(first, store.world))).find(item => item.key === capabilityKey); if (!capability) return;
   open(capability.label);
   const form = document.createElement('form'), inputs: HTMLInputElement[] = [];
   for (const binding of capability.properties) {
@@ -214,11 +216,10 @@ function openLibrary(){close();if(library?.root.isConnected){library.root.focus(
  void import('./omnic/library.ts').then(({libraryPanel})=>{if(epoch!==documentEpoch)return;library=libraryPanel({read:()=>store.world,change:store.change,open:origin=>openComposer(origin),focus:origin=>{pick(origin);view?.focus([origin],true);},feedback,subscribe:store.subscribe});}).catch(error=>feedback(String(error))).finally(()=>{openingLibrary=false;});
 }
 
-function context(position: Vec3) {
-  const edge = selection.values.find((target): target is Edge => !isNode(target));
+function context(position: Vec3, origin?:Origin, edge?:Edge) {
   if (edge) { edgeContext(edge); return; }
-  open(selectedOrigins().length ? `${selectedOrigins().length} selected` : 'Omnium');
-  if (!selectedOrigins().length) { button('Create structure', () => create(position)); button('Omnic',()=>openComposer(undefined)); button('Library · Atlas',openLibrary); button('👁', appearance).setAttribute('aria-label', 'Appearance'); return; }
+  open(origin ? `${selectedOrigins().length} selected` : 'Omnium');
+  if (!origin) { button('Create structure', () => create(position)); button('Omnic',()=>openComposer(undefined)); button('Library · Atlas',openLibrary); button('👁', appearance).setAttribute('aria-label', 'Appearance'); return; }
   const node = selectedNodes(store.world)[0]; if (!node) return;
   for (const capability of capabilities(node).filter(c => !['color','carrier'].includes(c.key))) button(capability.label, () => editCapability(capability.key));
   button('👁', appearance).setAttribute('aria-label', 'Appearance');
@@ -237,12 +238,13 @@ function context(position: Vec3) {
   button('Remove', remove);
 }
 function searchSettings() {
+  menuPoint={...cursorPosition()};
   open('Settings');tools.querySelector('input[type=search]')?.remove();
   const input=document.createElement('input');input.type='search';input.placeholder='Search settings';input.setAttribute('aria-label','Search settings');
   const results=document.createElement('div');tools.append(input,results);
   const origins=[...selectedOrigins()],selected=origins[0]&&locate(store.world,origins[0]);
-  const nodeEntries=selected?capabilities(inherited(selected,store.world)).flatMap(capability=>capability.properties.map((binding,index)=>({label:`${capability.label} · ${binding.property.label}`,keywords:'selected node',definition:binding.property,read:()=>binding.read(),write:(world:World,value:string|number|boolean)=>{if(capability.key==='move'){const first=locate(world,origins[0]);if(first){const delta:Vec3=[0,0,0];delta[index]=Number(value)-first.position[index];translate(world,origins,delta);}return;}for(const origin of origins){const node=locate(world,origin);if(!node)continue;const target=capabilities(node).find(item=>item.key===capability.key);if(!target)continue;target.properties[index].write(String(value));if(node.variantOf)node.overrides=[...new Set([...(node.overrides??[]),binding.property.key])];}}}))):[];
-  const visualEntries=(['text','background',...(origins.length?['nodeText' as const,'nodes' as const]:[])] as const).flatMap(target=>visualProperties(target==='text'||target==='nodeText').map(definition=>({label:`${target} · ${definition.label}`,keywords:'appearance visual color',definition,read:()=>readPaint(store.world,target,origins[0])[definition.key as keyof Paint]!,write:(world:World,value:string|number|boolean)=>writePaint(world,target,origins,{[definition.key]:value})})));
+  const nodeEntries=selected?capabilities(resolveNodeAppearance(store.world,inherited(selected,store.world))).flatMap(capability=>capability.properties.map((binding,index)=>({label:`${capability.label} · ${binding.property.label}`,keywords:'selected node',definition:binding.property,read:()=>binding.read(),write:(world:World,value:string|number|boolean)=>{if(capability.key==='move'){const first=locate(world,origins[0]);if(first){const delta:Vec3=[0,0,0];delta[index]=Number(value)-first.position[index];translate(world,origins,delta);}return;}for(const origin of origins){const node=locate(world,origin);if(!node)continue;const target=capabilities(node).find(item=>item.key===capability.key);if(!target)continue;target.properties[index].write(String(value));if(node.variantOf)node.overrides=[...new Set([...(node.overrides??[]),binding.property.key])];}}}))):[];
+  const visualEntries=(['nodeDefaults','text','background',...(origins.length?['nodeText' as const,'nodes' as const]:[])] as const).flatMap(target=>visualProperties(target==='text'||target==='nodeText').map(definition=>({label:`${target} · ${definition.label}`,keywords:'appearance visual color',definition,read:()=>readPaint(store.world,target,origins[0])[definition.key as keyof Paint]!,write:(world:World,value:string|number|boolean)=>writePaint(world,target,origins,{[definition.key]:value})})));
   const worldEntries=[
     {label:'Lattice scale',keywords:'world lattice',definition:{key:'latticeScale',label:'Lattice scale',kind:'number' as const,min:1e-9},read:()=>store.world.settings?.latticeScale??1,write:(world:World,value:string|number|boolean)=>{world.settings??={latticeScale:1,names:'expanded'};world.settings.latticeScale=Number(value);}},
     {label:'Names',keywords:'world names',definition:{key:'names',label:'Names',kind:'select' as const,options:[{id:'expanded',label:'Expanded'},{id:'all',label:'All'},{id:'selection',label:'Selected'}]},read:()=>store.world.settings?.names??'expanded',write:(world:World,value:string|number|boolean)=>{world.settings??={latticeScale:1,names:'expanded'};world.settings.names=value as 'all'|'expanded'|'selection';}},
@@ -318,7 +320,7 @@ function appearance() {
   button('Visuals', () => {
     open('👁 Visuals');
     const origins=[...selectedOrigins()];
-    for(const [target,title] of [['nodes','Nodes'],['nodeText','Node text'],['text','Text'],['background','UI backgrounds']] as const){
+    for(const [target,title] of [['nodeDefaults','Nodes'],['text','Text'],['background','UI backgrounds'],['nodes','Selected nodes'],['nodeText','Selected node text']] as const){
       if((target==='nodes'||target==='nodeText')&&!origins.length)continue;
       button(title,()=>{open(title);tools.append(paintForm(target,origins,()=>store.world,(edit,group)=>store.change(edit,group),feedback));positionMenu();});
     }
@@ -387,8 +389,13 @@ function edgeContext(edge: Edge) {
 element('workspace').onclick = openWorkspace;
 element<HTMLButtonElement>('create').disabled = !view;
 element('create').onclick = () => attempt(() => create(view!.center()));
-element('undo').onclick = () => { view?.cancel(); close(); selection.cancel(); store.undo(); };
-element('redo').onclick = () => { view?.cancel(); close(); selection.cancel(); store.redo(); };
+function travelHistory(direction:'undo'|'redo'){
+  const field=document.activeElement,editing=field instanceof HTMLInputElement||field instanceof HTMLTextAreaElement||field instanceof HTMLSelectElement;
+  if(editing)field.blur();flushLiveForms();view?.cancel();selection.cancel();travelGlobalHistory(direction);
+  if(editing&&field.isConnected)field.focus({preventScroll:true});refresh();
+}
+element('undo').onclick = () => travelHistory('undo');
+element('redo').onclick = () => travelHistory('redo');
 search.oninput = () => { close(); refresh(); };
 search.onkeydown = event => { if (event.key === 'Enter' && shown && !selection.requesting) { selection.set(store.world.nodes.filter(node => shown!.has(key(node.origin))).map(node => node.origin)); search.blur(); refresh(); } };
 tools.addEventListener('contextmenu', event => { event.preventDefault(); event.stopPropagation(); });
@@ -411,7 +418,7 @@ document.addEventListener('keydown', event => {
 
   if (event.key === 'Delete' && selection.values.length && !selection.requesting) { event.preventDefault(); attempt(remove); }
 });
-installHistoryBindings({undo:()=>element<HTMLButtonElement>('undo').click(),redo:()=>element<HTMLButtonElement>('redo').click(),configure:openHistory,flush:flushLiveForms});
+installHistoryBindings({undo:()=>travelHistory('undo'),redo:()=>travelHistory('redo'),configure:openHistory,flush:flushLiveForms});
 refresh();
 
 // Builds share one draft; production retains its published starting state.

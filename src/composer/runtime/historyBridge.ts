@@ -1,20 +1,27 @@
 import {universalHistory} from '../../core/universalHistory.ts';
 import {createTransientStore} from './ui/transientStore.ts';
-import {emptyUILayout,type UILayout} from './ui/layout.ts';
+import {emptyUILayout,validateUILayout,type UILayout} from './ui/layout.ts';
 import type {Controller} from './appearance/model.ts';
+import type {HistoryCategory} from './ui/actionHistory.ts';
 
 export const nativeLayout=createTransientStore(emptyUILayout());
 export const nativeAppearance=createTransientStore<Controller|undefined>(undefined);
-universalHistory.register('native.ui',{read:nativeLayout.getSnapshot,write:nativeLayout.set});
-universalHistory.register('native.appearance',{read:nativeAppearance.getSnapshot,write:nativeAppearance.set});
-export function updateNativeLayout(change:(layout:UILayout)=>UILayout){
- const before=nativeLayout.getSnapshot(),after=change(before);
- nativeLayout.set(after);
- // Opening a new window seeds its geometry; only edits of existing windows
- // belong to the user's UI history.
- if(Object.keys(before.windows).some(id=>before.windows[id]!==after.windows[id]))universalHistory.record('native.ui',before,after,['ui'],['omnium','window:omnic-composer'],'native.ui');
+const snapshot=()=>({layout:nativeLayout.getSnapshot(),controller:nativeAppearance.getSnapshot()});
+type Interface=ReturnType<typeof snapshot>;
+// V1 records the complete interface at its state owner, rather than inspecting
+// which particular widget happened to call an update function.
+universalHistory.register('interface',{read:snapshot,write:(state:Interface)=>{
+ const layout=validateUILayout(state.layout);nativeLayout.set(layout);nativeAppearance.set(state.controller);
+}});
+function commit(change:(before:Interface)=>Interface){
+ const before=snapshot(),after=change(before);if(before.layout===after.layout&&before.controller===after.controller)return;
+ nativeLayout.set(after.layout);nativeAppearance.set(after.controller);
+ const categories:HistoryCategory[]=[],contexts=new Set(['omnium',universalHistory.activeContext,...universalHistory.contextPath]);
+ if(before.layout!==after.layout){categories.push('ui');for(const id of new Set([...Object.keys(before.layout.windows),...Object.keys(after.layout.windows)]))if(before.layout.windows[id]!==after.layout.windows[id])contexts.add(`window:${id}`);}
+ if(before.controller!==after.controller)categories.push('appearance');
+ const event=typeof window==='undefined'?undefined:window.event,active=typeof document==='undefined'?undefined:document.activeElement;
+ const group=event?.type==='input'?`field:${active?.getAttribute('aria-label')??''}`:event?`event:${event.type}:${event.timeStamp}`:undefined;
+ universalHistory.record('interface',before,after,categories,[...contexts],group);
 }
-export function updateNativeAppearance(after:Controller){
- const before=nativeAppearance.getSnapshot();nativeAppearance.set(after);
- universalHistory.record('native.appearance',before,after,['appearance'],['omnium','window:omnic-composer'],'native.appearance');
-}
+export function updateNativeLayout(change:(layout:UILayout)=>UILayout){commit(before=>({...before,layout:change(before.layout)}));}
+export function updateNativeAppearance(controller:Controller){commit(before=>({...before,controller}));}

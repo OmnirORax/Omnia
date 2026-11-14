@@ -60,6 +60,7 @@ export function inherited(node: Structure, world: World): Structure {
     for (const key of ['color', 'label', 'text', 'visual', 'opacity', 'glow', 'translucency', 'translucencyRadius','scene','textAppearance'] as const) {
       if (!overrides.has(key)) Object.assign(next, { [key]: base[key] });
     }
+    if(!overrides.has('color'))next.colorOverride=base.colorOverride;
     if(base.omnic||current.omnicEdits){next.omnic=definitionRecipe(current,world);if(current.omnicEdits!==undefined)next.visual={...next.visual,assetId:undefined,character:undefined,omnicEntityId:JSON.stringify(current.origin)};}
     return next;
   }; return read(node);

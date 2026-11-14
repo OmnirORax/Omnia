@@ -11,7 +11,7 @@ export const FONT_OPTIONS = [
   { id:'electric',label:'Rubik Glitch',family:"'Rubik Glitch', system-ui, sans-serif" },
 ] as const;
 export type Paint = { color?: string; translucency?: number; glow?: number; font?: string; embolden?: number };
-export type Appearance = { text?: Paint; background?: Paint };
+export type Appearance = { text?: Paint; background?: Paint; nodes?: Paint };
 export const color = property({key:'color',label:'Color',kind:'color'});
 export const translucency = property({key:'translucency',label:'Translucency',kind:'number',min:0,max:1,step:.01});
 export const glow = property({key:'glow',label:'Glow',kind:'number',min:0,max:1,step:.01});
@@ -33,5 +33,5 @@ export function validatePaint(paint: Paint | undefined, text: boolean) {
 export function validateAppearance(value: Appearance | undefined) {
   if(value===undefined)return;
   if(!value||typeof value!=='object'||Array.isArray(value))throw Error('Invalid appearance.');
-  validatePaint(value.text,true);validatePaint(value.background,false);
+  validatePaint(value.text,true);validatePaint(value.background,false);validatePaint(value.nodes,false);
 }

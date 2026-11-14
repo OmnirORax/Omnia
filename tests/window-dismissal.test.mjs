@@ -28,3 +28,13 @@ test('close veto and disposed registrations never fall through to another window
  assert.equal(windows.close(),true);assert.deepEqual(closed,['veto']);
  dispose();windows.close();assert.deepEqual(closed,['veto','first']);
 });
+
+test('Escape dismisses a composer popup but leaves its protected composer open',()=>{
+ const windows=createWindowDismissal(),other=root(),composer=root(),popup=root(),closed=[];
+ windows.register(other,()=>closed.push('other'));
+ windows.register(composer,()=>closed.push('composer'),0,false);
+ const stop=windows.register(popup,()=>{closed.push('popup');popup.isConnected=false;},1);
+ windows.close();assert.deepEqual(closed,['popup']);stop();
+ assert.equal(windows.close(),true);assert.deepEqual(closed,['popup']);
+ windows.activate(other);windows.close();assert.deepEqual(closed,['popup','other']);
+});

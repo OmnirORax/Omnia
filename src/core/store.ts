@@ -42,7 +42,7 @@ export function createStore(storage: Pick<Storage, 'getItem' | 'setItem'>,journa
     const targetSlot=candidate.version===3?slot3:slot2;
     storage.setItem(`${targetSlot}.before-import`, before);
     storage.setItem(candidate.version===3?slot3:slot2, JSON.stringify(candidate));
-    history = retainVersion(recordHistory(history, candidate)); recovery = false; message = '';
+    history = retainVersion(journal?startHistory(candidate):recordHistory(history, candidate)); recovery = false; message = '';
     record(previous,history.present);
     listeners.forEach(listener => listener());
   }
@@ -58,13 +58,13 @@ export function createStore(storage: Pick<Storage, 'getItem' | 'setItem'>,journa
       replace(JSON.parse(saved));
     },
     get world() { return history.present; },
-    get message() { return message; },
+    get message() { return journal?.message || message; },
     get canUndo() { return journal?journal.candidates('undo').length>0:history.past.length > 0; },
     get canRedo() { return journal?journal.candidates('redo').length>0:history.future.length > 0; },
     subscribe(listener: () => void) { listeners.add(listener); return () => listeners.delete(listener); },
     change(edit: (candidate: World) => void, group?: string) {
       const candidate = structuredClone(history.present); edit(candidate); validateWorld(candidate);
-      const next = recordHistory(history, candidate, group);
+      const next = journal ? sameValue(history.present,candidate)?history:startHistory(candidate) : recordHistory(history, candidate, group);
       if (next !== history) { const previous=history.present;history = retainVersion(next);record(previous,history.present,group); publish(); }
     },
     undo() {if(journal){journal.travel('undo');return;} const next = undoHistory(history); if (next !== history) { history = retainVersion(next); publish(); } },

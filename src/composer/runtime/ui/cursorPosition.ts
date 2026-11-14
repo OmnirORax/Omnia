@@ -8,12 +8,14 @@ export const popupInvocation=()=>invocation;
 const observers=new Set<(point:{x:number;y:number;target:EventTarget|null})=>void>();
 export const cursorSample=()=>({...cursorPosition(),target});
 export function observeCursor(listener:(point:{x:number;y:number;target:EventTarget|null})=>void){observers.add(listener);listener(cursorSample());return()=>{observers.delete(listener);};}
-const notify=()=>{const point=cursorSample();observers.forEach(listener=>listener(point));};
+const notify=()=>{if(!observers.size)return;const point=cursorSample();observers.forEach(listener=>listener(point));};
 export const cursorPosition = () => cursor ?? { x: innerWidth / 2, y: innerHeight / 3 };
 
 /** Track without React state so pointer motion never rerenders the workspace. */
-export function useCursorTracking() {
-  useLayoutEffect(() => {
+let users=0;
+let stopTracking:(()=>void)|undefined;
+export function installCursorTracking() {
+  if(users++===0){
     const track = (event: MouseEvent) => { if(event.type!=='click'||event.detail>0)cursor = { x: event.clientX, y: event.clientY };target=event.target;
       if(event.type==='pointerdown'||event.type==='contextmenu'||event.type==='click'){
         const element=target instanceof Element?target:null,button=element?.closest('button,[role="button"]'),box=button?.getBoundingClientRect();
@@ -27,12 +29,15 @@ export function useCursorTracking() {
     window.addEventListener("pointerdown", track, true);
     window.addEventListener("contextmenu", track, true);
     window.addEventListener("click", track, true);
-    return () => {
+    stopTracking = () => {
       window.removeEventListener("pointerover",track,true);window.removeEventListener("pointerout",leave,true);window.removeEventListener("blur",blur);
       window.removeEventListener("pointermove", track, true);
       window.removeEventListener("pointerdown", track, true);
       window.removeEventListener("contextmenu", track, true);
       window.removeEventListener("click", track, true);
     };
-  }, []);
+  }
+  return()=>{if(--users===0)stopTracking?.();};
+}
+export function useCursorTracking(){useLayoutEffect(installCursorTracking,[]);
 }

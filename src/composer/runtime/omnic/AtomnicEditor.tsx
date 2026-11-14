@@ -257,9 +257,8 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
     context:(point,event)=>{
       activateTarget?.();pointer.current={x:event.clientX,y:event.clientY};const target=hit(point);
       const role=event.target instanceof Element?event.target.closest('[data-omnic-role]')?.getAttribute('data-omnic-role')??undefined:undefined;
-      if(tool!=='select'&&openGestureSettings(event.clientX,event.clientY))return;
+      if(target&&tool!=='select'&&openGestureSettings(event.clientX,event.clientY))return;
       cancelPreview?.();setTool('select');setActiveDof(null);closePanel?.();setMenu({...pointer.current});
-      if(phase==='pivot'){setPanel({kind:'pivotModes'});return;}
       let ids:string[]=[];
       if(isAtomnic&&target){const chosen=scoped(new Set(contextEditTargets(recipeRef.current,normalSelection,[target.id])));selectedRef.current=chosen;setSelected(chosen);ids=[...chosen];}
       else {const picked=onPickGeometry?.(point,role);if(Array.isArray(picked))ids=picked;}

@@ -21,7 +21,7 @@ export function capabilities(node: Structure): Capability[] {
       read: () => node.position[axis], write: value => { const n = Number(value); if (!Number.isFinite(n) || Math.abs(n) > 1e7) throw new Error('Invalid coordinate.'); node.position[axis] = n; },
     })) },
     { key: 'color', label: 'Color', properties: [{ property: color, read: () => node.color,
-      write: value => { if (typeof value !== 'string' || !/^#[\da-f]{6}$/i.test(value)) throw new Error('Invalid color.'); node.color = value; },
+      write: value => { if (typeof value !== 'string' || !/^#[\da-f]{6}$/i.test(value)) throw new Error('Invalid color.'); node.color = value;node.colorOverride=true; },
     }] },
     { key: 'carrier', label: 'Sphere', properties: carrierProperties.map(property => ({ property,
       read: () => node[property.key as keyof typeof SPHERE_VISUAL_DEFAULTS] as number ?? SPHERE_VISUAL_DEFAULTS[property.key as keyof typeof SPHERE_VISUAL_DEFAULTS],

@@ -21,7 +21,7 @@ export type Binding =
   | { mode: 'follow'; origin: Origin }
   | { mode: 'position'; at: Vec3 }
   | { mode: 'structure'; specification: string };
-export type Structure = { origin: Origin; label: string; position: Vec3; color: string; invariant: boolean; parts: Binding[];
+export type Structure = { origin: Origin; label: string; position: Vec3; color: string; colorOverride?: boolean; invariant: boolean; parts: Binding[];
   parent?: Origin; variantOf?: Origin; overrides?: string[]; hidden?: boolean; collapsed?: boolean;
   omnic?:Recipe;omnicDraft?:Recipe;omnicEdits?:RecipeEdit[];omnicRevision?:number;omnicHistory?:Recipe[];catalog?:Catalog;lexiconWords?:string[];
   orientation?: Rotation; text?: NodeText; textAppearance?: Paint; visual?: Visual; scene?: string | null;
@@ -129,6 +129,7 @@ export function validateWorld(value: unknown): World {
     if (node.parent !== undefined && !origin(node.parent) || node.variantOf !== undefined && !origin(node.variantOf)) throw Error('Invalid node parent or variant.');
     if (node.overrides !== undefined && (!Array.isArray(node.overrides) || node.overrides.some(key => !['color','label','text','visual','opacity','glow','translucency','translucencyRadius','scene','textAppearance'].includes(key)))) throw Error('Invalid variant override.');
     if (node.hidden !== undefined && typeof node.hidden !== 'boolean' || node.collapsed !== undefined && typeof node.collapsed !== 'boolean') throw Error('Invalid node visibility.');
+    if(node.colorOverride!==undefined&&typeof node.colorOverride!=='boolean')throw Error('Invalid node color override.');
     if (node.scene !== undefined && node.scene !== null && (typeof node.scene !== 'string' || node.scene.length > 200)) throw Error('Invalid node scene.');
     for (const key of ['opacity','glow','translucency','translucencyRadius'] as const) if (node[key] !== undefined && (!Number.isFinite(node[key]) || node[key]! < 0 || node[key]! > 1)) throw Error('Invalid carrier appearance.');
     if(['omnic','omnicDraft','omnicEdits','omnicRevision','omnicHistory','catalog','lexiconWords'].some(key=>node[key as keyof Structure]!==undefined)){

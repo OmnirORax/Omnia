@@ -25,6 +25,7 @@ export function FloatingWindow({
   footer,
   onClose,
   onMinimize,
+  dismissOnEscape = true,
   closeLabel = `Close ${label}`,
   width = 420,
   height = 560,
@@ -50,6 +51,7 @@ export function FloatingWindow({
   onClose?: () => void | boolean;
   /** Return false to keep the window expanded until pending work is resolved. */
   onMinimize?: () => void | boolean;
+  dismissOnEscape?: boolean;
   closeLabel?: string;
   width?: number;
   height?: number;
@@ -100,7 +102,7 @@ export function FloatingWindow({
     };
   }, [id]);
   const [z, raise] = useWindowLayer();
-  useLayoutEffect(()=>{if(!element||saved.closed)return;return registerWindow(element,()=>ui.frameActions.get(key)?.onClose?.());},[element,key,saved.closed]);
+  useLayoutEffect(()=>{if(!element||saved.closed)return;return registerWindow(element,()=>ui.frameActions.get(key)?.onClose?.(),0,dismissOnEscape);},[element,key,saved.closed,dismissOnEscape]);
   useLayoutEffect(() => { if (!contextController && !saved.closed && !state.collapsed) activateFrameContext(ui, key); }, [id, openingKey,contextController]);
   // Mounting a caller-controlled window is an explicit open request. Repair
   // stale closed flags from tab/fallback closes through the same model path.
