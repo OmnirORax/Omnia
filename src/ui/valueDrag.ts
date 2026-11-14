@@ -53,7 +53,7 @@ export function installValueDrag(){
   const move=(event:PointerEvent)=>{
     const current=drag;if(!current||current.id!==event.pointerId)return;
     if(!current.root.isConnected){finish(true);return;}
-    if(!current.active){if(Math.abs(event.clientX-current.x)<4)return;current.active=true;claimUIPress(event.pointerId,event.pointerType,event.buttons);current.root.setPointerCapture(event.pointerId);document.documentElement.classList.add('value-dragging');}
+    if(!current.active){if(Math.abs(event.clientX-current.x)<(current.config.pixelsPerStep?1:4))return;current.active=true;claimUIPress(event.pointerId,event.pointerType,event.buttons);current.root.setPointerCapture(event.pointerId);document.documentElement.classList.add('value-dragging');}
     stop(event);const next=horizontalValue(current.config,event.clientX-current.x);
     if(next!==current.next){current.next=next;current.adapter.input(next);}
   };
