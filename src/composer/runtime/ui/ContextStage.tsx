@@ -7,8 +7,8 @@ import { uiPointerHeld } from './pointerOwnership';
 export const ContextValueCompletion=createContext<((accept?:()=>boolean|void)=>boolean)|null>(null);
 export const ContextStage=createContext<(()=>void)|null>(null);
 export function useContextStage(identity:string){
-  const open=useContext(ContextStage);
-  useLayoutEffect(()=>{open?.();},[open,identity]);
+  const open=useContext(ContextStage),latest=useRef(open);latest.current=open;
+  useLayoutEffect(()=>{latest.current?.();},[identity]);
 }
 /** Freeze the invocation point until another child/stage opens. No pointer listeners. */
 export function usePopupAnchor(position:{x:number;y:number}|null,identity?:string|number){
