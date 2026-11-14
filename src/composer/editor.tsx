@@ -1,6 +1,7 @@
+import {VIEW_CLOSE} from '../ui/viewHistory.ts';
 import {universalHistory} from '../core/universalHistory.ts';
 import {createRoot,type Root} from 'react-dom/client';
-import {useSyncExternalStore} from 'react';
+import {useLayoutEffect,useSyncExternalStore} from 'react';
 import {locate,addStructure,sameOrigin,type Origin,type World} from '../core/model.ts';
 import {childNode} from '../core/nodeOperations.ts';
 import {saveDefinition,definitionRecipe} from '../omnic/atlas.ts';
@@ -18,7 +19,7 @@ import type {AtomnicInteraction} from './runtime/omnic/atomnicInteraction.ts';
 import type {UIFunction} from './runtime/ui/context.tsx';
 import './runtime/host.css';
 import {setToolCursorZone} from './runtime/ui/toolCursorZone.ts';
-export type ComposerHost={surface?:(surface:OmnicSurface)=>()=>void;redraw?:()=>void;library?:()=>void;read:()=>World;change:(edit:(world:World)=>void,group?:string)=>void;select:(origin:Origin)=>void;feedback:(message:string)=>void;subscribe:(listener:()=>void)=>()=>void};
+export type ComposerHost={historyScope?:string;restorePlacement?:boolean;surface?:(surface:OmnicSurface)=>()=>void;redraw?:()=>void;library?:()=>void;read:()=>World;change:(edit:(world:World)=>void,group?:string)=>void;select:(origin:Origin)=>void;feedback:(message:string)=>void;subscribe:(listener:()=>void)=>()=>void};
 const seed=():Recipe=>({version:2,revision:0,atomnic:{active:true},components:[{id:'unit',generator:'dot',params:{size:10,color:'#ffffff',thickness:.25}}],operations:[],frames:[]});
 let active:{close:()=>void}|undefined;
 const journal=universalHistory;
@@ -36,7 +37,7 @@ export function composerPanel(host:ComposerHost,initial?:Origin){
  let draftStore=ownerStore(origin!);knownDraft=JSON.stringify(readDraft());
  const current=()=>{const world=host.read();if(world!==lastWorld){lastWorld=world;atlas=composerAtlas(world,origin!);}return atlas;};
  function geometry(){const recipe=preview??readDraft()??seed(),world=host.read(),bucket=cached?.motion?Math.floor(performance.now()/1000*12):0;if(!cached||recipe!==cachedRecipe||world!==cachedWorld||bucket!==cachedBucket){cachedRecipe=recipe;cachedWorld=world;cachedBucket=bucket;cached=evaluateRecipe(recipe,current().resolveReference,performance.now()/1000);}return {recipe,evaluation:cached};}
- function close(){if(closed)return;closed=true;if(canvas)setToolCursorZone(canvas,undefined);releaseSurface?.();unsubscribe();react.unmount();root.remove();if(active?.close===close)active=undefined;}
+ function close(){if(closed)return;closed=true;root.dispatchEvent(new Event(VIEW_CLOSE));if(canvas)setToolCursorZone(canvas,undefined);releaseSurface?.();unsubscribe();react.unmount();root.remove();if(active?.close===close)active=undefined;}
  const observePreview=(next:Recipe|null,bridge?:AtomnicInteraction)=>{preview=next??undefined;editing=bridge;host.redraw?.();};
  function accept(recipe:Recipe,label?:string,variation=false){
   let nextOrigin=origin!;writing=true;
@@ -51,6 +52,7 @@ export function composerPanel(host:ComposerHost,initial?:Origin){
  const subscribe=(listener:()=>void)=>{listeners.add(listener);return()=>{listeners.delete(listener);};};
  const canvas=document.querySelector('#world canvas');
  const unsubscribe=host.subscribe(()=>{if(closed)return;const node=locate(host.read(),origin!);if(!node){close();return;}if(writing)return;const next=JSON.stringify(readDraft());if(next!==knownDraft){knownDraft=next;epoch++;draftStore=ownerStore(origin!);preview=undefined;editing=undefined;}lastWorld=undefined;revision++;notify();});
- function View(){useSyncExternalStore(subscribe,()=>revision);const data=current(),functions:UIFunction[]=[{id:'omnic.library',label:'Omnic library',element:<button title="Omnic library" onClick={()=>host.library?.()}>☷</button>}];return <ComposerRuntime functions={functions}><FloatingWindow dismissOnEscape={false} id="omnic-composer" title={`Omnic · ${data.entity.label||'object'}`} shape="circle" width={360} height={360} onClose={close}><OmnicComposer radar key={`${data.entity.id}:${epoch}`} workspaceId="omnium-v2" entity={data.entity} objects={data.objects} presetIds={data.presetIds} history={journal} resolveReference={data.resolveReference} referenceObject={data.referenceObject} draftStore={draftStore} initialRecipe={readDraft()} isNew={!data.entity.omnic} onPreview={observePreview} onSave={(recipe,label)=>accept(recipe,label)} onCopy={(recipe,label)=>accept(recipe,label,true)} onClose={close}/></FloatingWindow></ComposerRuntime>;}
- react.render(<View/>);host.select(origin!);active={close};root.addEventListener('pointerdown',()=>{releaseSurface?.();releaseSurface=host.surface?.(surface);});return {root,close,get origin(){return origin;}};
+ let mounted!:()=>void;const ready=new Promise<void>(resolve=>{mounted=resolve;});
+ function View(){useLayoutEffect(mounted,[]);useSyncExternalStore(subscribe,()=>revision);const data=current(),functions:UIFunction[]=[{id:'omnic.library',label:'Omnic library',element:<button title="Omnic library" onClick={()=>host.library?.()}>☷</button>}];return <ComposerRuntime functions={functions} historyScope={host.historyScope}><FloatingWindow openAtCursor={!host.restorePlacement} dismissOnEscape={false} id="omnic-composer" title={`Omnic · ${data.entity.label||'object'}`} shape="circle" width={360} height={360} onClose={close}><OmnicComposer radar key={`${data.entity.id}:${epoch}`} workspaceId="omnium-v2" entity={data.entity} objects={data.objects} presetIds={data.presetIds} history={journal} resolveReference={data.resolveReference} referenceObject={data.referenceObject} draftStore={draftStore} initialRecipe={readDraft()} isNew={!data.entity.omnic} onPreview={observePreview} onSave={(recipe,label)=>accept(recipe,label)} onCopy={(recipe,label)=>accept(recipe,label,true)} onClose={close}/></FloatingWindow></ComposerRuntime>;}
+ react.render(<View/>);host.select(origin!);active={close};root.addEventListener('pointerdown',()=>{releaseSurface?.();releaseSurface=host.surface?.(surface);});return {root,close,ready,get origin(){return origin;}};
 }

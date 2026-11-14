@@ -1,3 +1,4 @@
+import {UIHistoryScope} from '../../ui/useNavigationState.tsx';
 import {HoverPreviewScope} from './ui/HoverPreview';
 import {nativeLayout,nativeAppearance,updateNativeLayout,updateNativeAppearance} from './historyBridge.ts';
 import {useCallback,useEffect,useMemo,useRef,useState,useSyncExternalStore,type ReactNode} from 'react';
@@ -16,7 +17,7 @@ import {type Controller} from './appearance/model';
 import {useCursorTracking} from './ui/cursorPosition';
 const unavailable=()=>{};
 /** Host the original interaction systems without the V1 UI-authoring application. */
-export function ComposerRuntime({children,functions=[]}:{children:ReactNode;functions?:UIFunction[]}){
+export function ComposerRuntime({children,functions=[],historyScope="native"}:{children:ReactNode;functions?:UIFunction[];historyScope?:string}){
  useCursorTracking();
  const layout=useSyncExternalStore(nativeLayout.subscribe,nativeLayout.getSnapshot),controller=useSyncExternalStore(nativeAppearance.subscribe,nativeAppearance.getSnapshot),[registered,setRegistered]=useState<Record<string,UIFunction>>({});
  const sources=useRef(new Map<string,Map<symbol,UIFunction>>()),live=useRef(true);
@@ -28,5 +29,5 @@ export function ComposerRuntime({children,functions=[]}:{children:ReactNode;func
  const defaults=useMemo(()=>defaultSettings(),[]),projection=useRef<((key:string,rect:{x:number;y:number;width:number;height:number})=>{x:number;y:number;width:number;height:number})|undefined>(undefined);
  const value=useMemo<UIContextValue>(()=>({...stores,layout,update,functions:[...functions,...Object.values(registered)],registerFunction,canMove:key=>key.startsWith('window:'),configure:unavailable,configureFrame:unavailable,configureControl:unavailable,createFrame:unavailable,library:unavailable,frameMenu:unavailable,selectionMenu:unavailable,renderResident:()=>null,selectedFunctions:new Set(),selectingUI:false,shortcutBindings:defaults.bindings}),[layout,update,functions,registered,registerFunction,stores,defaults]);
  const appearance=useMemo(()=>({base:{...defaults.appearance,...(controller?{controller}:{})},commit:updateNativeAppearance,preview:(_next:Controller|null)=>{},safe:false}),[defaults,controller]);
- return <HoverPreviewScope><UIProvider value={value}><DockWorkspace projection={projection}><AppearanceProvider bridge={appearance}><ActiveContextSystem/><ValueFieldBehavior/><ToolCursorLayer/><ContextTargetController/>{children}</AppearanceProvider></DockWorkspace></UIProvider></HoverPreviewScope>;
+ return <UIHistoryScope.Provider value={historyScope}><HoverPreviewScope><UIProvider value={value}><DockWorkspace projection={projection}><AppearanceProvider bridge={appearance}><ActiveContextSystem/><ValueFieldBehavior/><ToolCursorLayer/><ContextTargetController/>{children}</AppearanceProvider></DockWorkspace></UIProvider></HoverPreviewScope></UIHistoryScope.Provider>;
 }

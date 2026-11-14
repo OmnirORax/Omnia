@@ -1,3 +1,4 @@
+import {useNavigationState} from '../../../ui/useNavigationState.tsx';
 import {DofLinearField} from './DofLinearField';
 import {createReferenceField,selectedReferenceStep} from '../properties/referenceUse';
 import {rangeLabel} from './rangeMath';
@@ -30,8 +31,8 @@ export function DofStateField({property,label,symbol='⠒❉',domain,value,disab
  const referenceUse=operation?.selection?.relation?.settings.use;
  const mode=dofModePresentation(working.mode,!!domain.cyclic,referenceUse==='step'?'step':undefined);
  const settingKind=(requested:DofSettingsKind):Exclude<DofSettingsKind,'reference'|'rule'>=>{const kind=requested==='reference'?'relation':requested;if(kind==='rule')return referenceUse==='step'?'numerator':working.mode==='step'?'step':'count';return referenceUse==='step'&&kind==='step'?'numerator':kind;};
- const [settings,setSettings]=useState<Settings|null>(()=>configure&&configure!=='source'?{kind:settingKind(typeof configure==='string'?configure:'options') as Exclude<DofSettingsKind,'reference'|'rule'>,point:cursorPosition()}:null),[picking,setPicking]=useState(configure==='source');
- const [choice,setChoice]=useState<{point:{x:number;y:number};extent?:number}|null>(null),[choiceSample,setChoiceSample]=useState<number|null>(null);
+ const [settings,setSettings]=useNavigationState<Settings|null>(`${property}:dof-settings`,()=>configure&&configure!=='source'?{kind:settingKind(typeof configure==='string'?configure:'options') as Exclude<DofSettingsKind,'reference'|'rule'>,point:cursorPosition()}:null),[picking,setPicking]=useState(configure==='source');
+ const [choice,setChoice]=useNavigationState<{point:{x:number;y:number};extent?:number}|null>(`${property}:dof-choice`,null),[choiceSample,setChoiceSample]=useState<number|null>(null);
  const [parameterSample,setParameterSample]=useState<{count?:number;step?:number;min?:number;max?:number}>({});
  const anchor=useRef(domain.cyclic?.north??value),[session]=useState(()=>mathematicalValueSession(value)),[sample,setSample]=useState<number|null>(null);
  const pickGeneration=useRef(0);

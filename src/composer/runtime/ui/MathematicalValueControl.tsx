@@ -1,5 +1,5 @@
+import {useNavigationState} from '../../../ui/useNavigationState.tsx';
 import {useValueDrag} from './useValueDrag.ts';
-import {useState} from 'react';
 import type {MathematicalDial} from './MathematicalDial';
 import {DofStateField} from './DofStateField';
 import {ContextualMasterController} from './ContextualMasterController';
@@ -10,7 +10,7 @@ import {useNumericEditor} from './NumericEditorScope';
  * reserved for the field's rule parameters; external editors retain RangeControl. */
 export function MathematicalValueControl({inline=false,configurationKey,step=1,onPreview=()=>{},...props}:Parameters<typeof MathematicalDial>[0]&{inline?:boolean;configurationKey?:string;step?:number}){
  const valueDrag=useValueDrag({value:props.value,min:props.min,max:props.max,step,disabled:props.disabled},onPreview,props.onCommit,props.onCancelPreview);
- const [point,setPoint]=useState<{x:number;y:number}|null>(null),scope=useNumericEditor();
+ const [point,setPoint]=useNavigationState<{x:number;y:number}|null>(`${configurationKey??props.label??'Value'}:value-popup`,null),scope=useNumericEditor();
  const close=()=>{props.onCancelPreview?.();scope.cancelPreview?.();setPoint(null);};
  const field=<DofStateField property={configurationKey??props.label??'value'} label={props.label??'Value'} value={props.value} disabled={props.disabled} configure={props.configure} onDismiss={close}
   domain={{min:props.min,max:props.max,integer:props.integer,resolution:step,projection:'radial'}} onPreview={onPreview} onCommit={props.onCommit}/>;
