@@ -2,14 +2,10 @@ import {checkedWorld,sceneReferences,encodeBytes,type SceneFile} from '../core/t
 import type {World} from '../core/model.ts';
 import {listLocalScenes,localSceneBlob,prepareLocalScene,saveLocalScenes} from '../scene/library.ts';
 import {DEFAULT_BACKGROUND} from '../scene/defaultBackground.ts';
+import {draftRequest as request} from './request.ts';
 type Asset={id:string;name:string;type:string};
 export function createDraftClient(){
  let known=new Set<string>(),assets:Asset[]=[];
- async function request(query='',method='GET',body?:unknown){
-  const response=await fetch(`/api/draft${query}`,{method,headers:{'content-type':'application/json'},body:body===undefined?undefined:JSON.stringify(body),redirect:'error',signal:AbortSignal.timeout(30000)});
-  if(response.status===409)throw Error('Conflict');
-  if(!response.ok)throw Error((await response.json().catch(()=>null))?.error??'Shared draft unavailable.');return response;
- }
  return{
   async load(){const value=await(await request()).json();if(value.version!==1||!Number.isSafeInteger(value.revision)||!Array.isArray(value.assets))throw Error('Unsupported shared draft.');const world=checkedWorld(value.world);assets=value.assets;known=new Set(assets.map(asset=>asset.id));return{revision:value.revision,world};},
   async restore(world:World){

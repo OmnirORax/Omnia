@@ -1,12 +1,16 @@
 import {verifyAccess} from './access.ts';
+import {connectionFailure,storageFailure} from './errors.ts';
 import {checkedWorld,decodeScene,type SceneFile,sceneReferences} from '../core/transfer.ts';
 type Environment={url:string;key:string};
 export async function draftServer(request:Request,env:Environment){
  const json=(value:unknown,status=200)=>Response.json(value,{status,headers:{'cache-control':'no-store'}});
  if(!await verifyAccess(request.headers.get('x-omnium-access')??'',fetch,request.headers.get('x-omnium-origin')??undefined))return json({error:'Access session could not be verified. Reload this preview and retry.'},401);
  const db=async(path:string,method='GET',body?:unknown)=>{
-  const response=await fetch(`${env.url}/rest/v1/${path}`,{method,signal:AbortSignal.timeout(15000),headers:{apikey:env.key,authorization:`Bearer ${env.key}`,'content-type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});
-  if(!response.ok){let message='Shared storage unavailable.';try{const error=await response.json();if(error.message==='Open the latest Omnium build before pushing this draft')message=error.message;}catch{/* Preserve the storage error. */}throw Error(message);}return response.status===204?null:response.json();
+  let response:Response;
+  try{response=await fetch(`${env.url}/rest/v1/${path}`,{method,signal:AbortSignal.timeout(15000),headers:{apikey:env.key,authorization:`Bearer ${env.key}`,'content-type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});}
+  catch(error){throw Error(connectionFailure(error));}
+  if(!response.ok)throw Error(storageFailure(response.status,await response.json().catch(()=>null)));
+  return response.status===204?null:response.json();
  };
  try{
   const url=new URL(request.url),asset=url.searchParams.get('asset');

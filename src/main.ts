@@ -522,14 +522,17 @@ if(location.hostname==='omnium.nexus'||location.hostname==='omnia-web-bae.pages.
   marker:()=>{try{const value=JSON.parse(localStorage.getItem('omnium.shared-draft.base.1')??'null');return value&&Number.isSafeInteger(value.revision)&&typeof value.signature==='string'?value as Marker:null;}catch{return null;}},
   remember:value=>{localStorage.setItem('omnium.shared-draft.base.1',JSON.stringify(value));},
   replace:async world=>{const before=store.world;await api.restore(world);if(store.world!==before)throw Error('Workspace changed while loading.');for(const doc of documents.values())doc?.close();sceneView?.close();if(store.world!==before)throw Error('Finish local edits before loading the shared draft.');store.replace(world);selection.set([]);refresh();},
-  status:(phase,error)=>{indicator.textContent=`Draft · ${phase}`;issue=error??'';},
+  status:(phase,error)=>{indicator.textContent=`Draft · ${phase}`;issue=error??'';renderDraftDetails();},
  });
  store.subscribe(sync.changed);
- const openDraft=viewHistory.defineWindow('sharedDraft',()=>{const view=panel('Shared draft');draftView=view;const output=document.createElement('output');output.textContent=issue;view.body.append(output);
-  if(sync.phase==='Failed'){const retry=document.createElement('button');retry.textContent='Retry';retry.onclick=()=>{view.close();void sync.load();};view.body.append(retry);return view;}
-  for(const [label,choice] of [['Pull','remote'],['Push','local']] as const){const button=document.createElement('button');button.textContent=label;button.onclick=()=>{view.close();void sync.load(choice);};view.body.append(button);}
-  return view;
- });
+ function renderDraftDetails(){
+  const view=draftView;if(!view?.root.isConnected)return;
+  const output=document.createElement('output');output.setAttribute('aria-live','polite');output.textContent=issue||sync.phase;view.body.replaceChildren(output);
+  if(sync.phase==='Loading'||sync.phase==='Saving')return;
+  if(sync.phase==='Failed'){const retry=document.createElement('button');retry.textContent='Retry';retry.onclick=()=>{void sync.load();};view.body.append(retry);return;}
+  for(const [label,choice] of [['Pull','remote'],['Push','local']] as const){const button=document.createElement('button');button.textContent=label;button.onclick=()=>{void sync.load(choice);};view.body.append(button);}
+ }
+ const openDraft=viewHistory.defineWindow('sharedDraft',()=>{const view=panel('Shared draft');draftView=view;renderDraftDetails();return view;});
  indicator.onclick=()=>{if(draftView?.root.isConnected){draftView.root.focus();return;}openDraft();};
  window.addEventListener('online',()=>{if(sync.phase==='Failed')void sync.load();});
  document.addEventListener('visibilitychange',()=>{if(document.hidden)void sync.save();});

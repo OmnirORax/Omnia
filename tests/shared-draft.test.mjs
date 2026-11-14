@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createDraftSync,signature} from '../src/cloud/sync.ts';
+import {DraftConflictError,REVISION_CONFLICT} from '../src/cloud/errors.ts';
 import {emptyWorld,addStructure} from '../src/core/model.ts';
 const pending=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return{promise,resolve,reject};};
 function fixture(options={}){
@@ -28,7 +29,7 @@ test('editing during loading preserves the new local work',async()=>{
  const load=pending(),{state,sync}=fixture({load:()=>load.promise});const running=sync.load();state.change(world=>{world.scene.vfx.pulseAmount=.9;});load.resolve({world:state.remote,revision:3});await running;assert.equal(state.phase,'Conflict');assert.equal(state.world.scene.vfx.pulseAmount,.9);sync.dispose();
 });
 test('failed saves never report Saved and revision conflicts stop subsequent automatic writes',async()=>{
- for(const message of ['Offline','Conflict']){const {state,sync}=fixture({save:async()=>{throw Error(message);}});await sync.load();state.change(world=>{world.scene.vfx.pulseAmount=.3;});await sync.save();assert.equal(state.phase,message==='Conflict'?'Conflict':'Failed');assert.equal(state.world.scene.vfx.pulseAmount,.3);assert.equal(state.error,message);sync.dispose();}
+ for(const error of [Error('Offline'),new DraftConflictError()]){const {state,sync}=fixture({save:async()=>{throw error;}});await sync.load();state.change(world=>{world.scene.vfx.pulseAmount=.3;});await sync.save();assert.equal(state.phase,error instanceof DraftConflictError?'Conflict':'Failed');assert.equal(state.world.scene.vfx.pulseAmount,.3);assert.equal(state.error,error.message);sync.dispose();}
 });
 test('edits while saving are queued and cannot change the in-flight snapshot',async()=>{
  const wait=pending();let captured;const {state,sync}=fixture({save:async world=>{captured=world;return wait.promise;}});await sync.load();state.change(world=>{world.scene.vfx.pulseAmount=.6;});const saving=sync.save();state.change(world=>{world.scene.vfx.pulseAmount=.7;});assert.equal(captured.scene.vfx.pulseAmount,.6);wait.resolve(2);await saving;assert.equal(state.phase,'Saving');assert.equal(state.world.scene.vfx.pulseAmount,.7);sync.dispose();
@@ -40,4 +41,11 @@ test('a preview that started fresh must preserve unsent work after its first loa
 test('database object-key ordering does not manufacture a draft conflict',async()=>{
  const world=emptyWorld(),reorder=value=>Array.isArray(value)?value.map(reorder):value&&typeof value==='object'?Object.fromEntries(Object.entries(value).reverse().map(([key,value])=>[key,reorder(value)])):value;
  assert.equal(await signature(world),await signature(reorder(world)));
+});
+test('conflicts explain local edits, unknown ancestry and remote changes',async()=>{
+ const unknown=fixture({hasLocal:true});await unknown.sync.load();assert.match(unknown.state.error,/no saved sync point/);unknown.sync.dispose();
+ const diverged=fixture({hasLocal:true});diverged.state.setMarker({revision:0,signature:'old'});await diverged.sync.load();assert.match(diverged.state.error,/both changed/);diverged.sync.dispose();
+ const wait=pending(),editing=fixture({load:()=>wait.promise});const loading=editing.sync.load();editing.state.change(world=>{world.scene.vfx.pulseAmount=.9;});wait.resolve({world:editing.state.remote,revision:3});await loading;assert.match(editing.state.error,/changed while.*loading/);editing.sync.dispose();
+ const published=fixture({hasLocal:true,autoLoad:false});await published.sync.load();published.state.change(world=>{world.scene.vfx.pulseAmount=.8;});assert.match(published.state.error,/edited the published workspace/);published.sync.dispose();
+ const legacy=fixture({save:async()=>{throw Error('Conflict');}});await legacy.sync.load();legacy.state.change(world=>{world.scene.vfx.pulseAmount=.7;});await legacy.sync.save();assert.equal(legacy.state.error,REVISION_CONFLICT);legacy.sync.dispose();
 });

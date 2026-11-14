@@ -53,3 +53,19 @@ test('preview Access audiences are discovered from that protected host, not assu
  assert.equal(await verifyAccess(await token(),fetcher,origin),false);
  assert.equal(await verifyAccess(await token({aud:[previewAudience]}),fetcher,'https://attacker.example'),false);
 });
+test('known storage failures reach the website without exposing database internals',async()=>{
+ const {draftServer}=await import('../src/cloud/server.ts');
+ const original=globalThis.fetch,identity=await token();
+ try{
+  for(const [message,expected] of [['Draft image library is full',/library is full.*100 MiB/],['Draft image missing',/image.*missing/],['Invalid draft',/format or size/],['secret database relation and credentials',/HTTP 500/]]){
+   globalThis.fetch=async url=>String(url).includes('/certs')?Response.json({keys:[jwk]}):Response.json({message},{status:500});
+   const response=await draftServer(new Request('https://api.example/',{headers:{'x-omnium-access':identity}}),{url:'https://storage.example',key:'server-only'});
+   const result=await response.json();assert.match(result.error,expected);assert.doesNotMatch(result.error,/credentials|relation/);
+  }
+ }finally{globalThis.fetch=original;}
+});
+test('the website proxy explains upstream connection failures',async()=>{
+ const original=globalThis.fetch;globalThis.fetch=async()=>{throw new TypeError('private upstream details');};
+ try{const response=await onRequest({request:new Request('https://omnium.nexus/api/draft',{headers:{'cf-access-jwt-assertion':'signed-session'}})});assert.equal(response.status,502);assert.match((await response.json()).error,/Could not reach/);}
+ finally{globalThis.fetch=original;}
+});
