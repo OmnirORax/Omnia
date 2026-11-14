@@ -21,6 +21,13 @@ export function targetEditorDegrees(...args:Parameters<typeof targetDegrees>){
  // available through action routing without swallowing their editor inputs.
  return vectorDegrees(targetDegrees(recipe,ids,adjusters.filter(a=>!a.adjusts.some(p=>editorProperties.has(p))),fixed,coverage));
 }
+/** Creation can enter a structural definition editor. Appearance editors such
+ * as Fill remain explicit choices in the new construction's DOF menu. */
+export function constructionEditorDegree(recipe:Recipe,ids:readonly string[]){
+ return targetEditorDegrees(recipe,ids,[],[],'available').find(degree=>{
+  const parameter=targetParameter(degree);return parameter.kind==='text'&&!!parameter.editor;
+ });
+}
 /** The selected-owner editor scope is shared by radial and keyboard entry. */
 export function selectedEditorDegrees(recipe:Recipe,ids:readonly string[]):EditableDegree[] {
   const index=componentIndex(recipe),group=ids.some(id=>index.get(id)?.component.generator==='group');
