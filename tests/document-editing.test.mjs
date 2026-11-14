@@ -139,9 +139,9 @@ test('Ctrl+3 capitalizes every selected row and text after periods and colons',(
  const e=editor([text],[[0,text.indexOf('\nuntouched')]]);e.run(capitalizeSentence);
  assert.equal(e.state.doc.toString(),'  First: Next. Again\n\tSecond:More. Done\nuntouched');
  e.run(undo);assert.equal(e.state.doc.toString(),text);
- const row=editor(['leave me\n  change: this. too'],[[15,15]]);row.run(capitalizeSentence);
+ const row=editor(['leave me\n  change: this. too'],[[10,10]]);row.run(capitalizeSentence);
  assert.equal(row.state.doc.toString(),'leave me\n  Change: This. Too');
- const multi=editor(['one: two\nthree. four'],[[1,1],[12,12]]);multi.run(capitalizeSentence);
+ const multi=editor(['one: two\nthree. four'],[[0,8],[9,20]]);multi.run(capitalizeSentence);
  assert.equal(multi.state.doc.toString(),'One: Two\nThree. Four');
 });
 
@@ -156,4 +156,12 @@ test('document parentheses and square brackets pair, skip closers and delete as 
   const selected=editor(['word'],[[0,4]]);selected.dispatch(insertBracket(selected.state,open));
   assert.equal(selected.state.doc.toString(),open+'word'+close);
  }
+});
+
+test('Ctrl+3 at an unselected word capitalizes that word without needing a highlight',()=>{
+ const e=editor(['first example here'],[[9,9]]);e.run(capitalizeSentence);
+ assert.equal(e.state.doc.toString(),'first Example here');assert.equal(e.state.selection.main.head,9);
+ e.run(undo);assert.equal(e.state.doc.toString(),'first example here');
+ const multi=editor(['one two three'],[[1,1],[5,5],[11,11]]);multi.run(capitalizeSentence);
+ assert.equal(multi.state.doc.toString(),'One Two Three');
 });
