@@ -13,3 +13,10 @@ test('horizontal preview can move left first and return to its original value',(
  const s=createHoverPreview(),f=field();s.enter({},f.api,100);s.move(70);assert.equal(f.read().shown,2);
  s.move(100);assert.equal(f.read().shown,5);s.cancel();
 });
+
+test('another preview owner can cancel scene manipulation before a DOF takes control',()=>{
+ const session=createHoverPreview();let scenePreview=true,notifications=0;
+ const stop=session.subscribe(()=>{notifications++;if(session.active())scenePreview=false;});
+ session.enter({},field().api,0);assert.equal(scenePreview,false);assert.equal(session.active(),true);
+ session.cancel();assert.equal(session.active(),false);const count=notifications;stop();session.enter({},field().api,0);assert.equal(notifications,count);
+});
