@@ -131,3 +131,14 @@ test('external undo refresh preserves cursor location and does not request a scr
  glyphDoc.dispatch(glyphDoc.state.update(sourceRefreshSpec(glyphDoc.state,toSource({version:1,content:['a',replacement,'b']}))));
  assert.equal(glyphDoc.state.selection.main.head,2);assert.deepEqual(glyphDoc.text().content,['a',replacement,'b']);
 });
+
+test('Ctrl+3 capitalizes every selected row and text after periods and colons',()=>{
+ const text='  first: next. again\n\tsecond:more. done\nuntouched';
+ const e=editor([text],[[0,text.indexOf('\nuntouched')]]);e.run(capitalizeSentence);
+ assert.equal(e.state.doc.toString(),'  First: Next. Again\n\tSecond:More. Done\nuntouched');
+ e.run(undo);assert.equal(e.state.doc.toString(),text);
+ const row=editor(['leave me\n  change: this. too'],[[15,15]]);row.run(capitalizeSentence);
+ assert.equal(row.state.doc.toString(),'leave me\n  Change: This. Too');
+ const multi=editor(['one: two\nthree. four'],[[1,1],[12,12]]);multi.run(capitalizeSentence);
+ assert.equal(multi.state.doc.toString(),'One: Two\nThree. Four');
+});

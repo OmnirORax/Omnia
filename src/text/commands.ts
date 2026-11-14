@@ -55,7 +55,7 @@ export const capitalizeSentence: StateCommand = ({ state, dispatch }) => {
   const edits: Edit[] = []; const seen = new Set<string>();
   for (const range of state.selection.ranges) {
     const line = state.doc.lineAt(range.head), from = range.empty ? line.from : range.from, to = range.empty ? line.to : range.to;
-    const source = state.sliceDoc(from, to), starts = /(^|[.!?]\s+)([\p{L}])/gu;
+    const source = state.sliceDoc(from, to), starts = /(^[ \t]*|[.!?:]\s*)([\p{L}])/gmu;
     for (const match of source.matchAll(starts)) {
       const at = from + match.index! + match[1].length, text = match[2], key = `${at}:${at+text.length}`;
       if (!seen.has(key)) { seen.add(key); edits.push({ from: at, to: at + text.length, insert: literal(text.toLocaleUpperCase()) }); }
