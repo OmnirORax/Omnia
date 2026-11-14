@@ -1,8 +1,9 @@
+import {useHoverPreview} from './HoverPreview';
 import {useValueDrag} from './useValueDrag.ts';
 import {useValueConfirmation} from './useValueConfirmation';
 import {useId,useLayoutEffect,useEffect,useMemo,useRef,useState} from 'react';
 import {radialDimensions,RADIAL_GEOMETRY} from './radialMenuModel';
-import {mathematicalEmptyValue,mathematicalSlotValue,mathematicalNumberValue,mathematicalEditValue,mathematicalValueAllowed,mathematicalValueSession,radialSlotCapacity,canAddMathematicalRing,fillMathematicalSlots,paintMathematicalSlots,type MathematicalMarks,type MathematicalStrokeSlot,type MathematicalSlotMode} from '../properties/mathematicalDial.ts';
+import {mathematicalSlotScrub,mathematicalEmptyValue,mathematicalSlotValue,mathematicalNumberValue,mathematicalEditValue,mathematicalValueAllowed,mathematicalValueSession,radialSlotCapacity,canAddMathematicalRing,fillMathematicalSlots,paintMathematicalSlots,type MathematicalMarks,type MathematicalStrokeSlot,type MathematicalSlotMode} from '../properties/mathematicalDial.ts';
 import './mathematicalDial.css';
 import {useContextNavigation} from './ContextStage';
 import {ContextualMasterController} from './ContextualMasterController';
@@ -40,7 +41,7 @@ export function MathematicalDial({value,min,max,integer=false,label='Value',disa
  const callbacks=useRef({onPreview,onCancelPreview});callbacks.current={onPreview,onCancelPreview};
  const owns=(target:EventTarget|null,current:HTMLElement)=>ownsPointerSurface(current,target instanceof Element?target:null,'.mathematical-dial');
  useLayoutEffect(()=>{
-  if(session.receive(value)){anchor.current=value;drag.current=null;hover.current=null;setPainting(false);setSample(null);setMarks(emptyMarks());setSign(editing?.kind==='increment'?1:value<0?-1:1);}
+  if(session.receive(value)){horizontal?.release(horizontalOwner.current);anchor.current=value;drag.current=null;hover.current=null;setPainting(false);setSample(null);setMarks(emptyMarks());setSign(editing?.kind==='increment'?1:value<0?-1:1);}
  },[value,marks,sample,session]);
  useEffect(()=>()=>{
   if(session.sampling){const previous=session.restore();if(callbacks.current.onCancelPreview)callbacks.current.onCancelPreview();else callbacks.current.onPreview(previous);}
@@ -80,6 +81,26 @@ export function MathematicalDial({value,min,max,integer=false,label='Value',disa
  };
  const confirm=useValueConfirmation({owner:ringRef,candidate:()=>sample??undefined,onCommit:next=>{drag.current=null;setPainting(false);commit(next);},disabled,keyboard:!!sample});
  const cancel=()=>{setPainting(false);drag.current=null;restore();};
+ const horizontal=useHoverPreview(),horizontalOwner=useRef({});
+ const horizontalCallbacks=useRef({preview,commit,cancel});horizontalCallbacks.current={preview,commit,cancel};
+ useLayoutEffect(()=>{
+  if(!horizontal||disabled||configure||ringRef.current?.closest('[data-hover-preview-disabled]'))return;
+  const choices=rings.slice(0,orders).flatMap(ring=>Array.from({length:ring.count},(_,i)=>{
+   const key=`${ring.order}:${i}`,candidate=paintMathematicalSlots(marks,[key],brush,marks.selected.includes(key)),n=total(candidate);
+   return {key,candidate,n};
+  })).filter(choice=>valid(choice.n));
+  if(!choices.length)return;
+  const byKey=new Map(choices.map(choice=>[choice.key,choice]));
+  const initial=choices.reduce((best,choice,i)=>Math.abs(choice.n-value)<Math.abs(choices[best].n-value)?i:best,0);
+  let pick:ReturnType<typeof mathematicalSlotScrub>,current:typeof choices[number]|undefined;
+  const owner=horizontalOwner.current;
+  horizontal.enter(owner,{start:x=>{pick=mathematicalSlotScrub(choices.map(c=>c.key),x,initial);},move:x=>{
+   const key=pick(x);if(!key||key===current?.key)return;
+   current=byKey.get(key);if(current){setPainting(true);horizontalCallbacks.current.preview(current.key);}
+  },commit:()=>{setPainting(false);if(current)horizontalCallbacks.current.commit(current.candidate,current.n);else horizontalCallbacks.current.commit(marks,session.expected);},cancel:()=>horizontalCallbacks.current.cancel()},cursorPosition().x);
+  return()=>horizontal.release(owner);
+ },[horizontal,disabled,configure,base,orders,min,max,integer,editing?.kind,editing?.amount]);
+
  useContextNavigation({owner:ringRef,cancel:painting?cancel:undefined});
  const cancelLatest=useRef(cancel);cancelLatest.current=cancel;
  useEffect(()=>{const stop=()=>{if(drag.current)cancelLatest.current();};window.addEventListener('blur',stop);return()=>window.removeEventListener('blur',stop);},[]);
@@ -112,7 +133,7 @@ export function MathematicalDial({value,min,max,integer=false,label='Value',disa
  };
  useCancelValueEdit(textInput,closeExact,!!exact);
  const openExact=()=>{restore();textFinished.current=false;setExact({point:cursorPosition(),text:String(session.restore())});};
- return <div data-ui-popup-interior className="mathematical-dial" style={{width:extent,height:extent}} title={`${label}: ${value} (${min}–${max})`} role="group" aria-label={`⠒❉ · ${label}`} aria-disabled={disabled} onMouseLeave={restore}
+ return <div data-ui-popup-interior className="mathematical-dial" style={{width:extent,height:extent}} title={`${label}: ${value} (${min}–${max})`} role="group" aria-label={`⠒❉ · ${label}`} aria-disabled={disabled} onMouseLeave={()=>{if(!horizontal?.owns(horizontalOwner.current))restore();}}
   onPointerDownCapture={event=>{
    if(!owns(event.target,event.currentTarget))return;
    suppressClick.current=false;
@@ -125,6 +146,7 @@ export function MathematicalDial({value,min,max,integer=false,label='Value',disa
   onPointerMove={event=>{
    if(!owns(event.target,event.currentTarget))return;
    if(drag.current){if(drag.current.id===event.pointerId){event.stopPropagation();advance({x:event.clientX,y:event.clientY});}return;}
+   if(horizontal?.owns(horizontalOwner.current))return;
    const slot=event.target instanceof Element?event.target.closest<HTMLElement>('[data-math-slot]'):null;if(slot)preview(slot.dataset.mathSlot!);
   }}
   onPointerUp={event=>{
@@ -149,7 +171,7 @@ export function MathematicalDial({value,min,max,integer=false,label='Value',disa
      const candidate=paintMathematicalSlots(marks,[key],brush,marks.selected.includes(key)),n=total(candidate),contribution=sign*mathematicalSlotValue(base,i+1,brush);
      return <button type="button" key={key} disabled={disabled} className="mathematical-dial-slot" data-ui-paint-owner="geometry" data-math-slot={key} data-mode={mode} data-selected={displayed.selected.includes(key)} data-preview={!!sample&&displayed.selected.includes(key)&&(!marks.selected.includes(key)||modeAt(marks,key)!==mode)} style={{width:minimum.size,height:minimum.size,left:`${50+Math.sin(turn)*radius/extent*100}%`,top:`${50-Math.cos(turn)*radius/extent*100}%`}}
       aria-label={`Ring ${order+1}, slot ${i+1}, brush ${brush}, contribution ${contribution}`} aria-pressed={marks.selected.includes(key)} aria-disabled={candidate.selected.length>0&&!valid(n)} title={`Slot ${i+1} · ${sign<0?'−':''}${brush==='normal'?`${base}×${i+1}`:`${base}^${i+2}`} = ${contribution} · ${editing?.kind==='increment'?`${anchor.current} + (${numeral(candidate)} × ${editing.amount}) = `:''}${n} · right-click applies recursion`}
-      onMouseEnter={()=>preview(key)} onMouseLeave={restore} onFocus={()=>preview(key)} onBlur={restore} onClick={event=>{if(event.detail===0)confirm(candidate);}}><span className="mathematical-dial-mark" aria-hidden="true">{mode==='recursion'&&<svg viewBox="0 0 20 20" width="100%" height="100%"><circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" strokeWidth="1.5"/><circle cx="10" cy="10" r="4" fill="none" stroke="currentColor" strokeWidth="1.5"/></svg>}</span></button>;
+      onMouseEnter={()=>preview(key)} onMouseLeave={()=>{if(!horizontal?.owns(horizontalOwner.current))restore();}} onFocus={()=>preview(key)} onBlur={restore} onClick={event=>{if(event.detail===0)confirm(candidate);}}><span className="mathematical-dial-mark" aria-hidden="true">{mode==='recursion'&&<svg viewBox="0 0 20 20" width="100%" height="100%"><circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" strokeWidth="1.5"/><circle cx="10" cy="10" r="4" fill="none" stroke="currentColor" strokeWidth="1.5"/></svg>}</span></button>;
     })}
    </span>)}
   </div>

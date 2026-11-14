@@ -97,6 +97,12 @@ header button.wordmark { width:auto; font-size:15px; }
 .omnic-tree [data-selected=true]{outline:1px solid #00d8ff}.omnic-canvas [data-omnic-selected=true]{outline:1px solid #00d8ff;outline-offset:2px}.omnic-composer nav{display:flex;flex-wrap:wrap;gap:2px}.omnic-composer nav>input{min-width:50px;width:100px}
 .omnic-state-field{display:block;width:180px;height:150px;margin:auto}.omnic-state-values{display:flex;flex-wrap:wrap;gap:2px}.omnic-menu .omnic-state-values button{width:auto}.omnic-state-field circle{cursor:pointer}
 
+.panel.node-document-panel { display:flex; flex-direction:column; height:min(440px,calc(100svh - 16px)); overflow:hidden; }
+.node-document-panel > header { flex:none; }
+.node-document-panel > .panel-body { display:flex; flex-direction:column; flex:1; min-height:0; overflow:hidden; }
+.node-document-panel .document-tools { flex:none; }
+.node-document-panel .document-content { flex:1; min-height:0; }
+.node-document-panel .cm-editor { height:100%; }
 /* V1 camera compass and readout layout. */
 .camera-guide { width: 246px; max-width: 100%; box-sizing: border-box; padding: 9px; font-size: 11px; font-variant-numeric: tabular-nums; }
 .camera-guide-heading, .camera-guide-body, .camera-guide-actions { display: flex; align-items: center; gap: 6px; }

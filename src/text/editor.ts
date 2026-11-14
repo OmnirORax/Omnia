@@ -1,6 +1,6 @@
 import {lexiconAnnotations,workspaceLexicon,refreshLexicon} from './lexicon.ts';
 import { EditorState, Transaction, Prec, type StateCommand } from '@codemirror/state';
-import { EditorView, drawSelection, keymap } from '@codemirror/view';
+import { EditorView, drawSelection, keymap, scrollPastEnd } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, indentLess, indentMore, indentWithTab } from '@codemirror/commands';
 import { markdown, markdownKeymap } from '@codemirror/lang-markdown';
 import { Strikethrough, TaskList } from '@lezer/markdown';
@@ -17,7 +17,7 @@ import type { Origin, World } from '../core/model.ts';
 import { inherited } from '../core/lattice.ts';
 import { locate } from '../core/model.ts';
 import { fromSource, glyphField, glyphHistory, sliceSource, sourceTransaction, sourceTransactionSpec, toSource, type Edit } from './source.ts';
-import { capitalizeSentence, codeBlock, deleteParagraph, heading, list, moveLines, singleCursor, wrap } from './commands.ts';
+import { capitalizeSentence, codeBlock, deleteLines, heading, list, moveLines, singleCursor, wrap } from './commands.ts';
 import { documentMouseSelection } from './mouse.ts';
 import {createGlyphPresentation} from '../omnic/presentation.ts';
 import { documentPresentation,refreshDocumentGlyphs } from './presentation.ts';
@@ -30,6 +30,7 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
     if (failed) { save(); if (failed && !confirm('These document changes could not be saved. Close and discard them?')) return false; }
     editor?.destroy(); closed?.();
   });
+  view.root.classList.add('node-document-panel');
   function save() {
     if (!editor||syncing) return;
     try {
@@ -68,7 +69,7 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
   };
   editor = new EditorView({ parent:host, state:EditorState.create({ doc:source.text, extensions:[
     EditorState.allowMultipleSelections.of(true), glyphField.init(() => source.glyphs), glyphHistory, history(),lexiconAnnotations(read),
-    EditorView.clickAddsSelectionRange.of(event => event.altKey), documentMouseSelection(), drawSelection({drawRangeCursor:true,cursorBlinkRate:1000}), EditorView.lineWrapping,
+    EditorView.clickAddsSelectionRange.of(event => event.altKey), documentMouseSelection(), drawSelection({drawRangeCursor:true,cursorBlinkRate:1000}), EditorView.lineWrapping, scrollPastEnd(),
     markdown({ extensions:[Strikethrough,TaskList],addKeymap:false }), documentPresentation(read),
     syntaxHighlighting(HighlightStyle.define([
       { tag:tags.strong,fontWeight:'bold',fontSynthesis:'weight',WebkitTextStroke:'var(--visual-text-bold-stroke, 0em currentColor)' }, { tag:tags.emphasis,fontStyle:'italic' }, { tag:tags.strikethrough,textDecoration:'line-through' },
@@ -82,7 +83,7 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
       { key:'Escape',run: v => { if (headingMenu) { headingMenu.remove(); headingMenu=undefined; return true; } if (closeSearchPanel(v) || singleCursor(v)) return true; view.close(); return true; } },
       { key:'Mod-b',run:wrap('**') }, { key:'Mod-i',run:wrap('*') },
       { key:'Mod-ArrowUp',run:moveLines(-1) }, { key:'Mod-ArrowDown',run:moveLines(1) },
-      { key:'Alt-Delete',run:deleteParagraph }, { key:'Mod-Delete',run:heading(0) },
+      { key:'Alt-Delete',run:deleteLines }, { key:'Mod-Delete',run:heading(0) },
       ...[1,2,3,4,5,6].map(n => ({ key:`Mod-F${n}`,run:heading(n) })), { key:'Mod-F7',run:chooseHeading },
       { key:'Mod-1',run:list('numbered') }, { key:'Mod-2',run:list('bullet') }, { key:'Mod-Shift-3',run:list('cycle') },
       { key:'Mod-Shift-4',run:wrap('~~') }, { key:'Mod-5',run:wrap('`') }, { key:'Alt-Mod-1',run:codeBlock },
@@ -106,7 +107,7 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
       },
     }),
     EditorView.updateListener.of(update => { if (update.docChanged) save(); }),
-    EditorView.theme({ '&':{ backgroundColor:'transparent',fontSize:'inherit',color:'inherit' },'.cm-content':{fontFamily:'inherit',padding:'0',minHeight:'120px'},'.cm-scroller':{overflow:'auto',fontFamily:'inherit'},'&.cm-focused':{outline:'none'},'.cm-cursor, &.cm-focused .cm-cursor':{borderLeft:'2px solid #ffffff',marginLeft:'-1px'},'&.cm-editor .cm-scroller > .cm-selectionLayer .cm-selectionBackground, &.cm-editor.cm-focused .cm-scroller > .cm-selectionLayer .cm-selectionBackground':{backgroundColor:'#245eac',outline:'1px solid #85baff',outlineOffset:'-1px'},'.cm-panels':{backgroundColor:'#191c1b',color:'inherit'},'.cm-search':{fontSize:'11px',padding:'4px'},'.cm-search label':{display:'inline-flex'},'.cm-search input':{width:'90px'},'.cm-search input[type=checkbox]':{width:'auto'} }, {dark:true}),
+    EditorView.theme({ '&':{ backgroundColor:'transparent',fontSize:'inherit',color:'inherit' },'.cm-content':{fontFamily:'inherit',padding:'0',minHeight:'120px'},'.cm-scroller':{overflow:'auto',fontFamily:'inherit'},'&.cm-focused':{outline:'none'},'.cm-cursorLayer':{mixBlendMode:'difference'},'.cm-cursor, &.cm-focused .cm-cursor':{borderLeft:'2px solid #ffffff',marginLeft:'-1px',filter:'brightness(0) invert(1)'},'&.cm-editor .cm-scroller > .cm-selectionLayer .cm-selectionBackground, &.cm-editor.cm-focused .cm-scroller > .cm-selectionLayer .cm-selectionBackground':{backgroundColor:'#245eac',outline:'1px solid #85baff',outlineOffset:'-1px'},'.cm-panels':{backgroundColor:'#191c1b',color:'inherit'},'.cm-search':{fontSize:'11px',padding:'4px'},'.cm-search label':{display:'inline-flex'},'.cm-search input':{width:'90px'},'.cm-search input[type=checkbox]':{width:'auto'} }, {dark:true}),
   ] }) });
   let previousLexicon=workspaceLexicon(read()),previousPaint='',previousGlyphs=createGlyphPresentation(read());
   function refreshAppearance(){

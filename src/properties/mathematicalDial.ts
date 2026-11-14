@@ -81,3 +81,9 @@ export function paintMathematicalSlots(before:MathematicalMarks,visited:readonly
  for(const key of visited){if(erase){if(selected.delete(key))changed=true;delete modes[key];continue;}if(!selected.has(key)){selected.add(key);changed=true;}if((modes[key]??'normal')!==brush){modes[key]=brush;changed=true;}}
  return changed?{selected:[...selected],modes}:before;
 }
+
+/** Horizontal traversal of an already prepared dial's legal slots. */
+export function mathematicalSlotScrub(keys:readonly string[],originX:number,initialIndex:number,pixelsPerSlot=24){
+ const start=Math.max(0,Math.min(keys.length-1,initialIndex));
+ return (x:number)=>!keys.length||!Number.isFinite(x)||Math.abs(x-originX)<3?undefined:keys[Math.max(0,Math.min(keys.length-1,start+Math.round((x-originX)/pixelsPerSlot)))];
+}

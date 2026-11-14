@@ -1,3 +1,4 @@
+import {useHoverPreview} from './HoverPreview';
 import {useContextNavigation} from './ContextStage';
 import { radialScale } from './radialMenuState';
 import { uiPointerHeld,observeUIPress } from './pointerOwnership';
@@ -12,6 +13,7 @@ type CategoryAnchor={id:string;x:number;y:number;axis:{x:number;y:number}};
 export function RadialMenu({items,inset,onClose,navigationRef,children,onNavigationChange,quickItems,quickEnd,heldOpen=false}: {
   items:RadialNode<ReactNode>[];inset?:ReactNode;onClose:()=>void;navigationRef?:Ref<RadialNavigation>;children?:ReactNode;onNavigationChange?:(nested:boolean)=>void;quickItems?:ReactNode[];quickEnd?:ReactNode[];heldOpen?:boolean;
 }) {
+  const hoverPreview=useHoverPreview();
   const sliderGestures=useRef(new Map<string,{current:RangeGesture|null}>()),adjustment=useRef<{id:string;pointer:number;api:RangeGesture}|null>(null),suppressAdjustmentClick=useRef(false);
   const [adjusting,setAdjusting]=useState<string|null>(null);
   const scale=useSyncExternalStore(radialScale.subscribe,radialScale.getSnapshot);
@@ -51,7 +53,7 @@ export function RadialMenu({items,inset,onClose,navigationRef,children,onNavigat
   },[items,scale,!!children]);
   const hoverTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
   const keepChildren=()=>{if(hoverTimer.current)clearTimeout(hoverTimer.current);};
-  const leaveChildren=()=>{keepChildren();hoverTimer.current=setTimeout(()=>{if(!uiPointerHeld())setPath([]);},120);};
+  const leaveChildren=()=>{keepChildren();hoverTimer.current=setTimeout(()=>{if(!uiPointerHeld()&&!hoverPreview?.active())setPath([]);},120);};
   useEffect(()=>()=>{if(hoverTimer.current)clearTimeout(hoverTimer.current);},[]);
   useEffect(()=>{onNavigationChange?.(path.length>0);},[path.length,onNavigationChange]);
   const back=()=>{if(path.length){outward.current=path;setPath(path.slice(0,-1));return true;}return false;};

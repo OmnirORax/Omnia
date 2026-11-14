@@ -1,3 +1,4 @@
+import {windowDrag} from './ui/windowDrag';
 import {CAMERA_ACTIONS} from './world/cameraHUD.ts';
 import {NODE_VISUAL_PROPERTIES} from './properties/nodeVisuals.ts';
 import {searchMatches,searchIndex} from './ui/search.ts';
@@ -103,7 +104,7 @@ function open(title: string) {
   const row = document.createElement('div'); row.className = 'title';
   const caption = document.createElement('span'); caption.textContent = title;
   const back = document.createElement('button'); back.textContent = '×'; back.setAttribute('aria-label', 'Close'); back.onclick = close;
-  row.append(caption, back); tools.append(row);
+  row.append(caption, back); tools.append(row);windowDrag(tools,row,()=>{menuPoint={x:parseFloat(tools.style.left)||0,y:parseFloat(tools.style.top)||0};});
   const find = document.createElement('input'); find.type = 'search'; find.placeholder = 'Search…'; find.setAttribute('aria-label', 'Search operations');
   const globalResults=document.createElement('div');globalResults.className='settings-search-results';let renderGlobal:ReturnType<typeof searchRenderer>|undefined;
   const filter = () => {
