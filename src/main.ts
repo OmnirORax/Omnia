@@ -1,4 +1,5 @@
 import {viewHistory,type ViewSpec} from './ui/viewHistory.ts';
+import {loadEditorModule} from './ui/moduleLoader.ts';
 import {sameValue} from './core/equality.ts';
 import {updateNativeLayout} from './composer/runtime/historyBridge.ts';
 import {windowDrag} from './ui/windowDrag';
@@ -60,6 +61,11 @@ const storage = { getItem: (key: string) => localStorage.getItem(key), setItem: 
 const store = createStore(storage,universalHistory);
 let disposeTools:(()=>void)|undefined;
 let message = '', menuPoint = { x: 20, y: 60 }, shown: Set<string> | undefined;
+let reloadForModule=false;
+const statusText=document.createTextNode(''),reloadModuleButton=document.createElement('button');
+reloadModuleButton.textContent='Reload';reloadModuleButton.type='button';reloadModuleButton.hidden=true;reloadModuleButton.style.marginLeft='5px';
+reloadModuleButton.onclick=()=>{flushLiveForms();location.reload();};status.replaceChildren(statusText,reloadModuleButton);
+const loadEditor=<T,>(load:()=>Promise<T>)=>loadEditorModule(load,()=>{reloadForModule=true;});
 const key = (origin: Origin) => JSON.stringify(origin);
 function feedback(text: string) { message = text; refresh(); }
 function attempt(action: () => void) { try { universalHistory.transaction(action); } catch (error) { feedback(error instanceof Error ? error.message : String(error)); } }
@@ -106,7 +112,7 @@ function refresh() {
   element('empty').hidden = store.world.nodes.length > 0;
   element<HTMLButtonElement>('undo').disabled = universalHistory.candidates('undo',globalHistoryOptions()).length===0;
   element<HTMLButtonElement>('redo').disabled = universalHistory.candidates('redo',globalHistoryOptions()).length===0;
-  if (view) status.textContent = store.message || message;
+  if (view){statusText.data=store.message||message;reloadModuleButton.hidden=!reloadForModule;}
 }
 store.subscribe(refresh);
 universalHistory.subscribe(()=>{requestFormSync();element<HTMLButtonElement>('undo').disabled=universalHistory.candidates('undo',globalHistoryOptions()).length===0;element<HTMLButtonElement>('redo').disabled=universalHistory.candidates('redo',globalHistoryOptions()).length===0;});
@@ -231,11 +237,11 @@ function openComposer(origin?:Origin,restore?:ViewSpec){
  for(const composer of composers)if(!composer.root.isConnected)composers.delete(composer);
  const existing=[...composers].find(c=>origin&&c.origin?sameOrigin(origin,c.origin):!origin&&!c.origin);if(existing){close();existing.root.focus();return;}
  const id=origin?key(origin):'new';if(openingComposers.has(id))return;openingComposers.add(id);const epoch=documentEpoch,actionId=universalHistory.currentActionId;
- void import('./omnic/editor.ts').then(({composerPanel})=>{if(epoch!==documentEpoch||origin&&!locate(store.world,origin)||restore&&!viewHistory.wants(restore))return;viewHistory.perform(()=>{if(!restore){const point=cursorPosition();updateNativeLayout(layout=>({...layout,windows:{...layout.windows,'omnic-composer':{...(layout.windows['omnic-composer']??{width:360,height:360,collapsed:false,pinned:false}),x:point.x,y:point.y,closed:false}}}));}const spec=restore??viewHistory.reserve({kind:'composer'});const composer=composerPanel({historyScope:`window:${spec.instance}`,restorePlacement:true,library:openLibrary,surface:surface=>view?.editOmnic(surface)??(()=>{}),redraw:()=>view?.request(),read:()=>store.world,change:store.change,select:origin=>{const node=locate(store.world,origin);if(node?.variantOf)view?.variants(node.variantOf,true);pick(origin);},feedback,subscribe:store.subscribe},origin);composers.add(composer);viewHistory.adopt(`composer:${key(composer.origin!)}`,{...spec,args:[composer.origin]},composer,restore);},actionId);}).catch(error=>{viewHistory.failed(restore,error);feedback(String(error));}).finally(()=>openingComposers.delete(id));
+ void loadEditor(()=>import('./omnic/editor.ts')).then(({composerPanel})=>{if(epoch!==documentEpoch||origin&&!locate(store.world,origin)||restore&&!viewHistory.wants(restore))return;viewHistory.perform(()=>{if(!restore){const point=cursorPosition();updateNativeLayout(layout=>({...layout,windows:{...layout.windows,'omnic-composer':{...(layout.windows['omnic-composer']??{width:360,height:360,collapsed:false,pinned:false}),x:point.x,y:point.y,closed:false}}}));}const spec=restore??viewHistory.reserve({kind:'composer'});const composer=composerPanel({historyScope:`window:${spec.instance}`,restorePlacement:true,library:openLibrary,surface:surface=>view?.editOmnic(surface)??(()=>{}),redraw:()=>view?.request(),read:()=>store.world,change:store.change,select:origin=>{const node=locate(store.world,origin);if(node?.variantOf)view?.variants(node.variantOf,true);pick(origin);},feedback,subscribe:store.subscribe},origin);composers.add(composer);viewHistory.adopt(`composer:${key(composer.origin!)}`,{...spec,args:[composer.origin]},composer,restore);},actionId);}).catch(error=>{viewHistory.failed(restore,error);feedback(String(error));}).finally(()=>openingComposers.delete(id));
 }
 let library:ReturnType<typeof libraryPanel>|undefined,openingLibrary=false;
 function openLibrary(restore?:ViewSpec){renderClose();if(library?.root.isConnected){close();library.root.focus();return;}if(openingLibrary)return;openingLibrary=true;const epoch=documentEpoch,actionId=universalHistory.currentActionId;
- void import('./omnic/library.ts').then(({libraryPanel})=>{if(epoch!==documentEpoch||restore&&!viewHistory.wants(restore))return;viewHistory.perform(()=>{const spec=restore??viewHistory.reserve({kind:'library'});library=libraryPanel({read:()=>store.world,change:store.change,open:origin=>openComposer(origin),focus:origin=>{pick(origin);view?.focus([origin],true);},feedback,subscribe:store.subscribe},`window:${spec.instance}`);viewHistory.adopt('library',spec,library,restore);},actionId);}).catch(error=>{viewHistory.failed(restore,error);feedback(String(error));}).finally(()=>{openingLibrary=false;});
+ void loadEditor(()=>import('./omnic/library.ts')).then(({libraryPanel})=>{if(epoch!==documentEpoch||restore&&!viewHistory.wants(restore))return;viewHistory.perform(()=>{const spec=restore??viewHistory.reserve({kind:'library'});library=libraryPanel({read:()=>store.world,change:store.change,open:origin=>openComposer(origin),focus:origin=>{pick(origin);view?.focus([origin],true);},feedback,subscribe:store.subscribe},`window:${spec.instance}`);viewHistory.adopt('library',spec,library,restore);},actionId);}).catch(error=>{viewHistory.failed(restore,error);feedback(String(error));}).finally(()=>{openingLibrary=false;});
 }
 
 const context=defineMenu('context',(position: Vec3,origin?:Origin,edge?:Edge)=>{
@@ -354,7 +360,7 @@ function openDocument(requested?:Origin,restore?:ViewSpec) {
   if (existing?.root.isConnected) { close();existing.root.querySelector<HTMLElement>('.cm-content')?.focus(); return; }
   if (openingDocuments.has(id)) return;
   openingDocuments.add(id); const epoch = documentEpoch,actionId=universalHistory.currentActionId;
-  void import('./text/editor.ts').then(({ editDocument }) => {
+  void loadEditor(()=>import('./text/editor.ts')).then(({ editDocument }) => {
     if (epoch !== documentEpoch || !locate(store.world, origin)||restore&&!viewHistory.wants(restore)) return;
     viewHistory.perform(()=>{const document=editDocument(origin, () => store.world, text => store.change(world => {
       const node = locate(world, origin); if (!node) throw Error('This node was removed. Copy the document before closing.'); node.text = text;
@@ -386,7 +392,7 @@ const openVisualSettings=defineMenu('visualSettings',(target:VisualTarget,origin
  open(title);
  if(target==='nodes'||target==='nodeDefaults'){
   const root=document.createElement('div');root.className='node-body-editor';tools.append(root);
-  void import('./ui/nodeVisuals.tsx').then(({nodeVisualEditor})=>{if(!root.isConnected)return;disposeTools=nodeVisualEditor(root,{read:()=>store.world,subscribe:store.subscribe,change:store.change,error:feedback},target,origins);positionMenu();}).catch(error=>feedback(String(error)));
+  void loadEditor(()=>import('./ui/nodeVisuals.tsx')).then(({nodeVisualEditor})=>{if(!root.isConnected)return;disposeTools=nodeVisualEditor(root,{read:()=>store.world,subscribe:store.subscribe,change:store.change,error:feedback},target,origins);positionMenu();}).catch(error=>feedback(String(error)));
  }else tools.append(paintForm(target,origins,()=>store.world,(edit,group)=>store.change(edit,group),feedback));positionMenu();
 });
 const appearance=defineMenu('appearance',()=>{
