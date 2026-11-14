@@ -1,3 +1,4 @@
+import {useValueDrag} from './useValueDrag.ts';
 import {useValueConfirmation} from './useValueConfirmation';
 import {useId,useLayoutEffect,useEffect,useMemo,useRef,useState} from 'react';
 import {radialDimensions,RADIAL_GEOMETRY} from './radialMenuModel';
@@ -23,6 +24,7 @@ export function MathematicalDial({value,min,max,integer=false,label='Value',disa
  editing?:{kind:'value'|'increment';amount:number;minimum:number;maximum:number;onKindChange:(kind:'value'|'increment')=>void;onAmountChange:(amount:number)=>void};
  onPreview?:(value:number)=>void;onCommit:(value:number)=>void;onCancelPreview?:()=>void;
 }){
+ const readoutDrag=useValueDrag({value,min,max,step:integer?1:undefined,disabled},onPreview,onCommit,onCancelPreview);
  const [base,setBase]=useState<1|2>(2),[orders,setOrders]=useState(1);
  const clockwise=true;
  const brush:MathematicalSlotMode='normal';
@@ -153,7 +155,7 @@ export function MathematicalDial({value,min,max,integer=false,label='Value',disa
   </div>
   <div className="mathematical-dial-meta">
    {rule&&<div className="mathematical-dial-settings" role="group" aria-label="Value generation rule">{rule.choices.map(choice=><button key={choice.id} type="button" disabled={disabled} aria-label={choice.label} title={choice.label} aria-pressed={rule.value===choice.id} onClick={()=>{restore();rule.onChange(choice.id);}}>{choice.icon}</button>)}</div>}
-   <button type="button" disabled={disabled} className="mathematical-dial-readout" aria-label={`${label} value: ${value}`} title={`${label} · ${value} · click or right-click to type an exact value`} onClick={openExact} onContextMenu={event=>{event.preventDefault();event.stopPropagation();openExact();}}><output aria-live="polite">{value}</output></button>
+   <button ref={readoutDrag} type="button" disabled={disabled} className="mathematical-dial-readout" aria-label={`${label} value: ${value}`} title={`${label} · ${value} · click or right-click to type an exact value`} onClick={openExact} onContextMenu={event=>{event.preventDefault();event.stopPropagation();openExact();}}><output aria-live="polite">{value}</output></button>
    {editing&&<button type="button" className="mathematical-dial-rule" disabled={disabled} aria-label={`${label} editing rule`} title={editing.kind==='increment'?`Increment from ${anchor.current} by ${editing.amount} per selected step; click chooses rule, right-click sets amount`:'Absolute value; click to configure editing rule'} onClick={()=>{restore();setRulePopup({point:cursorPosition(),stage:'modes'});}} onContextMenu={event=>{event.preventDefault();event.stopPropagation();restore();setAmountSample(null);setRulePopup({point:cursorPosition(),stage:editing.kind==='increment'?'amount':'modes'});}}>Rule {editing.kind==='increment'?'+':'='}</button>}
    <div className="mathematical-dial-settings">
     {(min<0||editing?.kind==='increment')&&<button type="button" disabled={disabled} title="Change sign" aria-label={`${label} sign`} aria-pressed={sign<0} onClick={changeSign}>±</button>}

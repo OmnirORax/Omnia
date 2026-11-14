@@ -109,3 +109,6 @@ header button.wordmark { width:auto; font-size:15px; }
 .camera-guide dd { margin: 0; overflow-wrap: anywhere; }
 .camera-guide-actions { flex-wrap: wrap; }
 .camera-guide :is(button.ui-function.function-text, button) { font-size: 11px; min-height: 25px; padding: 3px 6px; }
+
+input[type="number"]:enabled:not([readonly]), input[inputmode="numeric"]:enabled:not([readonly]), input[inputmode="decimal"]:enabled:not([readonly]), [data-value-drag]:enabled { cursor: ew-resize; }
+.value-dragging, .value-dragging * { cursor: ew-resize !important; user-select: none !important; }

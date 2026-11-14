@@ -1,3 +1,4 @@
+import {installValueDrag} from './ui/valueDrag.ts';
 import {closeActiveWindow} from './ui/windowDismissal.ts';
 import {uiPointerHeld} from './composer/runtime/ui/pointerOwnership.ts';
 import {universalHistory} from './core/universalHistory.ts';
@@ -35,6 +36,7 @@ import { field } from './ui/fields.ts';
 import { liveForm,flushLiveForms } from './ui/liveForm.ts';
 
 installPrimaryClickGate();
+installValueDrag();
 const element = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const tools = element('tools'), status = element('status'), search = element<HTMLInputElement>('find');
 type Target = Origin | Edge;
