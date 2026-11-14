@@ -49,7 +49,7 @@ migrations; never reset the deployed database or replay the archive blindly.
 
 ## User instructions
 
-- **Performance first:** always consider & optimize for performance costs.
+- **Performance first:** do not trade away performance to implement features. For every feature request, state the expected performance cost before implementation, including when no material additional cost is expected. Explicitly explain any CPU, GPU, memory, rendering, persistence, or input-processing cost and how it is bounded or reduced.
 - **UI Compactness:** smallest practical layout + contents, neatly arranged, minimal wasted space, minimal text, no tooltips or descriptions.
 - **User handles interaction testing:** if asked for resolving or optimizing something, only target & fix the suspects - i do the testing. Don’t run unsolicited browser suites or treat a narrowly authorized check as ongoing permission.
 

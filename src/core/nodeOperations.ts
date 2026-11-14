@@ -29,7 +29,8 @@ export function branch(world: World, roots: readonly Origin[]) {
 }
 export function copyNode(world: World, source: Structure, position: Vec3) {
   const actual = inherited(source, world), node = addStructure(world, position);
-  for (const key of ['label','color','text','visual','opacity','glow','translucency','translucencyRadius','parts','scene','textAppearance','catalog'] as const) if (actual[key] !== undefined) Object.assign(node, { [key]: structuredClone(actual[key]) });
+  for (const key of ['brightness','orientation','label','colorOverride','color','text','visual','opacity','glow','translucency','translucencyRadius','parts','scene','textAppearance','catalog'] as const) if (actual[key] !== undefined) Object.assign(node, { [key]: structuredClone(actual[key]) });
+  if(actual.variantOf&&actual.overrides?.includes('color'))node.colorOverride=true;
   if(actual.omnic)node.visual={size:actual.visual?.size,showText:actual.visual?.showText,omnicEntityId:JSON.stringify(source.origin)};
   return node;
 }
@@ -53,4 +54,20 @@ export function removeNodes(world: World, selected: readonly Origin[]) {
     if (node.parent && selected.some(origin => sameOrigin(origin, node.parent!)) || node.variantOf && selected.some(origin => sameOrigin(origin, node.variantOf!))) detachNode(world, node.origin);
   }
   world.nodes = world.nodes.filter(node => !selected.some(origin => sameOrigin(origin, node.origin)));
+}
+
+/** Toggle every authored level of the visible subtree, as V1 Shift-click does. */
+export function toggleSubtree(world: World, origin: Origin) {
+  const root = locate(world, origin); if (!root) throw Error('The subtree is no longer available.');
+  const children = new Map<string, Structure[]>();
+  for (const node of world.nodes) if (node.parent && !node.hidden && !node.variantOf) {
+    const id = address(node.parent), list = children.get(id) ?? []; list.push(node); children.set(id, list);
+  }
+  const pending = [root], seen = new Set<string>(); let fullyExpanded = true, expandable = false;
+  for (let i = 0; i < pending.length; i++) {
+    const node = pending[i], id = address(node.origin); if (seen.has(id)) continue; seen.add(id);
+    const next = children.get(id) ?? []; pending.push(...next);
+    if (next.length) { expandable = true; if (node.collapsed) fullyExpanded = false; }
+  }
+  if (expandable) for (const node of pending) node.collapsed = fullyExpanded;
 }

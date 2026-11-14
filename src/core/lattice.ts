@@ -11,7 +11,7 @@ export function geometry(world: World): Document {
   const nodes = new Map(world.nodes.map(node => [address(node.origin), node]));
   return { placements: world.nodes.map(node => {
     const parent = node.parent && nodes.get(address(node.parent));
-    return { id: address(node.origin), parentId: parent ? address(parent.origin) : null, position: { x: 0, y: 0 },
+    return { id: address(node.origin), parentId: parent ? address(parent.origin) : null, position: { x: 0, y: 0 },orientation:node.orientation,
       spatialPosition: point(parent ? node.position.map((n, i) => n - parent.position[i]) as Vec3 : node.position),
       ...(node.variantOf ? { variantOwner: { placementId: address(node.variantOf) } } : {}),
     };
@@ -57,9 +57,10 @@ export function inherited(node: Structure, world: World): Structure {
     if (!parent) return current;
     const base = read(parent), overrides = new Set(current.overrides ?? []);
     const next = { ...current, parts: [...base.parts, ...current.parts] };
-    for (const key of ['color', 'label', 'text', 'visual', 'opacity', 'glow', 'translucency', 'translucencyRadius','scene','textAppearance'] as const) {
+    for (const key of ['brightness','color', 'label', 'text', 'visual', 'opacity', 'glow', 'translucency', 'translucencyRadius','scene','textAppearance'] as const) {
       if (!overrides.has(key)) Object.assign(next, { [key]: base[key] });
     }
+    if(!overrides.has('color'))next.colorOverride=base.colorOverride;
     if(base.omnic||current.omnicEdits){next.omnic=definitionRecipe(current,world);if(current.omnicEdits!==undefined)next.visual={...next.visual,assetId:undefined,character:undefined,omnicEntityId:JSON.stringify(current.origin)};}
     return next;
   }; return read(node);

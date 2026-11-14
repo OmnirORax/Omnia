@@ -1,0 +1,7 @@
+import {createActionHistory} from '../composer/runtime/ui/actionHistory.ts';
+/** V1's patch-based coordinator is shared by workspace, camera and native UI. */
+export const universalHistory=createActionHistory({mode:'recent',categories:['omnium','ui','appearance','settings','camera'],steps:1,limit:10,minimum:1});
+
+/** Global bindings always traverse every owner; filters belong to explicit history controls. */
+export const globalHistoryOptions=()=>({...universalHistory.options,mode:'recent' as const});
+export const travelGlobalHistory=(direction:'undo'|'redo')=>universalHistory.travel(direction,globalHistoryOptions());

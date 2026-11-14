@@ -85,3 +85,28 @@ test('forced boldness is an independent reusable text property',()=>{
   assert.equal(readPaint(world,'nodeText',node.origin).embolden,5);
 });
 
+
+test('global Nodes paint is a shared default for existing and new nodes with independent overrides',()=>{
+ const world=emptyWorld(),a=addStructure(world,[0,0,0],1),b=addStructure(world,[5,0,0],2);
+ const original=structuredClone(world.nodes);writePaint(world,'nodeDefaults',[],{color:'#123456',translucency:.2,glow:.8});
+ assert.deepEqual(world.nodes,original);assert.deepEqual(readPaint(world,'nodes',a.origin),{color:'#123456',brightness:1,opacity:1,translucency:.2,translucencyRadius:.76,glow:.8});
+ const fresh=addStructure(world,[8,0,0],3);assert.equal(readPaint(world,'nodes',fresh.origin).color,'#123456');
+ writePaint(world,'nodes',[b.origin],{color:'#ffb000',glow:.1});assert.equal(readPaint(world,'nodes',b.origin).color,'#ffb000');assert.equal(readPaint(world,'nodes',b.origin).glow,.1);
+ writePaint(world,'nodeDefaults',[],{color:'#abcdef',glow:.9});assert.equal(readPaint(world,'nodes',a.origin).color,'#abcdef');assert.equal(readPaint(world,'nodes',b.origin).color,'#ffb000');
+ resetPaint(world,'nodes',[b.origin]);assert.equal(readPaint(world,'nodes',b.origin).color,'#abcdef');assert.equal(readPaint(world,'nodes',b.origin).glow,.9);
+ resetPaint(world,'nodeDefaults',[]);assert.equal(readPaint(world,'nodes',a.origin).color,'#ffb000');validateWorld(world);
+});
+test('global Nodes defaults preserve legacy colors and inherited/copied explicit default-color overrides',()=>{
+ const world=emptyWorld(),owner=addStructure(world,[0,0,0],1),legacy=addStructure(world,[9,0,0],2);legacy.color='#ffffff';
+ writePaint(world,'nodeDefaults',[],{color:'#123456'});writePaint(world,'nodes',[owner.origin],{color:'#ffb000'});
+ const variant=childNode(world,owner.origin,true);assert.equal(readPaint(world,'nodes',variant.origin).color,'#ffb000');
+ const copy=copyNode(world,variant,[12,0,0]);assert.equal(readPaint(world,'nodes',copy.origin).color,'#ffb000');assert.equal(readPaint(world,'nodes',legacy.origin).color,'#ffffff');
+ validateWorld(JSON.parse(JSON.stringify(world)));assert.throws(()=>writePaint(world,'nodeDefaults',[],{font:'serif'}),/Invalid/);
+});
+test('global Nodes defaults share workspace export and history without rewriting authored nodes',()=>{
+ const saved=new Map(),store=createStore({getItem:key=>saved.get(key)??null,setItem:(key,value)=>saved.set(key,value)});let origin;
+ store.change(world=>{origin=addStructure(world,[0,0,0],1).origin;});
+ store.change(world=>writePaint(world,'nodeDefaults',[],{color:'#123456',glow:.7}));
+ const restored=validateWorld(JSON.parse(JSON.stringify(store.world)));assert.equal(readPaint(restored,'nodes',origin).color,'#123456');assert.equal(restored.nodes[0].color,'#ffb000');
+ store.undo();assert.equal(store.world.appearance.nodes,undefined);store.redo();assert.equal(readPaint(store.world,'nodes',origin).color,'#123456');
+});

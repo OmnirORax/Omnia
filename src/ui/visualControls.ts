@@ -1,3 +1,4 @@
+import {watchFields} from './formState.ts';
 import {importFont,isImportedFont} from '../properties/importedFont.ts';
 import type { Origin, World } from '../core/model.ts';
 import { readPaint, writePaint, resetPaint, type VisualTarget } from '../core/appearance.ts';
@@ -32,6 +33,7 @@ export function paintForm(target: VisualTarget, origins: readonly Origin[], read
       }catch(error){feedback(error instanceof Error?error.message:String(error));}
     };input.click();};form.append(button);
   }
+  watchFields(form,inputs.map(input=>({input:input.entry.input,read:()=>readPaint(read(),target,origins[0])[input.key],onSync:()=>{input.previous=input.entry.value();}})));
   form.append(reset);
   return form;
 }

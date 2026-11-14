@@ -29,11 +29,11 @@ export function memberTargets(recipe:Recipe,ids:readonly string[]):string[]{
 }
 
 /** Context edits retain the accepted set on its members (including descendants
- * of selected groups), and on empty space. A different target replaces the set. */
+ * of selected groups). Empty space has no target; a different hit replaces the set. */
 export function contextEditTargets(recipe:Recipe,selection:readonly string[],pointed:readonly string[]):string[]{
  const index=componentIndex(recipe),chosen=selection.filter(id=>index.has(id));
  const hits=pointed.filter(id=>index.has(id));
- if(!hits.length)return [...chosen];
+ if(!hits.length)return [];
  const selected=new Set(chosen);
  const included=(id:string)=>{let current:string|undefined=id;while(current){if(selected.has(current))return true;current=index.get(current)?.parent;}return false;};
  return hits.every(included)?[...chosen]:[...new Set(hits)];

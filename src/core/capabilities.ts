@@ -1,13 +1,13 @@
+import {NODE_VISUAL_PROPERTIES,NODE_VISUAL_DEFAULTS} from '../properties/nodeVisuals.ts';
 import type { Structure, Vec3, World } from './model.ts';
 import { prepareTranslation, address } from './lattice.ts';
-import { SPHERE_VISUAL_DEFAULTS } from '../properties/sphereVisualDefaults.ts';
 import { property, type Property } from '../properties/pool.ts';
 
 import { color } from '../properties/visual.ts';
 export { color };
 export const label = property({ key: 'label', label: 'Label', kind: 'text' });
 export const position = ['X', 'Y', 'Z'].map((label, i) => property({ key: `position.${i}`, label, kind: 'number', unit: 'world' }));
-export const carrierProperties = ['opacity','glow','translucency','translucencyRadius'].map(key => property({ key, label: ({opacity:'Opacity',glow:'Glow',translucency:'Translucency',translucencyRadius:'Translucency radius'} as Record<string,string>)[key], kind:'number', min:0, max:1, step:.01 }));
+export const carrierProperties = NODE_VISUAL_PROPERTIES.filter(p=>p.id!=='color').map(p=>({...p,key:p.id}));
 export type PropertyBinding = { property: Property; read: () => string | number; write: (value: string | number) => void };
 export type Capability = { key: string; label: string; properties: PropertyBinding[] };
 
@@ -21,15 +21,15 @@ export function capabilities(node: Structure): Capability[] {
       read: () => node.position[axis], write: value => { const n = Number(value); if (!Number.isFinite(n) || Math.abs(n) > 1e7) throw new Error('Invalid coordinate.'); node.position[axis] = n; },
     })) },
     { key: 'color', label: 'Color', properties: [{ property: color, read: () => node.color,
-      write: value => { if (typeof value !== 'string' || !/^#[\da-f]{6}$/i.test(value)) throw new Error('Invalid color.'); node.color = value; },
+      write: value => { if (typeof value !== 'string' || !/^#[\da-f]{6}$/i.test(value)) throw new Error('Invalid color.'); node.color = value;node.colorOverride=true; },
     }] },
     { key: 'carrier', label: 'Sphere', properties: carrierProperties.map(property => ({ property,
-      read: () => node[property.key as keyof typeof SPHERE_VISUAL_DEFAULTS] as number ?? SPHERE_VISUAL_DEFAULTS[property.key as keyof typeof SPHERE_VISUAL_DEFAULTS],
-      write: value => { const n = Number(value); if (!Number.isFinite(n) || n < 0 || n > 1) throw Error('Expected a value from 0 to 1.'); Object.assign(node, { [property.key]: n }); },
+      read: () => node[property.key as keyof typeof NODE_VISUAL_DEFAULTS] as number ?? NODE_VISUAL_DEFAULTS[property.key as keyof typeof NODE_VISUAL_DEFAULTS],
+      write: value => { const n = Number(value); if (!Number.isFinite(n) || n < property.min! || n > property.max!) throw Error(`Expected a value from ${property.min} to ${property.max}.`); Object.assign(node, { [property.key]: n }); },
     })) },
   ];
   return available.map(capability => ({ ...capability, properties: capability.properties.map(binding => ({ ...binding,
-    write(value) { binding.write(value); if (node.variantOf && ['label','color','opacity','glow','translucency','translucencyRadius'].includes(binding.property.key)) node.overrides = [...new Set([...(node.overrides ?? []), binding.property.key])]; },
+    write(value) { binding.write(value); if (node.variantOf && ['brightness','label','color','opacity','glow','translucency','translucencyRadius'].includes(binding.property.key)) node.overrides = [...new Set([...(node.overrides ?? []), binding.property.key])]; },
   })) }));
 }
 

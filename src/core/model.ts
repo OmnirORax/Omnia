@@ -1,3 +1,5 @@
+import { validateNavigation,type NavigationOptions } from '../navigation/options.ts';
+import type { Rotation } from '../navigation/transforms.ts';
 import {validateFilter} from '../omnic/filter.ts';
 import {validateRecipe,referenceComponents,type Recipe} from '../omnic/model.ts';
 import {recipeSpecification} from '../omnic/specification.ts';
@@ -19,15 +21,15 @@ export type Binding =
   | { mode: 'follow'; origin: Origin }
   | { mode: 'position'; at: Vec3 }
   | { mode: 'structure'; specification: string };
-export type Structure = { origin: Origin; label: string; position: Vec3; color: string; invariant: boolean; parts: Binding[];
+export type Structure = { origin: Origin; label: string; position: Vec3; color: string; colorOverride?: boolean; invariant: boolean; parts: Binding[];
   parent?: Origin; variantOf?: Origin; overrides?: string[]; hidden?: boolean; collapsed?: boolean;
   omnic?:Recipe;omnicDraft?:Recipe;omnicEdits?:RecipeEdit[];omnicRevision?:number;omnicHistory?:Recipe[];catalog?:Catalog;lexiconWords?:string[];
-  text?: NodeText; textAppearance?: Paint; visual?: Visual; scene?: string | null;
-  opacity?: number; glow?: number; translucency?: number; translucencyRadius?: number;
+  orientation?: Rotation; text?: NodeText; textAppearance?: Paint; visual?: Visual; scene?: string | null;
+  brightness?: number; opacity?: number; glow?: number; translucency?: number; translucencyRadius?: number;
 };
 export type Relationship = { from: Binding; to: Binding; label: string; kind: string };
 export type World = { format: 'omnium-world'; version: 1 | 2 | 3; atlases?:AtlasView[];activeAtlas?:number; nodes: Structure[]; assets?: VisualAsset[]; relationships?: Relationship[]; scene?: SceneSettings; appearance?: Appearance;
-  settings?: { latticeScale: number; names: 'all' | 'expanded' | 'selection' } };
+  settings?: { latticeScale: number; names: 'all' | 'expanded' | 'selection'; navigation?: NavigationOptions } };
 export const emptyWorld = (): World => ({ format: 'omnium-world', version: 2, nodes: [], assets: [], relationships: [], appearance:{background:{translucency:1},text:{font:DEFAULT_TEXT_FONT,color:'#ff000d',glow:1}}, scene: defaultScene(), settings: { latticeScale: 1, names: 'expanded' } });
 export const samePoint = (a: Vec3, b: Vec3) => a.every((n, i) => n === b[i]);
 export const sameOrigin = (a: Origin, b: Origin) => a.born === b.born && samePoint(a.at, b.at);
@@ -107,6 +109,7 @@ export function validateWorld(value: unknown): World {
   const point = (p: unknown): p is Vec3 => Array.isArray(p) && p.length === 3 && p.every(n => typeof n === 'number' && Number.isFinite(n) && Math.abs(n) <= 1e7);
   const origin = (o: Origin) => o && Number.isFinite(o.born) && point(o.at);
   validateAppearance(w.appearance);
+  validateNavigation(w.settings?.navigation);
   if(w.activeAtlas!==undefined&&!w.atlases)throw Error('Invalid active atlas.');
   if(w.atlases!==undefined){if(w.version!==3||!Array.isArray(w.atlases)||w.atlases.length>32||!Number.isInteger(w.activeAtlas??0)||(w.activeAtlas??0)<0||(w.activeAtlas??0)>=w.atlases.length)throw Error('Invalid atlas views.');for(const view of w.atlases){if(typeof view.name!=='string'||!view.name.trim()||view.name.length>100||!view.filter||typeof view.filter!=='object')throw Error('Invalid atlas view.');if(view.roots!==undefined&&(!Array.isArray(view.roots)||view.roots.length>4000))throw Error('Invalid atlas scope.');for(const root of view.roots??[])referenceBinding(JSON.stringify(root));validateFilter(view.filter);}}
 
@@ -124,10 +127,12 @@ export function validateWorld(value: unknown): World {
     if (anchors.has(a) || positions.has(p)) throw new Error('Two structures cannot occupy the same address.');
     anchors.add(a); positions.add(p);
     if (node.parent !== undefined && !origin(node.parent) || node.variantOf !== undefined && !origin(node.variantOf)) throw Error('Invalid node parent or variant.');
-    if (node.overrides !== undefined && (!Array.isArray(node.overrides) || node.overrides.some(key => !['color','label','text','visual','opacity','glow','translucency','translucencyRadius','scene','textAppearance'].includes(key)))) throw Error('Invalid variant override.');
+    if (node.overrides !== undefined && (!Array.isArray(node.overrides) || node.overrides.some(key => !['brightness','color','label','text','visual','opacity','glow','translucency','translucencyRadius','scene','textAppearance'].includes(key)))) throw Error('Invalid variant override.');
     if (node.hidden !== undefined && typeof node.hidden !== 'boolean' || node.collapsed !== undefined && typeof node.collapsed !== 'boolean') throw Error('Invalid node visibility.');
+    if(node.brightness!==undefined&&(!Number.isFinite(node.brightness)||node.brightness<0||node.brightness>3))throw Error('Invalid node brightness.');
+    if(node.colorOverride!==undefined&&typeof node.colorOverride!=='boolean')throw Error('Invalid node color override.');
     if (node.scene !== undefined && node.scene !== null && (typeof node.scene !== 'string' || node.scene.length > 200)) throw Error('Invalid node scene.');
-    for (const key of ['opacity','glow','translucency','translucencyRadius'] as const) if (node[key] !== undefined && (!Number.isFinite(node[key]) || node[key]! < 0 || node[key]! > 1)) throw Error('Invalid carrier appearance.');
+    for (const key of ['opacity','glow','translucency','translucencyRadius'] as const) if (node[key] !== undefined && (!Number.isFinite(node[key]) || node[key]! < 0 || node[key]! > (key==='glow'?2:1))) throw Error('Invalid carrier appearance.');
     if(['omnic','omnicDraft','omnicEdits','omnicRevision','omnicHistory','catalog','lexiconWords'].some(key=>node[key as keyof Structure]!==undefined)){
       if(w.version!==3)throw Error('Omnic structures require world version 3.');
       if(node.omnicDraft!==undefined)validateRecipe(node.omnicDraft);
@@ -139,6 +144,7 @@ export function validateWorld(value: unknown): World {
       if(node.catalog!==undefined){if(!node.catalog||typeof node.catalog!=='object')throw Error('Invalid library metadata.');for(const key of ['tags','collections'] as const)if(!Array.isArray(node.catalog[key])||node.catalog[key].length>128||node.catalog[key].some(value=>typeof value!=='string'||value.length>100))throw Error('Invalid library metadata.');}
       size+=new TextEncoder().encode(JSON.stringify([node.omnic,node.omnicDraft,node.omnicEdits,node.omnicHistory,node.catalog,node.lexiconWords])).length;if(size>3500000)throw Error('Definition library exceeds storage budget.');
     }
+    if(node.orientation!==undefined){const q=node.orientation;if(!q||!['x','y','z','w'].every(key=>typeof q[key as 'x']==='number'&&Number.isFinite(q[key as 'x']))||Math.abs(Math.hypot(q.x,q.y,q.z,q.w)-1)>.001)throw Error('Invalid node orientation.');}
     validatePaint(node.textAppearance,true);
     if (node.text) validateNodeText(node.text, glyphs);
     validateVisual(node.visual, assets);

@@ -1,9 +1,9 @@
-import {controlInputOwner} from './inputOwnership';
+import {registerWindow} from '../../../ui/windowDismissal.ts';
 import {selectionSurfaces} from '../appearance/selectionSurfaces';
 import {featureActionRuntime} from '../featureActions';
 import { useEffect, useLayoutEffect, useRef, useSyncExternalStore, type RefObject } from "react";
 import { useUI, useOptionalUITracked, type UIContextValue } from "./context";
-import { activeFrame, parentContext, contextLayerAction, contextStackFromScopes, insertContextLayer, contextLayerScope, dismissContextPointer, UI_CANCEL_EDIT, type ActiveContextEntry, type ActiveContextStack } from "./activeContextModel";
+import { activeFrame, parentContext, contextLayerAction, contextStackFromScopes, insertContextLayer, contextLayerScope, UI_CANCEL_EDIT, type ActiveContextEntry, type ActiveContextStack } from "./activeContextModel";
 import { getContainer, ownerOf, floatResident } from "./layout";
 import { useFeatureActions } from "./useFeatureActions";
 import { UISection } from "./UISection";
@@ -75,6 +75,8 @@ export function useActiveLayer(open: boolean, ref: RefObject<HTMLElement | null>
     for(const type of ['pointerup','mouseup','click','contextmenu'])node.addEventListener(type,consume,true);
     return()=>{for(const type of ['pointerup','mouseup','click','contextmenu'])node.removeEventListener(type,consume,true);};
   },[open,ref]);
+
+  useLayoutEffect(()=>{const node=ref.current;if(!open||!node)return;return registerWindow(node,()=>current.current(),1+(navigation?.ancestors?.length??0));},[open,ref,navigation?.ancestors]);
 
   useLayoutEffect(() => {
     const node = ref.current;
@@ -172,13 +174,6 @@ export function ActiveContextSystem() {
       // Activating the pointed frame here would orphan the still-open popup.
       if(event instanceof PointerEvent&&!latest.current.shortcutsBlocked&&!latest.current.shortcutCapturing&&featureActionRuntime.available('selector.include')&&event.target instanceof Element&&selectionSurfaces.sessionOwns(event.target,event.composedPath()))return;
       let element = event.target instanceof Element ? event.target : null;
-      if(event instanceof PointerEvent&&event.button===0&&element){
-        const inputOwned=featureActionRuntime.available('selector.include')&&selectionSurfaces.sessionOwns(element,event.composedPath());
-        const preserveContent=event.ctrlKey||event.metaKey||!!controlInputOwner(element,event.composedPath())||!!element.closest('[data-selection-geometry]');
-        if(dismissContextPointer(latest.current.contextLayers,element,inputOwned,preserveContent)){
-          claimUIPress(event.pointerId,event.pointerType,event.buttons);event.preventDefault();event.stopImmediatePropagation();return;
-        }
-      }
       while (element && !(element instanceof HTMLElement)) element = element.parentElement;
       if (!(element instanceof HTMLElement) || element.closest(controllerSelector)) return;
       const next=stackAt(latest.current,element);

@@ -1,6 +1,7 @@
 let sequence = 0;
 const pending = new Set<() => void>();
 const flushPending = () => { for (const flush of [...pending]) flush(); };
+export const flushLiveForms=flushPending;
 document.addEventListener('pointerdown', flushPending, true);
 document.addEventListener('keydown', event => {
   if (event.key === 'Escape' || event.key === 'Enter' || (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') flushPending();

@@ -101,13 +101,13 @@ export function RangeControl({ value: storedValue, min, max, onValueChange, onMi
     if(next===undefined)return;
     if (next !== active.next) { active.next = next; onValueChange(next); }
   };
-  const startDrag=(id:number,x:number,y:number,relative=false)=>{
+  const startDrag=(id:number,x:number,y:number,relative=false,horizontal=false)=>{
     const node=track.current;if(!node||valueDisabled||drag.current)return false;
     const bounds=node.getBoundingClientRect(),ux=Math.cos(axisAngle),uy=Math.sin(axisAngle);
     const projected=Math.abs(ux)*node.offsetWidth+Math.abs(uy)*node.offsetHeight;
     const scale=projected>0?bounds.width/projected:1,width=Math.max(1,node.offsetWidth*scale);
     const fraction=sequence?sequence.length<2?.5:sequenceIndex(sequence,value)/(sequence.length-1):high===low?.5:(value-low)/(high-low);
-    drag.current={id,...(relative?{scrub:createValueScrub({origin:{x,y},width,value,min:low,max:high,step:jump,values:sequence})}:{}),cx:relative?x-(fraction-.5)*width*ux:bounds.left+bounds.width/2,cy:relative?y-(fraction-.5)*width*uy:bounds.top+bounds.height/2,ux,uy,width,low,high,step:jump,values:sequence,before:storedValue,next:value};
+    drag.current={id,...(relative?{scrub:createValueScrub({origin:{x,y},width,value,min:low,max:high,step:jump,values:sequence,horizontal})}:{}),cx:relative?x-(fraction-.5)*width*ux:bounds.left+bounds.width/2,cy:relative?y-(fraction-.5)*width*uy:bounds.top+bounds.height/2,ux,uy,width,low,high,step:jump,values:sequence,before:storedValue,next:value};
     claimUIPress(id);return true;
   };
   const finishDrag=(x:number,y:number)=>{if(!drag.current)return;moveDrag(x,y);confirmDrag();};
@@ -156,9 +156,10 @@ export function RangeControl({ value: storedValue, min, max, onValueChange, onMi
           event.preventDefault(); event.stopPropagation();
           claimUIPress(event.pointerId, event.pointerType, event.buttons);
           input.current?.focus({ preventScroll: true });
-          startDrag(event.pointerId,event.clientX,event.clientY);
+          const readout=event.target instanceof Element&&!!event.target.closest('.range-current');
+          startDrag(event.pointerId,event.clientX,event.clientY,readout,readout);
           event.currentTarget.setPointerCapture(event.pointerId);
-          moveDrag(event.clientX,event.clientY);
+          if(!readout)moveDrag(event.clientX,event.clientY);
         }}
         onPointerMove={event => {
           if (drag.current?.id !== event.pointerId) return;
