@@ -105,14 +105,13 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
   const hoverTarget=useRef<string|undefined>(undefined),overSurface=useRef(false);
   const dofHover=useHoverPreview(),readPositionRule=useWorkingSelectionReader();
   type PositionPreview={base:Recipe;degree:EditableDegree;ids:string[];next:Recipe;boundary:{x:number;y:number;width:number;height:number};fields:{property:string;field:ReturnType<typeof createReferenceField>}[];value?:Readonly<Record<string,number>>;pending:boolean;source:typeof referencePicker};
-  const positionPreview=useRef<PositionPreview|undefined>(undefined),hoverSuppressed=useRef(false);
+  const positionPreview=useRef<PositionPreview|undefined>(undefined),hoverSuppressed=useRef(false),positionHoverOwner=useRef({});
   const positionFields=(base:Recipe,degree:EditableDegree)=>degree.axes!.map(axis=>{const domain=stateFieldDomain(targetParameter(axis))!,rule=readPositionRule(axis.properties[0]);return {property:axis.properties[0],field:createReferenceField(domain,{mode:rule?.mode??'symmetry',count:rule?.count??8,step:rule?.step??domain.resolution,reference:Number(targetDegreeValue(base,axis)),min:rule?.min,max:rule?.max},referencePicker?.reference(axis,degree))};});
-  const stopPosition=(apply=false)=>{const active=positionPreview.current;if(!active)return false;positionPreview.current=undefined;hoverSuppressed.current=true;cancelPreview?.();if(apply){commit(active.next);onSelect?.(active.ids);}return true;};
+  const stopPosition=(apply=false)=>{const active=positionPreview.current;if(!active)return false;positionPreview.current=undefined;hoverSuppressed.current=true;if(dofHover?.owns(positionHoverOwner.current))dofHover.release(positionHoverOwner.current);cancelPreview?.();if(apply){commit(active.next);onSelect?.(active.ids);}return true;};
   const positionKeys=useRef<(event:KeyboardEvent)=>boolean>(()=>false);
   positionKeys.current=event=>{if(!positionPreview.current||isTypingTarget(event.target))return false;return event.key==='Escape'?stopPosition():event.key==='Enter'?stopPosition(true):false;};
 
   const stopPositionRef=useRef(stopPosition);stopPositionRef.current=stopPosition;
-  useEffect(()=>dofHover?.subscribe(()=>{if(dofHover.active())stopPositionRef.current();}),[dofHover]);
   const deleteHovered=useRef<()=>boolean>(()=>false);
   deleteHovered.current=()=>{
     if(referencePicker?.picking||!overSurface.current&&!contextTargets.isSource(localSurface.current))return false;
@@ -367,6 +366,7 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
       pointer.current={x:event.clientX,y:event.clientY};
       const active=gesture.current;if(referencePicker?.picking&&!active)return;
       overSurface.current=true;
+      if(!active&&dofHover?.active()&&!dofHover.owns(positionHoverOwner.current))return;
       if(!active&&!event.buttons&&tool==='select'&&!extraPanel){
         const element=event.target instanceof Element?event.target:null,role=element?.closest('[data-omnic-role]')?.getAttribute('data-omnic-role');
         const owner=role?selectionOwners.get(role):element?.tagName==='CANVAS'?selectionOwners.get(pickStructuralNode(evaluation?.nodes??[],point)?.id??''):undefined;
@@ -375,6 +375,7 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
           if(owner&&!hoverSuppressed.current&&componentIndex(recipeRef.current).get(owner)?.component.generator!=='path-rule'){
             const base=referencePicker?.snapshot?.recipe??recipeRef.current,ids=selectedRef.current.has(owner)?[...selectedRef.current]:[owner],degree=targetPlacementDegree(base,ids);
             if(degree?.axes?.length===2){localSurface.current?.focus({preventScroll:true});activateTarget?.();dofHover?.cancel();cancelPreview?.();positionPreview.current={base,degree,ids,next:base,boundary:{...bounds},fields:positionFields(base,degree),pending:false,source:referencePicker};
+              dofHover?.enter(positionHoverOwner.current,{capturePress:false,start:()=>{},move:()=>{},commit:()=>{stopPositionRef.current(true);},cancel:()=>{stopPositionRef.current();}},event.clientX,event.clientY);
               if(referencePicker?.chooseReference(degree,'@environment'))positionPreview.current.pending=true;
             }
           }
