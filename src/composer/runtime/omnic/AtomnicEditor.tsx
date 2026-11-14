@@ -367,7 +367,7 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
       const active=gesture.current;if(referencePicker?.picking&&!active)return;
       overSurface.current=true;
       if(!active&&dofHover?.active()&&!dofHover.owns(positionHoverOwner.current))return;
-      if(!active&&!event.buttons&&tool==='select'&&!extraPanel){
+      if(!active&&!event.buttons&&tool==='select'&&!extraPanel&&!menu){
         const element=event.target instanceof Element?event.target:null,role=element?.closest('[data-omnic-role]')?.getAttribute('data-omnic-role');
         const owner=role?selectionOwners.get(role):element?.tagName==='CANVAS'?selectionOwners.get(pickStructuralNode(evaluation?.nodes??[],point)?.id??''):undefined;
         if(!positionPreview.current){

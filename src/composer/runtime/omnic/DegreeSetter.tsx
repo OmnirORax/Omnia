@@ -19,8 +19,8 @@ import { useNumericEditor } from '../ui/NumericEditorScope';
  * controls available through the DOF's existing right-click configuration. */
 type SetterProps={recipe:Recipe;degree:EditableDegree;onPreview:(value:DegreeEditValue)=>void;onCommit:(value:DegreeEditValue)=>void;onOpen:()=>void};
 export function DegreeSetter(props:SetterProps){
- const {recipe,degree,onPreview,onCommit}=props,numeric=useNumericEditor();
- return <HoverGesture create={()=>createDegreeHover(recipe,degree,onPreview,onCommit,numeric.cancelPreview)}><DegreeControl {...props}/></HoverGesture>;
+ const {recipe,degree,onPreview,onCommit,onOpen}=props,numeric=useNumericEditor();
+ return <HoverGesture create={()=>createDegreeHover(recipe,degree,onPreview,onCommit,numeric.cancelPreview,onOpen)}><DegreeControl {...props}/></HoverGesture>;
 }
 
 function DegreeControl({recipe,degree,onPreview,onCommit,onOpen}:SetterProps) {

@@ -2,7 +2,7 @@ import {useHoverPreview} from './HoverPreview';
 import {useContextNavigation} from './ContextStage';
 import { radialScale } from './radialMenuState';
 import { uiPointerHeld,observeUIPress } from './pointerOwnership';
-import { RangeControl, RangeAxis, RangeGestureTarget, type RangeGesture } from './RangeControl';
+import { RangeAxis, RangeGestureTarget, type RangeGesture } from './RangeControl';
 import { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode, type Ref, type CSSProperties } from 'react';
 import type { RadialNode } from './radialMenuModel';
 import { radialLayout, radialRowLayout, radialRowAttachment, RADIAL_GEOMETRY, radialQuickSlot } from './radialMenuModel';
@@ -17,7 +17,6 @@ export function RadialMenu({items,inset,onClose,navigationRef,children,onNavigat
   const sliderGestures=useRef(new Map<string,{current:RangeGesture|null}>()),adjustment=useRef<{id:string;pointer:number;api:RangeGesture}|null>(null),suppressAdjustmentClick=useRef(false);
   const [adjusting,setAdjusting]=useState<string|null>(null);
   const scale=useSyncExternalStore(radialScale.subscribe,radialScale.getSnapshot);
-  const sizeControl=<span className="radial-menu-setter radial-menu-scale" title="Dial size · 1×–2×"><RangeControl aria-label="Dial size" configurationKey="ui.dial.scale" value={scale} min={1} max={2} step={.05} onValueChange={radialScale.set}/></span>;
   const root=useRef<HTMLDivElement>(null),[quickExtent,setQuickExtent]=useState(360);
   useLayoutEffect(()=>{
     const node=root.current;if(!node||!children&&!quickItems)return;
@@ -109,16 +108,15 @@ export function RadialMenu({items,inset,onClose,navigationRef,children,onNavigat
         return <span className="radial-menu-slot" key={`end:${index}`} style={{left:`${slot.x}%`,top:`${slot.y}%`,width:slot.size,height:slot.size}}>{content}</span>;
       })}
       {!quickItems&&inset&&<div className="radial-menu-insets">{inset}</div>}
-      {!children&&<><span className="radial-menu-centre radial-menu-origin" role="button" tabIndex={0} data-dial-drag title="Drag dial" aria-label="Drag dial"/>{sizeControl}</>}
+      {!children&&<span className="radial-menu-centre radial-menu-origin" role="button" tabIndex={0} data-dial-drag title="Drag dial" aria-label="Drag dial"/>}
     </div>
-    {branches.map(({anchor,node,lineage,automatic:isAutomatic},index)=>{
+    {branches.map(({anchor,node,lineage,automatic:isAutomatic})=>{
       const depth=lineage.length,{extent,size,length,angle}=radialRowLayout(node.children!,anchor.axis);
       return <ContextualMasterController key={lineage.map(a=>a.id).join("/")} radial anchored title={node.label} position={anchor} onDismiss={()=>{setPath([]);onClose();}} onAdvance={forward} onClose={()=>{if(isAutomatic){onClose();return;}outward.current=path;setPath(lineage.slice(0,-1));}}>
         <div className="radial-menu radial-menu-branch radial-menu-row" onMouseEnter={keepChildren} onMouseLeave={leaveChildren} role="group" aria-label={node.label} data-context-menu-owner data-child-level={depth} data-radial-extent={extent} data-row-x={anchor.axis.x} data-row-y={anchor.axis.y} data-row-length={length} style={dialStyle(extent,size)}
           onContextMenu={event=>{event.preventDefault();event.stopPropagation();}}>
           <span className="radial-menu-row-zone" aria-hidden="true" style={{width:length+4,height:size+4,transform:`translate(-50%,-50%) rotate(${angle}deg)`}}/>
           {ring(node.children!,depth,false,anchor.axis,lineage)}
-          {children&&index===0&&<span style={{position:'absolute',left:`calc(50% + ${anchor.axis.y*(size/2+10)}px)`,top:`calc(50% - ${anchor.axis.x*(size/2+10)}px)`}}>{sizeControl}</span>}
         </div>
       </ContextualMasterController>;
     })}

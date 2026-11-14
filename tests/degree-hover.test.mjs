@@ -51,3 +51,11 @@ test('a numeric action adapter such as Rotation retains hover preview',()=>{
  let shown=recipe;const gesture=createDegreeHover(recipe,degree,value=>{shown=writeTargetDegree(recipe,degree,value);},()=>{});
  assert.ok(gesture);gesture.start(100,100);gesture.move(110,100);assert.notEqual(shown.components[0].params.angle,0);
 });
+test('accepting a DOF hover opens its full editor once, including Position and Fill coordinates',()=>{
+ for(const property of ['omnic.position','omnic.fill','omnic.radius']){
+  const recipe=createRecipe('boundary'),degree=selectedEditorDegrees(recipe,[recipe.components[0].id]).find(d=>d.id===property),session=createHoverPreview();let writes=0,opened=0;
+  const gesture=createDegreeHover(recipe,degree,()=>{},()=>writes++,()=>{},()=>opened++);
+  session.enter({},gesture,100,100);session.move(110,90);assert.equal(opened,0);assert.equal(writes,0);
+  session.commit();session.commit();assert.equal(writes,1);assert.equal(opened,1);assert.equal(session.active(),false);
+ }
+});

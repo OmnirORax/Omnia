@@ -8,7 +8,6 @@ import {saveDefinition,definitionRecipe} from '../omnic/atlas.ts';
 import {validateRecipe,type Recipe} from '../omnic/model.ts';
 import {evaluateRecipe,type Evaluation} from '../omnic/evaluate.ts';
 import {evaluationBounds} from '../omnic/svg.ts';
-import {targetNodes} from '../omnic/contextGeometry.ts';
 import {atomnicViewBounds} from '../omnic/atomnicSettings.ts';
 import type {OmnicSurface} from '../omnic/surface.ts';
 import {composerAtlas} from './atlasAdapter.ts';
@@ -45,7 +44,8 @@ export function composerPanel(host:ComposerHost,initial?:Origin){
   if(!sameOrigin(origin!,nextOrigin)){origin=nextOrigin;epoch++;draftStore=ownerStore(origin);preview=undefined;editing=undefined;}
   knownDraft=JSON.stringify(readDraft());lastWorld=undefined;revision++;host.select(origin!);notify();
  }
- const surface:OmnicSurface={get origin(){return origin;},hover:inside=>{if(canvas)setToolCursorZone(canvas,inside?editing?.cursorZone:undefined);},get bounds(){return editing?.bounds??atomnicViewBounds(geometry().recipe.atomnic)??evaluationBounds(geometry().evaluation);},get preview(){const {recipe,evaluation}=geometry();return {recipe,evaluation:{...evaluation,selection:editing?targetNodes(evaluation,editing.selected).map(node=>node.id):[]},bounds:surface.bounds,hovered:editing?.hovered,pivot:editing?.pivot,ghost:editing?.ghost,gridPitch:editing?.gridPitch};},down:(point,event)=>editing?.down(point,event),move:(point,event)=>editing?.move(point,event),up:(point,event)=>editing?.up(point,event),context:(_point,event)=>{editing?.context?.(event);
+ // Nodes display the draft; authoring input and feedback stay in the composer.
+ const surface:OmnicSurface={worldInput:false,get origin(){return origin;},hover:inside=>{if(canvas)setToolCursorZone(canvas,inside?editing?.cursorZone:undefined);},get bounds(){return editing?.bounds??atomnicViewBounds(geometry().recipe.atomnic)??evaluationBounds(geometry().evaluation);},get preview(){const {recipe,evaluation}=geometry();return {recipe,evaluation:{...evaluation,selection:[]},bounds:surface.bounds};},down:(point,event)=>editing?.down(point,event),move:(point,event)=>editing?.move(point,event),up:(point,event)=>editing?.up(point,event),context:(_point,event)=>{editing?.context?.(event);
  },cancel:()=>editing?.cancel()};
  let releaseSurface=host.surface?.(surface);
  const notify=()=>{for(const listener of listeners)listener();};let revision=0;

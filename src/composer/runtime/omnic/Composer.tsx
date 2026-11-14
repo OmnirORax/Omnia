@@ -105,7 +105,7 @@ function PresetDegreeEditor({recipe,degree,configure,onPreview,onCommit,onDismis
   const values=useMemo(()=>degree.axes?Object.fromEntries(degree.axes.map(a=>[targetParameter(a).key,targetDegreeValue(recipe,a)])):{[parameter.key]:value},[degree,recipe,parameter.key,value]);
   useOmnicParameterBindings(values,(next,temporary)=>(temporary?onPreview:onCommit)(degree.axes?Object.fromEntries(degree.axes.map(a=>[a.properties[0],Number(next[targetParameter(a).key])])):next[parameter.key]),parameters);
   return <div className="progressive-configuration">
-    <DegreeValueEditor recipe={recipe} degree={degree} configure={configure} onDismiss={onDismiss} onPreview={onPreview} onCommit={onCommit}/>
+    <DegreeValueEditor recipe={recipe} degree={degree} configure={configure} pickReference={false} onDismiss={onDismiss} onPreview={onPreview} onCommit={onCommit}/>
   </div>;
 }
 
