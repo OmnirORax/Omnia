@@ -1,3 +1,5 @@
+import {documentBrackets} from '../src/text/brackets.ts';
+import {insertBracket,deleteBracketPair} from '@codemirror/autocomplete';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { EditorState, EditorSelection } from '@codemirror/state';
@@ -10,7 +12,7 @@ import { wrap, heading, list, moveLines, deleteLines, deleteParagraph, capitaliz
 const glyph={glyph:'{"born":1,"at":[0,0,0]}',word:'shape'};
 function editor(content, ranges=[[0,0]]) {
  const source=toSource({version:1,content});
- let state=EditorState.create({doc:source.text,selection:EditorSelection.create(ranges.map(([a,h])=>EditorSelection.range(a,h))),extensions:[EditorState.allowMultipleSelections.of(true),glyphField.init(()=>source.glyphs),glyphHistory,history(),markdown({extensions:[Strikethrough,TaskList]})]});
+ let state=EditorState.create({doc:source.text,selection:EditorSelection.create(ranges.map(([a,h])=>EditorSelection.range(a,h))),extensions:[EditorState.allowMultipleSelections.of(true),glyphField.init(()=>source.glyphs),glyphHistory,history(),documentBrackets,markdown({extensions:[Strikethrough,TaskList]})]});
  return {get state(){return state},dispatch(tr){state=tr.state},run(command){return command(this)},select(ranges){state=state.update({selection:EditorSelection.create(ranges.map(([a,h])=>EditorSelection.range(a,h)))}).state},text(){return fromSource(sliceSource(state))}};
 }
 test('existing mixed documents and literal object-replacement characters round-trip unchanged',()=>{
@@ -141,4 +143,17 @@ test('Ctrl+3 capitalizes every selected row and text after periods and colons',(
  assert.equal(row.state.doc.toString(),'leave me\n  Change: This. Too');
  const multi=editor(['one: two\nthree. four'],[[1,1],[12,12]]);multi.run(capitalizeSentence);
  assert.equal(multi.state.doc.toString(),'One: Two\nThree. Four');
+});
+
+test('document parentheses and square brackets pair, skip closers and delete as pairs for every cursor',()=>{
+ for(const [open,close] of [['(',')'],['[',']']]){
+  const e=editor(['a\nb'],[[1,1],[3,3]]);e.dispatch(insertBracket(e.state,open));
+  assert.equal(e.state.doc.toString(),'a'+open+close+'\nb'+open+close);
+  assert.deepEqual(e.state.selection.ranges.map(r=>r.head),[2,6]);
+  e.run(deleteBracketPair);assert.equal(e.state.doc.toString(),'a\nb');
+  e.dispatch(insertBracket(e.state,open));e.dispatch(insertBracket(e.state,close));
+  assert.deepEqual(e.state.selection.ranges.map(r=>r.head),[3,7]);
+  const selected=editor(['word'],[[0,4]]);selected.dispatch(insertBracket(selected.state,open));
+  assert.equal(selected.state.doc.toString(),open+'word'+close);
+ }
 });

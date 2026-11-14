@@ -1,3 +1,4 @@
+import {documentBrackets} from './brackets.ts';
 import {lexiconAnnotations,workspaceLexicon,refreshLexicon} from './lexicon.ts';
 import { EditorState, Transaction, Prec, type StateCommand } from '@codemirror/state';
 import { EditorView, drawSelection, keymap, scrollPastEnd } from '@codemirror/view';
@@ -68,7 +69,7 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
     return true;
   };
   editor = new EditorView({ parent:host, state:EditorState.create({ doc:source.text, extensions:[
-    EditorState.allowMultipleSelections.of(true), glyphField.init(() => source.glyphs), glyphHistory, history(),lexiconAnnotations(read),
+    EditorState.allowMultipleSelections.of(true), glyphField.init(() => source.glyphs), glyphHistory, history(),documentBrackets,lexiconAnnotations(read),
     EditorView.clickAddsSelectionRange.of(event => event.altKey), documentMouseSelection(), drawSelection({drawRangeCursor:true,cursorBlinkRate:1000}), EditorView.lineWrapping, scrollPastEnd(),
     markdown({ extensions:[Strikethrough,TaskList],addKeymap:false }), documentPresentation(read),
     syntaxHighlighting(HighlightStyle.define([
