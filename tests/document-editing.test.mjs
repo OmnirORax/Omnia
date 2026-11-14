@@ -105,3 +105,17 @@ test('line deletion preserves adjoining lines in the same paragraph and supports
  const last=editor(['first\nlast'],[[7,7]]);last.run(deleteLines);assert.equal(last.state.doc.toString(),'first');
  const boundary=editor(['one\ntwo\nthree'],[[0,4]]);boundary.run(deleteLines);assert.equal(boundary.state.doc.toString(),'two\nthree');
 });
+
+test('bold and italic expand cursors and partial word selections, merging duplicate word targets',()=>{
+ for(const mark of ['**','*']){
+  for(const selection of [[[3,3]],[[2,5]],[[5,2]],[[1,1],[4,4]]]){
+   const e=editor(['example'],selection);e.run(wrap(mark));assert.equal(e.state.doc.toString(),mark+'example'+mark);
+   e.run(wrap(mark));assert.equal(e.state.doc.toString(),'example');
+   e.run(undo);assert.equal(e.state.doc.toString(),mark+'example'+mark);
+  }
+ }
+ const multiple=editor(['one two'],[[1,1],[5,5]]);multiple.run(wrap('**'));assert.equal(multiple.state.doc.toString(),'**one** **two**');
+ const phrase=editor(['one two'],[[1,5]]);phrase.run(wrap('*'));assert.equal(phrase.state.doc.toString(),'o*ne t*wo');
+ const blank=editor(['one  two'],[[4,4]]);blank.run(wrap('**'));assert.equal(blank.state.doc.toString(),'one **** two');
+ const code=editor(['example'],[[3,3]]);code.run(wrap('`'));assert.equal(code.state.doc.toString(),'exa``mple');
+});
