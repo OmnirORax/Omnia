@@ -371,7 +371,7 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
           if(!owner)hoverSuppressed.current=undefined;
           if(owner&&owner!==hoverSuppressed.current&&componentIndex(recipeRef.current).get(owner)?.component.generator!=='path-rule'){
             const base=referencePicker?.snapshot?.recipe??recipeRef.current,ids=selectedRef.current.has(owner)?[...selectedRef.current]:[owner],degree=targetPlacementDegree(base,ids);
-            if(degree?.axes?.length===2){dofHover?.cancel();cancelPreview?.();positionPreview.current={base,degree,ids,next:base,boundary:{...bounds},fields:positionFields(base,degree),pending:false,source:referencePicker};
+            if(degree?.axes?.length===2){localSurface.current?.focus({preventScroll:true});activateTarget?.();dofHover?.cancel();cancelPreview?.();positionPreview.current={base,degree,ids,next:base,boundary:{...bounds},fields:positionFields(base,degree),pending:false,source:referencePicker};
               if(referencePicker?.chooseReference(degree,'@environment'))positionPreview.current.pending=true;
             }
           }
