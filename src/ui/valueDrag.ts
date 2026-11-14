@@ -1,12 +1,12 @@
 import {claimUIPress} from '../composer/runtime/ui/pointerOwnership.ts';
 import {PAGE_INPUT_SUSPEND} from '../composer/runtime/ui/pageInputBoundary.ts';
-export type NumberDrag = {value:number;min?:number;max?:number;step?:number};
+export type NumberDrag = {value:number;min?:number;max?:number;step?:number;pixelsPerStep?:number};
 /** Horizontal relative movement; bounds and declared increments remain authoritative. */
 export function horizontalValue(config:NumberDrag,delta:number){
   const {value,min,max,step}=config;
   if(!Number.isFinite(delta))return value;
   const bounded=min!==undefined&&max!==undefined&&Number.isFinite(max-min)&&max>min;
-  const unit=bounded?(max-min)/200:step&&step>0?step/6:Math.max(1,Math.abs(value))/100;
+  const unit=config.pixelsPerStep&&step?step/config.pixelsPerStep:bounded?(max-min)/200:step&&step>0?step/6:Math.max(1,Math.abs(value))/100;
   let next=value+delta*unit;
   if(step&&step>0){const anchor=min??0;next=anchor+Math.round((next-anchor)/step)*step;}
   if(min!==undefined)next=Math.max(min,next);if(max!==undefined)next=Math.min(max,next);
@@ -31,7 +31,7 @@ function inputAdapter(field:HTMLInputElement):Adapter{
   return {read:()=>{
     const value=field.value.trim()?Number(field.value):NaN;if(!Number.isFinite(value))return;
     const number=(text:string)=>text.trim()&&Number.isFinite(Number(text))?Number(text):undefined;
-    return {value,min:number(field.min),max:number(field.max),step:field.step==='any'?undefined:number(field.step)??(field.type==='number'||field.inputMode==='numeric'?1:undefined)};
+    return {value,pixelsPerStep:Number(field.dataset?.valuePixelsPerStep)||undefined,min:number(field.min),max:number(field.max),step:field.step==='any'?undefined:number(field.step)??(field.type==='number'||field.inputMode==='numeric'?1:undefined)};
   },input:write,commit:()=>{field.dispatchEvent(new Event('change',{bubbles:true}));field.blur();},cancel:value=>{write(value);field.dispatchEvent(new Event('change',{bubbles:true}));}};
 }
 export function installValueDrag(){

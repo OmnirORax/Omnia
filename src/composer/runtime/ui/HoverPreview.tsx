@@ -13,7 +13,7 @@ export function HoverPreviewScope({children}:{children:ReactNode}){
   const consume=(e:Event)=>{e.preventDefault();e.stopImmediatePropagation();};
   const down=(e:PointerEvent)=>{tail=false;if(!session.active())return;if(e.button!==0){session.cancel();return;}
    // A real slider press starts its captured drag; a hover sample must not eat it.
-   if(e.target instanceof Element&&e.target.closest('[data-range-control]')){cancelAnimationFrame(frame);frame=0;flushSync(()=>session.cancel());return;}
+   if(e.target instanceof Element&&e.target.closest('[data-range-control],input,select,textarea')){cancelAnimationFrame(frame);frame=0;flushSync(()=>session.cancel());return;}
    x=e.clientX;flush();if(session.commit()){tail=true;consume(e);}};
   const after=(e:Event)=>{if(!tail)return;consume(e);if(e.type==='click')tail=false;};
   const cancel=()=>{cancelAnimationFrame(frame);frame=0;session.cancel();};
