@@ -16,7 +16,7 @@ export function MathematicalValueControl({inline=false,configurationKey,step=1,o
   domain={{min:props.min,max:props.max,integer:props.integer,resolution:step,projection:'radial'}} onPreview={onPreview} onCommit={props.onCommit}/>;
  if(inline)return field;
  return <span className="mathematical-value-control" data-ui-control>
-  <button ref={valueDrag} type="button" disabled={props.disabled} title={`${props.label??'Value'} · ${props.value}`} aria-label={`Open ${props.label??'value'} state field`} aria-expanded={!!point} onClick={()=>setPoint(cursorPosition())}>⠒❉ <span>{props.value}</span></button>
+  <button ref={valueDrag.ref} type="button" disabled={props.disabled} title={`${props.label??'Value'} · ${props.value}`} aria-label={`Open ${props.label??'value'} state field`} aria-expanded={!!point} onClick={()=>setPoint(cursorPosition())}>⠒❉ <span>{valueDrag.value}</span></button>
   {point&&<ContextualMasterController radial title={props.label??'Value'} position={point} onClose={close} onConfirm={close} onAdvance={close} onDismiss={close}>{field}</ContextualMasterController>}
  </span>;
 }
