@@ -566,14 +566,14 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
         claimUIPress(event.pointerId,event.pointerType,event.buttons);
         event.preventDefault();event.stopImmediatePropagation();return;
       }
-      // Accepted selection yields to declared editor context menus. The new
-      // secondary press owns its native tail; no primary tail may suppress it.
-      if(event.button===2&&actions.current.contextPick(event.target,{x:event.clientX,y:event.clientY})){
-        commandButton=2;consumedPointer=event.pointerId;consumedUntil=performance.now()+1500;claimUIPress(event.pointerId,event.pointerType,event.buttons);event.preventDefault();event.stopImmediatePropagation();return;
-      }
-      if (event.button === 2 && eventPathMatches(event,'[data-context-menu-owner]')&&!nativeGesture.current&&!gesture.current&&!polygon.current) {
+      // A declared content owner handles its own secondary press before the
+      // selector's baseline edit action, including empty environment hits.
+      if (event.button === 2 && eventPathMatches(event,'[data-context-menu-owner]')&&!requestedPick.current&&!nativeGesture.current&&!gesture.current&&!polygon.current) {
         contextHandoff = true; consumedPointer = null; consumedUntil = 0;
         actions.current.close(); return;
+      }
+      if(event.button===2&&actions.current.contextPick(event.target,{x:event.clientX,y:event.clientY})){
+        commandButton=2;consumedPointer=event.pointerId;consumedUntil=performance.now()+1500;claimUIPress(event.pointerId,event.pointerType,event.buttons);event.preventDefault();event.stopImmediatePropagation();return;
       }
       if (shortcuts.handle(event, id => id === "selector.open" || outsideChrome(event))) {
         commandButton = event.button; consumedPointer = event.pointerId; consumedUntil = performance.now() + 1500;
