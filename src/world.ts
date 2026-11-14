@@ -1,3 +1,4 @@
+import { createSecondaryRelease } from './composer/runtime/ui/secondaryRelease.ts';
 import {glyphSurfacePoint,type OmnicSurface} from './omnic/surface.ts';
 import {createGlyphPresentation} from './omnic/presentation.ts';
 import {RENDER_BUDGET} from './renderBudget.ts';
@@ -220,6 +221,8 @@ export function createWorld(host: HTMLElement, input: Input) {
   function cancelDrive() { const active=drive.active;drive.cancel();mountedWorld=undefined;navigatorOffset.set(0,0,0);controls.enabled=true;edges.visible=true;rebuildPicks();request();return active; }
   type Gesture={pointer:number;button:number;alt:boolean;start:Point;end:Point;origin?:Origin;edge?:Edge;anchor:T.Vector3;mode:'move'|'range'|'view'|'drive'|'paint';dragged:boolean;origins:readonly Origin[];moving?:Set<string>;project?:ReturnType<typeof pointerPlane>;resolve?:ReturnType<typeof import('./core/lattice.ts').prepareTranslation>};
   let gesture:Gesture|undefined;
+  const secondary=createSecondaryRelease<()=>void>();
+  let secondarySurface:{surface:OmnicSurface;released:boolean;context:boolean}|undefined;
   let stroke:{points:Vec3[];seen:Set<string>;previous:Vec3;source?:Origin;preview:T.InstancedMesh}|undefined;
   function paintPoint(p: Point) {
     if(!stroke)return;const next=creationPoint(p),samples=paintSamples(point(stroke.previous),point(next),.4);
@@ -231,8 +234,9 @@ export function createWorld(host: HTMLElement, input: Input) {
   function restore(){if(stroke)finishPaint(true);if(gesture?.mode==='move')for(const visual of visuals.values())visual.group.position.copy(new T.Vector3(...vector(cellPoint(grid.cells.get(key(visual.node.origin))!,scale))));gesture=undefined;rectangle.hidden=true;controls.enabled=!drive.active;edges.visible=true;request();}
   canvas.addEventListener('pointerdown',event=>{
     if(event.button!==0&&event.button!==2)return;
+    secondary.cancel();secondarySurface=undefined;
     if(omnicGesture&&omnicGesture.id===event.pointerId){const point=editPoint(event,omnicGesture.surface);if(point)omnicGesture.surface.down(point,event);event.preventDefault();event.stopImmediatePropagation();return;}
-    if(omnic?.origin&&!drive.active&&!input.picking()){const hit=pointed({x:event.clientX,y:event.clientY}),point=hit.origin&&sameOrigin(hit.origin,omnic.origin)?editPoint(event,omnic,true):undefined;if(point){omnicGesture={surface:omnic,id:event.pointerId,bounds:{...omnic.bounds}};controls.enabled=false;event.preventDefault();event.stopImmediatePropagation();canvas.setPointerCapture(event.pointerId);omnic.down(point,event);return;}}
+    if(omnic?.origin&&!drive.active&&!input.picking()){const hit=pointed({x:event.clientX,y:event.clientY}),point=hit.origin&&sameOrigin(hit.origin,omnic.origin)?editPoint(event,omnic,true):undefined;if(point){omnicGesture={surface:omnic,id:event.pointerId,bounds:{...omnic.bounds}};if(event.button===2)secondarySurface={surface:omnic,released:false,context:false};controls.enabled=false;event.preventDefault();event.stopImmediatePropagation();canvas.setPointerCapture(event.pointerId);omnic.down(point,event);return;}}
     const p={x:event.clientX,y:event.clientY},hit=pointed(p),range=event.button===0&&(event.shiftKey||event.ctrlKey||event.metaKey),moving=event.button===0&&!!hit.origin&&!range&&!drive.active&&!input.picking();
     let mode:Gesture['mode']=drive.active&&event.button===0?'drive':range?'range':moving?'move':'view';
     if(event.button===0&&event.altKey&&!input.picking()){
@@ -241,6 +245,7 @@ export function createWorld(host: HTMLElement, input: Input) {
       stroke={points:[],seen:new Set(),previous:creationPoint(p),source:hit.origin,preview};
     }
     if(moving&&!event.altKey&&!selected.some(origin=>sameOrigin(origin,hit.origin!)))input.pick(hit.origin!,false,false);
+    if(event.button===2)secondary.press(()=>{});
     const anchor=hit.origin?visuals.get(key(hit.origin))!.group.position:controls.target;
     const project=mode==='move'?pointerPlane(camera,canvas.getBoundingClientRect(),anchor):undefined;
     gesture={project,pointer:event.pointerId,button:event.button,alt:event.altKey,start:p,end:p,...hit,anchor:project?project(p):at(p,anchor),mode,dragged:false,origins:[...selected]};
@@ -267,7 +272,7 @@ export function createWorld(host: HTMLElement, input: Input) {
   }
   canvas.addEventListener('pointermove',event=>{if(omnicGesture&&omnicGesture.id===event.pointerId){const point=editPoint(event,omnicGesture.surface);if(point)omnicGesture.surface.move(point,event);return;}if(omnic?.origin){const point=editPoint(event,omnic,true);omnic.hover?.(!!point);if(point)omnic.move(point,event);}lastPoint={x:event.clientX,y:event.clientY};if(!inputFrame)inputFrame=requestAnimationFrame(()=>{void processPointer();});});
   canvas.addEventListener('pointerup',event=>{
-    if(omnicGesture&&omnicGesture.id===event.pointerId){const gesture=omnicGesture,point=editPoint(event,gesture.surface);if(!(event.buttons&1)){omnicGesture=undefined;controls.enabled=!drive.active;}if(point)gesture.surface.up(point,event);else gesture.surface.cancel();request();return;}
+    if(omnicGesture&&omnicGesture.id===event.pointerId){const gesture=omnicGesture,point=editPoint(event,gesture.surface);if(!(event.buttons&1)){omnicGesture=undefined;controls.enabled=!drive.active;}if(point)gesture.surface.up(point,event);else gesture.surface.cancel();if(event.button===2&&secondarySurface){secondarySurface.released=true;if(secondarySurface.context)secondarySurface=undefined;}request();return;}
     const g=gesture;if(!g||g.pointer!==event.pointerId)return;g.end={x:event.clientX,y:event.clientY};g.dragged ||= Math.hypot(g.end.x-g.start.x,g.end.y-g.start.y)>=4;gesture=undefined;rectangle.hidden=true;edges.visible=true;controls.enabled=!drive.active;
     try{
       if(g.mode==='paint'){if(g.dragged){paintPoint(g.end);finishPaint();return;}finishPaint(true);}
@@ -280,8 +285,8 @@ export function createWorld(host: HTMLElement, input: Input) {
         const rect=canvas.getBoundingClientRect(),origins:Origin[]=[];
         for(const visual of visuals.values()){if(!visual.group.visible)continue;const p=visual.group.position.clone().project(camera),x=rect.left+(p.x+1)/2*rect.width,y=rect.top+(1-p.y)/2*rect.height;if(p.z>=-1&&p.z<=1&&x>=Math.min(g.start.x,g.end.x)&&x<=Math.max(g.start.x,g.end.x)&&y>=Math.min(g.start.y,g.end.y)&&y<=Math.max(g.start.y,g.end.y))origins.push(visual.node.origin);}input.range(origins,true);return;
       }
-      if(g.dragged)return;
-      if(event.button===2){if(omnic?.origin&&g.origin&&sameOrigin(omnic.origin,g.origin)){const point=editPoint(event,omnic,true);if(point){omnic.context(point,event);return;}}cancelDrive();input.menu(g.origin,g.end,creationPoint(g.end),g.edge);return;}
+      if(g.dragged){secondary.cancel();return;}
+      if(event.button===2){const position=creationPoint(g.end);secondary.release(()=>{cancelDrive();input.menu(g.origin,g.end,position,g.edge);})?.();return;}
       if(g.edge){cancelDrive();input.edge(g.edge);return;}
       if(input.picking()){if(g.origin)input.pick(g.origin,false,false);return;}
       if(event.ctrlKey||event.metaKey){cancelDrive();if(g.origin)navigator.position.copy(visuals.get(key(g.origin))!.group.position);else navigator.position.set(...creationPoint(g.end)).multiplyScalar(scale);navigator.initialize(navigator.position);navigatorOffset.set(0,0,0);return;}
@@ -292,8 +297,8 @@ export function createWorld(host: HTMLElement, input: Input) {
     finally{request();}
   });
   canvas.addEventListener('dblclick',event=>{const hit=pointed({x:event.clientX,y:event.clientY});if(hit.origin){if(omnic?.origin&&sameOrigin(hit.origin,omnic.origin))return;cancelDrive();toggleContent(retained,key(hit.origin),false);input.expand(hit.origin);presentation();}});
-  canvas.addEventListener('contextmenu',event=>event.preventDefault());
-  canvas.addEventListener('pointercancel',()=>{cancelOmnic();restore();cancelDrive();});
+  canvas.addEventListener('contextmenu',event=>{event.preventDefault();event.stopPropagation();if(secondarySurface){const pending=secondarySurface;pending.context=true;const point=editPoint(event,pending.surface);if(point)pending.surface.context(point,event);if(pending.released)secondarySurface=undefined;}else secondary.context()?.();});
+  canvas.addEventListener('pointercancel',()=>{secondary.cancel();secondarySurface=undefined;cancelOmnic();restore();cancelDrive();});
   canvas.addEventListener('lostpointercapture',()=>{cancelOmnic();if(gesture?.mode!=='view')restore();});
   canvas.addEventListener('pointerleave',()=>{hover=undefined;presentation();});
   window.addEventListener('blur',()=>{cancelOmnic();restore();cancelDrive();held.clear();});

@@ -17,9 +17,11 @@ export function geometry(world: World): Document {
     };
   }) };
 }
-const prepared = new WeakMap<World, ReturnType<typeof prepareLattice>>();
 export function lattice(world: World) {
-  let value = prepared.get(world); if (!value) { value = prepareLattice(geometry(world)); prepared.set(world, value); } return value;
+  // Operation candidates are mutable: translation can prepare this world and
+  // then change its positions before the same object becomes the saved world.
+  // Keep preparation on the gesture's immutable geometry, not on World identity.
+  return prepareLattice(geometry(world));
 }
 export function creationCell(world: World, desired: Vec3): Vec3 {
   const occupied = new Set(world.nodes.map(node => cellKey(cellAt(point(node.position)))));
