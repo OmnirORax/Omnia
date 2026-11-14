@@ -1,3 +1,4 @@
+import {viewHistory} from '../../ui/viewHistory.ts';
 import {universalHistory} from '../../core/universalHistory.ts';
 import {createTransientStore} from './ui/transientStore.ts';
 import {emptyUILayout,validateUILayout,type UILayout} from './ui/layout.ts';
@@ -21,7 +22,7 @@ function commit(change:(before:Interface)=>Interface){
  if(before.controller!==after.controller)categories.push('appearance');
  const event=typeof window==='undefined'?undefined:window.event,active=typeof document==='undefined'?undefined:document.activeElement;
  const group=event?.type==='input'?`field:${active?.getAttribute('aria-label')??''}`:event?`event:${event.type}:${event.timeStamp}`:undefined;
- universalHistory.record('interface',before,after,categories,[...contexts],group);
+ if(!viewHistory.restoring||event)universalHistory.record('interface',before,after,categories,[...contexts],group);
 }
 export function updateNativeLayout(change:(layout:UILayout)=>UILayout){commit(before=>({...before,layout:change(before.layout)}));}
 export function updateNativeAppearance(controller:Controller){commit(before=>({...before,controller}));}

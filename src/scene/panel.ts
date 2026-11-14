@@ -1,4 +1,5 @@
 import {watchFields} from '../ui/formState.ts';
+import {VIEW_ROUTE} from '../ui/viewHistory.ts';
 import { DEFAULT_BACKGROUND } from './defaultBackground.ts';
 import { audioControls } from './audioControls.ts';
 import { normalizeSceneVfx } from './vfx.ts';
@@ -26,7 +27,7 @@ export function scenePanel(host: Host,initialTab:SceneTab='image') {
   const subscriptions: (() => void)[] = [];
   const view = panel('Scene', () => { live = false; for (const stop of subscriptions.splice(0)) stop(); host.preview(host.read()); });
   const navigation = document.createElement('nav'), body = document.createElement('div'); navigation.className = 'scene-tabs'; body.className = 'scene-content'; view.body.append(navigation, body);
-  function attempt(action: () => void | Promise<void>) { void Promise.resolve().then(action).catch(error => host.feedback(error instanceof Error ? error.message : String(error))); }
+  function attempt(action: () => void | Promise<void>) { try{void Promise.resolve(action()).catch(error => host.feedback(error instanceof Error ? error.message : String(error)));}catch(error){host.feedback(error instanceof Error ? error.message : String(error));} }
   function button(label: string, action: () => void | Promise<void>, parent: HTMLElement = body) { const b = document.createElement('button'); b.textContent = label; b.onclick = () => attempt(action); parent.append(b); return b; }
   function clear() { for (const stop of subscriptions.splice(0)) stop(); body.replaceChildren(); }
   function update(edit: (settings: SceneSettings) => void, group?: string) { host.change(world => { world.scene ??= defaultScene(); edit(world.scene); }, group); }
@@ -133,7 +134,7 @@ export function scenePanel(host: Host,initialTab:SceneTab='image') {
     const statusUpdate = () => { output.textContent = sceneAudioSnapshot().status; };
     const unsubscribe = subscribeSceneAudio(() => { if (!output.isConnected) unsubscribe(); else statusUpdate(); }); subscriptions.push(unsubscribe); statusUpdate();
   }
-  const show=(tab:SceneTab)=>{if(tab==='image')attempt(images);else if(tab==='audio')audio();else controls(tab);};
+  const show=(tab:SceneTab)=>{view.root.dispatchEvent(new CustomEvent(VIEW_ROUTE,{detail:[tab]}));if(tab==='image')attempt(images);else if(tab==='audio')audio();else controls(tab);};
   for(const [tab,label]of SCENE_TABS)button(label,()=>show(tab),navigation);
   show(initialTab);return view;
 }

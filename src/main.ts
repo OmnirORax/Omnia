@@ -1,3 +1,6 @@
+import {viewHistory,type ViewSpec} from './ui/viewHistory.ts';
+import {sameValue} from './core/equality.ts';
+import {updateNativeLayout} from './composer/runtime/historyBridge.ts';
 import {CAMERA_ACTIONS} from './world/cameraHUD.ts';
 import {NODE_VISUAL_PROPERTIES} from './properties/nodeVisuals.ts';
 import {searchMatches,searchIndex} from './ui/search.ts';
@@ -56,8 +59,14 @@ let disposeTools:(()=>void)|undefined;
 let message = '', menuPoint = { x: 20, y: 60 }, shown: Set<string> | undefined;
 const key = (origin: Origin) => JSON.stringify(origin);
 function feedback(text: string) { message = text; refresh(); }
-function attempt(action: () => void) { try { action(); } catch (error) { feedback(error instanceof Error ? error.message : String(error)); } }
-function close() { disposeTools?.();disposeTools=undefined;tools.hidden = true; view?.update(store.world, selectedOrigins(), shown, selection.values.filter((target): target is Edge => !isNode(target))); }
+function attempt(action: () => void) { try { universalHistory.transaction(action); } catch (error) { feedback(error instanceof Error ? error.message : String(error)); } }
+function renderClose() { disposeTools?.();disposeTools=undefined;tools.hidden = true; view?.update(store.world, selectedOrigins(), shown, selection.values.filter((target): target is Edge => !isNode(target))); }
+function close(){if(viewHistory.rendering){renderClose();return;}viewHistory.hideMenu();}
+const menuFactories=new Map<string,(args:unknown[])=>void>();
+function defineMenu<Args extends unknown[]>(kind:string,render:(...args:Args)=>void,atCursor=false){
+ menuFactories.set(kind,args=>render(...args as Args));
+ return(...args:Args)=>{if(viewHistory.rendering){render(...args);return;}if(atCursor)menuPoint={...cursorPosition()};viewHistory.menu({kind,args,point:{...menuPoint},selection:selection.values as Target[]});};
+}
 function pick(origin: Origin, extend = false, toggle = false) { universalHistory.activeContext=`node:${key(origin)}`;universalHistory.contextPath=['omnium',universalHistory.activeContext]; selection.pick(origin, extend, toggle); refresh(); }
 function selectedNodes(world: World) { return world.nodes.filter(node => selection.has(node.origin)); }
 const view = (() => {
@@ -67,7 +76,7 @@ const view = (() => {
       range(origins, extend) { if (!selection.requesting) { selection.set(extend ? [...selectedOrigins(), ...origins] : origins); refresh(); } },
       clear() { if (selection.requesting) return; close(); selection.set([]); refresh(); },
       menu(origin, point, position, edge) { if (selection.requesting) return; message = ''; if(edge)selection.set([edge]);else if(origin)selection.set(selection.has(origin)?selectedOrigins():[origin]);else selection.set([]); menuPoint = point; refresh(); context(position,origin,edge); },
-      navigationSettings:openNavigation,
+      navigationSettings:()=>openNavigation(),
       transform(origins,rotation,pivot,layout){store.change(world=>transformNodes(world,origins,rotation,pivot,layout));},
       move(origins, delta) { store.change(world => translate(world, origins, delta)); },
       adopt(origins, owner, delta) { store.change(world => adoptNodes(world, origins, owner, delta)); },
@@ -104,10 +113,10 @@ function open(title: string) {
   const caption = document.createElement('span'); caption.textContent = title;
   const back = document.createElement('button'); back.textContent = '×'; back.setAttribute('aria-label', 'Close'); back.onclick = close;
   row.append(caption, back); tools.append(row);
-  const find = document.createElement('input'); find.type = 'search'; find.placeholder = 'Search…'; find.setAttribute('aria-label', 'Search operations');
+  const find = document.createElement('input'); find.type = 'search';find.value=viewHistory.state.menu?.query??''; find.placeholder = 'Search…'; find.setAttribute('aria-label', 'Search operations');
   const globalResults=document.createElement('div');globalResults.className='settings-search-results';let renderGlobal:ReturnType<typeof searchRenderer>|undefined;
   const filter = () => {
-    const query = find.value.trim().toLocaleLowerCase();
+    const query = find.value.trim().toLocaleLowerCase();viewHistory.query(find.value);
     for (const item of Array.from(tools.children)) if (item instanceof HTMLButtonElement) item.hidden = item.dataset.searchOnly === 'true' && !query || !!query && !`${item.textContent} ${item.dataset.keywords ?? ''}`.toLocaleLowerCase().includes(query);
     if(query){renderGlobal??=searchRenderer(globalResults);renderGlobal(query);}else globalResults.replaceChildren();
     positionMenu();
@@ -132,7 +141,7 @@ function create(position: Vec3) {
   store.change(world => { origin = addStructure(world, position).origin; });
   selection.set([origin!]); search.value = ''; close(); message = ''; refresh();
 }
-function editCapability(capabilityKey: string) {
+const editCapability=defineMenu('capability',(capabilityKey: string)=>{
   const origins = [...selectedOrigins()], first = locate(store.world, origins[0]); if (!first) return;
   const capability = capabilities(resolveNodeSettings(store.world,inherited(first, store.world))).find(item => item.key === capabilityKey); if (!capability) return;
   open(capability.label);
@@ -158,7 +167,7 @@ function editCapability(capabilityKey: string) {
   liveForm(form, group => attempt(() => store.change(apply, group)));
   watchFields(form,inputs.map((input,index)=>({input,read:()=>{const node=locate(store.world,origins[0]);if(!node)return undefined;if(capabilityKey==='move'&&origins.length>1)return node.position[index]-start[index];return capabilities(resolveNodeSettings(store.world,inherited(node,store.world))).find(c=>c.key===capabilityKey)?.properties[index].read();}})));
   tools.append(form); positionMenu(); inputs[0].focus(); if (inputs[0].type === 'text') inputs[0].select();
-}
+});
 function reference(mode: Binding['mode']) {
   const owners = [...selectedOrigins()]; close();
   selection.request(target => {
@@ -177,7 +186,7 @@ function reference(mode: Binding['mode']) {
   });
   message = 'Choose a component · Esc cancels'; refresh();
 }
-function parts() {
+const parts=defineMenu('parts',()=>{
   const origin = selectedOrigins()[0], node = origin && locate(store.world, origin); if (!node) return;
   open(node.label || 'Composition');
   if (!node.parts.length) { const text = document.createElement('div'); text.className = 'muted'; text.textContent = '•'; tools.append(text); }
@@ -195,13 +204,13 @@ function parts() {
     tools.append(row);
   });
   button('Include…', chooseReference); positionMenu();
-}
-function chooseReference() {
+});
+const chooseReference=defineMenu('include',()=>{
   open('Reference');
   button('↫ Follow chosen structure', () => reference('follow'));
   button('● Match this position', () => reference('position'));
   button('⚬ Shared structure', () => reference('structure'));
-}
+});
 function remove() {
   store.change(world => {
     for (const edge of selection.values.filter((value): value is Edge => !isNode(value)).sort((a,b) => (b.kind === 'variant' ? -1 : b.index) - (a.kind === 'variant' ? -1 : a.index))) {
@@ -214,19 +223,19 @@ function remove() {
   selection.set([]); close(); refresh();
 }
 const composers=new Set<ReturnType<typeof composerPanel>>(),openingComposers=new Set<string>();
-function openComposer(origin?:Origin){
- close();if(origin){const node=locate(store.world,origin);if(node?.visual?.omnicEntityId&&!node.omnic&&!node.omnicEdits)origin=JSON.parse(node.visual.omnicEntityId);}
+function openComposer(origin?:Origin,restore?:ViewSpec){
+ renderClose();if(origin){const node=locate(store.world,origin);if(node?.visual?.omnicEntityId&&!node.omnic&&!node.omnicEdits)origin=JSON.parse(node.visual.omnicEntityId);}
  for(const composer of composers)if(!composer.root.isConnected)composers.delete(composer);
- const existing=[...composers].find(c=>origin&&c.origin?sameOrigin(origin,c.origin):!origin&&!c.origin);if(existing){existing.root.focus();return;}
- const id=origin?key(origin):'new';if(openingComposers.has(id))return;openingComposers.add(id);const epoch=documentEpoch;
- void import('./omnic/editor.ts').then(({composerPanel})=>{if(epoch!==documentEpoch||origin&&!locate(store.world,origin))return;composers.add(composerPanel({library:openLibrary,surface:surface=>view?.editOmnic(surface)??(()=>{}),redraw:()=>view?.request(),read:()=>store.world,change:store.change,select:origin=>{const node=locate(store.world,origin);if(node?.variantOf)view?.variants(node.variantOf,true);pick(origin);},feedback,subscribe:store.subscribe},origin));}).catch(error=>feedback(String(error))).finally(()=>openingComposers.delete(id));
+ const existing=[...composers].find(c=>origin&&c.origin?sameOrigin(origin,c.origin):!origin&&!c.origin);if(existing){close();existing.root.focus();return;}
+ const id=origin?key(origin):'new';if(openingComposers.has(id))return;openingComposers.add(id);const epoch=documentEpoch,actionId=universalHistory.currentActionId;
+ void import('./omnic/editor.ts').then(({composerPanel})=>{if(epoch!==documentEpoch||origin&&!locate(store.world,origin)||restore&&!viewHistory.wants(restore))return;viewHistory.perform(()=>{if(!restore){const point=cursorPosition();updateNativeLayout(layout=>({...layout,windows:{...layout.windows,'omnic-composer':{...(layout.windows['omnic-composer']??{width:360,height:360,collapsed:false,pinned:false}),x:point.x,y:point.y,closed:false}}}));}const spec=restore??viewHistory.reserve({kind:'composer'});const composer=composerPanel({historyScope:`window:${spec.instance}`,restorePlacement:true,library:openLibrary,surface:surface=>view?.editOmnic(surface)??(()=>{}),redraw:()=>view?.request(),read:()=>store.world,change:store.change,select:origin=>{const node=locate(store.world,origin);if(node?.variantOf)view?.variants(node.variantOf,true);pick(origin);},feedback,subscribe:store.subscribe},origin);composers.add(composer);viewHistory.adopt(`composer:${key(composer.origin!)}`,{...spec,args:[composer.origin]},composer,restore);},actionId);}).catch(error=>{viewHistory.failed(restore,error);feedback(String(error));}).finally(()=>openingComposers.delete(id));
 }
 let library:ReturnType<typeof libraryPanel>|undefined,openingLibrary=false;
-function openLibrary(){close();if(library?.root.isConnected){library.root.focus();return;}if(openingLibrary)return;openingLibrary=true;const epoch=documentEpoch;
- void import('./omnic/library.ts').then(({libraryPanel})=>{if(epoch!==documentEpoch)return;library=libraryPanel({read:()=>store.world,change:store.change,open:origin=>openComposer(origin),focus:origin=>{pick(origin);view?.focus([origin],true);},feedback,subscribe:store.subscribe});}).catch(error=>feedback(String(error))).finally(()=>{openingLibrary=false;});
+function openLibrary(restore?:ViewSpec){renderClose();if(library?.root.isConnected){close();library.root.focus();return;}if(openingLibrary)return;openingLibrary=true;const epoch=documentEpoch,actionId=universalHistory.currentActionId;
+ void import('./omnic/library.ts').then(({libraryPanel})=>{if(epoch!==documentEpoch||restore&&!viewHistory.wants(restore))return;viewHistory.perform(()=>{const spec=restore??viewHistory.reserve({kind:'library'});library=libraryPanel({read:()=>store.world,change:store.change,open:origin=>openComposer(origin),focus:origin=>{pick(origin);view?.focus([origin],true);},feedback,subscribe:store.subscribe},`window:${spec.instance}`);viewHistory.adopt('library',spec,library,restore);},actionId);}).catch(error=>{viewHistory.failed(restore,error);feedback(String(error));}).finally(()=>{openingLibrary=false;});
 }
 
-function context(position: Vec3, origin?:Origin, edge?:Edge) {
+const context=defineMenu('context',(position: Vec3,origin?:Origin,edge?:Edge)=>{
   if (edge) { edgeContext(edge); return; }
   open(origin ? `${selectedOrigins().length} selected` : 'Omnium');
   if (!origin) { button('Create structure', () => create(position)); button('Omnic',()=>openComposer(undefined)); button('Library · Atlas',openLibrary); button('👁', appearance).setAttribute('aria-label', 'Appearance'); return; }
@@ -246,7 +255,7 @@ function context(position: Vec3, origin?:Origin, edge?:Edge) {
   for (const [name, action] of [['Scene', openScene], ['World', worldControls]] as const) { const shortcut = button(`👁 ${name}`, action); shortcut.dataset.searchOnly = 'true'; }
   button('Focus', () => { view?.focus(selectedOrigins(), true); close(); });
   button('Remove', remove);
-}
+});
 function searchSettingsEntries(){
   const origins=[...selectedOrigins()],selected=origins[0]&&locate(store.world,origins[0]);
   let nodeWorld=store.world,nodeCapabilities=selected?capabilities(resolveNodeSettings(store.world,inherited(selected,store.world))):[];
@@ -309,49 +318,53 @@ function searchRenderer(results:HTMLElement){
   requestFormSync();positionMenu();
  };
 }
-function searchSettings() {
- menuPoint={...cursorPosition()};open('Search');tools.querySelector('input[type=search]')?.remove();
+const searchSettings=defineMenu('search',()=>{
+ open('Search');tools.querySelector('input[type=search]')?.remove();
  const input=document.createElement('input');input.type='search';input.placeholder='Search';input.setAttribute('aria-label','Search');const results=document.createElement('div');results.className='settings-search-results';tools.append(input,results);
- const render=searchRenderer(results);input.addEventListener('input',()=>render(input.value));input.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();results.querySelector<HTMLElement>('input,select,button:not(:disabled)')?.focus();}});positionMenu();input.focus();
-}
+ const render=searchRenderer(results);input.value=viewHistory.state.menu?.query??'';if(input.value)render(input.value);input.addEventListener('input',()=>{viewHistory.query(input.value);render(input.value);});input.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();results.querySelector<HTMLElement>('input,select,button:not(:disabled)')?.focus();}});positionMenu();input.focus();
+},true);
 let draftControl:HTMLButtonElement|undefined;
 let workspaceView: ReturnType<typeof workspacePanel> | undefined;
-function openWorkspace() {
-  close(); if (workspaceView?.root.isConnected) { workspaceView.root.focus(); return; }
+function openWorkspace(restore?:ViewSpec) {
+  if(!viewHistory.performing){viewHistory.perform(()=>openWorkspace(restore));return;}
+  renderClose(); if (workspaceView?.root.isConnected) { close();workspaceView.root.focus(); return; }
   workspaceView = workspacePanel({ omnic:()=>openComposer(),atlas:openLibrary,draft:draftControl, selected: () => selectedOrigins().map(origin => JSON.stringify(origin)), read: () => store.world, replace: world => { store.replace(world); selection.set([]); search.value = ''; refresh(); }, recover: () => { store.recover(); selection.set([]); search.value = ''; refresh(); }, beforeReplace: () => {
     for(const composer of composers.values())composer.close(); library?.close();
     documentEpoch++; view?.cancel(); close(); selection.cancel(); sceneView?.close();
     for (const document of documents.values()) document?.close();
     if ([...documents.values()].some(document => document?.root.isConnected)) throw Error('An open document could not close. Preserve it before importing.');
   } });
+  viewHistory.adopt('workspace',{kind:'workspace'},workspaceView,restore);
 }
 let sceneView: ReturnType<typeof scenePanel> | undefined;
-function openScene(tab:SceneTab='image') {
-  close(); if (!view) return; sceneView?.close();
-  sceneView = scenePanel({ subscribe:store.subscribe, read: () => store.world, selected: selectedOrigins, change: (edit, group) => store.change(edit, group), preview: candidate => view.session.update(candidate, selectedOrigins()[0]), session: view.session, feedback },tab);
+function openScene(tab:SceneTab='image',restore?:ViewSpec) {
+  if(!viewHistory.performing){viewHistory.perform(()=>openScene(tab,restore));return;}
+  renderClose(); if (!view) return; sceneView?.close();
+  sceneView = scenePanel({ subscribe:store.subscribe, read: () => store.world, selected: ()=>restore?.selection as Origin[]??selectedOrigins(), change: (edit, group) => store.change(edit, group), preview: candidate => view.session.update(candidate, selectedOrigins()[0]), session: view.session, feedback },tab);
+  viewHistory.adopt('scene',{kind:'scene',args:[tab],selection:[...selectedOrigins()]},sceneView,restore);
 }
 const documents = new Map<string, ReturnType<typeof editDocument>>(), openingDocuments = new Set<string>();
 let documentEpoch = 0;
-function openDocument() {
-  const origin = selectedOrigins()[0]; if (!origin) return; close();
+function openDocument(requested?:Origin,restore?:ViewSpec) {
+  const origin = requested??selectedOrigins()[0]; if (!origin) return; renderClose();
   const id = key(origin), existing = documents.get(id);
-  if (existing?.root.isConnected) { existing.root.querySelector<HTMLElement>('.cm-content')?.focus(); return; }
+  if (existing?.root.isConnected) { close();existing.root.querySelector<HTMLElement>('.cm-content')?.focus(); return; }
   if (openingDocuments.has(id)) return;
-  openingDocuments.add(id); const epoch = documentEpoch;
+  openingDocuments.add(id); const epoch = documentEpoch,actionId=universalHistory.currentActionId;
   void import('./text/editor.ts').then(({ editDocument }) => {
-    if (epoch !== documentEpoch || !locate(store.world, origin)) return;
-    documents.set(id, editDocument(origin, () => store.world, text => store.change(world => {
+    if (epoch !== documentEpoch || !locate(store.world, origin)||restore&&!viewHistory.wants(restore)) return;
+    viewHistory.perform(()=>{const document=editDocument(origin, () => store.world, text => store.change(world => {
       const node = locate(world, origin); if (!node) throw Error('This node was removed. Copy the document before closing.'); node.text = text;
       if (node.variantOf) node.overrides = [...new Set([...(node.overrides ?? []), 'text'])];
-    }, `document:${id}`), feedback, () => documents.delete(id)));
-  }).catch(error => feedback(error instanceof Error ? error.message : String(error))).finally(() => openingDocuments.delete(id));
+    }, `document:${id}`), feedback, () => documents.delete(id));documents.set(id,document);if(document)viewHistory.adopt(`document:${id}`,{kind:'document',args:[origin]},document,restore);},actionId);
+  }).catch(error => {viewHistory.failed(restore,error);feedback(error instanceof Error ? error.message : String(error));}).finally(() => openingDocuments.delete(id));
 }
 
 function requestNode(accept: (target: Origin) => void) {
   close(); selection.request(target => { if (!isNode(target)) return false; try { accept(target); message = ''; return true; } catch (error) { message = error instanceof Error ? error.message : String(error); return false; } });
   message = 'Choose a node · Esc cancels'; refresh();
 }
-function nodeTools() {
+const nodeTools=defineMenu('nodeTools',()=>{
   const origin = selectedOrigins()[0], node = origin && locate(store.world, origin); if (!node) return;
   open(node.label || 'Node');
   button('Add child', () => { let child: Origin | undefined; store.change(world => { child = childNode(world, origin).origin; locate(world, origin)!.collapsed = false; }); selection.set([child!]); close(); refresh(); });
@@ -364,21 +377,21 @@ function nodeTools() {
   button('Attach to…', () => requestNode(target => store.change(world => { const source = locate(world, origin)!; source.parent = structuredClone(target); })));
   if (node.parent || node.variantOf) button('Detach', () => { store.change(world => detachNode(world, origin)); close(); });
   button('Hide', () => { store.change(world => { locate(world, origin)!.hidden = true; }); selection.set([]); close(); refresh(); });
-}
+});
 const VISUAL_TARGETS=[['nodeDefaults','Nodes'],['text','Text'],['background','UI backgrounds'],['nodes','Selected nodes'],['nodeText','Selected node text']]as const;
-function openVisualSettings(target:VisualTarget,origins:readonly Origin[],title:string){
+const openVisualSettings=defineMenu('visualSettings',(target:VisualTarget,origins:readonly Origin[],title:string)=>{
  open(title);
  if(target==='nodes'||target==='nodeDefaults'){
   const root=document.createElement('div');root.className='node-body-editor';tools.append(root);
   void import('./ui/nodeVisuals.tsx').then(({nodeVisualEditor})=>{if(!root.isConnected)return;disposeTools=nodeVisualEditor(root,{read:()=>store.world,subscribe:store.subscribe,change:store.change,error:feedback},target,origins);positionMenu();}).catch(error=>feedback(String(error)));
  }else tools.append(paintForm(target,origins,()=>store.world,(edit,group)=>store.change(edit,group),feedback));positionMenu();
-}
-function appearance() {
+});
+const appearance=defineMenu('appearance',()=>{
   open('👁');
   button('Scene', openScene); button('World', worldControls);
   button('Visuals',visualTargets);
-}
-function visualTargets(){
+});
+const visualTargets=defineMenu('visualTargets',()=>{
     open('👁 Visuals');
     const origins=[...selectedOrigins()];
     for(const [target,title] of VISUAL_TARGETS){
@@ -387,14 +400,14 @@ function visualTargets(){
     }
     if(origins.length===1)button('Node visual',visuals);
     positionMenu();
-}
+});
 
 
 const HISTORY_MODE:Property={key:'history.mode',label:'Scope',kind:'select',options:[{id:'recent',label:'All actions'},{id:'context',label:'Current context'},{id:'selective',label:'Selected categories'}]};
 const HISTORY_STEPS:Property={key:'history.steps',label:'Steps',kind:'number',min:1,max:10,step:1};
 const HISTORY_CATEGORIES=['omnium','ui','appearance','settings','camera']as const;
-function openCameraHUD(){view?.showCamera();close();}
-function openHistory(){
+function openCameraHUD(restore?:ViewSpec){if(!view)return;renderClose();viewHistory.adopt('cameraHUD',{kind:'cameraHUD'},view.showCamera(),restore);}
+const openHistory=defineMenu('history',()=>{
   open('History');const form=document.createElement('form'),options=universalHistory.options;
   const mode=field(HISTORY_MODE,options.mode);
   const steps=field(HISTORY_STEPS,options.steps);
@@ -403,14 +416,14 @@ function openHistory(){
   liveForm(form,()=>universalHistory.configure({mode:mode.value()as typeof options.mode,steps:Number(steps.value()),categories:categories.filter(c=>c.entry.value()).map(c=>c.id)}));
   watchFields(form,[{input:mode.input,read:()=>universalHistory.options.mode},{input:steps.input,read:()=>universalHistory.options.steps},...categories.map(c=>({input:c.entry.input,read:()=>universalHistory.options.categories.includes(c.id)}))]);tools.append(form);
   button('Undo',()=>store.undo());button('Redo',()=>store.redo());positionMenu();
-}
-function openNavigation(){
+});
+const openNavigation=defineMenu('navigation',()=>{
   open('Camera & rotation');const form=document.createElement('form'),current={...NAV_DEFAULTS,...store.world.settings?.navigation};
   const inputs=NAVIGATION_PROPERTIES.map(definition=>{const key=definition.key.slice('navigation.'.length),entry=field(definition,current[key as keyof NavigationOptions]);form.append(entry.row);return {key,entry};});
   liveForm(form,group=>attempt(()=>store.change(world=>{world.settings??={latticeScale:1,names:'expanded'};world.settings.navigation=Object.fromEntries(inputs.map(({key,entry})=>[key,entry.value()])) as NavigationOptions;},group)));watchFields(form,inputs.map(({key,entry})=>({input:entry.input,read:()=>({...NAV_DEFAULTS,...store.world.settings?.navigation})[key as keyof NavigationOptions]})));tools.append(form);
   for(const [id,label]of [['zoom100','100%'],['cameraOrigin','Origin'],['front','Front'],['all','Fit all'],['back','Back']]as const)button(label,()=>view?.camera(id));positionMenu();
-}
-function worldControls() {
+});
+const worldControls=defineMenu('world',()=>{
   open('World');
   const form = document.createElement('form'), scale = field({ key:'latticeScale',label:'Lattice scale',kind:'number',min:1e-9 }, store.world.settings?.latticeScale ?? 1);
   const names = field({ key:'names',label:'Names',kind:'select',options:[{id:'expanded',label:'Expanded'},{id:'all',label:'All'},{id:'selection',label:'Selected'}] }, store.world.settings?.names ?? 'expanded');
@@ -421,8 +434,8 @@ function worldControls() {
   button('Camera HUD',openCameraHUD);
   button('Show all nodes', () => { store.change(world => { for (const node of world.nodes) {node.hidden=false;node.collapsed=false;} });search.value='';close();refresh(); });
   button('Fit all', () => { view?.focus(store.world.nodes.map(node => node.origin),true);close(); });positionMenu();
-}
-function visuals() {
+});
+const visuals=defineMenu('visualAsset',()=>{
   const origin=selectedOrigins()[0];if(!origin)return;open('Visual');
   button('Import image / SVG / GLB', () => {
     const file=document.createElement('input');file.type='file';file.accept='.png,.jpg,.jpeg,.webp,.svg,.glb';
@@ -438,8 +451,8 @@ function visuals() {
   liveForm(form, group=>attempt(()=>store.change(world=>{const target=locate(world,origin)!,text=String(character.value());const visual={...inherited(target,world).visual};if(text){visual.character=text;delete visual.assetId;delete visual.omnicEntityId;}else delete visual.character;target.visual={...visual,size:Number(size.value()),showText:Boolean(showText.value())};if(target.variantOf)target.overrides=[...new Set([...(target.overrides??[]),'visual'])];}, group)));tools.append(form);
   watchFields(form,[{input:character.input,read:()=>{const n=locate(store.world,origin);return n?inherited(n,store.world).visual?.character??'':undefined;}},{input:size.input,read:()=>{const n=locate(store.world,origin);return n?inherited(n,store.world).visual?.size??1.4:undefined;}},{input:showText.input,read:()=>{const n=locate(store.world,origin);return n?inherited(n,store.world).visual?.showText??true:undefined;}}]);
   if(node.visual)button('Clear visual',()=>{store.change(world=>{delete locate(world,origin)!.visual;});close();});positionMenu();
-}
-function edgeContext(edge: Edge) {
+});
+const edgeContext=defineMenu('edge',(edge: Edge)=>{
   open('Connection');
   const relation=edge.kind==='relationship'?store.world.relationships?.[edge.index]:undefined;
   if(relation && edge.kind === 'relationship'){
@@ -449,8 +462,8 @@ function edgeContext(edge: Edge) {
     for(const [key,label] of [['from','Reconnect source…'],['to','Reconnect target…']] as const)button(label,()=>requestNode(target=>store.change(world=>{world.relationships![edge.index][key]=bind(locate(world,target)!,'follow',world);})));
   }else if(edge.kind==='part')button('Reconnect target…',()=>requestNode(target=>store.change(world=>{locate(world,edge.owner)!.parts[edge.index]=bind(locate(world,target)!,'follow',world);})));
   button('Remove',remove);positionMenu();
-}
-element('workspace').onclick = openWorkspace;
+});
+element('workspace').onclick = ()=>openWorkspace();
 element<HTMLButtonElement>('create').disabled = !view;
 element('create').onclick = () => attempt(() => create(view!.center()));
 function travelHistory(direction:'undo'|'redo'){
@@ -482,6 +495,18 @@ document.addEventListener('keydown', event => {
 
   if (event.key === 'Delete' && selection.values.length && !selection.requesting) { event.preventDefault(); attempt(remove); }
 });
+viewHistory.menuRenderer(spec=>{
+ if(!spec){renderClose();return;}menuPoint={...(spec.point??cursorPosition())};
+ if(spec.selection&&!sameValue(selection.values,spec.selection)){selection.set(spec.selection as Target[]);refresh();}
+ menuFactories.get(spec.kind)?.((spec.args??[]) as unknown[]);
+});
+viewHistory.factory('workspace',spec=>openWorkspace(spec));
+viewHistory.factory('library',spec=>openLibrary(spec));
+viewHistory.factory('scene',spec=>openScene((spec.args as SceneTab[])[0],spec));
+viewHistory.factory('document',spec=>openDocument((spec.args as Origin[])[0],spec));
+viewHistory.factory('composer',spec=>openComposer((spec.args as Origin[])[0],spec));
+viewHistory.factory('cameraHUD',spec=>openCameraHUD(spec));
+if(view)viewHistory.adopt('cameraHUD',{kind:'cameraHUD'},view.showCamera(),undefined,true);
 installHistoryBindings({undo:()=>travelHistory('undo'),redo:()=>travelHistory('redo'),configure:openHistory,flush:flushLiveForms});
 refresh();
 
@@ -499,10 +524,12 @@ if(location.hostname==='omnium.nexus'||location.hostname==='omnia-web-bae.pages.
   status:(phase,error)=>{indicator.textContent=`Draft · ${phase}`;issue=error??'';},
  });
  store.subscribe(sync.changed);
- indicator.onclick=()=>{if(draftView?.root.isConnected){draftView.root.focus();return;}const view=panel('Shared draft');draftView=view;const output=document.createElement('output');output.textContent=issue;view.body.append(output);
-  if(sync.phase==='Failed'){const retry=document.createElement('button');retry.textContent='Retry';retry.onclick=()=>{view.close();void sync.load();};view.body.append(retry);return;}
+ const openDraft=viewHistory.defineWindow('sharedDraft',()=>{const view=panel('Shared draft');draftView=view;const output=document.createElement('output');output.textContent=issue;view.body.append(output);
+  if(sync.phase==='Failed'){const retry=document.createElement('button');retry.textContent='Retry';retry.onclick=()=>{view.close();void sync.load();};view.body.append(retry);return view;}
   for(const [label,choice] of [['Pull','remote'],['Push','local']] as const){const button=document.createElement('button');button.textContent=label;button.onclick=()=>{view.close();void sync.load(choice);};view.body.append(button);}
- };
+  return view;
+ });
+ indicator.onclick=()=>{if(draftView?.root.isConnected){draftView.root.focus();return;}openDraft();};
  window.addEventListener('online',()=>{if(sync.phase==='Failed')void sync.load();});
  document.addEventListener('visibilitychange',()=>{if(document.hidden)void sync.save();});
  void sync.load();

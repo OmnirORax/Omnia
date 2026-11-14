@@ -1,3 +1,4 @@
+import {useNavigationState} from '../../../ui/useNavigationState.tsx';
 import {paintSamples} from './paintStroke.ts';
 import { contextEditTargets } from "./componentTargets";
 import {componentAttachments,detachComponentAttachment} from './componentAttachments';
@@ -74,10 +75,10 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
   const [activeDof,setActiveDof]=useState<{ids:readonly string[];property:string}|null>(null);
   useEffect(()=>{if(numericEditor.activeDegree)setActiveDof(numericEditor.activeDegree);},[numericEditor.activeDegree]);
   const pointerTool=cursorOperation??(rotationHover?'rotate':moveHover?'move':tool);
-  const [menu,setMenu]=useState<{x:number;y:number}|null>(null),[panel,setPanel]=useState<Panel>({kind:'functions'}),[message,setMessage]=useState('');
+  const [menu,setMenu]=useNavigationState<{x:number;y:number}|null>('atomnic-menu',null),[panel,setPanel]=useNavigationState<Panel>('atomnic-panel',{kind:'functions'}),[message,setMessage]=useState('');
   const editorActivation=useRef(0);
   const activateDegreePanel=(degree:EditableDegree,configure:boolean|DofSettingsKind,direct=false)=>{setActiveDof({ids:[...new Set(degree.targets.map(t=>t.id))],property:degree.id});referencePicker?.prepareReference(degree);setPanel({kind:'degree',degree,configure,direct,activation:++editorActivation.current});};
-  const [degrees,setDegrees]=useState<EditableDegree[]>([]),[pointedAttachment,setPointedAttachment]=useState<string>();
+  const [degrees,setDegrees]=useNavigationState<EditableDegree[]>('atomnic-degrees',[]),[pointedAttachment,setPointedAttachment]=useState<string>();
   const detachable=useMemo(()=>evaluation?componentAttachments(recipe,evaluation,activeDof?.ids??normalSelection):[],[recipe,evaluation,activeDof,normalSelection]);
   const detach=(id:string)=>{try{cancelPreview?.();const result=detachComponentAttachment(referencePicker?.read()??recipeRef.current,id,referencePicker?.resolve);if(!commit(result.recipe))return;setMenu(null);setPhase('idle');setActiveDof(null);numericEditor.clearDegree?.();onSelect?.([result.id]);const select=()=>{if(localSurface.current)ms?.setElements([...localSurface.current.querySelectorAll('[data-selection-geometry]')].filter(element=>element.getAttribute('data-omnic-component')===result.id));};requestAnimationFrame(select);}catch(failure){error(failure);}};
   const referencePicker=useOperationReferencePicker();

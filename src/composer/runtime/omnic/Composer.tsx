@@ -1,3 +1,4 @@
+import {useNavigationState} from '../../../ui/useNavigationState.tsx';
 import type {RecipeResolver} from './model';
 import { contextEditTargets } from "./componentTargets";
 import {preserveLegacyRegionFills} from './fillRegion';
@@ -112,8 +113,8 @@ function PresetDegreeEditor({recipe,degree,configure,onPreview,onCommit,onDismis
  * Accepted changes use the shared journal; samples and animation stay transient. */
 export function OmnicComposer({ entity, objects, history, onSave, onCopy, workspaceId, presetIds=[], isNew=false, initialRecipe, onPreview,radar=false,resolveReference,referenceObject,draftStore }: Props) {
   const presetPoint=useRef({x:0,y:0});
-  const [presetSession,setPresetSession]=useState<{ids:string[];degree?:string;configure?:boolean}|null>(null);
-  const [radarPanel,setRadarPanel]=useState<RadarPanel|null>(null);
+  const [presetSession,setPresetSession]=useNavigationState<{ids:string[];degree?:string;configure?:boolean}|null>('composer-presets',null);
+  const [radarPanel,setRadarPanel]=useNavigationState<RadarPanel|null>('composer-panel',null);
   const [atomnicBridge,setAtomnicBridge]=useState<AtomnicInteraction|null>(null);
   const draftId=workspaceId?`${workspaceId}:${entity.id}`:entity.id;
   const [initial] = useState(() => restoredDraft(entity,draftId,initialRecipe,draftStore?.read()));

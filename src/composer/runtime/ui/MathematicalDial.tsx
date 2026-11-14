@@ -1,3 +1,4 @@
+import {useNavigationState} from '../../../ui/useNavigationState.tsx';
 import {useValueDrag} from './useValueDrag.ts';
 import {useValueConfirmation} from './useValueConfirmation';
 import {useId,useLayoutEffect,useEffect,useMemo,useRef,useState} from 'react';
@@ -31,9 +32,12 @@ export function MathematicalDial({value,min,max,integer=false,label='Value',disa
  const [sign,setSign]=useState<1|-1>(()=>editing?.kind==='increment'?1:value<0?-1:1),[painting,setPainting]=useState(false);
  const [marks,setMarks]=useState<MathematicalMarks>(emptyMarks),[sample,setSample]=useState<MathematicalMarks|null>(null);
  const [session]=useState(()=>mathematicalValueSession(value)),anchor=useRef(value);
- const [rulePopup,setRulePopup]=useState<{point:Point;stage:'modes'|'amount'}|null>(()=>configure&&editing?{point:cursorPosition(),stage:'modes'}:null);
+ const [rulePopup,setRulePopup]=useNavigationState<{point:Point;stage:'modes'|'amount'}|null>(`${label}:dial-rule`,()=>configure&&editing?{point:cursorPosition(),stage:'modes'}:null);
  const [amountSample,setAmountSample]=useState<number|null>(null);
- const [exact,setExact]=useState<{point:Point;text:string}|null>(null),textInput=useRef<HTMLInputElement>(null),textFinished=useRef(false);
+ const [exactPoint,setExactPoint]=useNavigationState<Point|null>(`${label}:dial-exact`,null),[exactText,setExactText]=useState(''),textInput=useRef<HTMLInputElement>(null),textFinished=useRef(false);
+ const exact=exactPoint?{point:exactPoint,text:exactText}:null;
+ const setExact=(next:{point:Point;text:string}|null)=>{setExactPoint(next?.point??null);if(next)setExactText(next.text);};
+ useLayoutEffect(()=>{if(exactPoint){textFinished.current=false;setExactText(String(value));}},[exactPoint,value]);
  const ruleChoices=useRef<HTMLDivElement>(null);
  const ringRef=useRef<HTMLDivElement>(null),zone=useId(),drag=useRef<Stroke|null>(null),suppressClick=useRef(false);
  const hover=useRef<{key:string;brush:MathematicalSlotMode;marks:MathematicalMarks}|null>(null);

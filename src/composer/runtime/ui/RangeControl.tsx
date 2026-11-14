@@ -1,3 +1,4 @@
+import {useNavigationState} from '../../../ui/useNavigationState.tsx';
 import {createValueScrub,type ValueScrub} from './valueScrub';
 import type {StateSelectionMode} from '../properties/stateSelection';
 import { cursorPosition } from './cursorPosition';
@@ -69,8 +70,9 @@ export function RangeControl({ value: storedValue, min, max, onValueChange, onMi
   const [localInterval, setInterval] = useState({ min, max }), [localJump, setJump] = useState(resolution);
   const interval={min:saved?.min??localInterval.min,max:saved?.max??localInterval.max};
   const jump=Math.max(resolution,Math.min(saved?.step??localJump,Math.max(resolution,hardMax-hardMin)));
-  const [popupPoint,setPopupPoint]=useState<{x:number;y:number}|null>(()=>configuration==='step'?cursorPosition():null);
-  const [editing, setEditing] = useState<Edit | null>(configuration==='step'?'jump':null), [text, setText] = useState(configuration==='step'?String(jump):'');
+  const historyKey=configurationKey??String(inputProps['aria-label']??'Value');
+  const [popupPoint,setPopupPoint]=useNavigationState<{x:number;y:number}|null>(`${historyKey}:range-point`,()=>configuration==='step'?cursorPosition():null);
+  const [editing, setEditing] = useNavigationState<Edit | null>(`${historyKey}:range-edit`,configuration==='step'?'jump':null), [text, setText] = useState(configuration==='step'?String(jump):'');
   const low = onMinimumChange ? min : Math.min(value, Math.max(min, interval.min));
   const high = onMaximumChange ? max : Math.max(value, Math.min(max, interval.max));
   const sequence=useMemo(()=>values?rangeSequence(values,low,high):undefined,[values,low,high]);
@@ -114,6 +116,7 @@ export function RangeControl({ value: storedValue, min, max, onValueChange, onMi
   const gestureAPI=useRef<RangeGesture>(null!);gestureAPI.current={start:(id,x,y)=>startDrag(id,x,y,true),move:moveDrag,finish:finishDrag,cancel:cancelDrag};
   useLayoutEffect(()=>{if(!externalGesture)return;const api:RangeGesture={start:(...args)=>gestureAPI.current.start(...args),move:(...args)=>gestureAPI.current.move(...args),finish:(...args)=>gestureAPI.current.finish(...args),cancel:()=>gestureAPI.current.cancel()};externalGesture.current=api;return()=>{if(externalGesture.current===api)externalGesture.current=null;};},[externalGesture]);
   const label = inputProps["aria-label"] ?? "Value";
+  useLayoutEffect(()=>{if(editing){cancelled.current=false;setText(String(editing==='min'?low:editing==='max'?high:editing==='jump'?jump:value));}},[editing,popupPoint,low,high,jump,value]);
   const edit = (which: Edit) => { const duringGesture=!!drag.current;if(drag.current){const active=drag.current;drag.current=null;onValueCommit?.(active.next);}else cancelDrag();if(onConfigure&&onConfigure(which,duringGesture)!==false)return;setPopupPoint(cursorPosition());cancelled.current = false; setText(String(which === "min" ? low : which === "max" ? high : which === "jump" ? jump : value)); setEditing(which); };
   const choose = (next: number|undefined) => { if(next===undefined||valueDisabled)return;onValueChange(next); onValueCommit?.(next); };
   const nudge=(direction:-1|1)=>choose(sequence?sequenceStep(sequence,value,direction):rangeValue(value+direction*jump,low,high,resolution));
