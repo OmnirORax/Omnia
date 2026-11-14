@@ -6,7 +6,8 @@ export class DraftConflictError extends Error {
 export function storageFailure(status:number,value:unknown):string{
  const message=value&&typeof value==='object'&&'message' in value?value.message:undefined;
  switch(message){
-  case 'Draft image library is full':return 'The shared image library is full (100 images or 100 MiB). This image was not uploaded. Shared storage needs cleanup before retrying.';
+  case 'Draft image library is full':return 'Pending image uploads reached 100 images or 100 MiB. Wait 30 minutes for abandoned uploads to expire, then retry.';
+  case 'Draft images exceed workspace limit':return 'This workspace uses more than 100 images or 100 MiB. Remove images from the workspace before pushing.';
   case 'Draft image missing':return 'An image used by this draft is missing from shared storage. Push again to upload it.';
   case 'Invalid draft':return 'Shared storage rejected the workspace format or size. Reload the latest build and check the 4 MB workspace limit.';
   case 'Open the latest Omnium build before pushing this draft':return 'Open the latest Omnium build before pushing this draft';

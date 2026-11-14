@@ -57,7 +57,7 @@ test('known storage failures reach the website without exposing database interna
  const {draftServer}=await import('../src/cloud/server.ts');
  const original=globalThis.fetch,identity=await token();
  try{
-  for(const [message,expected] of [['Draft image library is full',/library is full.*100 MiB/],['Draft image missing',/image.*missing/],['Invalid draft',/format or size/],['secret database relation and credentials',/HTTP 500/]]){
+  for(const [message,expected] of [['Draft image library is full',/Pending.*100 MiB/],['Draft images exceed workspace limit',/workspace uses more than 100 images/],['Draft image missing',/image.*missing/],['Invalid draft',/format or size/],['secret database relation and credentials',/HTTP 500/]]){
    globalThis.fetch=async url=>String(url).includes('/certs')?Response.json({keys:[jwk]}):Response.json({message},{status:500});
    const response=await draftServer(new Request('https://api.example/',{headers:{'x-omnium-access':identity}}),{url:'https://storage.example',key:'server-only'});
    const result=await response.json();assert.match(result.error,expected);assert.doesNotMatch(result.error,/credentials|relation/);
@@ -68,4 +68,32 @@ test('the website proxy explains upstream connection failures',async()=>{
  const original=globalThis.fetch;globalThis.fetch=async()=>{throw new TypeError('private upstream details');};
  try{const response=await onRequest({request:new Request('https://omnium.nexus/api/draft',{headers:{'cf-access-jwt-assertion':'signed-session'}})});assert.equal(response.status,502);assert.match((await response.json()).error,/Could not reach/);}
  finally{globalThis.fetch=original;}
+});
+test('binary and legacy image uploads validate identity and do not overlap in one worker',async()=>{
+ const {draftServer}=await import('../src/cloud/server.ts'),{encodeBytes}=await import('../src/core/transfer.ts');
+ const original=globalThis.fetch,identity=await token(),env={url:'https://storage.example',key:'server-only'};
+ const bytes=new Uint8Array([137,80,78,71,13,10,26,10,1,2,3,4]);
+ const id='sha256:'+Buffer.from(await crypto.subtle.digest('SHA-256',bytes)).toString('hex');
+ const request=(data=bytes,type='image/png',asset=id)=>new Request(`https://api.example/?asset=${encodeURIComponent(asset)}&name=image.png`,{method:'PUT',headers:{'x-omnium-access':identity,'content-type':type},body:data});
+ let calls=0,wait,started;const pending=new Promise(resolve=>{wait=resolve;}),entered=new Promise(resolve=>{started=resolve;});
+ globalThis.fetch=async(url,init)=>{
+  if(String(url).includes('/certs'))return Response.json({keys:[jwk]});
+  const value=JSON.parse(init.body);assert.equal(value.asset_data,encodeBytes(bytes));assert.equal(value.asset_size,bytes.length);assert.equal(value.asset_name,'image.png');calls++;started();await pending;return new Response(null,{status:204});
+ };
+ try{
+  const first=draftServer(request(),env);await entered;
+  assert.equal((await draftServer(request(),env)).status,429);wait();assert.equal((await first).status,200);
+  assert.equal((await draftServer(request(JSON.stringify({id,name:'image.png',type:'image/png',data:encodeBytes(bytes)}),'application/json'),env)).status,200);
+  assert.equal(calls,2);
+  assert.equal((await draftServer(request(bytes,'image/png','sha256:'+'0'.repeat(64)),env)).status,400);
+  assert.equal((await draftServer(request(new Uint8Array(12)),env)).status,400);
+  assert.equal(calls,2);
+  // A rejected request must release the worker's transfer slot.
+  assert.equal((await draftServer(request(),env)).status,200);
+ }finally{wait();globalThis.fetch=original;}
+});
+test('the website proxy preserves binary image bodies and content types',async()=>{
+ const original=globalThis.fetch,bytes=new Uint8Array([1,2,3]);
+ globalThis.fetch=async(_url,init)=>{assert.equal(init.headers['content-type'],'image/png');assert.deepEqual(new Uint8Array(await new Response(init.body).arrayBuffer()),bytes);return Response.json({saved:true});};
+ try{assert.equal((await onRequest({request:new Request('https://omnium.nexus/api/draft?asset=image',{method:'PUT',headers:{'cf-access-jwt-assertion':'signed-session',origin:'https://omnium.nexus','content-type':'image/png'},body:bytes})})).status,200);}finally{globalThis.fetch=original;}
 });
