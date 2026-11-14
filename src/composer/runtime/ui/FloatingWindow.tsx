@@ -1,3 +1,4 @@
+import {registerWindow} from '../../../ui/windowDismissal.ts';
 import {residentRenderSlice} from './renderSubscriptions';
 import { activateFrameContext } from "./ActiveContext";
 import { useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
@@ -66,7 +67,7 @@ export function FloatingWindow({
   shape?:'rectangle'|'circle';
 }) {
   const ui = useUITracked(ui=>residentRenderSlice(ui,`window:${id}`));
-  const { ref, bounds } = useFrameBounds();
+  const { ref, bounds, element } = useFrameBounds();
   const dragged=useRef(false);
   const initial: WindowState = {
     x: x ?? (window.innerWidth - width) / 2,
@@ -99,6 +100,7 @@ export function FloatingWindow({
     };
   }, [id]);
   const [z, raise] = useWindowLayer();
+  useLayoutEffect(()=>{if(!element||saved.closed)return;return registerWindow(element,()=>ui.frameActions.get(key)?.onClose?.());},[element,key,saved.closed]);
   useLayoutEffect(() => { if (!contextController && !saved.closed && !state.collapsed) activateFrameContext(ui, key); }, [id, openingKey,contextController]);
   // Mounting a caller-controlled window is an explicit open request. Repair
   // stale closed flags from tab/fallback closes through the same model path.

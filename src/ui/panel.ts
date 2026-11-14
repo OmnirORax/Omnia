@@ -1,3 +1,4 @@
+import {registerWindow} from './windowDismissal.ts';
 import {universalHistory} from '../core/universalHistory.ts';
 let panelSequence=0;
 function retainedGeometry(initial:string){let value=initial;return {read:()=>value,write:(next:string)=>{value=next;}};}
@@ -13,8 +14,9 @@ export function panel(title: string, onClose?: () => void | boolean) {
   caption.textContent = title; close.textContent = '×'; close.setAttribute('aria-label', 'Close'); body.className = 'panel-body';
   const stopHistory=universalHistory.register(owner,{read:()=>root.style.cssText,write:value=>{root.style.cssText=value;}});
   const recordGeometry=(before:string)=>universalHistory.record(owner,before,root.style.cssText,['ui'],['omnium',owner]);
-  const dispose = () => { if (onClose?.() === false) return;stopHistory();universalHistory.register(owner,retainedGeometry(root.style.cssText));root.remove(); };
-  root.addEventListener('keydown', event => { if (event.key === 'Escape') { event.stopPropagation(); dispose(); } });
+  let stopWindow=()=>{};
+  const dispose = () => { if (onClose?.() === false) return;stopWindow();stopHistory();universalHistory.register(owner,retainedGeometry(root.style.cssText));root.remove(); };
+  stopWindow=registerWindow(root,dispose);
   close.onclick = dispose; heading.append(caption, close); root.append(heading, body); document.body.append(root);
   requestAnimationFrame(() => {
     if (!root.isConnected || !point) return;
@@ -41,5 +43,5 @@ export function panel(title: string, onClose?: () => void | boolean) {
     heading.onpointerup = () => {heading.onpointermove=null;recordGeometry(before);};
     heading.onpointercancel = () => {heading.onpointermove=null;root.style.cssText=before;};
   };
-  return { root, body, close: dispose };
+  return { root, body, close: dispose, show(){if(!root.isConnected){document.body.append(root);stopWindow=registerWindow(root,dispose);}} };
 }

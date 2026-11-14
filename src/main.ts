@@ -1,3 +1,5 @@
+import {closeActiveWindow} from './ui/windowDismissal.ts';
+import {uiPointerHeld} from './composer/runtime/ui/pointerOwnership.ts';
 import {universalHistory} from './core/universalHistory.ts';
 import {installHistoryBindings} from './ui/historyBindings.ts';
 import { transformNodes } from './core/navigation.ts';
@@ -387,18 +389,21 @@ element('undo').onclick = () => { view?.cancel(); close(); selection.cancel(); s
 element('redo').onclick = () => { view?.cancel(); close(); selection.cancel(); store.redo(); };
 search.oninput = () => { close(); refresh(); };
 search.onkeydown = event => { if (event.key === 'Enter' && shown && !selection.requesting) { selection.set(store.world.nodes.filter(node => shown!.has(key(node.origin))).map(node => node.origin)); search.blur(); refresh(); } };
-document.addEventListener('pointerdown', event => {
-  if (!tools.hidden && !tools.contains(event.target as Node)) { close(); if (event.button !== 2) { event.preventDefault(); event.stopPropagation(); } }
-}, true);
 tools.addEventListener('contextmenu', event => { event.preventDefault(); event.stopPropagation(); });
+window.addEventListener('keydown',event=>{
+  if(event.key!=='Escape'||event.defaultPrevented)return;
+  if(event.repeat){event.preventDefault();event.stopImmediatePropagation();return;}
+  const gesture=view?.cancel();
+  if(!gesture&&uiPointerHeld())return;
+  flushLiveForms();
+  if(gesture||selection.cancel()){ /* Cancel the current gesture before closing its window. */ }
+  else if(!tools.hidden)close();
+  else if(!closeActiveWindow())selection.set([]);
+  event.preventDefault();event.stopImmediatePropagation();message='';refresh();
+},true);
 document.addEventListener('keydown', event => {
   const editing = event.target instanceof Element && (!!event.target.closest('[data-input-owner]') || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement);
   if (event.target instanceof Element && event.target.closest('[data-input-owner]')) return;
-  if (event.key === 'Escape') {
-    const gesture = view?.cancel(), popup = !tools.hidden; close();
-    if (!selection.cancel() && !gesture && !popup) selection.set([]);
-    message = ''; refresh(); return;
-  }
   if (editing) return;
   if(event.key.toLowerCase()==='s'&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&!event.repeat){event.preventDefault();searchSettings();return;}
 

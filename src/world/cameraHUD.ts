@@ -13,5 +13,5 @@ export function cameraHUD(action:(action:CameraAction)=>void){
  const actions=document.createElement('div');actions.className='camera-guide-actions';
  for(const [key,label] of [['zoom100','100%'],['cameraOrigin','Origin'],['rollLeft','↶'],['rollRight','↷'],['front','Front'],['all','Fit all'],['back','Back'],['settings','Navigation']] as const){const button=document.createElement('button');button.textContent=label;button.type='button';button.onclick=()=>action(key);actions.append(button);}
  guide.append(actions);view.body.append(guide);
- return {root:view.root,show(){if(!view.root.isConnected)document.body.append(view.root);},update(camera:PerspectiveCamera,target:Vector3,selected?:Vector3){updateCameraGuide(guide,camera,target,selected);}};
+ return {root:view.root,show(){view.show();},update(camera:PerspectiveCamera,target:Vector3,selected?:Vector3){updateCameraGuide(guide,camera,target,selected);}};
 }
