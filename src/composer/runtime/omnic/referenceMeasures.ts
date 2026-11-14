@@ -11,7 +11,7 @@ export function measuredReferenceFor(snapshot:OperationGeometry,degree:EditableD
  const target=ids[0],source=id??target,parameter=targetParameter(degree),domain=stateFieldDomain(parameter);if(!domain)return;
  const view=snapshot.views.get(source),bounds=source==='@environment'?environment:view?.bounds;
  if(!bounds)return;
- const context=fieldReferenceFor(snapshot,degree,source,environment),unit=domain.unit??domain.quantity??parameter.property;
+ const context=fieldReferenceFor(snapshot,degree,source,environment)??(source==='@environment'?{id:source,label:'Omnic composer',value:parameter.selection?.north??Number(targetDegreeValue(snapshot.recipe,degree))}:undefined),unit=domain.unit??domain.quantity??parameter.property;
  const own=snapshot.views.get(target),axis=parameter.measurement==='center-x'?'x':parameter.measurement==='center-y'?'y':undefined;
  if(ids.length>1&&!axis)return;
  if(axis&&ids.some(id=>snapshot.views.get(id)?.transformed)||axis&&own?.transformed||unit==='length'&&own?.scaled)return;
@@ -31,7 +31,7 @@ export function measuredReferenceFor(snapshot:OperationGeometry,degree:EditableD
   const value=Number(targetDegreeValue(snapshot.recipe,other));if(Number.isFinite(value))measures.push({id:`value:${other.id}`,label:other.label,symbol:other.symbol??'●',unit,value});
  }
  if(!measures.length)return;
- return {...(context??{id:source,label:source===target?'Self':source==='@environment'?'Environment':source.slice(0,6),value:Number(targetDegreeValue(snapshot.recipe,degree))}),unit,measures:measures.map(m=>({...m,matchOffset}))};
+ return {...(context??{id:source,label:source===target?'Self':source==='@environment'?'Omnic composer':source.slice(0,6),value:Number(targetDegreeValue(snapshot.recipe,degree))}),unit,measures:measures.map(m=>({...m,matchOffset}))};
 }
 
 
@@ -41,11 +41,10 @@ export function compatibleDegreeReference(snapshot:OperationGeometry,degree:Edit
  return (degree.axes??[degree]).every(axis=>targetParameter(axis).kind==='number'?!!measuredReferenceFor(snapshot,axis,id,environment):compatibleReferenceSource(snapshot.recipe,axis,id));
 }
 export function defaultDegreeReference(degree:EditableDegree){
- return (degree.axes??[degree]).every(axis=>['center-x','center-y'].includes(targetParameter(axis).measurement??''))?'@environment':undefined;
+ return (degree.axes??[degree]).every(axis=>targetParameter(axis).kind==='number')?'@environment':undefined;
 }
 
-/** Switching DOFs must not retain an incompatible reference from the previous
- * freedom (for example Position's Environment when opening Rotation). */
+/** Explicit compatible choices win; otherwise use the composer frame. */
 export function degreeReferenceSource(snapshot:OperationGeometry,degree:EditableDegree,retained:string|undefined,environment?:ResizeRect){
  if(retained&&compatibleDegreeReference(snapshot,degree,retained,environment))return retained;
  const fallback=defaultDegreeReference(degree);return fallback&&compatibleDegreeReference(snapshot,degree,fallback,environment)?fallback:undefined;

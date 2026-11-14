@@ -1,8 +1,9 @@
-import {checkedWorld,sceneReferences,encodeBytes,type SceneFile} from '../core/transfer.ts';
+import {checkedWorld,sceneReferences} from '../core/transfer.ts';
 import type {World} from '../core/model.ts';
 import {listLocalScenes,localSceneBlob,prepareLocalScene,saveLocalScenes} from '../scene/library.ts';
 import {DEFAULT_BACKGROUND} from '../scene/defaultBackground.ts';
 import {draftRequest as request} from './request.ts';
+import {pendingImageDeletions,acknowledgeImageDeletions} from './imageDeletions.ts';
 type Asset={id:string;name:string;type:string};
 export function createDraftClient(){
  let known=new Set<string>(),assets:Asset[]=[];
@@ -18,11 +19,14 @@ export function createDraftClient(){
    }
   },
   async save(world:World,revision:number){
+   const deleted=pendingImageDeletions();
    const references=[...sceneReferences(world)].filter(id=>!known.has(id));
    if(references.length){const metadata=new Map((await listLocalScenes()).map(asset=>[asset.id,asset]));
-    for(const id of references){const asset=metadata.get(id);if(!asset)throw Error('A draft image is missing locally.');const blob=await localSceneBlob(id);const file:SceneFile={id,name:asset.name,type:asset.type,data:encodeBytes(new Uint8Array(await blob.arrayBuffer()))};await request(`?asset=${encodeURIComponent(id)}`,'PUT',file);known.add(id);}
+    for(const id of references){const asset=metadata.get(id);if(!asset)throw Error('A draft image is missing locally.');const blob=await localSceneBlob(id);await request(`?asset=${encodeURIComponent(id)}&name=${encodeURIComponent(asset.name)}`,'PUT',blob);known.add(id);}
    }
-   return (await(await request('','PUT',{version:1,revision,world:checkedWorld(world)})).json()).revision as number;
+   const saved=(await(await request('','PUT',{version:1,revision,world:checkedWorld(world),deletedImages:deleted.map(item=>item.id)})).json()).revision as number;
+   acknowledgeImageDeletions(deleted);
+   known=new Set(sceneReferences(world));return saved;
   },
  };
 }

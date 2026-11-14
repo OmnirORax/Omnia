@@ -65,7 +65,7 @@ export function OperationReferenceScope({recipe,evaluation,resolve,read,error,co
   },owner);
  },configured:degree=>relations.has(relationKey(degree))||relations.has(vectorKey(degree)),
  changeSettings:(degree,patch)=>setRelations(before=>{const next=new Map(before);next.set(relationKey(degree),{...settings(degree),...patch});return next;}),
- reference:(degree,consumer=degree)=>{if(!snapshot)return;const source=measuredReferenceFor(snapshot,degree.axes?.[0]??degree,references.get(degree.targets[0].id),environment);return source?resolveReferenceUse(source,settings(consumer),Number(targetDegreeValue(snapshot.recipe,degree))):undefined;},
+ reference:(degree,consumer=degree)=>{if(!snapshot)return;const source=measuredReferenceFor(snapshot,degree.axes?.[0]??degree,degreeReferenceSource(snapshot,degree,references.get(degree.targets[0].id),environment),environment);return source?resolveReferenceUse(source,settings(consumer),Number(targetDegreeValue(snapshot.recipe,degree))):undefined;},
  pick:(degree,owner)=>pickReference(degree,(live,id,point)=>{
   const source=measuredReferenceFor(live,degree.axes?.[0]??degree,id,environment);if(!source)return;
   const reference=resolveReferenceUse(source,settings(degree),Number(targetDegreeValue(live.recipe,degree)))??{id:source.id,label:source.label,unit:source.unit,value:source.value,use:settings(degree).use};
@@ -92,7 +92,7 @@ export function OperationDegreeScope({degree,children}:{degree:EditableDegree;ch
  const reference=useMemo<NumericReferenceControl|undefined>(()=>{
   const snapshot=scope?.snapshot;
   if(!scope||!snapshot||degree.properties.length!==1&&!degree.axes)return;
-  const target=ids[0],retained=scope.references.get(target),parameter=targetParameter(degree);
+  const target=ids[0],retained=degreeReferenceSource(snapshot,degree,scope.references.get(target),scope.environment),parameter=targetParameter(degree);
   if(parameter.kind!=='number')return;
   const allowed=(value:number)=>{try{writeTargetDegree(snapshot.recipe,degree,value);return true;}catch{return false;}};
   if(ids.length!==1)return {allowed,targets:ids};

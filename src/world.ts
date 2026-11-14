@@ -80,6 +80,7 @@ export function createWorld(host: HTMLElement, input: Input) {
   let mountedWorld: World | undefined,omnic:OmnicSurface|undefined,omnicGesture:{surface:OmnicSurface;id:number;bounds:OmnicSurface['bounds']}|undefined;
   const omnicPoint=new T.Vector3(),omnicCenter=new T.Vector3(),omnicQuaternion=new T.Quaternion(),omnicScale=new T.Vector3();
   function editPoint(event:PointerEvent|MouseEvent,surface:OmnicSurface,inside=false){
+    if(surface.worldInput===false)return;
     const origin=surface.origin,visual=origin&&visuals.get(key(origin));if(!visual?.group.visible||!visual.object?.visible)return;
     pointer({x:event.clientX,y:event.clientY});visual.object.getWorldPosition(omnicCenter);visual.object.getWorldQuaternion(omnicQuaternion);visual.object.getWorldScale(omnicScale);
     if(!ray.ray.intersectPlane(new T.Plane().setFromNormalAndCoplanarPoint(new T.Vector3(0,0,1).applyQuaternion(omnicQuaternion),omnicCenter),omnicPoint))return;
@@ -290,7 +291,7 @@ export function createWorld(host: HTMLElement, input: Input) {
     if(event.button===2){cancelDrive();navigation.begin(event,{...NAV_DEFAULTS,...world.settings?.navigation});}
     nudging.finish(true);held.clear();secondary.cancel();secondarySurface=undefined;
     if(omnicGesture&&omnicGesture.id===event.pointerId){const point=editPoint(event,omnicGesture.surface);if(point)omnicGesture.surface.down(point,event);event.preventDefault();event.stopImmediatePropagation();return;}
-    if(omnic?.origin&&!drive.active&&!input.picking()){const hit=pointed({x:event.clientX,y:event.clientY}),point=hit.origin&&sameOrigin(hit.origin,omnic.origin)?editPoint(event,omnic,true):undefined;if(point){omnicGesture={surface:omnic,id:event.pointerId,bounds:{...omnic.bounds}};if(event.button===2)secondarySurface={surface:omnic,released:false,context:false};controls.enabled=false;event.preventDefault();event.stopImmediatePropagation();canvas.setPointerCapture(event.pointerId);omnic.down(point,event);return;}}
+    if(omnic?.origin&&omnic.worldInput!==false&&!drive.active&&!input.picking()){const hit=pointed({x:event.clientX,y:event.clientY}),point=hit.origin&&sameOrigin(hit.origin,omnic.origin)?editPoint(event,omnic,true):undefined;if(point){omnicGesture={surface:omnic,id:event.pointerId,bounds:{...omnic.bounds}};if(event.button===2)secondarySurface={surface:omnic,released:false,context:false};controls.enabled=false;event.preventDefault();event.stopImmediatePropagation();canvas.setPointerCapture(event.pointerId);omnic.down(point,event);return;}}
     const p={x:event.clientX,y:event.clientY},hit=pointed(p),range=event.button===0&&(event.ctrlKey||event.metaKey),moving=event.button===0&&!!hit.origin&&!range&&!drive.active&&!input.picking();
     let mode:Gesture['mode']=drive.active&&event.button===0?'drive':range?'range':moving?'move':'view';
     if(event.button===0&&event.altKey&&!input.picking()){

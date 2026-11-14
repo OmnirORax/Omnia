@@ -1,7 +1,7 @@
 import {registerTopLayerPriority,TOP_LAYER_PRIORITY} from './topLayerOrder';
 import {contextNavigationAction,confirmContextStage} from './contextNavigation';
 import {cursorSample,popupInvocation} from './cursorPosition';
-import {placePopup,popupBelowButton,type PopupRect} from './popupPlacement';
+import {controllerCenter,type PopupRect} from './popupPlacement';
 import { createContext, useContext, useMemo, useEffect, useLayoutEffect, useRef, useCallback, useState, type ReactNode, type WheelEvent, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { useActiveLayer } from "./ActiveContext";
@@ -45,9 +45,9 @@ export function ContextualMasterController({ title, hint, position, onClose, onD
     const fit = () => {
       const bounds = node.getBoundingClientRect();
       const requested={x:radial?anchor!.x:anchor!.x+bounds.width/2,y:radial?anchor!.y:anchor!.y+bounds.height/2};
-      const owners=anchored?[]:[invocation.current,...parents.map(p=>p.current)].filter((owner):owner is Element=>!!owner&&owner.isConnected&&!node.contains(owner));
+      const owners=anchored||radial?[]:[invocation.current,...parents.map(p=>p.current)].filter((owner):owner is Element=>!!owner&&owner.isConnected&&!node.contains(owner));
       const parentBounds=owners.map(owner=>{const b=owner.getBoundingClientRect();return {x:b.left,y:b.top,width:b.width,height:b.height};}).filter(b=>b.width>0&&b.height>0);
-      const center=!anchored&&buttonAnchor.current?popupBelowButton(buttonAnchor.current,bounds,parentBounds):placePopup(parentBounds,bounds,requested);
+      const center=controllerCenter(requested,bounds,parentBounds,buttonAnchor.current,radial,anchored);
       node.style.left = `${center.x-bounds.width/2}px`;
       node.style.top = `${center.y-bounds.height/2}px`;
     };
