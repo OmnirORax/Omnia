@@ -9,7 +9,7 @@ export function HoverPreviewScope({children}:{children:ReactNode}){
  useLayoutEffect(()=>{
   let frame=0,x=0,tail=false;
   const flush=()=>{cancelAnimationFrame(frame);frame=0;session.move(x);};
-  const move=(e:PointerEvent)=>{if(!session.active()||e.buttons)return;x=e.clientX;if(!frame)frame=requestAnimationFrame(flush);};
+  const move=(e:PointerEvent)=>{if(!session.active()||e.buttons)return;if(e.target instanceof Element&&e.target.closest('[data-hover-preview-disabled]')){session.cancel();return;}x=e.clientX;if(!frame)frame=requestAnimationFrame(flush);};
   const consume=(e:Event)=>{e.preventDefault();e.stopImmediatePropagation();};
   const down=(e:PointerEvent)=>{tail=false;if(!session.active())return;if(e.button!==0){session.cancel();return;}x=e.clientX;flush();if(session.commit()){tail=true;consume(e);}};
   const after=(e:Event)=>{if(!tail)return;consume(e);if(e.type==='click')tail=false;};
@@ -27,7 +27,7 @@ export function HoverValue({value,min,max,step,preview,commit,children}:{value:n
  useLayoutEffect(()=>{
   const element=root.current?.closest('.radial-menu-slot')??root.current;if(!element||!session)return;
   const enter=(event:Event)=>{
-   const e=event as PointerEvent;if(e.pointerType!=='mouse'||e.buttons||session.owns(owner.current))return;
+   const e=event as PointerEvent;if(e.pointerType!=='mouse'||e.buttons||session.owns(owner.current)||element.closest('[data-hover-preview-disabled]'))return;
    if(session.active())flushSync(()=>session.cancel());
    if(!element.isConnected)return;
    let scrub:ValueScrub,next=latest.current.value,before=next;

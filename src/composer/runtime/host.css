@@ -698,3 +698,5 @@ html[data-ui-edit-mode] .ui-field-edge:hover { background: color-mix(in srgb, va
 .floating-title.frame-chrome{inset:auto;left:0;top:0;border-radius:0}
 .floating-window-circle .window-tools{display:flex;position:absolute;left:100%;top:0;width:24px;height:24px}
 html[data-tool-cursor],html[data-tool-cursor] *{cursor:none!important}
+
+.floating-window>.floating-window-content>.frame-chrome{pointer-events:auto}

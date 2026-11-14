@@ -1,3 +1,4 @@
+import {useHoverPreview} from '../ui/HoverPreview';
 import type {RecipeResolver} from './model';
 import { contextEditTargets } from "./componentTargets";
 import {preserveLegacyRegionFills} from './fillRegion';
@@ -314,13 +315,18 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
     frame = window.requestAnimationFrame(tick);
     return () => { window.cancelAnimationFrame(frame); observer.disconnect(); document.removeEventListener("visibilitychange", stop); media.removeEventListener("change", stop); if (preview.current) preview.current.innerHTML = recipeRef.current===recipe?(playback.current.html??htmlRef.current):htmlRef.current; };
   }, [playing, recipe, resolve, html, viewBox]);
+  const generatorConstruction=(base:Recipe,kind:string)=>{
+    const spec=GENERATORS.find(g=>g.id===kind)!;
+    const component:Component={id:id(),generator:kind,params:defaultParams(spec),...(kind==='group'?{children:[]}:{}),...(kind==='reference'?{reference}:{})};
+    const parent=activeComponent?.generator==='group'?activeComponent.id:null;
+    return {component,recipe:{...base,components:parent?updateComponents(base.components,parent,group=>({...group,children:[...group.children??[],component]})):[...base.components,component]}};
+  };
   const addGenerator = (kind=generator) => {
     const spec = GENERATORS.find(value => value.id === kind); if (!spec) return;
     if (kind === "reference" && !reference) { if(radar)setRadarPanel({kind:'reference'});else setError("Choose an existing Omnic object to reuse."); return; }
-    const component: Component = { id: id(), generator:kind, params: defaultParams(spec), ...(kind === "group" ? { children: [] } : {}), ...(kind === "reference" ? { reference } : {}) };
-    const parent = activeComponent?.generator === "group" ? activeComponent.id : null;
-    if (!commit({ ...recipe, components: parent ? updateComponents(recipe.components, parent, group => ({ ...group, children: [...group.children ?? [], component] })) : [...recipe.components, component] })) return;
-    setFocus({ kind: "component", id: component.id }); setPicked([component.id]);
+    const prepared=generatorConstruction(recipeRef.current,kind);
+    if(!commit(prepared.recipe))return;
+    setFocus({kind:'component',id:prepared.component.id});setPicked([prepared.component.id]);
   };
   const changeOperation = (operationId: string, patch: Partial<Application>) => commit({ ...recipe, operations: recipe.operations.map(operation => operation.id === operationId ? { ...operation, ...patch } : operation) });
   const locateDiagnostic=(operationId:string)=>{if(!diagnosticOperation(draftRef.current,operationId))return;setSample(null);setError('');setNotice('');setFocus({kind:'operation',id:operationId});if(radar)setRadarPanel({kind:'parameters',index:0});};
@@ -355,14 +361,14 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
       try { return { value, recipe: candidate, html: renderSVG(evaluateRecipe(candidate, resolve)) }; } catch { return null; }
     }).filter((candidate): candidate is { value: number; recipe: Recipe; html: string } => candidate !== null);
   }, [recipe, active, spec, neighborParameter, thresholds, resolve, evaluated.result,radar]);
-  const choosePreset=(source:Recipe)=>{
+  const choosePreset=(source:Recipe,base=recipeRef.current)=>{
       try {
         const tool=isOperationTool(source);
         const targets=atomnicActive?[...(atomnicBridge?.selected??[])]:picked;
         if(tool&&!targets.length)throw Error('Select a target before applying an operation preset.');
-        const inserted=tool?undefined:insertConstruction(recipeRef.current,source,presetPoint.current,id,{...presentationBounds,round:radar});
-        const next=inserted?.recipe??applyOperationTool(recipeRef.current,source,targets,id);
-        const ids=inserted?.ids??next.operations.slice(recipeRef.current.operations.length).map(op=>op.id);
+        const inserted=tool?undefined:insertConstruction(base,source,presetPoint.current,id,{...presentationBounds,round:radar});
+        const next=inserted?.recipe??applyOperationTool(base,source,targets,id);
+        const ids=inserted?.ids??next.operations.slice(base.operations.length).map(op=>op.id);
         if(commit(next)){
           // Selection dismisses the previous panel; open the inserted preset's editor afterwards.
           if(inserted){setPicked(inserted.roots);atomnicBridge?.select?.(inserted.roots);setFocus({kind:'component',id:inserted.roots[0]});}
@@ -371,12 +377,27 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
         }
       }catch(failure){setError(failure instanceof Error?failure.message:String(failure));}
     };
+  const constructionHover=useHoverPreview();
+  const manualPath=(items:readonly Component[]):boolean=>items.some(c=>c.generator==='path-rule'||manualPath(c.children??[]));
+  const previewPreset=(source:Recipe)=>{
+    constructionHover?.cancel();
+    if(!constructionHover||isOperationTool(source)||manualPath(source.components))return;
+    const base=draftRef.current;
+    try{const inserted=insertConstruction(base,source,presetPoint.current,id,{...presentationBounds,round:radar});
+      constructionHover.enter(source,{start:()=>{commit(inserted.recipe,true);},move:()=>{},commit:()=>{setSample(null);choosePreset(source,base);},cancel:()=>setSample(null)},0);
+    }catch(failure){setError(failure instanceof Error?failure.message:String(failure));}
+  };
+  const previewGenerator=(spec:typeof GENERATORS[number])=>{
+    constructionHover?.cancel();if(!constructionHover||['path-rule','reference','group'].includes(spec.id))return;
+    const prepared=generatorConstruction(draftRef.current,spec.id);
+    constructionHover.enter(spec,{start:()=>{commit(prepared.recipe,true);},move:()=>{},commit:()=>{setSample(null);if(commit(prepared.recipe)){setFocus({kind:'component',id:prepared.component.id});setPicked([prepared.component.id]);}},cancel:()=>setSample(null)},0);
+  };
   if(radar) {
     const actionEntry=(key:string,label:string,symbol:string,group:readonly RadialGroup[],run:()=>void,configure?:()=>void):RadialEntry<ReactNode>=>({id:key,label,symbol,group,content:<><UIAction registerOnly id={key} label={label} symbol={symbol} category="Omnic" onClick={run} onConfigure={configure}/><FunctionControl id={key} mirror symbol={symbol} tooltip={`${label}${configure?' · Right-click configures':''}`}/></>});
     const entries:RadialEntry<ReactNode>[]=[
       ...FEATURE_ACTIONS.filter(action=>action.owner==='omnicComposer'&&'radial' in action).map(action=>({id:action.id,label:action.label,symbol:'radial' in action?action.radial.symbol:'◇',group:'radial' in action?action.radial.group:[],content:<FunctionControl id={action.id} mirror symbol={'radial' in action?action.radial.symbol:'◇'} tooltip={action.description}/>})),
       {id:'omnic:copy-name',label:isNew?'Glyph name':'Copy name',symbol:'✎',group:[radialGroups.object,radialGroups.save],content:<FunctionControl id="omnic:copy-name" mirror symbol="✎" tooltip={`${isNew?'Glyph name':'Copy name'} · ${copyLabel}`}/>},
-      ...(!atomnicActive?GENERATORS.filter(g=>!g.derived).map(g=>actionEntry(`omnic:add-generator:${g.id}`,g.label,g.symbol??'◇',[radialGroups.construct],()=>{setGenerator(g.id);addGenerator(g.id);})):[]),
+      ...(!atomnicActive?GENERATORS.filter(g=>!g.derived).map(g=>{const entry=actionEntry(`omnic:add-generator:${g.id}`,g.label,g.symbol??'◇',[radialGroups.construct],()=>{setGenerator(g.id);addGenerator(g.id);});return {...entry,content:<span style={{display:'contents'}} onPointerEnter={()=>previewGenerator(g)}>{entry.content}</span>};}):[]),
       ...components.map(c=>actionEntry(`omnic:component:${c.id}`,`${GENERATORS.find(g=>g.id===c.generator)?.label} · ${c.id.slice(0,6)}`,GENERATORS.find(g=>g.id===c.generator)?.symbol??'◇',[radialGroups.object,radialGroups.structure],()=>{setFocus({kind:'component',id:c.id});setPicked([c.id]);},()=>{setFocus({kind:'component',id:c.id});setPicked([c.id]);setRadarPanel({kind:'parameters',index:0});})),
       ...(activeComponent?[actionEntry(`omnic:remove-component:${activeComponent.id}`,'Remove selected component','×',[radialGroups.object,radialGroups.structure],()=>{commit({...recipe,components:removeComponent(recipe.components,activeComponent.id)});setFocus(null);})]:[]),
       ...(activeComponent?.reference?[actionEntry('omnic:radar-dependency','Dependency version','#',[radialGroups.object,radialGroups.structure],()=>setRadarPanel({kind:'dependency'}))]:[]),
@@ -400,7 +421,7 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
     const changePresetDegree=(degree:EditableDegree,value:DegreeEditValue,temporary=false)=>{try{commit(writeTargetDegree(recipeRef.current,degree,value),temporary);}catch(failure){setError(failure instanceof Error?failure.message:String(failure));}};
     const presetOpen=radarPanel?.kind==='presets';
     const presetOptions=presetOpen&&!presetSession?[...PRESETS.map(p=>({id:p.id,label:p.label,symbol:p.symbol??GENERATORS.find(g=>g.id===p.recipe.components[0]?.generator)?.symbol??'❉',recipe:p.recipe})),...objects.filter(o=>o.omnic&&(presetIds.includes(o.id)||isOperationTool(o.omnic))).map(o=>({id:`saved:${o.id}`,label:o.label||o.id,symbol:isOperationTool(o.omnic!)?'✥':'❉',recipe:o.omnic!}))]:[];
-    const presetPanel=presetSession?presetDegree?<PresetDegreeEditor key={`${presetDegree.id}:${presetSession.configure}`} recipe={recipe} degree={presetDegree} configure={presetSession.configure} onDismiss={closePreset} onPreview={value=>changePresetDegree(presetDegree,value,true)} onCommit={value=>changePresetDegree(presetDegree,value)}/>:<RadialMenu items={radialTree([...presetDegrees.map(degree=>({group:degree.group,id:degree.id,label:degree.label,symbol:degree.symbol??nameSymbol(degree.id,degree.label),setter:<DegreeSetter recipe={recipe} degree={degree} onPreview={value=>changePresetDegree(degree,value,true)} onCommit={value=>changePresetDegree(degree,value)} onOpen={()=>setPresetSession({...presetSession,degree:degree.id,configure:false})}/>,content:<><UIAction registerOnly id={`omnic:preset-dof:${degree.id}`} category="Omnic" label={degree.label} onClick={()=>setPresetSession({...presetSession,degree:degree.id,configure:false})} onConfigure={()=>setPresetSession({...presetSession,degree:degree.id,configure:true})}/><FunctionControl id={`omnic:preset-dof:${degree.id}`} mirror symbol={degree.symbol??nameSymbol(degree.id,degree.label)} symbolOpacity={degree.symbolOpacity} symbolFill={degree.symbolFill} tooltip={`${degree.label} · ${degree.axes?'Vector':targetDegreeValue(recipe,degree)} · Right-click configures snaps`}/></>}))])} onClose={closePreset}/>:<RadialMenu items={[...presetOptions.map(option=>({id:option.id,label:option.label,symbol:option.symbol,group:[],content:<button type="button" title={option.label} aria-label={option.label} onClick={()=>choosePreset(option.recipe)}>{option.symbol}</button>})),...[...new Map(GENERATORS.flatMap(g=>g.parameters.filter(p=>p.editor==='reference-region').map(p=>[p.property,p] as const))).values()].map(p=>({id:`region:${p.property}`,label:p.label,symbol:p.freedom?.symbol??'◐',group:[],content:<button type="button" title={`${p.label} · select reference thresholds`} aria-label={p.label} onClick={()=>{setSample(null);setRadarPanel({kind:'region',property:p.property});}}>{p.freedom?.symbol??'◐'}</button>}))]} onClose={closePreset}/>;
+    const presetPanel=presetSession?presetDegree?<PresetDegreeEditor key={`${presetDegree.id}:${presetSession.configure}`} recipe={recipe} degree={presetDegree} configure={presetSession.configure} onDismiss={closePreset} onPreview={value=>changePresetDegree(presetDegree,value,true)} onCommit={value=>changePresetDegree(presetDegree,value)}/>:<RadialMenu items={radialTree([...presetDegrees.map(degree=>({group:degree.group,id:degree.id,label:degree.label,symbol:degree.symbol??nameSymbol(degree.id,degree.label),setter:<DegreeSetter recipe={recipe} degree={degree} onPreview={value=>changePresetDegree(degree,value,true)} onCommit={value=>changePresetDegree(degree,value)} onOpen={()=>setPresetSession({...presetSession,degree:degree.id,configure:false})}/>,content:<><UIAction registerOnly id={`omnic:preset-dof:${degree.id}`} category="Omnic" label={degree.label} onClick={()=>setPresetSession({...presetSession,degree:degree.id,configure:false})} onConfigure={()=>setPresetSession({...presetSession,degree:degree.id,configure:true})}/><FunctionControl id={`omnic:preset-dof:${degree.id}`} mirror symbol={degree.symbol??nameSymbol(degree.id,degree.label)} symbolOpacity={degree.symbolOpacity} symbolFill={degree.symbolFill} tooltip={`${degree.label} · ${degree.axes?'Vector':targetDegreeValue(recipe,degree)} · Right-click configures snaps`}/></>}))])} onClose={closePreset}/>:<RadialMenu items={[...presetOptions.map(option=>({id:option.id,label:option.label,symbol:option.symbol,group:[],content:<button type="button" title={option.label} aria-label={option.label} onPointerEnter={()=>previewPreset(option.recipe)} onClick={()=>choosePreset(option.recipe)}>{option.symbol}</button>})),...[...new Map(GENERATORS.flatMap(g=>g.parameters.filter(p=>p.editor==='reference-region').map(p=>[p.property,p] as const))).values()].map(p=>({id:`region:${p.property}`,label:p.label,symbol:p.freedom?.symbol??'◐',group:[],content:<button type="button" title={`${p.label} · select reference thresholds`} aria-label={p.label} onClick={()=>{setSample(null);setRadarPanel({kind:'region',property:p.property});}}>{p.freedom?.symbol??'◐'}</button>}))]} onClose={closePreset}/>;
     const panel=radarPanel?.kind==='region'?<ReferenceRegionEditor onDismiss={()=>{setSample(null);setRadarPanel(null);}}/>:presetOpen?<form style={{display:'contents'}} onSubmit={event=>{event.preventDefault();confirmPreset();}} onKeyDown={event=>{if(event.key==='Enter'&&event.target instanceof HTMLInputElement&&event.target.type==='range'){event.preventDefault();event.stopPropagation();confirmPreset();}}}>{presetPanel}<button type="submit" hidden disabled={!presetSession}/></form>:legacyPanel;
     const feedback=error||evaluated.error||notice||evaluated.result?.diagnostics[0]?.message;
     const feedbackDiagnostic=!error&&!evaluated.error?evaluated.result?.diagnostics.find(d=>d.message===feedback):undefined;

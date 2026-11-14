@@ -84,7 +84,7 @@ export function MathematicalDial({value,min,max,integer=false,label='Value',disa
  const horizontal=useHoverPreview(),horizontalOwner=useRef({});
  const horizontalCallbacks=useRef({preview,commit,cancel});horizontalCallbacks.current={preview,commit,cancel};
  useLayoutEffect(()=>{
-  if(!horizontal||disabled||configure)return;
+  if(!horizontal||disabled||configure||ringRef.current?.closest('[data-hover-preview-disabled]'))return;
   const choices=rings.slice(0,orders).flatMap(ring=>Array.from({length:ring.count},(_,i)=>{
    const key=`${ring.order}:${i}`,candidate=paintMathematicalSlots(marks,[key],brush,marks.selected.includes(key)),n=total(candidate);
    return {key,candidate,n};

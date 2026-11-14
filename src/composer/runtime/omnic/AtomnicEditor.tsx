@@ -4,7 +4,7 @@ import {planeFieldCandidate,sameVector} from '../properties/vectorStateField';
 import {useWorkingSelectionReader} from '../ui/RangeControl';
 import {targetBounds} from './contextGeometry';
 import {isTypingTarget} from '../workspaceActions';
-import {deleteComponents} from './componentTargets';
+import {componentIndex,deleteComponents} from './componentTargets';
 import {paintSamples} from './paintStroke.ts';
 import { contextEditTargets } from "./componentTargets";
 import {componentAttachments,detachComponentAttachment} from './componentAttachments';
@@ -369,7 +369,7 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
         if(!positionPreview.current){
           if(owner!==hoverTarget.current){hoverTarget.current=owner;setHovered(owner?[owner]:[]);}
           if(!owner)hoverSuppressed.current=undefined;
-          if(owner&&owner!==hoverSuppressed.current){
+          if(owner&&owner!==hoverSuppressed.current&&componentIndex(recipeRef.current).get(owner)?.component.generator!=='path-rule'){
             const base=referencePicker?.snapshot?.recipe??recipeRef.current,ids=selectedRef.current.has(owner)?[...selectedRef.current]:[owner],degree=targetPlacementDegree(base,ids);
             if(degree?.axes?.length===2){dofHover?.cancel();cancelPreview?.();positionPreview.current={base,degree,ids,next:base,boundary:{...bounds},fields:positionFields(base,degree),pending:false,source:referencePicker};
               if(referencePicker?.chooseReference(degree,'@environment'))positionPreview.current.pending=true;

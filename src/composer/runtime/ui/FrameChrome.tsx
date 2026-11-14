@@ -145,7 +145,7 @@ export function FrameChrome({
         <div
           className={`ui-frame-handle ${style.mode === "icon" ? `icon-handle shape-${style.geometry}` : ""}`}
           data-ui-drag={fixed ? undefined : container}
-          draggable={container!=="window:omnic-composer"&&!fixed && ui.canMove(container)}
+          draggable={false}
           onDragStart={(e) => startResidentDrag(e, container)}
           title={tooltip ?? (ui.layout.hideNames ? title : "")}
           data-ui-tooltip={tooltip}

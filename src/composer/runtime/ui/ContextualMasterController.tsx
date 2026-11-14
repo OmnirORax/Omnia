@@ -91,6 +91,6 @@ export function ContextualMasterController({ title, hint, position, onClose, onD
     onContextMenu={event=>{event.preventDefault();event.stopPropagation();}}
     role="dialog" aria-label={`Master controller — ${title}`} onWheel={onWheel}
     style={{left:anchor!.x,top:anchor!.y}}>
-    {!radial&&<><strong data-dial-drag style={{cursor:"grab",userSelect:"none",touchAction:"none"}} title={`Drag · ${title}`}>{title}</strong>{hint && <p>{hint}</p>}</>}<ContextStage.Provider value={nextStage}><ContextValueCompletion.Provider value={completeValue}><ContextNavigationRegistry.Provider value={registerNavigation}><PopupParents.Provider value={ancestry}>{children}</PopupParents.Provider></ContextNavigationRegistry.Provider></ContextValueCompletion.Provider></ContextStage.Provider>
+    {!radial&&<><strong data-dial-drag style={{display:"block",width:"100%",boxSizing:"border-box",cursor:"grab",userSelect:"none",touchAction:"none"}} title={`Drag · ${title}`}>{title}</strong>{hint && <p>{hint}</p>}</>}<ContextStage.Provider value={nextStage}><ContextValueCompletion.Provider value={completeValue}><ContextNavigationRegistry.Provider value={registerNavigation}><PopupParents.Provider value={ancestry}>{children}</PopupParents.Provider></ContextNavigationRegistry.Provider></ContextValueCompletion.Provider></ContextStage.Provider>
   </div>, document.body);
 }
