@@ -1,4 +1,5 @@
 import {VIEW_CLOSE,VIEW_GEOMETRY} from './viewHistory.ts';
+import {windowDrag} from './windowDrag';
 import {registerWindow} from './windowDismissal.ts';
 import {universalHistory} from '../core/universalHistory.ts';
 let panelSequence=0;
@@ -42,13 +43,7 @@ export function panel(title: string, onClose?: () => void | boolean) {
     const finish=()=>{window.removeEventListener('pointerup',finish,true);window.removeEventListener('pointercancel',finish,true);if(root.isConnected)recordGeometry(before);};
     window.addEventListener('pointerup',finish,true);window.addEventListener('pointercancel',finish,true);
   });
-  heading.onpointerdown = event => {
-    if (actions.contains(event.target as Node) || event.button !== 0) return;
-    const before=root.style.cssText,box = root.getBoundingClientRect(), start = { x: event.clientX, y: event.clientY };
-    heading.setPointerCapture(event.pointerId);
-    heading.onpointermove = move => { root.style.left = `${Math.max(0, Math.min(innerWidth - 40, box.left + move.clientX - start.x))}px`; root.style.top = `${Math.max(0, Math.min(innerHeight - 30, box.top + move.clientY - start.y))}px`; root.style.right = 'auto'; };
-    heading.onpointerup = () => {heading.onpointermove=null;recordGeometry(before);};
-    heading.onpointercancel = () => {heading.onpointermove=null;root.style.cssText=before;};
-  };
+  windowDrag(root,heading,recordGeometry);
+
   return { root, body, close: dispose, show(){if(!root.isConnected){document.body.append(root);stopWindow=registerWindow(root,dispose);}} };
 }

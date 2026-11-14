@@ -57,6 +57,16 @@ export const capitalizeSentence: StateCommand = ({ state, dispatch }) => {
   }
   edits.sort((a,b) => a.from-b.from); dispatch(sourceTransaction(state, edits)); return true;
 };
+/** Remove selected document lines without expanding to surrounding paragraphs. */
+export const deleteLines: StateCommand = ({state,dispatch})=>{
+  if(state.readOnly)return false;
+  const spans:{from:number;to:number}[]=[];
+  for(const number of lines(state)){
+    const line=state.doc.line(number),from=number===state.doc.lines&&number>1?line.from-1:line.from,to=number<state.doc.lines?line.to+1:line.to;
+    const previous=spans.at(-1);if(previous&&from<=previous.to)previous.to=Math.max(previous.to,to);else spans.push({from,to});
+  }
+  dispatch(sourceTransaction(state,spans.map(span=>({...span,insert:literal('')}))));return true;
+};
 export const deleteParagraph: StateCommand = ({ state, dispatch }) => {
   const blocks: { from: number; to: number }[] = [];
   for (const range of state.selection.ranges) {

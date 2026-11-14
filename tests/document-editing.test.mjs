@@ -5,7 +5,7 @@ import { history, undo, redo } from '@codemirror/commands';
 import { markdown, markdownKeymap } from '@codemirror/lang-markdown';
 import { Strikethrough, TaskList } from '@lezer/markdown';
 import { fromSource, toSource, glyphField, glyphHistory, sliceSource, sourceTransaction } from '../src/text/source.ts';
-import { wrap, heading, list, moveLines, deleteParagraph, capitalizeSentence, codeBlock, singleCursor } from '../src/text/commands.ts';
+import { wrap, heading, list, moveLines, deleteLines, deleteParagraph, capitalizeSentence, codeBlock, singleCursor } from '../src/text/commands.ts';
 
 const glyph={glyph:'{"born":1,"at":[0,0,0]}',word:'shape'};
 function editor(content, ranges=[[0,0]]) {
@@ -98,4 +98,10 @@ test('Alt-double-click adds whole words without discarding earlier ranges',async
  const full=editor(['one two three'],[[0,3],[4,7]]),before=full.state.selection;
  full.select([[0,3]]);
  assert.deepEqual(addWordSelection(full.state,before,5).ranges.map(r=>[r.from,r.to]),[[0,3],[4,7]]);
+});
+
+test('line deletion preserves adjoining lines in the same paragraph and supports multiple cursors',()=>{
+ const e=editor(['first\nsecond\nthird\nfourth'],[[7,7],[14,14]]);e.run(deleteLines);assert.equal(e.state.doc.toString(),'first\nfourth');e.run(undo);assert.equal(e.state.doc.toString(),'first\nsecond\nthird\nfourth');
+ const last=editor(['first\nlast'],[[7,7]]);last.run(deleteLines);assert.equal(last.state.doc.toString(),'first');
+ const boundary=editor(['one\ntwo\nthree'],[[0,4]]);boundary.run(deleteLines);assert.equal(boundary.state.doc.toString(),'two\nthree');
 });
