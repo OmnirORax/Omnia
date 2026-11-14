@@ -46,7 +46,7 @@ import { ProgressiveConfiguration } from '../ui/ProgressiveConfiguration';
 import { RadialMenu } from '../ui/RadialMenu';
 
 import { type EditableDegree } from '../properties/editableDegrees';
-import { type DegreeEditValue, targetDegrees, targetEditorDegrees, targetDegreeValue, writeTargetDegree, targetParameter } from './targetDegrees';
+import { type DegreeEditValue, targetEditorDegrees, targetDegreeValue, writeTargetDegree, targetParameter } from './targetDegrees';
 import { nameSymbol } from '../ui/nameSymbols';
 import { RangeSettingsScope } from '../ui/RangeControl';
 import { NumericEditorScope } from '../ui/NumericEditorScope';
@@ -364,7 +364,12 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
         const inserted=tool?undefined:insertConstruction(recipeRef.current,source,presetPoint.current,id,{...presentationBounds,round:radar});
         const next=inserted?.recipe??applyOperationTool(recipeRef.current,source,targets,id);
         const ids=inserted?.ids??next.operations.slice(recipeRef.current.operations.length).map(op=>op.id);
-        if(commit(next)){if(radar){const editor=targetDegrees(next,ids,[],[],'available').find(degree=>targetParameter(degree).editor);setPresetSession({ids,...(editor?{degree:editor.id}: {})});}if(inserted){setPicked(inserted.roots);atomnicBridge?.select?.(inserted.roots);setFocus({kind:'component',id:inserted.roots[0]});}setError('');}
+        if(commit(next)){
+          // Selection dismisses the previous panel; open the inserted preset's editor afterwards.
+          if(inserted){setPicked(inserted.roots);atomnicBridge?.select?.(inserted.roots);setFocus({kind:'component',id:inserted.roots[0]});}
+          if(radar){const editor=targetEditorDegrees(next,ids,[],[],'available').find(degree=>targetParameter(degree).editor);setRadarPanel({kind:'presets'});setPresetSession({ids,...(editor?{degree:editor.id}: {})});}
+          setError('');
+        }
       }catch(failure){setError(failure instanceof Error?failure.message:String(failure));}
     };
   if(radar) {

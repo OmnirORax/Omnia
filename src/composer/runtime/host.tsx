@@ -1,3 +1,4 @@
+import {HoverPreviewScope} from './ui/HoverPreview';
 import {nativeLayout,nativeAppearance,updateNativeLayout,updateNativeAppearance} from './historyBridge.ts';
 import {useCallback,useEffect,useMemo,useRef,useState,useSyncExternalStore,type ReactNode} from 'react';
 import {UIProvider,type UIContextValue,type UIFunction} from './ui/context';
@@ -27,5 +28,5 @@ export function ComposerRuntime({children,functions=[]}:{children:ReactNode;func
  const defaults=useMemo(()=>defaultSettings(),[]),projection=useRef<((key:string,rect:{x:number;y:number;width:number;height:number})=>{x:number;y:number;width:number;height:number})|undefined>(undefined);
  const value=useMemo<UIContextValue>(()=>({...stores,layout,update,functions:[...functions,...Object.values(registered)],registerFunction,canMove:key=>key==='window:omnic-composer',configure:unavailable,configureFrame:unavailable,configureControl:unavailable,createFrame:unavailable,library:unavailable,frameMenu:unavailable,selectionMenu:unavailable,renderResident:()=>null,selectedFunctions:new Set(),selectingUI:false,shortcutBindings:defaults.bindings}),[layout,update,functions,registered,registerFunction,stores,defaults]);
  const appearance=useMemo(()=>({base:{...defaults.appearance,...(controller?{controller}:{})},commit:updateNativeAppearance,preview:(_next:Controller|null)=>{},safe:false}),[defaults,controller]);
- return <UIProvider value={value}><DockWorkspace projection={projection}><AppearanceProvider bridge={appearance}><ActiveContextSystem/><ValueFieldBehavior/><ToolCursorLayer/><ContextTargetController/>{children}</AppearanceProvider></DockWorkspace></UIProvider>;
+ return <HoverPreviewScope><UIProvider value={value}><DockWorkspace projection={projection}><AppearanceProvider bridge={appearance}><ActiveContextSystem/><ValueFieldBehavior/><ToolCursorLayer/><ContextTargetController/>{children}</AppearanceProvider></DockWorkspace></UIProvider></HoverPreviewScope>;
 }

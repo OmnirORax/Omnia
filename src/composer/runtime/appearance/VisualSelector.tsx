@@ -183,10 +183,14 @@ export function VisualSelectionProvider({ children, onInspect }: { children: Rea
     }
     if (mode === "boundary") {
       const pointed=partAt(current.catalog,element,x,y,current.measurements);
-      const sampled=surface?selectionLensTarget(current.catalog.filter(part=>surface.contains(part.element)&&(config.backgrounds||part.role!=='background')),{x,y},lens.current.radius,part=>current.detection.lensGeometry.get(part)!,pointed?.element.hasAttribute('data-selection-geometry')?pointed:undefined):pointed;
+      // Empty composer space owns its existing environment boundary directly.
+      // Drawn geometry and UI controls keep their normal hit routing.
+      const environment=surface&&!element.closest('[data-omnic-role]')?element.closest('[data-selection-environment]'):null;
+      const sampled=environment?undefined:surface?selectionLensTarget(current.catalog.filter(part=>surface.contains(part.element)&&(config.backgrounds||part.role!=='background')),{x,y},lens.current.radius,part=>current.detection.lensGeometry.get(part)!,pointed?.element.hasAttribute('data-selection-geometry')?pointed:undefined):pointed;
       const options=surface?[]:boundaryCandidates(element);
-      const boundary=surface?sampled&&boundaryFor(sampled.element):depth.current===0&&declared?boundaryFor(declared):depth.current===0&&sampled?boundaryFor(sampled.element):options[Math.min(depth.current,options.length-1)];
-      if(surface&&sampled)point.current={element:sampled.element,x,y};
+      const boundary=environment?boundaryFor(environment):surface?sampled&&boundaryFor(sampled.element):depth.current===0&&declared?boundaryFor(declared):depth.current===0&&sampled?boundaryFor(sampled.element):options[Math.min(depth.current,options.length-1)];
+      if(environment)point.current={element:environment,x,y};
+      else if(surface&&sampled)point.current={element:sampled.element,x,y};
       if (!boundary) { setCandidatePick(null); return; }
       setCandidatePick({ definesScope: true, rule: { boundary, include, ...parentScope, ownerFrame: true, ...(sampled ? { framePart: sampled.key } : {}), contour: config.contour,
         path: { kind: "rectangle", points: [{ x: 0, y: 0 }, { x: 1, y: 1 }], closed: true, rotation: config.rotation },

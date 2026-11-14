@@ -1,7 +1,7 @@
 import {definitionRecipe} from '../omnic/definition.ts';
 import { cellAt, cellPoint, nearestCell, prepareLattice, latticeMove, type Cell } from '../graph/lattice.ts';
 import type { Document, XYZ } from '../graph/geometryTypes.ts';
-import type { Origin, Structure, Vec3, World } from './model.ts';
+import type {Origin,Structure,Vec3,World} from './model.ts';
 
 export const address = (origin: Origin) => JSON.stringify(origin);
 export const point = (v: Vec3): XYZ => ({ x: v[0], y: v[1], z: v[2] });
