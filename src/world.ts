@@ -1,5 +1,5 @@
 import {startsConnector,connectorDragged} from './world/connectorGesture.ts';
-import {resolveNodeAppearance,nodePaint} from './core/appearance.ts';
+import {resolveNodeAppearance,nodePaint,connectorPaint} from './core/appearance.ts';
 import {brightHex} from './composer/runtime/appearance/resolve.ts';
 import {createContentContour,collectContentHull} from './world/contentContour.ts';
 import {contentEnvelope,convexHull} from './world/contentEnvelope.ts';
@@ -230,13 +230,13 @@ export function createWorld(host: HTMLElement, input: Input) {
     const aVisual = visuals.get(key(source.origin)), bVisual = visuals.get(key(target.origin));
     if (!aVisual?.group.visible || !bVisual?.group.visible) return;
     const active = selectedEdges.some(value => JSON.stringify(value) === JSON.stringify(edge));
-    if (!active && !selected.some(origin => sameOrigin(origin, target.origin)) && !retained.open.has(key(target.origin))) return;
     const a = displayed(aVisual), b = displayed(bVisual), direction = b.clone().sub(a), length = direction.length(); if (length < 1e-10) return;
     direction.normalize(); const padding = Math.min(scale * .35, length * .2); a.addScaledVector(direction,padding); b.addScaledVector(direction,-padding);
-    const material = new T.LineBasicMaterial({ color: active ? '#ffcb66' : '#929c87', linewidth: active ? 2 : 1 });
-    const line = new T.Line(new T.BufferGeometry().setFromPoints([a,b]), material); line.userData.edge = edge; edges.add(line);
+    const paint=connectorPaint(world,source);
+    const material = new T.LineBasicMaterial({ color:paint.color,opacity:paint.opacity,transparent:true,depthWrite:false,linewidth: active ? 2 : 1 });
+    const line = new T.Line(new T.BufferGeometry().setFromPoints([a,b]), material); line.userData.edge = edge;line.userData.glowIntensity=paint.glow; edges.add(line);
     const side = direction.clone().cross(camera.position.clone().sub(b)).normalize().multiplyScalar(scale*.12), back = b.clone().addScaledVector(direction,-scale*.25);
-    const arrow = new T.Line(new T.BufferGeometry().setFromPoints([back.clone().add(side),b,back.clone().sub(side)]), material.clone()); arrow.userData.edge = edge; edges.add(arrow);
+    const arrow = new T.Line(new T.BufferGeometry().setFromPoints([back.clone().add(side),b,back.clone().sub(side)]), material.clone()); arrow.userData.edge = edge;arrow.userData.glowIntensity=paint.glow; edges.add(arrow);
     let edgeLabel:ReturnType<typeof label>|undefined;
     if (text) { const caption = label(text,world.appearance?.text);edgeLabel=caption; caption.userData.requestRender=request;caption.scale.multiplyScalar(.65); caption.position.copy(a.clone().add(b).multiplyScalar(.5)); caption.userData.edge = edge; caption.userData.ends=[a,b]; edges.add(caption); }
     effectConnectors.push({data:{key:JSON.stringify(edge)},line,path:new T.LineCurve3(a,b),arrow,label:edgeLabel,textOpacity:edgeLabel?.material.opacity??1});

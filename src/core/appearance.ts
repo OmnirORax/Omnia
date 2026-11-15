@@ -5,6 +5,7 @@ import { inherited } from './lattice.ts';
 import { capabilities } from './capabilities.ts';
 import { BACKGROUND_DEFAULTS, TEXT_DEFAULTS, validatePaint } from '../properties/visual.ts';
 import { SPHERE_VISUAL_DEFAULTS } from '../properties/sphereVisualDefaults.ts';
+import {translucentOpacity} from '../properties/translucency.ts';
 
 export type VisualTarget = 'nodeDefaults' | 'nodes' | 'nodeText' | 'text' | 'background';
 /** Resolve defaults once in the existing node update; author values remain untouched. */
@@ -14,6 +15,11 @@ export function nodePaint(world:World,node?:Structure):NodePaint {
  return {...base,color:node.colorOverride||node.variantOf&&node.overrides?.includes('color')||node.color!==SPHERE_VISUAL_DEFAULTS.color?node.color:base.color,
   brightness:node.brightness??base.brightness,opacity:node.opacity??base.opacity,
   translucency:node.translucency??base.translucency,translucencyRadius:node.translucencyRadius??base.translucencyRadius,glow:node.glow??base.glow};
+}
+/** Outgoing connections share their source's resolved visual channels. */
+export function connectorPaint(world:World,source:Structure) {
+ const paint=nodePaint(world,inherited(source,world));
+ return {color:brightHex(paint.color!,paint.brightness!),opacity:translucentOpacity(paint.opacity!,paint.translucency),glow:paint.glow!};
 }
 export function resolveNodeSettings(world:World,node:Structure):Structure {
  if(!world.appearance?.nodes&&node.brightness===undefined)return node;
