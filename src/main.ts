@@ -94,7 +94,6 @@ const view = (() => {
       park(origin, position) { message = ''; store.change(world => moveBranch(world, origin, position)); return store.world; },
       paint(positions, source) { store.change(world => { const node = source && locate(world, source); for (const position of positions) { if (node) copyNode(world, node, position).parts = []; else addStructure(world, position); } }); },
       subtree(origin) { store.change(world => toggleSubtree(world, origin)); },
-      expand(origin) { store.change(world => { const node = locate(world, origin)!; node.collapsed = !node.collapsed; }); },
       edge(edge) { selection.set([edge]); refresh(); },
       feedback,
     });
@@ -283,7 +282,7 @@ window.addEventListener('keydown',event=>{if(immersive.phase==='active'&&event.c
 const settingsCatalog=createSettingsCatalog<SearchSetting>();
 const worldSettings=settingsCatalog.define('world',()=>[
     {label:'Lattice scale',keywords:'world lattice',definition:{key:'latticeScale',label:'Lattice scale',kind:'number' as const,min:1e-9},read:()=>store.world.settings?.latticeScale??1,write:(world:World,value:string|number|boolean)=>{world.settings??={latticeScale:1,names:'expanded'};world.settings.latticeScale=Number(value);}},
-    {label:'Names',keywords:'world names',definition:{key:'names',label:'Names',kind:'select' as const,options:[{id:'expanded',label:'Expanded'},{id:'all',label:'All'},{id:'selection',label:'Selected'}]},read:()=>store.world.settings?.names??'expanded',write:(world:World,value:string|number|boolean)=>{world.settings??={latticeScale:1,names:'expanded'};world.settings.names=value as 'all'|'expanded'|'selection';}},
+    {label:'Content view',keywords:'world names labels glyph contents visibility contour expansion all on off focused selection',definition:{key:'names',label:'Content view',kind:'toggle'},read:()=>store.world.settings?.names==='all',write:(world:World,value:Value)=>{world.settings??={latticeScale:1,names:'expanded'};world.settings.names=value?'all':'selection';}},
     {label:'Browser shortcuts',keywords:'world browser chrome keyboard shortcuts',definition:{key:'browserShortcuts',label:'Browser shortcuts',kind:'toggle'},read:browserShortcutsEnabled,set:value=>{enableBrowserShortcuts(Boolean(value));if(value)void immersive.leave().catch(error=>feedback(error.message));}},
 ]);
 

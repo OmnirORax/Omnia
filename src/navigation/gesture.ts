@@ -13,6 +13,7 @@ type Environment = {
   target: () => THREE.Vector3; nodes: () => ReadonlyMap<string, Host> | undefined;
   document: () => Document;
   coordinates?: () => Map<string,XYZ>;
+  displayPosition?:(id:string)=>XYZ|undefined;viewRevision?:()=>number;
   prepareLayout?: (ids:readonly string[]) => (targets:ReadonlyMap<string,XYZ>)=>ReadonlyMap<string,XYZ>|undefined;
   selection: () => ReadonlySet<string>;
   branch?: () => string | null;
@@ -35,7 +36,7 @@ export function createNavigationGesture(env: Environment) {
   let cached: Snapshot | undefined;
   const context = (point: { x: number; y: number }) => {
     const doc = env.document(), selection = env.selection(), branch = env.branch?.() ?? null;
-    const cameraKey = [...env.camera.position.toArray(), ...env.camera.quaternion.toArray(), env.camera.aspect, env.camera.zoom, env.camera.fov].join(",");
+    const cameraKey = [...env.camera.position.toArray(), ...env.camera.quaternion.toArray(), env.camera.aspect, env.camera.zoom, env.camera.fov,env.viewRevision?.()].join(",");
     if (cached && cached.doc === doc && cached.branch === branch && cached.cameraKey === cameraKey && cached.selection === selection && cached.point.x === point.x && cached.point.y === point.y) return cached;
     let worlds: Map<string, XYZ> | undefined, pointed: string | undefined, checkedPoint = false;
     cached = { doc, selection, point, cameraKey, branch, targets: new Map(),
@@ -55,13 +56,14 @@ export function createNavigationGesture(env: Environment) {
       target: scope === "graph" ? "selection" : "pointed", pivot: scope === "graph" ? "selection" : "pointed" };
   };
   const cameraPose = (): CameraPose => ({ position: env.camera.position.clone(), target: env.target().clone(), up: env.camera.up.clone() });
-  const center = (ids: readonly string[], snapshot: Snapshot) => {
-    if (snapshot.center) return snapshot.center.clone();
+  const center = (ids: readonly string[], snapshot: Snapshot,display=false) => {
+    const position=(id:string)=>display?env.displayPosition?.(id)??snapshot.worlds.get(id):snapshot.worlds.get(id);
+    if (!display&&snapshot.center) return snapshot.center.clone();
     const branch = anchor(snapshot);
-    if (branch && snapshot.worlds.has(branch)) return vector(snapshot.worlds.get(branch)!);
-    const values = ids.flatMap(id => snapshot.worlds.has(id) ? [snapshot.worlds.get(id)!] : []);
+    if (branch && snapshot.worlds.has(branch)) return vector(position(branch)!);
+    const values = ids.flatMap(id => position(id) ? [position(id)!] : []);
     if (!values.length) throw new Error("Select nodes for the selection center.");
-    snapshot.center = values.reduce<THREE.Vector3>((sum, p) => sum.add(vector(p)), new THREE.Vector3()).divideScalar(values.length); return snapshot.center.clone();
+    const result=values.reduce<THREE.Vector3>((sum,p)=>sum.add(vector(p)),new THREE.Vector3()).divideScalar(values.length);if(!display)snapshot.center=result;return result.clone();
   };
   const resolve = (options: NavigationOptions, snapshot: Snapshot) => {
     const nodeMode = options.mode === "orient" || options.mode === "layout";
@@ -73,14 +75,16 @@ export function createNavigationGesture(env: Environment) {
     if (options.mode === "look" || options.mode === "walk" || options.mode === "pan") pivot.copy(env.camera.position);
     else if (options.mode === "orient") pivot.copy(vector(snapshot.worlds.get(ids[0])!));
     else if (options.pivot === "origin") pivot.set(0, 0, 0);
-    else if (options.pivot === "selection") pivot.copy(center([...snapshot.selection], snapshot));
+    else if (options.pivot === "selection") pivot.copy(center([...snapshot.selection], snapshot,!nodeMode));
     else if (options.pivot === "pointed") {
       if (!snapshot.pointed || !snapshot.worlds.has(snapshot.pointed)) throw new Error("Point at a node to use its center as pivot.");
-      pivot.copy(vector(snapshot.worlds.get(snapshot.pointed)!));
+      pivot.copy(vector((!nodeMode&&env.displayPosition?.(snapshot.pointed))||snapshot.worlds.get(snapshot.pointed)!));
     }
     const limits = env.distanceLimits?.() ?? { min: .01, max: Infinity };
     if (options.mode === "orbit" && (env.camera.position.distanceTo(pivot) < limits.min || env.camera.position.distanceTo(pivot) > limits.max)) throw new Error(`Orbit radius must be ${limits.min}–${limits.max} world units; choose another pivot or Look around.`);
-    return { ids, pivot };
+    const viewPivot=pivot.clone();
+    if(nodeMode&&env.displayPosition){const id=options.mode==='orient'?ids[0]:options.pivot==='pointed'?snapshot.pointed:options.pivot==='selection'?anchor(snapshot):undefined;const canonical=id&&snapshot.worlds.get(id),shown=id&&env.displayPosition(id);if(canonical&&shown)viewPivot.add(vector(shown).sub(vector(canonical)));}
+    return { ids, pivot,viewPivot };
   };
   const describe = (options: NavigationOptions, ids: string[], pivot: THREE.Vector3) => {
     const camera = options.mode === "orbit" || options.mode === "look" || options.mode === "walk" || options.mode === "pan";
@@ -107,7 +111,7 @@ export function createNavigationGesture(env: Environment) {
     acceptsRelease(event: PointerEvent) { return !!gesture && event.pointerId === gesture.pointer && event.button === gesture.button; },
     preview(options: NavigationOptions | null, point: { x: number; y: number }) {
       if (!options) { if (!gesture) { marker.visible = false; env.request(); } return ""; }
-      try { const snapshot = context(point); options = contextual(options, snapshot); const { ids, pivot } = resolve(options, snapshot); show(options, pivot); return describe(options, ids, pivot); }
+      try { const snapshot = context(point); options = contextual(options, snapshot); const { ids, pivot,viewPivot } = resolve(options, snapshot); show(options, viewPivot); return describe(options, ids, pivot); }
       catch (error) { marker.visible = false; env.request(); return error instanceof Error ? error.message : String(error); }
     },
     begin(event: PointerEvent, options: NavigationOptions) {
@@ -115,7 +119,7 @@ export function createNavigationGesture(env: Environment) {
       try {
         const start = { x: event.clientX, y: event.clientY }, snapshot = context(start);
         options = contextual(options, snapshot);
-        const { ids, pivot } = resolve(options, snapshot);
+        const { ids, pivot,viewPivot } = resolve(options, snapshot);
         const placements = new Map(ids.length ? snapshot.doc.placements.map(p => [p.id, p] as const) : []);
         gesture = { pointer: event.pointerId, button: event.button, start, pose: cameraPose(), before: cameraPose(), options: { ...options }, ids, pivot, rotation: new THREE.Quaternion(), dragged: false, constraint: {raw:{...start},point:{...start}},
           originals: ids.map(id => { const orientation = placements.get(id)?.orientation ?? identityRotation(); return { id, position: vector(snapshot.worlds.get(id)!), rotation: new THREE.Quaternion(orientation.x, orientation.y, orientation.z, orientation.w), host: env.nodes()?.get(id) }; }) };
@@ -124,7 +128,7 @@ export function createNavigationGesture(env: Environment) {
           const rect = env.canvas.getBoundingClientRect?.();
           if (rect && rect.width > 0 && rect.height > 0) {
             env.camera.updateMatrixWorld();
-            const projected = pivot.clone().project(env.camera);
+            const projected = viewPivot.clone().project(env.camera);
             const center = { x: rect.left + (projected.x + 1) * rect.width / 2, y: rect.top + (1 - projected.y) * rect.height / 2 };
             const box = new THREE.Box3();
             for (const original of gesture.originals) if (original.host) box.union(new THREE.Box3().setFromObject(original.host.group));
@@ -136,7 +140,7 @@ export function createNavigationGesture(env: Environment) {
             if (Number.isFinite(radius) && Number.isFinite(center.x) && Number.isFinite(center.y)) gesture.trackball = { center, radius, frame: env.camera.quaternion.clone(), previous: trackballPoint(center,radius,start), rotation: new THREE.Quaternion() };
           }
         }
-        env.enabled(false); env.canvas.setPointerCapture(event.pointerId); env.feedback(describe(options, ids, pivot)); show(options, pivot); return true;
+        env.enabled(false); env.canvas.setPointerCapture(event.pointerId); env.feedback(describe(options, ids, pivot)); show(options, viewPivot); return true;
       } catch (error) { env.feedback(error instanceof Error ? error.message : String(error)); return false; }
     },
     move(event: PointerEvent) {
