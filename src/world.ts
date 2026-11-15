@@ -155,16 +155,15 @@ export function createWorld(host: HTMLElement, input: Input) {
       const u=unit(v),points=v.contour.outline.visible?v.contour.points:contentEnvelope([{x:0,y:0}],scale*.5,32);
       bodies.push({id,passive:!v.contour.outline.visible,x:(p.x+1)*width/2,y:(1-p.y)*height/2,points:points.map(q=>({x:q.x/u,y:-q.y/u}))});units.set(id,u);
     }
-    const activeId=relocationPin??hover??(selected.length?key(selected.at(-1)!):undefined),active=activeId?visuals.get(activeId):undefined,pinned=active?.group.visible?((hover||relocationPin)?displayed(active):active.group.position.clone()).project(camera):undefined;
+    // Expansion is anchored to the selected node's canonical position. A
+    // previous display offset or an unrelated hovered node cannot move its root.
+    const activeId=relocationPin??(selected.length?key(selected.at(-1)!):undefined),active=activeId?visuals.get(activeId):undefined,pinned=active?.group.visible?active.group.position.clone().project(camera):undefined;
     const pin=active&&pinned&&units.has(activeId!)?{id:activeId!,x:(pinned.x+1)*width/2,y:(1-pinned.y)*height/2}:undefined;
-    const oldOffset=pin&&(hover||relocationPin)&&active?active.host.position.clone():undefined;
-    if(oldOffset&&active)units.set(activeId!,Math.max(.00001,-displayed(active).applyMatrix4(camera.matrixWorldInverse).z)*2*Math.tan(T.MathUtils.degToRad(camera.fov/2))/height);
-    if(oldOffset&&active&&pin){const body=bodies.find(b=>b.id===pin.id)!;const originalUnit=unit(active),pinnedUnit=units.get(pin.id)!;body.points=body.points.map(p=>({x:p.x*originalUnit/pinnedUnit,y:p.y*originalUnit/pinnedUnit}));}
     const hasContent=bodies.some(b=>visuals.get(b.id)!.contour.outline.visible),positions=hasContent?pushContours(bodies,pin,0):new Map();
     const right=new T.Vector3(1,0,0).applyQuaternion(camera.quaternion),up=new T.Vector3(0,1,0).applyQuaternion(camera.quaternion);
     for(const v of visuals.values())v.host.position.set(0,0,0);
     for(const body of bodies){const point=positions.get(body.id);if(!point)continue;const v=visuals.get(body.id)!,u=units.get(body.id)!;v.host.position.copy(right).multiplyScalar((point.x-body.x)*u).addScaledVector(up,(body.y-point.y)*u);}
-    if(oldOffset&&active&&hasContent)active.host.position.copy(oldOffset);pushRevision++;relocationPin=undefined;
+    pushRevision++;relocationPin=undefined;
     connections();rebuildPicks();
   }
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
@@ -241,7 +240,7 @@ export function createWorld(host: HTMLElement, input: Input) {
       if(v.object)v.object.position.y=glyphVisible&&textVisible?(v.text.scale.y+.3)/2:0;
       v.body.visible=!(textVisible||glyphVisible);v.ring.visible=chosen&&v.body.visible;v.contour.outline.material.color.set(v.actual.color);
     }
-    const signature=JSON.stringify([...visuals].map(([id,v])=>[id,v.group.visible,v.group.position.toArray(),v.text.visible,!!v.object?.visible,v.caption,v.textKey,v.visualKey]));
+    const signature=JSON.stringify([selected.map(key),[...visuals].map(([id,v])=>[id,v.group.visible,v.group.position.toArray(),v.text.visible,!!v.object?.visible,v.caption,v.textKey,v.visualKey])]);
     if(signature!==pushSignature){pushSignature=signature;pushDirty=true;}
     refreshContours();rebuildPicks();request();
   }
