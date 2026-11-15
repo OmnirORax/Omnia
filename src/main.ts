@@ -1,3 +1,4 @@
+import {installContextActions,registerContextActions,refreshContextActions} from './ui/contextActions';
 import {createAxis,setAxisOrigin,slotNode,focusNodeFrame,endpointView} from './core/axes.ts';
 import {parseBrush,brushShape,SINGLE_BRUSH,type Brush} from './core/brush.ts';
 import {handleContentViewShortcut} from './ui/contentViewShortcut.ts';
@@ -112,6 +113,7 @@ const view = (() => {
 })();
 
 function refresh() {
+  refreshContextActions();
   requestFormSync();
   updateUIAppearance(store.world.appearance);
   for (const document of documents.values()) document?.refreshAppearance();
@@ -580,13 +582,31 @@ window.addEventListener('keydown',event=>{
   else if(!closeActiveWindow())selection.set([]);
   event.preventDefault();event.stopImmediatePropagation();message='';refresh();
 },true);
+function worldShortcutActions(){return [
+ ...spaceActions().filter(action=>action.available!==false).map(action=>{const match=/^(.*?) \(([^)]+)\)$/.exec(action.label);return {label:match?.[1]??action.label,key:match?.[2],run:action.run};}),
+ ...(store.world.activeAxis?[{label:'Set axis origin',key:'O',run:()=>view?.pickOrigin()}]:[]),
+ {label:'Create nodes',key:'N',run:()=>view?.toggleCreation()},
+ {label:'Search',key:'S',run:searchSettings},
+ ...(selectedOrigins().length?[{label:'Document',key:'D',run:()=>openDocument()},{label:'Label',key:'L',run:()=>editCapability('label')},{label:'Remove',key:'Delete',run:remove}]:[]),
+ ];}
+installContextActions();
+registerContextActions({label:'Omnium',owns:element=>!!element.closest('#world,header'),read:()=>{
+ const mode=view?.inputContext;
+ if(mode==='origin')return [{label:'Choose origin slot',key:'Click'},{label:'Cancel origin picker',key:'O / Esc'}];
+ if(mode==='axis-first'||mode==='axis-second')return [{label:mode==='axis-first'?'Choose first axis node':'Choose second axis node',key:'Click'},{label:'Cancel axis picker',key:'Esc'}];
+ if(mode==='create')return [{label:'Place nodes',key:'Click'},{label:'Paint nodes',key:'Drag'},{label:'Preview paint',key:'Hold Alt'},{label:'Plane painting',key:'Shift + drag'},{label:'Exit creation',key:'N / Esc',run:()=>view?.toggleCreation()}];
+ return [
+ ...worldShortcutActions(),
+ {label:'Expand/collapse hierarchy',key:'Click'}, {label:'Relocate',key:'Drag'},{label:'Connect',key:'Shift + drag'},{label:'Preview paint',key:'Hold Alt'},{label:'Look / orbit',key:'Right drag'},{label:'Undo',key:'Ctrl+Z',run:()=>travelHistory('undo')},{label:'Redo',key:'Ctrl+Y',run:()=>travelHistory('redo')},
+ {label:'Cancel',key:'Esc'},{label:'Toggle actions',key:'.'}
+];}});
 document.addEventListener('keydown', event => {
   const editing = event.target instanceof Element && (!!event.target.closest('[data-input-owner]') || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement);
   if (event.target instanceof Element && event.target.closest('[data-input-owner]')) return;
   if (editing || event.target instanceof HTMLElement && event.target.isContentEditable) return;
   if(!event.ctrlKey&&!event.metaKey&&!event.altKey&&!event.shiftKey&&!event.repeat&&!selection.requesting){
-    const action:Record<string,()=>void>={n:()=>view?.toggleCreation(),x:startAxis,o:()=>view?.pickOrigin(),c:()=>view?.toggleCoordinates(),f:focusSelection,d:()=>openDocument(),l:()=>{if(selectedOrigins().length)editCapability('label');}};
-    const run=action[event.key.toLowerCase()];if(run){event.preventDefault();attempt(run);return;}
+    const action=worldShortcutActions().find(action=>action.key?.toLowerCase()===event.key.toLowerCase());
+    if(action){event.preventDefault();attempt(action.run);return;}
   }
   if(event.key.toLowerCase()==='x'&&event.shiftKey&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&!event.repeat){event.preventDefault();openBrush();return;}
   if(event.key.toLowerCase()==='s'&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&!event.repeat){event.preventDefault();searchSettings();return;}

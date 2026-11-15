@@ -1,3 +1,5 @@
+import {travelGlobalHistory} from '../core/universalHistory';
+import {registerContextActions} from '../ui/contextActions';
 import {blockBrowserShortcut} from '../ui/browserShortcuts.ts';
 import {documentBrackets} from './brackets.ts';
 import {lexiconAnnotations,workspaceLexicon,refreshLexicon} from './lexicon.ts';
@@ -26,11 +28,12 @@ import { documentPresentation,refreshDocumentGlyphs } from './presentation.ts';
 
 export function editDocument(origin: Origin, read: () => World, commit: (text: NodeText) => void, feedback: (message: string) => void, closed?: () => void) {
   const current = locate(read(), origin); if (!current) return;
+  let releaseActions:(()=>void)|undefined;
   let syncing=false,failed = false, editor: EditorView | undefined;
   const actual = inherited(current, read()), source = toSource(actual.text ?? { version: 1, content: [] });
   const view = panel(actual.label || 'Document', () => {
     if (failed) { save(); if (failed && !confirm('These document changes could not be saved. Close and discard them?')) return false; }
-    editor?.destroy(); closed?.();
+    releaseActions?.();editor?.destroy(); closed?.();
   },'default');
   view.root.classList.add('node-document-panel');
   function save() {
@@ -70,6 +73,18 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
     if (cut) editor.dispatch(sourceTransaction(editor.state, ranges.map(r => ({ from:r.from,to:r.to,insert:toSource({version:1,content:[]}) }))));
     return true;
   };
+  const bindings: import('@codemirror/view').KeyBinding[] = [
+      { key:'Escape',run: v => { if (headingMenu) { headingMenu.remove(); headingMenu=undefined; return true; } if (closeSearchPanel(v) || singleCursor(v)) return true; view.close(); return true; } },
+      { key:'Mod-b',run:wrap('**') }, { key:'Mod-i',run:wrap('*') },
+      { key:'Mod-ArrowUp',run:moveLines(-1) }, { key:'Mod-ArrowDown',run:moveLines(1) },
+      { key:'Alt-Delete',run:deleteLines }, { key:'Mod-Delete',run:heading(0) },
+      ...[1,2,3,4,5,6].map(n => ({ key:`Mod-F${n}`,run:heading(n) })), { key:'Mod-F7',run:chooseHeading },
+      { key:'Mod-1',run:list('numbered') }, { key:'Mod-2',run:list('bullet') }, { key:'Mod-Shift-3',run:list('cycle') },
+      { key:'Mod-Shift-4',run:wrap('~~') }, { key:'Mod-5',run:wrap('`') }, { key:'Alt-Mod-1',run:codeBlock },
+      { key:'Mod-3',run:capitalizeSentence }, { key:'Alt-ArrowRight',run:regex },
+      { key:'Mod-PageUp',run:font(1) }, { key:'Mod-PageDown',run:font(-1) },
+      ...markdownKeymap, ...historyKeymap, ...searchKeymap, indentWithTab, ...defaultKeymap,
+  ];
   editor = new EditorView({ parent:host, state:EditorState.create({ doc:source.text, extensions:[
     EditorState.allowMultipleSelections.of(true), glyphField.init(() => source.glyphs), glyphHistory, history(),documentBrackets,lexiconAnnotations(read),
     EditorView.clickAddsSelectionRange.of(event => event.altKey), documentMouseSelection(), drawSelection({drawRangeCursor:true,cursorBlinkRate:1000}), EditorView.lineWrapping, scrollPastEnd(),
@@ -82,18 +97,8 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
       { tag:tags.heading5,fontWeight:'bold' }, { tag:tags.heading6,fontWeight:'bold' }, { tag:tags.processingInstruction,color:'#89927f' },
     ])),
     search({ top:true }),
-    Prec.highest(keymap.of([
-      { key:'Escape',run: v => { if (headingMenu) { headingMenu.remove(); headingMenu=undefined; return true; } if (closeSearchPanel(v) || singleCursor(v)) return true; view.close(); return true; } },
-      { key:'Mod-b',run:wrap('**') }, { key:'Mod-i',run:wrap('*') },
-      { key:'Mod-ArrowUp',run:moveLines(-1) }, { key:'Mod-ArrowDown',run:moveLines(1) },
-      { key:'Alt-Delete',run:deleteLines }, { key:'Mod-Delete',run:heading(0) },
-      ...[1,2,3,4,5,6].map(n => ({ key:`Mod-F${n}`,run:heading(n) })), { key:'Mod-F7',run:chooseHeading },
-      { key:'Mod-1',run:list('numbered') }, { key:'Mod-2',run:list('bullet') }, { key:'Mod-Shift-3',run:list('cycle') },
-      { key:'Mod-Shift-4',run:wrap('~~') }, { key:'Mod-5',run:wrap('`') }, { key:'Alt-Mod-1',run:codeBlock },
-      { key:'Mod-3',run:capitalizeSentence }, { key:'Alt-ArrowRight',run:regex },
-      { key:'Mod-PageUp',run:font(1) }, { key:'Mod-PageDown',run:font(-1) },
-      ...markdownKeymap, ...historyKeymap, ...searchKeymap, indentWithTab, ...defaultKeymap,
-    ])),
+    Prec.highest(keymap.of(bindings)),
+
     EditorView.contentAttributes.of({ 'aria-label':'Node document',spellcheck:'true' }),
     EditorView.domEventHandlers({
       keydown: event => { event.stopPropagation(); return false; },
@@ -112,6 +117,10 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
     EditorView.updateListener.of(update => { if (update.docChanged) save(); }),
     EditorView.theme({ '&':{ backgroundColor:'transparent',fontSize:'inherit',color:'inherit' },'.cm-content':{fontFamily:'inherit',padding:'0',minHeight:'120px'},'.cm-scroller':{overflow:'auto',fontFamily:'inherit'},'&.cm-focused':{outline:'none'},'.cm-cursorLayer':{mixBlendMode:'difference'},'.cm-cursor, &.cm-focused .cm-cursor':{borderLeft:'2px solid #ffffff',marginLeft:'-1px',filter:'brightness(0) invert(1)'},'&.cm-editor .cm-scroller > .cm-selectionLayer .cm-selectionBackground, &.cm-editor.cm-focused .cm-scroller > .cm-selectionLayer .cm-selectionBackground':{backgroundColor:'#245eac',outline:'1px solid #85baff',outlineOffset:'-1px'},'.cm-panels':{backgroundColor:'#191c1b',color:'inherit'},'.cm-search':{fontSize:'11px',padding:'4px'},'.cm-search label':{display:'inline-flex'},'.cm-search input':{width:'90px'},'.cm-search input[type=checkbox]':{width:'auto'} }, {dark:true}),
   ] }) });
+  const labels:Record<string,string>={'Mod-b':'Bold','Mod-i':'Italic','Mod-ArrowUp':'Move line up','Mod-ArrowDown':'Move line down','Alt-Delete':'Delete line','Mod-Delete':'Remove heading','Mod-F7':'Choose heading','Mod-1':'Numbered list','Mod-2':'Bullet list','Mod-Shift-3':'Cycle list','Mod-Shift-4':'Strikethrough','Mod-5':'Inline code','Alt-Mod-1':'Code block','Mod-3':'Capitalize','Alt-ArrowRight':'Regex search','Mod-PageUp':'Increase font size','Mod-PageDown':'Decrease font size','Escape':'Close / cancel'};
+  releaseActions=registerContextActions({label:'Document',owns:element=>view.root.contains(element),read:()=>{
+    const seen=new Set<string>();return bindings.flatMap(binding=>{const key=binding.key;if(!key||!binding.run||seen.has(key))return [];seen.add(key);const label=labels[key]??(/^Mod-F[1-6]$/.test(key)?`Heading ${key.at(-1)}`:binding.run.name.replace(/([a-z])([A-Z])/g,'$1 $2')||key);return [{label,key:key.replace(/Mod/g,navigator.platform.includes('Mac')?'Cmd':'Ctrl'),run:()=>{if(editor){if(key==='Mod-z')travelGlobalHistory('undo');else if(key==='Mod-y'||key==='Mod-Shift-z')travelGlobalHistory('redo');else binding.run!(editor);editor.focus();}}}];});
+  }});
   let previousLexicon=workspaceLexicon(read()),previousPaint='',previousGlyphs=createGlyphPresentation(read());
   function refreshAppearance(){
     if(editor&&!failed){
