@@ -1,3 +1,4 @@
+import {branch} from './core/nodeOperations.ts';
 import {createOccupancy} from './graph/occupancy.ts';
 import {axisPose} from './world/axisPose.ts';
 import {createPaintSession} from './core/painting.ts';
@@ -432,7 +433,7 @@ export function createWorld(host: HTMLElement, input: Input) {
       if(g.mode==='paint'){if(!g.dragged&&g.origin&&!world.brush&&!stroke?.session.points.length){finishPaint(true);mount(g.origin,g.end);return;}paintPoint(g.end);finishPaint();return;}
       if(g.dragged&&g.mode==='move'){
         g.moving??=new Set((prepareTranslation(world,g.origins)([0,0,0]))?.keys()??g.origins.map(key));
-        const target=pointed(g.end,g.moving).origin,delta=xyz((g.project?.(g.end)??at(g.end,g.anchor)).sub(g.anchor).divideScalar(scale));
+        const target=pointed(g.end,new Set([...g.moving,...branch(world,g.origins).map(key)])).origin,delta=xyz((g.project?.(g.end)??at(g.end,g.anchor)).sub(g.anchor).divideScalar(scale));
         const source=g.origin&&locatePosition(g.origin),snap=source&&nearAxis(g.end,source.map((n,i)=>n+delta[i]) as Vec3);
         if(snap)input.slot(g.origin?[g.origin,...g.origins.filter(origin=>!sameOrigin(origin,g.origin!))]:g.origins,snap.frame.id,snap.point);else if(target)input.adopt(g.origins,target,delta);else input.move(g.origins,delta);return;
       }
