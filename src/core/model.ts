@@ -1,3 +1,4 @@
+import type {createOccupancy} from '../graph/occupancy.ts';
 import { validateNavigation,type NavigationOptions } from '../navigation/options.ts';
 import type { Rotation } from '../navigation/transforms.ts';
 import {validateFilter} from '../omnic/filter.ts';
@@ -11,6 +12,8 @@ import {DEFAULT_TEXT_FONT} from '../properties/defaultFont.ts';
 import { validateAudioResponse } from '../scene/audioResponse.ts';
 import { validateAppearance, validatePaint, type Appearance, type Paint } from '../properties/visual.ts';
 import { creationCell } from './lattice.ts';
+import {validateAxes,type AxisFrame} from './axes.ts';
+import {brushShape,type Brush} from './brush.ts';
 import { SPHERE_VISUAL_DEFAULTS } from '../properties/sphereVisualDefaults.ts';
 import { validateNodeText, type NodeText } from '../text/model.ts';
 import { validateAsset, validateVisual, type Visual, type VisualAsset } from '../graph/assets.ts';
@@ -28,7 +31,7 @@ export type Structure = { origin: Origin; label: string; position: Vec3; color: 
   brightness?: number; opacity?: number; glow?: number; translucency?: number; translucencyRadius?: number;
 };
 export type Relationship = { from: Binding; to: Binding; label: string; kind: string };
-export type World = { format: 'omnium-world'; version: 1 | 2 | 3; atlases?:AtlasView[];activeAtlas?:number; nodes: Structure[]; assets?: VisualAsset[]; relationships?: Relationship[]; scene?: SceneSettings; appearance?: Appearance;
+export type World = { format: 'omnium-world'; version: 1 | 2 | 3; atlases?:AtlasView[];activeAtlas?:number; axes?:AxisFrame[];activeAxis?:string;brush?:Brush; nodes: Structure[]; assets?: VisualAsset[]; relationships?: Relationship[]; scene?: SceneSettings; appearance?: Appearance;
   settings?: { latticeScale: number; names: 'all' | 'expanded' | 'selection'; navigation?: NavigationOptions } };
 export const emptyWorld = (): World => ({ format: 'omnium-world', version: 2, nodes: [], assets: [], relationships: [], appearance:{background:{translucency:1},text:{font:DEFAULT_TEXT_FONT,color:'#ff000d',glow:1}}, scene: defaultScene(), settings: { latticeScale: 1, names: 'expanded' } });
 export const samePoint = (a: Vec3, b: Vec3) => a.every((n, i) => n === b[i]);
@@ -84,11 +87,11 @@ export function bind(node: Structure, mode: Binding['mode'], world: World): Bind
   return { mode, specification: specification(node, world) };
 }
 
-export function addStructure(world: World, position: Vec3, born = Date.now()): Structure {
+export function addStructure(world: World, position: Vec3, born = Date.now(), occupied?:ReturnType<typeof createOccupancy>): Structure {
   if (world.nodes.length >= 4000) throw new Error('This first workbench supports 4,000 structures.');
-  const point = creationCell(world, position);
+  const point = creationCell(world, position,occupied);
   const node: Structure = { origin: { born, at: [...point] }, label: '', position: point, color: SPHERE_VISUAL_DEFAULTS.color, invariant: false, parts: [] };
-  world.nodes.push(node);
+  world.nodes.push(node);occupied?.add(JSON.stringify(node.origin),{x:point[0],y:point[1],z:point[2]});
   return node;
 }
 
@@ -109,6 +112,8 @@ export function validateWorld(value: unknown): World {
   const point = (p: unknown): p is Vec3 => Array.isArray(p) && p.length === 3 && p.every(n => typeof n === 'number' && Number.isFinite(n) && Math.abs(n) <= 1e7);
   const origin = (o: Origin) => o && Number.isFinite(o.born) && point(o.at);
   validateAppearance(w.appearance);
+  validateAxes(w);
+  if(w.brush!==undefined)brushShape(w.brush);
   validateNavigation(w.settings?.navigation);
   if(w.activeAtlas!==undefined&&!w.atlases)throw Error('Invalid active atlas.');
   if(w.atlases!==undefined){if(w.version!==3||!Array.isArray(w.atlases)||w.atlases.length>32||!Number.isInteger(w.activeAtlas??0)||(w.activeAtlas??0)<0||(w.activeAtlas??0)>=w.atlases.length)throw Error('Invalid atlas views.');for(const view of w.atlases){if(typeof view.name!=='string'||!view.name.trim()||view.name.length>100||!view.filter||typeof view.filter!=='object')throw Error('Invalid atlas view.');if(view.roots!==undefined&&(!Array.isArray(view.roots)||view.roots.length>4000))throw Error('Invalid atlas scope.');for(const root of view.roots??[])referenceBinding(JSON.stringify(root));validateFilter(view.filter);}}

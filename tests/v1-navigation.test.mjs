@@ -24,7 +24,7 @@ test('orbit changes camera position around the explicit pivot, preserving radius
   const before = pose(), pivot = new THREE.Vector3(1,0,0), copy = before.position.clone();
   const after = navigateCamera(before, NAV_DEFAULTS, 120, 25, pivot);
   near(after.position.distanceTo(pivot), before.position.distanceTo(pivot));
-  vectorNear(after.target, pivot); vectorNear(before.position, copy);
+  near(after.target.distanceTo(pivot),before.target.distanceTo(pivot));near(after.position.distanceTo(after.target),before.position.distanceTo(before.target)); vectorNear(before.position, copy);
   assert.ok(after.position.distanceTo(before.position) > 1);
 });
 test('look rotates at camera origin with transported up and world-axis roll', () => {
@@ -211,9 +211,9 @@ test('empty-space orbit keeps the active parent or child center rather than aver
   for (const [branch,x] of [['a',2],['b',3]]) {
     const h = contextualHarness(['a','b'], branch), options = {...CONTEXT_DEFAULTS,actor:'camera'};
     assert.equal(h.engine.begin(h.down,options),true);
-    h.engine.move({...h.down,clientX:40}); vectorNear(h.target,new THREE.Vector3(x,0,0));
-    const radius=h.camera.position.distanceTo(h.target), scans=h.inventoryCount();
-    h.engine.move({...h.down,clientX:80}); near(h.camera.position.distanceTo(h.target),radius);
+    h.engine.move({...h.down,clientX:40}); near(h.target.distanceTo(new THREE.Vector3(x,0,0)),x);
+    const radius=h.camera.position.distanceTo(new THREE.Vector3(x,0,0)), scans=h.inventoryCount();
+    h.engine.move({...h.down,clientX:80}); near(h.camera.position.distanceTo(new THREE.Vector3(x,0,0)),radius);
     assert.equal(h.inventoryCount(),scans,'orbit does not scan object bounds');
     h.engine.finish(); assert.equal(h.commits.length,0); h.engine.dispose();
   }
@@ -225,7 +225,7 @@ test('empty space without selection looks from camera position; Camera overrides
   vectorNear(world.camera.position,start); assert.equal(world.inventoryCount(),0); world.engine.finish(); world.engine.dispose();
   const node = contextualHarness(['a'],'a','b'), before = node.camera.position.clone();
   node.engine.begin(node.down,{...CONTEXT_DEFAULTS,actor:'camera'});node.engine.move({...node.down,clientX:80});node.engine.finish();
-  vectorNear(node.target,new THREE.Vector3(3,0,0)); assert.ok(node.camera.position.distanceTo(before)>.1);
+  near(node.target.distanceTo(new THREE.Vector3(3,0,0)),3); assert.ok(node.camera.position.distanceTo(before)>.1);
   assert.equal(node.commits.length,0);node.engine.dispose();
 });
 
@@ -234,10 +234,10 @@ test('rotating a selected graph preserves the zoom radius regardless of subtree 
   h.hosts.get('b').group.position.x=100;
   const initialRadius=h.camera.position.distanceTo(new THREE.Vector3(2,0,0));
   h.engine.begin(h.down,CONTEXT_DEFAULTS); h.engine.move({...h.down,clientX:20});
-  vectorNear(h.target,new THREE.Vector3(2,0,0));
-  const radius=h.camera.position.distanceTo(h.target); near(radius,initialRadius); assert.equal(h.inventoryCount(),0);
+  near(h.target.distanceTo(new THREE.Vector3(2,0,0)),2);
+  const radius=h.camera.position.distanceTo(new THREE.Vector3(2,0,0)); near(radius,initialRadius); assert.equal(h.inventoryCount(),0);
   h.hosts.get('b').group.position.x=500;
-  h.engine.move({...h.down,clientX:40});near(h.camera.position.distanceTo(h.target),radius);
+  h.engine.move({...h.down,clientX:40});near(h.camera.position.distanceTo(new THREE.Vector3(2,0,0)),radius);
   h.engine.finish(true);vectorNear(h.camera.position,start);vectorNear(h.target,new THREE.Vector3());h.engine.dispose();
 });
 

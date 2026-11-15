@@ -17,7 +17,9 @@ export function createImmersiveMode(host:Host){
    try{
     await host.enter();ownsFullscreen=true;
     if(token!==generation){if(host.fullscreen())await host.exit();ownsFullscreen=false;return;}
-    await keyboard.lock(['F4','F11']);
+    // Deliver short Escape presses to app handlers instead of native fullscreen
+    // exit. Browsers retain their mandatory long-Escape escape hatch.
+    await keyboard.lock(['F4','F11','Escape']);
     if(token!==generation||!host.fullscreen()){release();if(token===generation)update('off');return;}
     update('active');
    }catch(error){

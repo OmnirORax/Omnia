@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { emptyWorld,addStructure,validateWorld,specification,locate } from '../src/core/model.ts';
-import { readPaint,writePaint,resetPaint } from '../src/core/appearance.ts';
+import { readPaint,writePaint,resetPaint,connectorPaint } from '../src/core/appearance.ts';
 import { inherited } from '../src/core/lattice.ts';
 import { childNode,copyNode,detachNode } from '../src/core/nodeOperations.ts';
 import { createStore } from '../src/core/store.ts';
@@ -9,6 +9,22 @@ import { parseWorkspaceFile } from '../src/core/transfer.ts';
 import { visualProperties,paintColor } from '../src/properties/visual.ts';
 import { emboldenStrokeEm } from '../src/properties/embolden.ts';
 import { textStyle } from '../src/ui/appearance.ts';
+
+test('connectors share source node defaults, overrides and inherited visual channels',()=>{
+ const world=emptyWorld(),parent=addStructure(world,[0,0,0],1),other=addStructure(world,[8,0,0],2),variant=childNode(world,parent.origin,true);
+ const authored=structuredClone(world.nodes);
+ writePaint(world,'nodeDefaults',[],{color:'#ff0000',brightness:.5,opacity:.75,translucency:.25,glow:.9});
+ assert.deepEqual(connectorPaint(world,parent),{color:'#800000',opacity:.5625,glow:.9});
+ assert.deepEqual(connectorPaint(world,other),connectorPaint(world,parent));
+ assert.deepEqual(world.nodes,authored,'connector appearance never rewrites node data');
+ writePaint(world,'nodes',[parent.origin],{color:'#00ff00',opacity:.5,glow:.2});
+ assert.deepEqual(connectorPaint(world,parent),{color:'#008000',opacity:.375,glow:.2});
+ assert.deepEqual(connectorPaint(world,variant),connectorPaint(world,parent));
+ assert.equal(connectorPaint(world,other).color,'#800000');
+ resetPaint(world,'nodes',[parent.origin]);assert.deepEqual(connectorPaint(world,parent),connectorPaint(world,other));
+ const restored=validateWorld(JSON.parse(JSON.stringify(world)));
+ assert.deepEqual(connectorPaint(restored,restored.nodes[0]),connectorPaint(world,parent));
+});
 
 test('targets share paint definitions and expose font only for text',()=>{
   const text=visualProperties(true),surface=visualProperties(false);

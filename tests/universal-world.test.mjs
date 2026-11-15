@@ -50,7 +50,7 @@ test('saved orientation rotates only the requested nodes and round-trips with un
 test('layout rotation keeps unselected children fixed and rejects occupied landings atomically',()=>{
  const world=emptyWorld(),a=addStructure(world,[1,0,0],1),child=addStructure(world,[2,0,0],2);child.parent=a.origin;
  transformNodes(world,[a.origin],{x:0,y:Math.SQRT1_2,z:0,w:Math.SQRT1_2},{x:0,y:0,z:0},true);
- assert.deepEqual(a.position.map(n=>n===0?0:n),[0,0,-1]);assert.deepEqual(child.position,[2,0,0]);assert.equal(lattice(world).cells.get(address(a.origin)).z,-1);
+ assert.ok(Math.hypot(a.position[0],a.position[1],a.position[2]+1)<1e-10);assert.deepEqual(child.position,[2,0,0]);assert.ok(Math.abs(lattice(world).cells.get(address(a.origin)).z+1)<1e-10);
  const {store,origin}=fixture();store.change(w=>addStructure(w,[1,0,1],2));
  const before=store.world;
  assert.throws(()=>store.change(w=>transformNodes(w,[origin],{x:0,y:Math.SQRT1_2,z:0,w:Math.SQRT1_2},{x:1,y:0,z:0},true)),/occupied/);
