@@ -1,3 +1,4 @@
+import {syntaxTree} from '@codemirror/language';
 import { EditorSelection, type EditorState } from '@codemirror/state';
 import type { StateCommand } from '@codemirror/state';
 import { concatSource, literal, sliceSource, sourceTransaction, type Edit, type Source } from './source.ts';
@@ -33,6 +34,12 @@ export function list(kind: 'bullet' | 'numbered' | 'cycle'): StateCommand {
 export const wrap = (mark: string, end = mark): StateCommand => ({ state, dispatch }) => {
   const edits: Edit[] = [], destinations: { anchor: number; head: number }[] = []; let offset = 0;
   const ranges = state.selection.ranges.map(range=>{
+    if(range.empty&&(mark==='**'||mark==='*')){
+      for(let node=syntaxTree(state).resolveInner(range.head,-1);node;node=node.parent!){
+        if(node.name===(mark==='**'?'StrongEmphasis':'Emphasis')&&state.sliceDoc(node.from,node.from+mark.length)===mark&&range.head>=node.from+mark.length&&range.head<=node.to-end.length)
+          return EditorSelection.range(node.from,node.to);
+      }
+    }
     if(mark!=='**'&&mark!=='*')return range;
     const word=state.wordAt(range.from);
     if(!word||range.to>word.to)return range;
@@ -56,7 +63,7 @@ export const capitalizeSentence: StateCommand = ({ state, dispatch }) => {
   for (const range of state.selection.ranges) {
     const word = range.empty ? state.wordAt(range.head) : null;
     const line = state.doc.lineAt(range.head), from = word?.from ?? (range.empty ? line.from : range.from), to = word?.to ?? (range.empty ? line.to : range.to);
-    const source = state.sliceDoc(from, to), starts = /(^[ \t]*|[.!?:]\s*)([\p{L}])/gmu;
+    const source = state.sliceDoc(from, to), starts = /(^[ \t]*(?:(?:[-+*]|\d+[.)])\s+(?:\[[ xX]\]\s+)?)?|[.!?:]\s*)([\p{L}])/gmu;
     for (const match of source.matchAll(starts)) {
       const at = from + match.index! + match[1].length, text = match[2], key = `${at}:${at+text.length}`;
       if (!seen.has(key)) { seen.add(key); edits.push({ from: at, to: at + text.length, insert: literal(text.toLocaleUpperCase()) }); }

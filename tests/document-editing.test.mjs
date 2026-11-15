@@ -165,3 +165,19 @@ test('Ctrl+3 at an unselected word capitalizes that word without needing a highl
  const multi=editor(['one two three'],[[1,1],[5,5],[11,11]]);multi.run(capitalizeSentence);
  assert.equal(multi.state.doc.toString(),'One Two Three');
 });
+
+
+test('Ctrl+3 recognizes bullet, task and numbered prefixes',()=>{
+ const text='- alpha. next\n  + beta\n* [ ] task\n1. numbered';
+ const e=editor([text],[[0,text.length]]);e.run(capitalizeSentence);
+ assert.equal(e.state.doc.toString(),'- Alpha. Next\n  + Beta\n* [ ] Task\n1. Numbered');
+ e.run(undo);assert.equal(e.state.doc.toString(),text);
+});
+test('bold at a caret inside a phrase removes its enclosing markers',()=>{
+ for(const at of [4,5,6,8]){
+  const e=editor(['**abc edf**'],[[at,at]]);e.run(wrap('**'));
+  assert.equal(e.state.doc.toString(),'abc edf');e.run(undo);assert.equal(e.state.doc.toString(),'**abc edf**');
+ }
+ const code=editor(['`**abc edf**`'],[[6,6]]);code.run(wrap('**'));
+ assert.notEqual(code.state.doc.toString(),'`abc edf`');
+});

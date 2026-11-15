@@ -1,3 +1,4 @@
+import {installBrowserShortcutGuard,browserShortcutsEnabled,enableBrowserShortcuts} from './ui/browserShortcuts.ts';
 import {viewHistory,type ViewSpec} from './ui/viewHistory.ts';
 import {loadEditorModule} from './ui/moduleLoader.ts';
 import {sameValue} from './core/equality.ts';
@@ -47,6 +48,7 @@ import { field } from './ui/fields.ts';
 import { liveForm,flushLiveForms } from './ui/liveForm.ts';
 
 installPrimaryClickGate();
+installBrowserShortcutGuard();
 installValueDrag();
 installCursorTracking();
 const element = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -436,6 +438,8 @@ const worldControls=defineMenu('world',()=>{
   const names = field({ key:'names',label:'Names',kind:'select',options:[{id:'expanded',label:'Expanded'},{id:'all',label:'All'},{id:'selection',label:'Selected'}] }, store.world.settings?.names ?? 'expanded');
   form.append(scale.row,names.row);
   liveForm(form, group => attempt(() => store.change(world => { world.settings = { ...world.settings,latticeScale:Number(scale.value()),names:names.value() as 'all'|'expanded'|'selection' }; }, group)));watchFields(form,[{input:scale.input,read:()=>store.world.settings?.latticeScale??1},{input:names.input,read:()=>store.world.settings?.names??'expanded'}]); tools.append(form);
+  const browserKeys=field({key:'browserShortcuts',label:'Browser shortcuts',kind:'toggle'},browserShortcutsEnabled());
+  browserKeys.input.addEventListener('change',()=>enableBrowserShortcuts(Boolean(browserKeys.value())));tools.append(browserKeys.row);
   button('History',openHistory);
   button('Camera & rotation',openNavigation);
   button('Camera HUD',openCameraHUD);
