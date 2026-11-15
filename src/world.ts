@@ -49,10 +49,11 @@ type Input = { pick: (origin: Origin, extend: boolean, toggle: boolean) => void;
   range: (origins: Origin[], extend: boolean) => void; clear: () => void;
   menu: (origin: Origin | undefined, point: Point, position: Vec3, edge?: Edge) => void;
   move: (origins: readonly Origin[], delta: Vec3) => void;
-  connect:(source:Origin,target:Origin|undefined,position:Vec3)=>void;
+  connectDrag:(source:Origin,target:Origin|undefined,position:Vec3)=>void;
   adopt: (origins: readonly Origin[], owner: Origin, delta: Vec3) => void;
   park: (origin: Origin, position: Vec3) => World;
   paint: (positions: Vec3[], source?: Origin) => void;
+  connect: (origin: Origin)=>void;
   subtree: (origin: Origin) => void;
   edge: (edge: Edge) => void;
   transform: (origins:readonly Origin[],rotation:Rotation,pivot: {x:number;y:number;z:number},layout:boolean)=>void;
@@ -286,7 +287,7 @@ export function createWorld(host: HTMLElement, input: Input) {
       visual.group.visible=true;
     }
     for (const visual of visuals.values()) visual.group.visible=visibility(visual.node);
-    connections();presentation();session.update(next,selection[0]);drive.refresh();
+    if(!input.picking()){connectionSource=undefined;connectionLine.visible=false;}connections();presentation();session.update(next,selection[0]);drive.refresh();
   }
   const navigatorOffset = new T.Vector3();
   function aimNavigator(p: Point) {
@@ -296,13 +297,16 @@ export function createWorld(host: HTMLElement, input: Input) {
     if(drive.active)drive.move(navigator.position.clone().sub(visuals.get(drive.id!)?.host.position??new T.Vector3()));request();
   }
   function mount(origin: Origin,p: Point) {
-    const position=drive.begin(doc,key(origin),1,scale).add(visuals.get(key(origin))!.host.position);mountedWorld=world;navigator.initialize(position);navigator.position.copy(position);navigator.orientation.copy(camera.quaternion);pointer(p);
+    const position=drive.begin(doc,key(origin),1,scale,[...(prepareTranslation(world,[origin])([0,0,0])?.keys()??[key(origin)])]).add(visuals.get(key(origin))!.host.position);mountedWorld=world;navigator.initialize(position);navigator.position.copy(position);navigator.orientation.copy(camera.quaternion);pointer(p);
     const projected=navigator.project(ray.ray);navigatorOffset.copy(projected?position.clone().sub(projected).applyQuaternion(navigator.orientation.clone().invert()):new T.Vector3());navigatorOffset.z=0;
     controls.enabled=false;input.pick(origin,false,false);rebuildPicks();input.feedback('Driving · click an empty cell to park · Esc cancels');request();
   }
   function cancelDrive() { const active=drive.active;if(active)relocationPin=drive.id;drive.cancel();mountedWorld=undefined;navigatorOffset.set(0,0,0);controls.enabled=true;edges.visible=true;rebuildPicks();if(active)presentation();else request();return active; }
   type Gesture={pointer:number;button:number;alt:boolean;start:Point;end:Point;origin?:Origin;edge?:Edge;anchor:T.Vector3;mode:'move'|'range'|'view'|'drive'|'paint';dragged:boolean;origins:readonly Origin[];moving?:Set<string>;project?:ReturnType<typeof pointerPlane>;resolve?:ReturnType<typeof import('./core/lattice.ts').prepareTranslation>};
   let gesture:Gesture|undefined;
+  let connectionSource:Origin|undefined;
+  const connectionLine=new T.Line(new T.BufferGeometry().setFromPoints([new T.Vector3(),new T.Vector3()]),new T.LineBasicMaterial({color:0x00d8ff,depthTest:false}));connectionLine.visible=false;connectionLine.frustumCulled=false;scene.add(connectionLine);
+
   const secondary=createSecondaryRelease<()=>void>();
   let secondarySurface:{surface:OmnicSurface;released:boolean;context:boolean}|undefined;
   let stroke:{points:Vec3[];seen:Set<string>;previous:Vec3;source?:Origin;preview:T.InstancedMesh}|undefined;
@@ -346,7 +350,7 @@ export function createWorld(host: HTMLElement, input: Input) {
     if(g){g.end=p;g.dragged ||= Math.hypot(p.x-g.start.x,p.y-g.start.y)>=4;
       if(g.mode==='paint'){if(g.dragged)paintPoint(p);return;}
       if(g.dragged&&g.mode==='move'){
-        if(!g.moving){g.moving=new Set(branch(world,g.origins).map(key));for(const id of g.moving)relocating.add(id);relocationPin=g.origin?key(g.origin):undefined;presentation();}
+        if(!g.moving){g.moving=new Set(branch(world,g.origins).map(key));g.resolve=prepareTranslation(world,g.origins);const carried=g.resolve([0,0,0]);for(const id of carried?.keys()??g.origins.map(key))relocating.add(id);relocationPin=g.origin?key(g.origin):undefined;presentation();}
         const delta=(g.project?.(p)??at(p,g.anchor)).sub(g.anchor).divideScalar(scale);
         // Same lattice transform used by numerical operation commits; preparation is once per gesture.
         g.resolve??=prepareTranslation(world,g.origins);
@@ -357,13 +361,17 @@ export function createWorld(host: HTMLElement, input: Input) {
       if(g.dragged&&g.mode==='range'){rectangle.hidden=false;Object.assign(rectangle.style,{left:`${Math.min(g.start.x,p.x)}px`,top:`${Math.min(g.start.y,p.y)}px`,width:`${Math.abs(p.x-g.start.x)}px`,height:`${Math.abs(p.y-g.start.y)}px`});return;}
       if(g.dragged&&g.mode==='view')return;
     }
+    if(connectionSource){
+      if(!input.picking()){connectionSource=undefined;connectionLine.visible=false;request();}
+      else {const source=visuals.get(key(connectionSource)),hit=pointed(p).origin,target=hit&&visuals.get(key(hit));if(source){const start=displayed(source),end=target?displayed(target):at(p,start);const positions=connectionLine.geometry.getAttribute('position') as T.BufferAttribute;positions.setXYZ(0,start.x,start.y,start.z);positions.setXYZ(1,end.x,end.y,end.z);positions.needsUpdate=true;connectionLine.visible=true;request();}return;}
+    }
     if(drive.active){aimNavigator(p);return;}
     if(!input.picking())aimNavigator(p);
     const hit=pointed(p);hover=hit.origin?key(hit.origin):undefined;
   }
   canvas.addEventListener('pointermove',event=>{if(connectorDrag?.pointer===event.pointerId){const end=connectorDrag.project({x:event.clientX,y:event.clientY}),positions=connectorDrag.line.geometry.getAttribute('position') as T.BufferAttribute;positions.setXYZ(1,end.x,end.y,end.z);positions.needsUpdate=true;connectorDrag.line.geometry.computeBoundingSphere();request();return;}if(navigation.move(event))return;if(omnicGesture&&omnicGesture.id===event.pointerId){const point=editPoint(event,omnicGesture.surface);if(point)omnicGesture.surface.move(point,event);return;}if(omnic?.origin){const point=editPoint(event,omnic,true);omnic.hover?.(!!point);if(point)omnic.move(point,event);}lastPoint={x:event.clientX,y:event.clientY};if(!inputFrame)inputFrame=requestAnimationFrame(()=>{void processPointer();});});
   canvas.addEventListener('pointerup',event=>{
-    if(connectorDrag?.pointer===event.pointerId&&connectorDrag.button===event.button){const drag=connectorDrag,p={x:event.clientX,y:event.clientY},end=drag.project(p),target=pointed(p,new Set([key(drag.source)])).origin;cancelConnector();try{if(connectorDragged(drag.start,p))input.connect(drag.source,target,xyz(end.divideScalar(scale)));else if(event.button===0)input.subtree(drag.source);else input.menu(drag.source,p,creationPoint(p));}catch(error){input.feedback(error instanceof Error?error.message:String(error));}return;}
+    if(connectorDrag?.pointer===event.pointerId&&connectorDrag.button===event.button){const drag=connectorDrag,p={x:event.clientX,y:event.clientY},end=drag.project(p),target=pointed(p,new Set([key(drag.source)])).origin;cancelConnector();try{if(connectorDragged(drag.start,p))input.connectDrag(drag.source,target,xyz(end.divideScalar(scale)));else if(event.button===0)input.connect(drag.source);else input.menu(drag.source,p,creationPoint(p));}catch(error){input.feedback(error instanceof Error?error.message:String(error));}return;}
 
     if(navigation.acceptsRelease(event)&&navigation.finish()){secondary.cancel();secondarySurface=undefined;cancelOmnic();gesture=undefined;request();return;}
     if(omnicGesture&&omnicGesture.id===event.pointerId){const gesture=omnicGesture,point=editPoint(event,gesture.surface);if(!(event.buttons&1)){omnicGesture=undefined;controls.enabled=!drive.active;}if(point)gesture.surface.up(point,event);else gesture.surface.cancel();if(event.button===2&&secondarySurface){secondarySurface.released=true;if(secondarySurface.context)secondarySurface=undefined;}request();return;}
@@ -384,12 +392,13 @@ export function createWorld(host: HTMLElement, input: Input) {
       if(g.edge){cancelDrive();input.edge(g.edge);return;}
       if(input.picking()){if(g.origin)input.pick(g.origin,false,false);return;}
       if(g.mode==='range'){cancelDrive();if(g.origin)input.pick(g.origin,true,true);return;}
-      if(event.shiftKey){if(g.origin)input.subtree(g.origin);return;}
+      if(event.shiftKey){if(g.origin)input.connect(g.origin);return;}
       if(drive.active){relocationPin=drive.id;const parked=drive.park(!!g.origin);if(!parked){input.feedback('Choose a free lattice cell to park. Esc cancels.');return;}mountedWorld=undefined;controls.enabled=true;navigatorOffset.set(0,0,0);rebuildPicks();input.feedback('');if(g.origin&&g.alt)mount(g.origin,g.end);return;}
       if(g.origin){if(g.alt)mount(g.origin,g.end);}else{navigator.initialize(controls.target);navigator.position.copy(at(g.end,navigator.position));navigatorOffset.set(0,0,0);}
     }catch(error){gesture=g;restore();input.feedback(error instanceof Error?error.message:String(error));}
     finally{if(relocating.size||g.mode==='drive'){relocating.clear();presentation();}else request();}
   });
+  canvas.addEventListener('dblclick',event=>{const hit=pointed({x:event.clientX,y:event.clientY});if(hit.origin){if(omnic?.origin&&sameOrigin(hit.origin,omnic.origin))return;cancelDrive();input.subtree(hit.origin);presentation();}});
   canvas.addEventListener('contextmenu',event=>{event.preventDefault();event.stopPropagation();if(secondarySurface){const pending=secondarySurface;pending.context=true;const point=editPoint(event,pending.surface);if(point)pending.surface.context(point,event);if(pending.released)secondarySurface=undefined;}else secondary.context()?.();});
   canvas.addEventListener('pointercancel',()=>{navigation.finish(true);secondary.cancel();secondarySurface=undefined;cancelOmnic();restore();cancelDrive();});
   canvas.addEventListener('lostpointercapture',()=>{cancelOmnic();if(gesture?.mode!=='view')restore();});
@@ -455,7 +464,8 @@ export function createWorld(host: HTMLElement, input: Input) {
   document.addEventListener('visibilitychange',()=>{if(document.hidden){held.clear();nudging.finish(true);navigation.finish(true);restoreNative();restore();cancelOmnic();cancelDrive();}else request();});
   return { update,session,point:creationPoint,center:()=>navigator.initialized?xyz(navigator.position.clone().divideScalar(scale)):xyz(controls.target.clone().divideScalar(scale)),request,
     editOmnic(surface:OmnicSurface){if(omnic!==surface){cancelOmnic();omnic=surface;request();}return()=>{if(omnic===surface){cancelOmnic();omnic=undefined;request();}};},
-    cancel(){const active=navigation.active||cancelOmnic()||!!gesture||drive.active||!!connectorDrag;navigation.finish(true);nudging.finish(true);restore();cancelDrive();held.clear();return active;},
+    connect(origin:Origin){cancelDrive();connectionSource=origin;connectionLine.visible=false;request();},
+    cancel(){const active=!!connectionSource||navigation.active||cancelOmnic()||!!gesture||drive.active||!!connectorDrag;connectionSource=undefined;connectionLine.visible=false;navigation.finish(true);nudging.finish(true);restore();cancelDrive();held.clear();return active;},
     variants(origin:Origin, enabled?:boolean){const id=key(origin);if(enabled===true)variants.add(id);else if(variants.has(id))variants.delete(id);else variants.add(id);update(world,selected,filter,selectedEdges);},
     camera:cameraAction,showCamera(){hud.show();request();return {root:hud.root,close:hud.close};},
     previewColor(origins:readonly Origin[],color:string){for(const origin of origins)visuals.get(key(origin))?.body.material.color.set(color);request();},
