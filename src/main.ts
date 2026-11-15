@@ -1,4 +1,4 @@
-import {createAxis,slotNode,focusNodeFrame,endpointView} from './core/axes.ts';
+import {createAxis,setAxisOrigin,slotNode,focusNodeFrame,endpointView} from './core/axes.ts';
 import {parseBrush,brushShape,SINGLE_BRUSH,type Brush} from './core/brush.ts';
 import {handleContentViewShortcut} from './ui/contentViewShortcut.ts';
 import {ANIMATION_TARGETS,animationProperties} from './properties/animations.ts';
@@ -99,6 +99,7 @@ const view = (() => {
       adopt(origins, owner, delta) { store.change(world => adoptNodes(world, origins, owner, delta)); },
       park(origin, position) { message = ''; store.change(world => {const node=locate(world,origin)!;translate(world,[origin],position.map((v,i)=>v-node.position[i]) as Vec3);}); return store.world; },
       paint(positions,source,axis){store.change(world=>paintNodes(world,positions,source,axis));},
+      origin(id,position){store.change(world=>setAxisOrigin(world,id,position));},
       axis(first,second,up){store.change(world=>{createAxis(world,first,second,up);});selection.set([]);refresh();},
       slot(origins,axis,point){store.change(world=>slotNode(world,origins[0],axis,point,origins));},
       focusAxis(id){selection.set([]);store.change(world=>{world.activeAxis=id;});},
@@ -584,7 +585,7 @@ document.addEventListener('keydown', event => {
   if (event.target instanceof Element && event.target.closest('[data-input-owner]')) return;
   if (editing || event.target instanceof HTMLElement && event.target.isContentEditable) return;
   if(!event.ctrlKey&&!event.metaKey&&!event.altKey&&!event.shiftKey&&!event.repeat&&!selection.requesting){
-    const action:Record<string,()=>void>={n:()=>view?.toggleCreation(),x:startAxis,c:()=>view?.toggleCoordinates(),f:focusSelection,d:()=>openDocument(),l:()=>{if(selectedOrigins().length)editCapability('label');}};
+    const action:Record<string,()=>void>={n:()=>view?.toggleCreation(),x:startAxis,o:()=>view?.pickOrigin(),c:()=>view?.toggleCoordinates(),f:focusSelection,d:()=>openDocument(),l:()=>{if(selectedOrigins().length)editCapability('label');}};
     const run=action[event.key.toLowerCase()];if(run){event.preventDefault();attempt(run);return;}
   }
   if(event.key.toLowerCase()==='x'&&event.shiftKey&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&!event.repeat){event.preventDefault();openBrush();return;}

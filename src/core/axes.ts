@@ -1,6 +1,6 @@
 import {locate, sameOrigin, type Origin,type Vec3,type World} from './model.ts';
 import {address,prepareTranslation} from './lattice.ts';
-export type AxisFrame={id:string;ends:[Origin]|[Origin,Origin];x:Vec3;y:Vec3;z:Vec3;members:Origin[]};
+export type AxisFrame={id:string;ends:[Origin]|[Origin,Origin];x:Vec3;y:Vec3;z:Vec3;members:Origin[];origin?:Vec3;directed?:boolean};
 export const plus=(a:Vec3,b:Vec3):Vec3=>a.map((n,i)=>n+b[i]) as Vec3;
 export const minus=(a:Vec3,b:Vec3):Vec3=>a.map((n,i)=>n-b[i]) as Vec3;
 export const times=(a:Vec3,n:number):Vec3=>a.map(v=>v*n) as Vec3;
@@ -9,14 +9,15 @@ export const norm=(a:Vec3)=>Math.hypot(...a);
 const cross=(a:Vec3,b:Vec3):Vec3=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
 const unit=(a:Vec3)=>times(a,1/norm(a));
 export function axisAnchor(world:World,frame:AxisFrame){return locate(world,frame.ends[0])!.position;}
-export function axisCenter(world:World,frame:AxisFrame){return times(plus(axisAnchor(world,frame),locate(world,(frame.ends[1]??frame.ends[0]))!.position),.5);}
+export function axisCenter(world:World,frame:AxisFrame){return frame.origin??times(plus(axisAnchor(world,frame),locate(world,(frame.ends[1]??frame.ends[0]))!.position),.5);}
 export function axisCoordinates(world:World,frame:AxisFrame,p:Vec3):Vec3{const d=minus(p,axisCenter(world,frame));return [dot(d,frame.x),dot(d,frame.y),dot(d,frame.z)];}
-export function axisPoint(world:World,frame:AxisFrame,slot:Vec3):Vec3{return plus(axisAnchor(world,frame),plus(times(frame.x,slot[0]),plus(times(frame.y,slot[1]),times(frame.z,slot[2]))));}
+export function axisPoint(world:World,frame:AxisFrame,slot:Vec3):Vec3{return plus(frame.directed?axisCenter(world,frame):axisAnchor(world,frame),plus(times(frame.x,slot[0]),plus(times(frame.y,slot[1]),times(frame.z,slot[2]))));}
 export function axisSlot(world:World,frame:AxisFrame,p:Vec3,mode:'axis'|'plane'|'space'='axis'):Vec3{
- const coordinates=axisCoordinates(world,frame,p),half=norm(minus(locate(world,(frame.ends[1]??frame.ends[0]))!.position,axisAnchor(world,frame)))/2;
+ const coordinates=axisCoordinates(world,frame,p),half=frame.directed?0:norm(minus(locate(world,(frame.ends[1]??frame.ends[0]))!.position,axisAnchor(world,frame)))/2;
  const slot:Vec3=[Math.round(coordinates[0]+half),Math.round(coordinates[1]),Math.round(coordinates[2])];
  if(mode==='axis'){const lengths=coordinates.map(Math.abs),axis=lengths.indexOf(Math.max(...lengths));return [axis===0?slot[0]:half,axis===1?slot[1]:0,axis===2?slot[2]:0];}
  if(mode==='plane'){const lengths=coordinates.map(Math.abs),normal=lengths.indexOf(Math.min(...lengths));slot[normal]=normal===0?half:0;}
+
  return slot;
 }
 export function axisComponent(world:World,ids:Set<string>){
@@ -39,11 +40,11 @@ export function planAxis(world:World,first:Origin,second:Origin,up:Vec3){
  throw Error('Axis spacing conflicts with occupied positions or an existing arrangement.');
 }
 export function createAxis(world:World,first:Origin,second:Origin,up:Vec3){
- const existing=world.axes?.find(frame=>frame.ends.length===2&&frame.ends.some(end=>sameOrigin(end,first))&&frame.ends.some(end=>sameOrigin(end,second)));if(existing){world.activeAxis=existing.id;return existing;}
+ const existing=world.axes?.find(frame=>frame.ends.length===2&&frame.ends.some(end=>sameOrigin(end,first))&&frame.ends.some(end=>sameOrigin(end,second)));if(existing){const plan=planAxis(world,first,second,up);for(const node of world.nodes){const target=plan.targets.get(address(node.origin));if(target)node.position=target;}Object.assign(existing,{ends:[structuredClone(first),structuredClone(second)],x:times(plan.z,-1),y:plan.y,z:plan.x,origin:[...locate(world,second)!.position],directed:true});world.activeAxis=existing.id;return existing;}
  if((world.axes?.length??0)>=64)throw Error('Up to 64 axis frames are supported.');
  const plan=planAxis(world,first,second,up);
  for(const node of world.nodes){const target=plan.targets.get(address(node.origin));if(target)node.position=target;}
- const frame:AxisFrame={id:crypto.randomUUID(),ends:[structuredClone(first),structuredClone(second)],x:plan.x,y:plan.y,z:plan.z,members:[structuredClone(first),structuredClone(second)]};
+ const frame:AxisFrame={id:crypto.randomUUID(),ends:[structuredClone(first),structuredClone(second)],x:times(plan.z,-1),y:plan.y,z:plan.x,origin:[...locate(world,second)!.position],directed:true,members:[structuredClone(first),structuredClone(second)]};
  (world.axes??=[]).push(frame);world.activeAxis=frame.id;return frame;
 }
 export function planSlotNode(world:World,origin:Origin,id:string,desired:Vec3,origins:readonly Origin[]=[origin]){
@@ -73,11 +74,12 @@ export function validateAxes(world:World){
   if([frame.x,frame.y,frame.z].some(v=>Math.abs(norm(v)-1)>1e-6)||Math.abs(dot(frame.x,frame.y))>1e-6||norm(minus(cross(frame.x,frame.y),frame.z))>1e-6)throw Error('Invalid axis orientation.');
   const members=new Set<string>();
   for(const member of [...frame.members,...frame.ends])if(!member||!nodes.has(address(member)))throw Error('Missing axis node.');
+  if(frame.directed!==undefined&&typeof frame.directed!=='boolean'||frame.origin!==undefined&&(!vector(frame.origin)||frame.origin.some(n=>Math.abs(n)>1e7)))throw Error('Invalid axis origin.');
   const anchor=nodes.get(address(frame.ends[0]))!.position,end=nodes.get(address(frame.ends[1]??frame.ends[0]))!.position,half=norm(minus(end,anchor))/2;
-  for(const member of frame.members){if(members.has(address(member)))throw Error('Duplicate axis member.');members.add(address(member));const d=minus(nodes.get(address(member))!.position,anchor),coords=[dot(d,frame.x),dot(d,frame.y),dot(d,frame.z)],integer=(n:number)=>Math.abs(n-Math.round(n))<1e-5;if(!integer(coords[1])||!integer(coords[2])||!integer(coords[0])&&!integer(coords[0]-half))throw Error('Node conflicts with its axis slots.');}
+  for(const member of frame.members){if(members.has(address(member)))throw Error('Duplicate axis member.');members.add(address(member));const d=minus(nodes.get(address(member))!.position,anchor),coords=[dot(d,frame.x),dot(d,frame.y),dot(d,frame.z)],integer=(n:number)=>Math.abs(n-Math.round(n))<1e-5;if(!frame.directed&&(!integer(coords[1])||!integer(coords[2])||!integer(coords[0])&&!integer(coords[0]-half)))throw Error('Node conflicts with its axis slots.');}
   if(frame.ends.some(end=>!members.has(address(end)))||frame.ends.length===2&&sameOrigin(frame.ends[0],frame.ends[1]))throw Error('Invalid axis endpoints.');
   const delta=minus(end,anchor),length=dot(delta,frame.x);
-  if(frame.ends.length===2&&length<1-1e-6||Math.abs(length-Math.round(length))>1e-5||norm(minus(delta,times(frame.x,length)))>1e-5)throw Error('Invalid axis spacing.');
+  if(!frame.directed&&(frame.ends.length===2&&length<1-1e-6||Math.abs(length-Math.round(length))>1e-5||norm(minus(delta,times(frame.x,length)))>1e-5))throw Error('Invalid axis spacing.');
  }
  if(world.activeAxis!==undefined&&!ids.has(world.activeAxis))throw Error('Invalid active axis.');
 }
@@ -95,4 +97,16 @@ export function endpointView(world:World,frame:AxisFrame,origin:Origin){
  const position=locate(world,origin)!.position,target=locate(world,frame.ends.find(end=>!sameOrigin(end,origin))!)!.position,back=unit(minus(position,target));
  const right=unit(cross(frame.y,back)),up=unit(cross(back,right));
  return {position,target,right,up};
+}
+
+export function originSlots(world:World,frame:AxisFrame):Vec3[]{
+ const a=axisAnchor(world,frame),b=locate(world,frame.ends[1]??frame.ends[0])!.position,delta=minus(b,a),length=norm(delta),steps=Math.round(length);
+ if(steps>3999)throw Error('Origin picking supports up to 4,000 positions.');
+ return Array.from({length:steps+1},(_,i)=>steps?plus(a,times(delta,i/steps)):[...a] as Vec3);
+}
+export function setAxisOrigin(world:World,id:string,position:Vec3){
+ const frame=world.axes?.find(frame=>frame.id===id);if(!frame)throw Error('Select an axis first.');
+ if(!originSlots(world,frame).some(p=>norm(minus(p,position))<1e-6))throw Error('Choose a discrete position on the axis.');
+ if(!frame.directed){const oldX=frame.x;frame.x=times(frame.z,-1);frame.z=oldX;frame.directed=true;}
+ frame.origin=[...position];
 }

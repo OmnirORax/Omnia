@@ -1,5 +1,4 @@
 import {createOccupancy} from '../graph/occupancy.ts';
-import {axisComponent} from './axes.ts';
 import {definitionRecipe} from '../omnic/definition.ts';
 import { nearestCell, prepareLattice, type Cell } from '../graph/lattice.ts';
 import type { Document, XYZ } from '../graph/geometryTypes.ts';
@@ -39,10 +38,9 @@ export function moveBranch(world: World, origin: Origin, desired: Vec3) {
 }
 export function prepareTranslation(world: World, origins: readonly Origin[]) {
   const index = lattice(world), moving = new Set(origins.map(address));
-  axisComponent(world,moving);
   const carried=new Set<string>();
   let changed=true;
-  while(changed){const count=moving.size;axisComponent(world,moving);
+  while(changed){const count=moving.size;
     for(const node of world.nodes)if(moving.has(address(node.origin))&&node.collapsed)carried.add(address(node.origin));
     for(const node of world.nodes)if(node.parent&&(carried.has(address(node.parent))||node.hidden&&moving.has(address(node.parent)))){carried.add(address(node.origin));moving.add(address(node.origin));}
     changed=count!==moving.size;

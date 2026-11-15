@@ -5,7 +5,7 @@ import {address,point} from './lattice.ts';
 import type {Vec3,World} from './model.ts';
 export function createPaintSession(world:World,origin:Vec3,basis:[Vec3,Vec3,Vec3],frame?:AxisFrame,plane=2,planes=false,planeDepth?:number,index?:ReturnType<typeof createOccupancy>){
  const shape=brushShape(world.brush??SINGLE_BRUSH),occupied=index??createOccupancy(world.nodes.map(node=>[address(node.origin),point(node.position)] as const)),pending=createOccupancy([]),seen=new Set<string>(),points:Vec3[]=[];
- const start=frame?axisAnchor(world,frame):origin,center=frame?axisCenter(world,frame):origin;
+ const start=frame?(frame.directed?axisCenter(world,frame):axisAnchor(world,frame)):origin,center=frame?axisCenter(world,frame):origin;
  const offsets=shape.points.map(p=>plus(times(basis[0],p[0]),plus(times(basis[1],p[1]),times(basis[2],p[2]))));
  function candidate(position:Vec3){
   const d=minus(position,start),coordinates=basis.map(v=>dot(d,v)),slot=coordinates.map((n,i)=>Math.round(n/shape.pitch[i])*shape.pitch[i]);
