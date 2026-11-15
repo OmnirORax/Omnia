@@ -90,3 +90,11 @@ export function paintNodes(world:World,positions:Vec3[],source?:Origin,axis?:str
  const node=source&&locate(world,source),frame=world.axes?.find(frame=>frame.id===axis);
  for(const position of positions){const created=node?copyNode(world,node,position,occupied):addStructure(world,position,Date.now(),occupied);created.parts=[];if(frame)frame.members.push(structuredClone(created.origin));}
 }
+
+export function toggleChildLevel(world:World,origin:Origin){
+ const root=locate(world,origin);if(!root)return;
+ const children=world.nodes.filter(node=>node.parent&&sameOrigin(node.parent,origin)&&!node.hidden&&!node.variantOf);
+ if(!children.length)return;
+ if(!root.collapsed){root.collapsed=true;return;}
+ root.collapsed=false;for(const child of children)child.collapsed=true;
+}

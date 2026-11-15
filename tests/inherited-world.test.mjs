@@ -99,3 +99,10 @@ test('driving an expanded parent previews only its movement targets and cancella
  assert.deepEqual(hosts.get(address(root.origin)).group.position.toArray(),[0,2,0]);assert.deepEqual(hosts.get(address(child.origin)).group.position.toArray(),child.position);
  drive.cancel();assert.deepEqual(hosts.get(address(root.origin)).group.position.toArray(),root.position);
 });
+test('next-level hierarchy expansion leaves grandchildren collapsed',async()=>{
+ const {toggleChildLevel,toggleSubtree}=await import('../src/core/nodeOperations.ts');
+ const world=emptyWorld(),root=addStructure(world,[0,0,0],1),child=addStructure(world,[2,0,0],2),grand=addStructure(world,[4,0,0],3);child.parent=root.origin;grand.parent=child.origin;root.collapsed=true;
+ toggleChildLevel(world,root.origin);assert.equal(root.collapsed,false);assert.equal(child.collapsed,true);
+ toggleSubtree(world,root.origin);assert.equal(root.collapsed,false);assert.equal(child.collapsed,false);
+ toggleSubtree(world,root.origin);assert.equal(root.collapsed,true);assert.equal(child.collapsed,true);
+});

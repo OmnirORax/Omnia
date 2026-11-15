@@ -40,13 +40,13 @@ import './style.css';
 import { installPrimaryClickGate } from './ui/primaryClick.ts';
 import { paintForm } from './ui/visualControls.ts';
 import { updateUIAppearance } from './ui/appearance.ts';
-import { addStructure, bind, locate, resolve, sameOrigin, setInvariant, type Binding, type Origin, type Vec3, type World } from './core/model.ts';
+import { bind, locate, resolve, sameOrigin, setInvariant, type Binding, type Origin, type Vec3, type World } from './core/model.ts';
 import { capabilities, translate } from './core/capabilities.ts';
 import { createSelection } from './core/selection.ts';
 import { createStore } from './core/store.ts';
 import { createWorld, type Edge } from './world.ts';
 import { inherited } from './core/lattice.ts';
-import { paintNodes, adoptNodes, connectNodes, childNode, detachNode, removeNodes, toggleSubtree } from './core/nodeOperations.ts';
+import { paintNodes, adoptNodes, connectNodes, childNode, detachNode, removeNodes, toggleSubtree, toggleChildLevel } from './core/nodeOperations.ts';
 import type { editDocument } from './text/editor.ts';
 import {scenePanel,SCENE_TABS,type SceneTab} from './scene/panel.ts';
 import { validateAsset, MAX_ASSET_BYTES, type VisualAsset } from './graph/assets.ts';
@@ -103,7 +103,7 @@ const view = (() => {
       slot(origins,axis,point){store.change(world=>slotNode(world,origins[0],axis,point,origins));},
       focusAxis(id){selection.set([]);store.change(world=>{world.activeAxis=id;});},
       connect(origin){connectNode(origin);},
-      subtree(origin) { store.change(world => toggleSubtree(world, origin)); },
+      subtree(origin,nextOnly=false) { store.change(world => nextOnly?toggleChildLevel(world,origin):toggleSubtree(world, origin)); },
       edge(edge) { selection.set([edge]); refresh(); },
       feedback,
     });
@@ -155,12 +155,6 @@ function positionMenu() {
 }
 function button(label: string, action: () => void, parent = tools) {
   const b = document.createElement('button'); b.textContent = label; b.onclick = () => attempt(action); parent.append(b); return b;
-}
-function create(position: Vec3) {
-  let origin: Origin | undefined;
-  const owner=selectedOrigins()[0];
-  store.change(world => { origin = owner?childNode(world,owner,false,position).origin:addStructure(world, position).origin;if(owner)locate(world,owner)!.collapsed=false;const frame=world.axes?.find(frame=>frame.id===world.activeAxis);if(frame)frame.members.push(structuredClone(origin!)); });
-  selection.set([origin!]); search.value = ''; close(); message = ''; refresh();
 }
 const editCapability=defineMenu('capability',(capabilityKey: string)=>{
   const origins = [...selectedOrigins()], first = locate(store.world, origins[0]); if (!first) return;
@@ -277,10 +271,10 @@ function openLibrary(restore?:ViewSpec){renderClose();if(library?.root.isConnect
  void loadEditor(()=>import('./omnic/library.ts')).then(({libraryPanel})=>{if(epoch!==documentEpoch||restore&&!viewHistory.wants(restore))return;viewHistory.perform(()=>{const spec=restore??viewHistory.reserve({kind:'library'});library=libraryPanel({read:()=>store.world,change:store.change,open:origin=>openComposer(origin),focus:origin=>{pick(origin);view?.focus([origin],true);},feedback,subscribe:store.subscribe},`window:${spec.instance}`);viewHistory.adopt('library',spec,library,restore);},actionId);}).catch(error=>{viewHistory.failed(restore,error);feedback(String(error));}).finally(()=>{openingLibrary=false;});
 }
 
-const context=defineMenu('context',(position: Vec3,origin?:Origin,edge?:Edge)=>{
+const context=defineMenu('context',(_position: Vec3,origin?:Origin,edge?:Edge)=>{
   if (edge) { edgeContext(edge); return; }
   open(origin ? `${selectedOrigins().length} selected` : 'Omnium');
-  if (!origin) { button('Create structure (N)', () => create(position)); button('Omnic',()=>openComposer(undefined)); button('Library · Atlas',openLibrary); button('👁', appearance).setAttribute('aria-label', 'Appearance'); return; }
+  if (!origin) { button('Create structure (N)', () => {close();view?.toggleCreation();}); button('Omnic',()=>openComposer(undefined)); button('Library · Atlas',openLibrary); button('👁', appearance).setAttribute('aria-label', 'Appearance'); return; }
   const node = selectedNodes(store.world)[0]; if (!node) return;
   for (const capability of capabilities(node).filter(c => !['color','carrier','move'].includes(c.key))) button(capability.key==='label'?'Label (L)':capability.label, () => editCapability(capability.key));
   button('👁', appearance).setAttribute('aria-label', 'Appearance');
@@ -385,7 +379,7 @@ function searchActions():SearchAction[]{return [
  {label:'History',keywords:'history undo redo scope steps',run:openHistory},
  {label:'Undo',keywords:'undo history mb4 ctrl z control z',run:()=>travelHistory('undo')},
  {label:'Redo',keywords:'redo history mb5 ctrl y control y',run:()=>travelHistory('redo')},
- {label:'Create structure (N)',keywords:'add new node structure',run:()=>create(view!.center()),available:!!view},
+ {label:'Create structure (N)',keywords:'add new node structure',run:()=>view?.toggleCreation(),available:!!view},
  {label:'Document (D)',keywords:'node document text notes writing',run:openDocument,available:!!selectedOrigins().length},
  {label:'Composition',keywords:'node parts include references invariants',run:parts,available:!!selectedOrigins().length},
  {label:'Node tools',keywords:'node child parent copy variants attach detach hide connect remove',run:nodeTools,available:!!selectedOrigins().length},
@@ -561,7 +555,7 @@ const edgeContext=defineMenu('edge',(edge: Edge)=>{
 });
 element('workspace').onclick = ()=>openWorkspace();
 element<HTMLButtonElement>('create').disabled = !view;
-element('create').onclick = () => attempt(() => create(view!.center()));
+element('create').onclick = () => view?.toggleCreation();
 function travelHistory(direction:'undo'|'redo'){
   const field=document.activeElement,editing=field instanceof HTMLInputElement||field instanceof HTMLTextAreaElement||field instanceof HTMLSelectElement;
   if(editing)field.blur();flushLiveForms();view?.cancel();selection.cancel();travelGlobalHistory(direction);
@@ -590,7 +584,7 @@ document.addEventListener('keydown', event => {
   if (event.target instanceof Element && event.target.closest('[data-input-owner]')) return;
   if (editing || event.target instanceof HTMLElement && event.target.isContentEditable) return;
   if(!event.ctrlKey&&!event.metaKey&&!event.altKey&&!event.shiftKey&&!event.repeat&&!selection.requesting){
-    const action:Record<string,()=>void>={n:()=>{if(view){if(!view.canCreate){feedback('Choose a free placement.');return;}if(store.world.brush)view.stamp();else create(view.center());}},x:startAxis,c:()=>view?.toggleCoordinates(),f:focusSelection,d:()=>openDocument(),l:()=>{if(selectedOrigins().length)editCapability('label');}};
+    const action:Record<string,()=>void>={n:()=>view?.toggleCreation(),x:startAxis,c:()=>view?.toggleCoordinates(),f:focusSelection,d:()=>openDocument(),l:()=>{if(selectedOrigins().length)editCapability('label');}};
     const run=action[event.key.toLowerCase()];if(run){event.preventDefault();attempt(run);return;}
   }
   if(event.key.toLowerCase()==='x'&&event.shiftKey&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&!event.repeat){event.preventDefault();openBrush();return;}
