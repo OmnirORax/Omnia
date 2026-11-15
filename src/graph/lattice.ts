@@ -1,5 +1,6 @@
 import type { Document, XYZ } from './geometryTypes.ts';
 import { worldPositions } from './coordinates.ts';
+import {createOccupancy} from './occupancy.ts';
 export type Cell = XYZ;
 const key=(p:Cell)=>`${p.x},${p.y},${p.z}`;
 const add=(a:XYZ,b:XYZ):XYZ=>({x:a.x+b.x,y:a.y+b.y,z:a.z+b.z});
@@ -35,6 +36,7 @@ export function nearestCell(point:XYZ,free:(cell:Cell)=>boolean):Cell {
 const caches=new WeakMap<Document,Map<number,ReturnType<typeof buildLattice>>>();
 function buildLattice(doc:Document,unit:number){
  const worlds=worldPositions(doc),cells=new Map<string,Cell>(),occupied=new Map<string,string>();
+  if(doc.freePositions){for(const [id,p]of worlds){const cell={x:p.x/unit,y:p.y/unit,z:p.z/unit};cells.set(id,cell);occupied.set(key(cell),id);}return {cells,occupied,worlds,unit};}
  // Existing exact cells take priority over historical off-grid/overlapping data.
  const frontiers=new Map<string,Generator<Cell>>();
  const placements=doc.placements.map((p,index)=>({p,index,point:worlds.get(p.id)!}));
@@ -66,7 +68,8 @@ function movementPlan(doc:Document,id:string,size?:number){
  const children=new Map<string,string[]>();for(const p of doc.placements)if(p.parentId){const list=children.get(p.parentId)??[];list.push(p.id);children.set(p.parentId,list);}
  const moving=new Set([id]);for(const current of moving)for(const child of children.get(current)??[])moving.add(child);
  const offsets=[...moving].map(id=>({id,offset:sub(index.cells.get(id)!,root)}));
- const safe=(cell:Cell)=>offsets.every(({offset})=>{const occupant=index.occupied.get(key(add(cell,offset)));return !occupant||moving.has(occupant);});
+ const occupancy=doc.freePositions?createOccupancy([...index.cells].filter(([id])=>!moving.has(id))):undefined;
+ const safe=(cell:Cell)=>offsets.every(({offset})=>{const target=add(cell,offset);if(occupancy)return occupancy.free(target);const occupant=index.occupied.get(key(target));return !occupant||moving.has(occupant);});
  return {index,offsets,safe};
 }
 function preparedMove(doc:Document,id:string,size?:number){
@@ -75,24 +78,37 @@ function preparedMove(doc:Document,id:string,size?:number){
 export function resolveLatticePoint(doc:Document,id:string,desiredWorld:XYZ,size?:number,exact=false):XYZ {
  const {index,safe}=preparedMove(doc,id,size);
  const wanted={x:desiredWorld.x/index.unit,y:desiredWorld.y/index.unit,z:desiredWorld.z/index.unit};
+ if(doc.freePositions){
+  const cell=exact?wanted:add(wanted,nearestCell({x:0,y:0,z:0},offset=>safe(add(wanted,offset))));
+  if(!safe(cell))throw Error('That position is occupied.');return cellPoint(cell,index.unit);
+ }
  const cell=exact?cellAt(wanted):nearestCell(wanted,safe);
  if(!safe(cell))throw Error('That lattice cell is occupied.');
  return cellPoint(cell,index.unit);
 }
 export function latticeMove(doc:Document,id:string,desiredWorld:XYZ,size?:number,exact=false):Document {
- const {index,offsets}=preparedMove(doc,id,size),point=resolveLatticePoint(doc,id,desiredWorld,size,exact),cell=cellAt(point,index.unit);
+ const {index,offsets}=preparedMove(doc,id,size),point=resolveLatticePoint(doc,id,desiredWorld,size,exact),cell=doc.freePositions?{x:point.x/index.unit,y:point.y/index.unit,z:point.z/index.unit}:cellAt(point,index.unit);
  return writeWorlds(doc,new Map(offsets.map(({id,offset})=>[id,cellPoint(add(cell,offset),index.unit)])));
 }
 export function latticeDocument(doc:Document,size?:number):Document {
+ if(doc.freePositions)return doc;
  const index=prepareLattice(doc,size);return writeWorlds(doc,new Map([...index.cells].map(([id,cell])=>[id,cellPoint(cell,index.unit)])));
 }
 export function latticeCreatePoint(doc:Document,desiredWorld:XYZ,size?:number):XYZ {
+ if(doc.freePositions){const unit=latticeUnit(size),space=createOccupancy(worldPositions(doc),unit),offset=nearestCell({x:0,y:0,z:0},p=>space.free(add(desiredWorld,cellPoint(p,unit))));return add(desiredWorld,cellPoint(offset,unit));}
  const index=prepareLattice(doc,size);return cellPoint(nearestCell({x:desiredWorld.x/index.unit,y:desiredWorld.y/index.unit,z:desiredWorld.z/index.unit},cell=>!index.occupied.has(key(cell))),index.unit);
 }
 /** Geometry edits from inspectors/layout/transform owners use the same occupancy
  * boundary. Unchanged placements keep their projected cells and saved coordinates. */
 export function reconcileLattice(previous:Document,next:Document,size?:number):Document {
  if(previous===next)return next;
+ if(next.freePositions){
+  const old=worldPositions(previous),worlds=worldPositions(next),unit=latticeUnit(size),space=createOccupancy([...worlds].filter(([id,p])=>{const before=old.get(id);return before&&before.x===p.x&&before.y===p.y&&before.z===p.z;}),unit),targets=new Map<string,XYZ>();
+  for(const [id,p]of worlds){const before=old.get(id);if(before&&before.x===p.x&&before.y===p.y&&before.z===p.z)continue;
+   const offset=nearestCell({x:0,y:0,z:0},o=>space.free(add(p,cellPoint(o,unit)))),target=add(p,cellPoint(offset,unit));targets.set(id,target);space.add(id,target);
+  }
+  return writeWorlds(next,targets);
+ }
  const old=prepareLattice(previous,size),worlds=worldPositions(next),occupied=new Set<string>(),targets=new Map<string,XYZ>();
  const changed:string[]=[];
  for(const p of next.placements){const before=old.worlds.get(p.id),after=worlds.get(p.id)!;if(before&&before.x===after.x&&before.y===after.y&&before.z===after.z){occupied.add(key(old.cells.get(p.id)!));}else changed.push(p.id);}
@@ -119,6 +135,14 @@ export function reconcileLattice(previous:Document,next:Document,size?:number):D
  * quantizes its already-captured targets and checks the sparse occupancy map. */
 export function prepareLatticeTransform(doc:Document,ids:readonly string[],size?:number,scale?:number){
  const index=prepareLattice(doc,size),moving=new Set(ids),pitch=index.unit*latticeScale(scale);
+ if(doc.freePositions){
+  const occupied=createOccupancy([...index.cells].filter(([id])=>!moving.has(id)).map(([id,p])=>[id,cellPoint(p,pitch)] as const),pitch);
+  return (targets:ReadonlyMap<string,XYZ>):Map<string,XYZ>|undefined=>{
+   const seen=createOccupancy([],pitch),result=new Map<string,XYZ>();
+   for(const [id,p]of targets){if(!moving.has(id)||!occupied.free(p)||!seen.free(p))return;seen.add(id,p);result.set(id,{...p});}
+   return result;
+  };
+ }
  return (targets:ReadonlyMap<string,XYZ>):Map<string,XYZ>|undefined=>{
   const seen=new Set<string>(),result=new Map<string,XYZ>();
   for(const [id,point] of targets){const cell=cellAt(point,pitch),address=key(cell),occupant=index.occupied.get(address);
