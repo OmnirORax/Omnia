@@ -15,6 +15,7 @@ export function visualObject(
   _rasterFallback=false,
 ) {
   const group = new THREE.Group();
+  group.userData.viewBounds={x:0,y:0,width:1,height:1};
   const restyle: (() => void)[] = [];
   group.userData.setAppearance = (next: typeof appearance) => {
     appearance = next;
@@ -44,6 +45,7 @@ export function visualObject(
     const label = makeText(visual.character);
     if (label instanceof THREE.Mesh) label.material.opacity = appearance.opacity ?? 1;
     label.scale.set(Math.min(3, label.userData.aspect), 1, 1);
+    group.userData.viewBounds={x:0,y:0,width:label.scale.x,height:label.scale.y};
     group.add(label); styleText(label);
   } else if (asset?.kind === "image") {
     new THREE.TextureLoader().load(
@@ -100,6 +102,7 @@ export function visualObject(
         const dimensions = map.image as { width: number; height: number };
         const aspect = dimensions.width / dimensions.height;
         sprite.scale.set(Math.min(1, aspect), Math.min(1, 1 / aspect), 1);
+        if(!group.userData.omnic)group.userData.viewBounds={x:0,y:0,width:sprite.scale.x,height:sprite.scale.y};
         group.add(sprite);
         restyle.push(() => {
           repaint?.(appearance.color);
