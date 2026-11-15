@@ -31,7 +31,7 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
   const view = panel(actual.label || 'Document', () => {
     if (failed) { save(); if (failed && !confirm('These document changes could not be saved. Close and discard them?')) return false; }
     editor?.destroy(); closed?.();
-  });
+  },'default');
   view.root.classList.add('node-document-panel');
   function save() {
     if (!editor||syncing) return;
