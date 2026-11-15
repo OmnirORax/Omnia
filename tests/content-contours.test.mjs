@@ -65,3 +65,10 @@ test('relocation temporarily uses the carrier and restores content without leavi
  for(const mode of ['all','selection']){assert.equal(nodeContentVisible(state,'a',mode,true,true,true),false);assert.equal(nodeContentVisible(state,'a',mode,true,false,false),true);}
  assert.deepEqual(state,before);assert.equal(nodeContentVisible(state,'a','selection',false,true),false);
 });
+test('reference endpoints remain at canonical centers while mobile content clears both',()=>{
+ const a={...node('a',0,0,circle(2)),fixed:true},b={...node('b',3,0,circle(2)),fixed:true},c=node('c',1,0,circle(1));
+ for(const pin of [undefined,{id:'a',x:0,y:0}]){
+  const positions=pushContours([c,b,a],pin,0);assert.deepEqual(positions.get('a'),{x:0,y:0});assert.deepEqual(positions.get('b'),{x:3,y:0});
+  const mobile={...c,...positions.get('c')};assert.equal(contourClearance(a,mobile,{x:1,y:0}),0);assert.equal(contourClearance(b,mobile,{x:1,y:0}),0);
+ }
+});

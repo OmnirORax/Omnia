@@ -141,3 +141,11 @@ test('O origin slots include both nodes and empty units, persist and leave nodes
  const {world,a,b}=pair([5,0,0]),frame=createAxis(world,a.origin,b.origin,[0,1,0]),before=structuredClone(world.nodes),slots=originSlots(world,frame);assert.equal(slots.length,6);close(slots[0],a.position);close(slots[5],b.position);
  setAxisOrigin(world,frame.id,slots[2]);close(axisCoordinates(world,frame,slots[2]),[0,0,0]);assert.deepEqual(world.nodes,before);validateWorld(JSON.parse(JSON.stringify(world)));assert.throws(()=>setAxisOrigin(world,frame.id,[2.5,0,0]),/discrete/);
 });
+test('hover-mounted camera uses the node position and chosen origin with a stable up direction',async()=>{
+ const {nodeOriginView}=await import('../src/core/axes.ts');
+ for(const [eye,target]of [[[2,3,4],[0,0,0]],[[0,5,0],[0,0,0]]]){
+  const pose=nodeOriginView(eye,target,[0,1,0]),camera=new T.PerspectiveCamera();camera.position.set(...pose.position);camera.up.set(...pose.up);camera.lookAt(new T.Vector3(...pose.target));camera.updateMatrixWorld();
+  close(pose.position,eye);close(pose.target,target);close(camera.getWorldDirection(new T.Vector3()).toArray(),new T.Vector3(...target).sub(new T.Vector3(...eye)).normalize().toArray());assert.ok(pose.up.every(Number.isFinite));
+ }
+ assert.throws(()=>nodeOriginView([0,0,0],[0,0,0],[0,1,0]),/already/);
+});

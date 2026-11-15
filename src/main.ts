@@ -204,7 +204,7 @@ function reference(mode: Binding['mode']) {
   });
   message = 'Choose a component · Esc cancels'; refresh();
 }
-function focusSelection(){const origins=selectedOrigins();if(view&&origins.length){const basis=view.frameBasis();store.change(world=>focusNodeFrame(world,origins[0],basis.right,basis.up,true));view.focus(origins,true);}else view?.focusAxis();}
+function focusSelection(){if(view?.mountHovered())return;const origins=selectedOrigins();if(view&&origins.length){const basis=view.frameBasis();store.change(world=>focusNodeFrame(world,origins[0],basis.right,basis.up,true));view.focus(origins,true);}else view?.focusAxis();}
 function relationFrame(origin?:Origin){
  const world=store.world,active=world.axes?.find(frame=>frame.id===world.activeAxis),anchor=origin??active?.ends[0];
  return active?.ends.length===2&&(!origin||active.ends.some(end=>sameOrigin(end,origin)))?active:[...(world.axes??[])].reverse().find(frame=>frame.ends.length===2&&anchor&&frame.ends.some(end=>sameOrigin(end,anchor)));
@@ -356,7 +356,7 @@ function spaceActions():SearchAction[]{
  {label:'Axis (X)',keywords:'world axis frame coordinates origin snap units distance align',run:startAxis},
  {label:'Brush (Shift+X)',keywords:'world paint cube sphere geometry recursive unit',run:openBrush},
  {label:'Coordinates (C)',keywords:'world cursor brush coordinates xy xyz readout labels',run:()=>view?.toggleCoordinates()},
- {label:'Focus / origin (F)',keywords:'world camera node axis reference origin focus align',run:focusSelection,available:active||!!selectedOrigins().length},
+ {label:'Mount hovered / focus (F)',keywords:'world camera node axis reference origin focus align',run:focusSelection,available:active||!!selectedOrigins().length},
  {label:'View from first node',keywords:'world camera perspective occupy endpoint depth z',run:()=>{if(relation)enterNodePerspective(relation.ends[0]);},available:!!relation},
  {label:'View from second node',keywords:'world camera perspective occupy endpoint depth z',run:()=>{if(relation?.ends[1])enterNodePerspective(relation.ends[1]);},available:!!relation},
  {label:'Return to user view',keywords:'world camera perspective user leave node',run:()=>view?.leaveNode(),available:!!view?.inNodeView},

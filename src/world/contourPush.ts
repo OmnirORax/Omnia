@@ -1,5 +1,5 @@
 import type {Point2} from './contentEnvelope.ts';
-export type ContourBody={id:string;x:number;y:number;points:readonly Point2[];passive?:boolean};
+export type ContourBody={id:string;x:number;y:number;points:readonly Point2[];passive?:boolean;fixed?:boolean};
 type Box={left:number;right:number;top:number;bottom:number};
 const shapes=new WeakMap<readonly Point2[],{bounds:Box;axes:Map<string,Point2>;axisKey:string;axisList:[string,Point2][];projections:Map<string,[number,number]>}>();
 function shape(points:readonly Point2[]){
@@ -24,17 +24,17 @@ export function contourClearance(a:ContourBody,b:ContourBody,direction:Point2,ga
  * bounds pathological dense chains without dropping any collider. */
 export function pushContours(items:readonly ContourBody[],pin?:{id:string;x:number;y:number},gap=2){
  const result=new Map<string,Point2>();if(!items.length)return result;
- const root=items.find(i=>i.id===pin?.id)??[...items].sort((a,b)=>a.id.localeCompare(b.id))[0],origin=pin?.id===root.id?pin:root;
- const ordered=[...items].sort((a,b)=>a.id===b.id?0:a.id===root.id?-1:b.id===root.id?1:Math.hypot(a.x-root.x,a.y-root.y)-Math.hypot(b.x-root.x,b.y-root.y)||a.id.localeCompare(b.id));
+ const root=items.find(i=>i.id===pin?.id)??items.find(item=>item.fixed)??[...items].sort((a,b)=>a.id.localeCompare(b.id))[0],origin=pin?.id===root.id?pin:root;
+ const ordered=[...items].sort((a,b)=>a.id===b.id?0:a.id===root.id?-1:b.id===root.id?1:a.fixed&&!b.fixed?-1:b.fixed&&!a.fixed?1:Math.hypot(a.x-root.x,a.y-root.y)-Math.hypot(b.x-root.x,b.y-root.y)||a.id.localeCompare(b.id));
  const bins=new Map<string,ContourBody[]>(),large:ContourBody[]=[],size=128;let radius=0,work=0;
  const cells=(b:Box)=>{const left=Math.floor(b.left/size),right=Math.floor(b.right/size),top=Math.floor(b.top/size),bottom=Math.floor(b.bottom/size);if((right-left+1)*(bottom-top+1)>256)return undefined;const keys:string[]=[];for(let x=left;x<=right;x++)for(let y=top;y<=bottom;y++)keys.push(`${x}:${y}`);return keys;};
  const placed:ContourBody[]=[],shifted=new Set<string>();
  for(const source of ordered){
   const body={...source,x:source.id===root.id?origin.x:source.x,y:source.id===root.id?origin.y:source.y};
   const dx=source.x-root.x,dy=source.y-root.y,d=Math.hypot(dx,dy),direction=d>1e-8?{x:dx/d,y:dy/d}:{x:source.id<root.id?-1:1,y:0};
-  if(source.id!==root.id){const projection=(body.x-origin.x)*direction.x+(body.y-origin.y)*direction.y;if(projection<0){body.x-=direction.x*projection;body.y-=direction.y*projection;}}
+  if(source.id!==root.id&&!source.fixed){const projection=(body.x-origin.x)*direction.x+(body.y-origin.y)*direction.y;if(projection<0){body.x-=direction.x*projection;body.y-=direction.y*projection;}}
   if(body.x!==source.x||body.y!==source.y)shifted.add(body.id);
-  if(source.id!==root.id)for(let iteration=0;iteration<=placed.length;iteration++){
+  if(source.id!==root.id&&!source.fixed)for(let iteration=0;iteration<=placed.length;iteration++){
    if(work>24000){const r=Math.max(...body.points.map(p=>Math.hypot(p.x,p.y)))+radius+gap+1;body.x=origin.x+direction.x*r;body.y=origin.y+direction.y*r;shifted.add(body.id);break;}
    const bounds=box(body),keys=cells({left:bounds.left-gap,right:bounds.right+gap,top:bounds.top-gap,bottom:bounds.bottom+gap}),neighbors=keys?[...new Set([...large,...keys.flatMap(k=>bins.get(k)??[])])]:placed;
    let move=0;

@@ -110,3 +110,10 @@ export function setAxisOrigin(world:World,id:string,position:Vec3){
  if(!frame.directed){const oldX=frame.x;frame.x=times(frame.z,-1);frame.z=oldX;frame.directed=true;}
  frame.origin=[...position];
 }
+
+export function nodeOriginView(position:Vec3,target:Vec3,up:Vec3){
+ const back=minus(position,target);if(norm(back)<1e-7)throw Error('This node is already at the selected origin.');
+ const normal=unit(back),projected=minus(up,times(normal,dot(up,normal))),fallback=Math.abs(normal[1])<.9?[0,1,0] as Vec3:[1,0,0] as Vec3;
+ const vertical=unit(norm(projected)>1e-7?projected:minus(fallback,times(normal,dot(fallback,normal))));
+ return {position:[...position] as Vec3,target:[...target] as Vec3,up:vertical};
+}
