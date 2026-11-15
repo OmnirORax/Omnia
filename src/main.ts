@@ -1,4 +1,3 @@
-import {createImmersiveMode,type KeyboardLock} from './ui/immersiveMode.ts';
 import {createSettingsCatalog} from './ui/settingsCatalog.ts';
 import {installBrowserShortcutGuard,browserShortcutsEnabled,enableBrowserShortcuts} from './ui/browserShortcuts.ts';
 import {viewHistory,type ViewSpec} from './ui/viewHistory.ts';
@@ -267,23 +266,11 @@ const context=defineMenu('context',(position: Vec3,origin?:Origin,edge?:Edge)=>{
   button('Focus', () => { view?.focus(selectedOrigins(), true); close(); });
   button('Remove', remove);
 });
-const immersive=createImmersiveMode({
- keyboard:(navigator as Navigator&{keyboard?:KeyboardLock}).keyboard,
- fullscreen:()=>!!document.fullscreenElement,
- enter:()=>document.documentElement.requestFullscreen(),exit:()=>document.exitFullscreen(),
- changed:()=>{requestFormSync();for(const control of document.querySelectorAll<HTMLButtonElement>('[data-immersive-mode]')){control.textContent=immersiveLabel();control.disabled=immersive.phase==='entering'||immersive.phase==='leaving';}},
-});
-function immersiveLabel(){return immersive.phase==='active'?'Exit immersive mode':immersive.phase==='entering'?'Starting immersive mode…':'Enter immersive mode';}
-function immersiveAction():SearchAction{return {label:immersiveLabel(),keywords:'world immersive fullscreen keyboard lock chrome ctrl f4',available:immersive.supported,run:()=>{if(immersive.phase==='off')enableBrowserShortcuts(false);void (immersive.phase==='active'?immersive.leave():immersive.enter()).catch(error=>feedback(error.message));}};}
-document.addEventListener('fullscreenchange',()=>immersive.fullscreenChanged());
-window.addEventListener('pagehide',()=>{void immersive.leave().catch(()=>{});});
-// Capture only the explicitly locked tab-close combination; Escape stays native.
-window.addEventListener('keydown',event=>{if(immersive.phase==='active'&&event.code==='F4'&&(event.ctrlKey||event.metaKey)&&!browserShortcutsEnabled()){event.preventDefault();event.stopImmediatePropagation();}},true);
 const settingsCatalog=createSettingsCatalog<SearchSetting>();
 const worldSettings=settingsCatalog.define('world',()=>[
     {label:'Lattice scale',keywords:'world lattice',definition:{key:'latticeScale',label:'Lattice scale',kind:'number' as const,min:1e-9},read:()=>store.world.settings?.latticeScale??1,write:(world:World,value:string|number|boolean)=>{world.settings??={latticeScale:1,names:'expanded'};world.settings.latticeScale=Number(value);}},
     {label:'Names',keywords:'world names',definition:{key:'names',label:'Names',kind:'select' as const,options:[{id:'expanded',label:'Expanded'},{id:'all',label:'All'},{id:'selection',label:'Selected'}]},read:()=>store.world.settings?.names??'expanded',write:(world:World,value:string|number|boolean)=>{world.settings??={latticeScale:1,names:'expanded'};world.settings.names=value as 'all'|'expanded'|'selection';}},
-    {label:'Browser shortcuts',keywords:'world browser chrome keyboard shortcuts',definition:{key:'browserShortcuts',label:'Browser shortcuts',kind:'toggle'},read:browserShortcutsEnabled,set:value=>{enableBrowserShortcuts(Boolean(value));if(value)void immersive.leave().catch(error=>feedback(error.message));}},
+    {label:'Browser shortcuts',keywords:'world browser chrome keyboard shortcuts',definition:{key:'browserShortcuts',label:'Browser shortcuts',kind:'toggle'},read:browserShortcutsEnabled,set:value=>enableBrowserShortcuts(Boolean(value))},
 ]);
 
 const historySettings=settingsCatalog.define('history',()=>[
@@ -312,7 +299,6 @@ function searchSettingsEntries(){
 type SearchSetting={label:string;keywords:string;definition:Property;read:()=>Value|undefined;write?:(world:World,value:Value)=>void;set?:(value:Value)=>void};
 type SearchAction={label:string;keywords:string;run:()=>void;available?:boolean};
 function searchActions():SearchAction[]{return [
- immersiveAction(),
  ...SCENE_TABS.map(([tab,label])=>({label:`Scene · ${label}`,keywords:`scene ${tab} ${tab==='audio'?'system audio sound connect code import':tab==='image'?'wallpaper background import paste download library':tab==='normalization'?'normalization correction thresholds':''}`,run:()=>openScene(tab)})),
  ...VISUAL_TARGETS.map(([target,label])=>({label:`Visuals · ${label}`,keywords:`eye appearance visuals ${target==='nodeDefaults'?'global node sphere body':target==='text'?'font import typeface':target==='background'?'background ui surfaces':''}`,run:()=>openVisualSettings(target,[...selectedOrigins()],label),available:(target!=='nodes'&&target!=='nodeText')||!!selectedOrigins().length})),
  ...CAMERA_ACTIONS.map(([id,label])=>({label:`Camera · ${label}`,keywords:`camera navigation ${id}`,run:()=>view?.camera(id)})),
@@ -344,7 +330,7 @@ function searchRenderer(results:HTMLElement){
  return(query:string)=>{
   const settings=settingsCatalog.all().map(item=>({item,index:searchIndex(item)})),actions=searchActions().map(item=>({item,index:searchIndex(item)}));
   results.replaceChildren();if(!query.trim())return;let count=0;
-  for(const {item,index}of actions)if(searchMatches(index,query)){const control=document.createElement('button');control.type='button';control.textContent=item.label;control.disabled=item.available===false;control.onclick=()=>attempt(item.run);if(item.keywords.includes('keyboard lock'))control.dataset.immersiveMode='';results.append(control);count++;}
+  for(const {item,index}of actions)if(searchMatches(index,query)){const control=document.createElement('button');control.type='button';control.textContent=item.label;control.disabled=item.available===false;control.onclick=()=>attempt(item.run);results.append(control);count++;}
   for(const {item,index}of settings)if(searchMatches(index,query)){
    appendSetting(results,item,item.label);count++;
   }
@@ -452,7 +438,6 @@ const openNavigation=defineMenu('navigation',()=>{
 const worldControls=defineMenu('world',()=>{
   open('World');
   for(const item of worldSettings())appendSetting(tools,item);
-  const immersion=immersiveAction(),immersiveButton=button(immersion.label,immersion.run);immersiveButton.disabled=immersion.available===false;immersiveButton.dataset.immersiveMode='';
   button('History',openHistory);
   button('Camera & rotation',openNavigation);
   button('Camera HUD',openCameraHUD);
