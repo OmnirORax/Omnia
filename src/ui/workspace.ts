@@ -104,7 +104,7 @@ export function workspacePanel(host: Host) {
         if (host.read() !== baseline) throw Error('Workspace changed during import. Retry.');
         host.beforeReplace(); host.replace(world); baseline = host.read(); output.textContent = 'Imported';
       } catch (error) {
-        if (host.read() === baseline) await Promise.allSettled([...new Set(prepared.map(item => item.id))].filter(id => !existing.has(id)).map(deleteLocalScene));
+        if (host.read() === baseline) await Promise.allSettled([...new Set(prepared.map(item => item.id))].filter(id => !existing.has(id)).map(id=>deleteLocalScene(id)));
         throw error;
       }
     }));

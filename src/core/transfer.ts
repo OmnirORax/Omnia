@@ -19,9 +19,15 @@ export function encodeBytes(bytes: Uint8Array): string {
   for (let at = 0; at < bytes.length; at += 8192) chunks.push(String.fromCharCode(...bytes.subarray(at, at + 8192)));
   return btoa(chunks.join(''));
 }
+/** Avoid Array.from's temporary JS array for multi-megabyte images. */
+export function decodeBytes(data: string): Uint8Array {
+  const raw = atob(data), bytes = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+  return bytes;
+}
 export function decodeScene(file: SceneFile): Uint8Array {
   if (!file || typeof file.id !== 'string' || !file.id.length || file.id.length > 200 || typeof file.name !== 'string' || file.name.length > 120 || !isImageType(file.type) || typeof file.data !== 'string' || !file.data.length || file.data.length > Math.ceil(MAX_ASSET_BYTES / 3) * 4 || file.data.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(file.data)) throw Error('Invalid workspace image.');
-  const raw = atob(file.data), bytes = Uint8Array.from(raw, c => c.charCodeAt(0));
+  const bytes = decodeBytes(file.data);
   if (!bytes.length || bytes.length > MAX_ASSET_BYTES || !imageSignatureMatches(bytes, file.type)) throw Error('Invalid workspace image bytes.');
   return bytes;
 }

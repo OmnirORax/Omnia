@@ -19,3 +19,13 @@ test('draft requests explain conflicts, plain-text service errors, sessions and 
   for(const [fetcher,expected] of cases){globalThis.fetch=async()=>fetcher();await assert.rejects(draftRequest(),expected);}
  }finally{globalThis.fetch=original;}
 });
+test('image uploads send the original binary blob without JSON/base64 expansion',async()=>{
+ const original=globalThis.fetch,blob=new Blob([new Uint8Array([137,80,78,71])],{type:'image/png'});let called=false;
+ globalThis.fetch=async(url,init)=>{called=true;assert.match(url,/asset=/);assert.equal(init.headers['content-type'],'image/png');assert.equal(init.body,blob);return Response.json({saved:true});};
+ try{await draftRequest('?asset=image&name=test.png','PUT',blob);assert.equal(called,true);}finally{globalThis.fetch=original;}
+});
+test('overlapping image transfers retry briefly instead of failing the draft immediately',async()=>{
+ const original=globalThis.fetch;let calls=0;
+ globalThis.fetch=async()=>++calls===1?Response.json({error:'Another image transfer is running.'},{status:429}):Response.json({saved:true});
+ try{assert.equal((await draftRequest('?asset=image','PUT',new Blob(['bytes'],{type:'image/png'}))).status,200);assert.equal(calls,2);}finally{globalThis.fetch=original;}
+});

@@ -1,4 +1,5 @@
 import { DEFAULT_BACKGROUND, DEFAULT_BACKGROUND_URL } from './defaultBackground.ts';
+import {queueImageDeletion,restoreImageDeletions,acknowledgeImageDeletions} from '../cloud/imageDeletions.ts';
 import {normalizeSceneBlob,forgetNormalizedScene} from './normalizationCache.ts';
 import type {NormalizationPreferences} from './normalization.ts';
 import { imageSignatureMatches, isImageType, MAX_ASSET_BYTES, type SceneNode, type SceneSource } from './contracts.ts';
@@ -42,13 +43,16 @@ export async function localSceneBlob(id: string): Promise<Blob> {
   if (!item) throw new Error('This scene image is missing from this browser. Import it again.');
   return item.blob;
 }
-export const deleteLocalScene = async (id: string) => {
+export const deleteLocalScene = async (id: string,shared=false) => {
   if(id===DEFAULT_BACKGROUND.id)return;
+  const deletion=shared?queueImageDeletion(id):undefined;
+  try{
   await forgetNormalizedScene(await localSceneBlob(id));
-  return store('readwrite', transaction => {
+  return await store('readwrite', transaction => {
   transaction.objectStore('metadata').delete(id);
   return transaction.objectStore('images').delete(id);
 });
+  }catch(error){if(deletion)acknowledgeImageDeletions([deletion]);throw error;}
 };
 
 /** Inspect encoded dimensions before asking the browser/GPU to decode an image. */
@@ -126,6 +130,7 @@ export async function saveLocalScenes(incoming: readonly StoredScene[]): Promise
       transaction.onerror = transaction.onabort = () => reject(new Error(full ? 'Scene library is full (100 images / 100 MiB). Download and delete images you no longer need.' : 'Scene could not be saved. Browser storage may be full or unavailable.'));
     });
   } finally { db.close(); }
+  restoreImageDeletions(incoming.map(item=>item.id));
 }
 export async function importLocalScene(file: File, input: ScenePromptSnapshot | null,normalization?:NormalizationPreferences): Promise<LocalScene> {
   const { blob, ...item } = await prepareLocalScene(file, input);

@@ -1,6 +1,8 @@
+import {convexHull,type Point2} from './world/contentEnvelope.ts';
 import * as THREE from 'three';
 import {attachMaterialCoverage,pixelCoverageGLSL} from './materialCoverage.ts';
 import type {GlyphVectorPlan} from './omnic/vectorPlan.ts';
+const contours=new WeakMap<GlyphVectorPlan,Point2[]>();
 /** One instanced draw per eligible glyph; topology/attributes are prepared once.
  * Current SVG viewport is square with xMidYMid meet. Picking stays with its owner. */
 export function vectorGlyph(plan:GlyphVectorPlan,initial:{color?:string;opacity?:number;brightness?:number}){
@@ -71,6 +73,11 @@ export function vectorGlyph(plan:GlyphVectorPlan,initial:{color?:string;opacity?
   target.customProgramCacheKey=()=> 'omnium.vector-glyph.coverage.v2';
  });
  const mesh=new THREE.Mesh(geometry,material),group=new THREE.Group();group.add(mesh);
+ group.userData.contentHull=()=>{let hull=contours.get(plan);if(hull)return hull;
+ const ink:Point2[]=[];
+ for(const n of plan.nodes){if(n.opacity<=0)continue;const radius=(n.kind==='line'?0:n.radius)+n.thickness/2;for(const [x,y]of [[n.x,n.y],[n.x2??n.x,n.y2??n.y]])for(let i=0;i<32;i++){const a=i*Math.PI/16;ink.push({x:Math.max(-.5,Math.min(.5,(x+Math.cos(a)*radius-cx)/span)),y:Math.max(-.5,Math.min(.5,-(y+Math.sin(a)*radius-cy)/span))});}}
+ hull=convexHull(ink);contours.set(plan,hull);return hull;
+ };
  group.userData.vectorGlyph=true;group.userData.primitiveCount=plan.nodes.length;
  group.userData.setAppearance=(appearance:typeof initial)=>{
   const ink=new THREE.Color();plan.nodes.forEach((node,index)=>{ink.set(appearance.color??node.color);colorAttribute.setXYZ(index,ink.r,ink.g,ink.b);});

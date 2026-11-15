@@ -1,3 +1,4 @@
+import {blockBrowserShortcut} from '../ui/browserShortcuts.ts';
 import {documentBrackets} from './brackets.ts';
 import {lexiconAnnotations,workspaceLexicon,refreshLexicon} from './lexicon.ts';
 import { EditorState, Transaction, Prec, type StateCommand } from '@codemirror/state';
@@ -30,7 +31,7 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
   const view = panel(actual.label || 'Document', () => {
     if (failed) { save(); if (failed && !confirm('These document changes could not be saved. Close and discard them?')) return false; }
     editor?.destroy(); closed?.();
-  });
+  },'default');
   view.root.classList.add('node-document-panel');
   function save() {
     if (!editor||syncing) return;
@@ -39,7 +40,8 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
     } catch (error) { failed = true; feedback(error instanceof Error ? error.message : String(error)); }
   }
   const toolbar = document.createElement('div'), host = document.createElement('div'); toolbar.className = 'document-tools'; host.className = 'document-content'; view.body.append(toolbar, host);
-  host.addEventListener('keydown',event => event.stopPropagation());
+  host.addEventListener('keydown',event => {blockBrowserShortcut(event);event.stopPropagation();});
+  host.addEventListener('keydown',event=>{if(event.key==='Escape'&&event.repeat){event.preventDefault();event.stopImmediatePropagation();}},true);
   const run = (command: StateCommand) => { if (editor) { command(editor); editor.focus(); } };
   for (const [label, command] of [['B',wrap('**')],['I',wrap('*')],['1.',list('numbered')],['•',list('bullet')],['→',indentMore],['←',indentLess]] as const) {
     const b = document.createElement('button'); b.textContent = label; b.setAttribute('aria-label', ({ B:'Bold',I:'Italic','1.':'Numbered list','•':'Bullet list','→':'Indent','←':'Outdent' })[label]);

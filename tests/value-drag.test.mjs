@@ -37,7 +37,9 @@ test('numeric inputs and registered readouts share release, click, and cancellat
   assert.equal(send('click').prevented,true);assert.equal(send('click').prevented,undefined);
   send('pointerdown',0);send('pointermove',40);assert.equal(input.value,'60');assert.equal(send('keydown',0,{key:'Escape'}).prevented,true);assert.equal(input.value,'40');assert.equal(input.capture,false);
   send('pointerdown',0);send('pointermove',-20);assert.equal(input.value,'30');send('pointercancel');assert.equal(input.value,'40');
-  input.readOnly=true;send('pointerdown',0);send('pointermove',50);send('pointerup',50);assert.equal(input.value,'40');
+  input.dataset.valuePixelsPerStep='1';input.max='255';input.value='128';
+  send('pointerdown',100);send('pointermove',101);assert.equal(input.value,'129');send('pointermove',102);assert.equal(input.value,'130');send('pointerup',102);delete input.dataset.valuePixelsPerStep;
+  input.readOnly=true;send('pointerdown',0);send('pointermove',50);send('pointerup',50);assert.equal(input.value,'130');
   const readout=new FakeElement(),values=[],commits=[],stop=registerValueDrag(readout,{read:()=>({value:10,min:0,max:20,step:1}),input:value=>values.push(value),commit:value=>commits.push(value),cancel:value=>values.push(value)});
   send('pointerdown',0,{target:readout});send('pointermove',50,{target:readout});send('pointerup',50,{target:readout});assert.deepEqual(values,[15]);assert.deepEqual(commits,[15]);stop();
  }finally{for(const [key,value]of Object.entries(originals)){if(value===undefined)delete globalThis[key];else globalThis[key]=value;}}

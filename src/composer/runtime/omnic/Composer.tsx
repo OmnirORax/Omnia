@@ -47,7 +47,7 @@ import { ProgressiveConfiguration } from '../ui/ProgressiveConfiguration';
 import { RadialMenu } from '../ui/RadialMenu';
 
 import { type EditableDegree } from '../properties/editableDegrees';
-import { type DegreeEditValue, targetEditorDegrees, targetDegreeValue, writeTargetDegree, targetParameter } from './targetDegrees';
+import { type DegreeEditValue, constructionEditorDegree, targetEditorDegrees, targetDegreeValue, writeTargetDegree, targetParameter } from './targetDegrees';
 import { nameSymbol } from '../ui/nameSymbols';
 import { RangeSettingsScope } from '../ui/RangeControl';
 import { NumericEditorScope } from '../ui/NumericEditorScope';
@@ -105,7 +105,7 @@ function PresetDegreeEditor({recipe,degree,configure,onPreview,onCommit,onDismis
   const values=useMemo(()=>degree.axes?Object.fromEntries(degree.axes.map(a=>[targetParameter(a).key,targetDegreeValue(recipe,a)])):{[parameter.key]:value},[degree,recipe,parameter.key,value]);
   useOmnicParameterBindings(values,(next,temporary)=>(temporary?onPreview:onCommit)(degree.axes?Object.fromEntries(degree.axes.map(a=>[a.properties[0],Number(next[targetParameter(a).key])])):next[parameter.key]),parameters);
   return <div className="progressive-configuration">
-    <DegreeValueEditor recipe={recipe} degree={degree} configure={configure} onDismiss={onDismiss} onPreview={onPreview} onCommit={onCommit}/>
+    <DegreeValueEditor recipe={recipe} degree={degree} configure={configure} pickReference={false} onDismiss={onDismiss} onPreview={onPreview} onCommit={onCommit}/>
   </div>;
 }
 
@@ -373,7 +373,7 @@ export function OmnicComposer({ entity, objects, history, onSave, onCopy, worksp
         if(commit(next)){
           // Selection dismisses the previous panel; open the inserted preset's editor afterwards.
           if(inserted){setPicked(inserted.roots);atomnicBridge?.select?.(inserted.roots);setFocus({kind:'component',id:inserted.roots[0]});}
-          if(radar){const editor=targetEditorDegrees(next,ids,[],[],'available').find(degree=>targetParameter(degree).editor);setRadarPanel({kind:'presets'});setPresetSession({ids,...(editor?{degree:editor.id}: {})});}
+          if(radar){const editor=constructionEditorDegree(next,ids);setRadarPanel({kind:'presets'});setPresetSession({ids,...(editor?{degree:editor.id}: {})});}
           setError('');
         }
       }catch(failure){setError(failure instanceof Error?failure.message:String(failure));}

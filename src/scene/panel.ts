@@ -66,9 +66,10 @@ export function scenePanel(host: Host,initialTab:SceneTab='image') {
       button(`${currentImage() === item.id ? '✓ ' : ''}${item.name}`, () => { assign(item.id); return images(); }, row);
       button('↓', async () => downloadScene(await localSceneBlob(item.id), item.name), row);
       if(item.id!==DEFAULT_BACKGROUND.id)button('×', async () => {
-        if (!confirm(`Delete “${item.name}” from this browser? Download it first to retain the original image.`)) return;
+        if (!confirm(`Delete “${item.name}”? The next Push also removes unused shared copies. Download it first to keep the original.`)) return;
+        await deleteLocalScene(item.id,true);
         host.change(world => { if (world.scene?.image === item.id) world.scene.image = null; for (const node of world.nodes) if (node.scene === item.id) delete node.scene; });
-        await deleteLocalScene(item.id); await images();
+        await images();
       }, row); list.append(row);
     }
   }

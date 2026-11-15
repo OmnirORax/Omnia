@@ -1,5 +1,7 @@
 import { GENERATORS, OPERATORS } from './registry.ts';
 import type { EditableDegree } from '../properties/editableDegrees.ts';
+import type { Recipe } from './model.ts';
+import {selectedEditorDegrees,targetParameter,targetPlacementDegree} from './targetDegrees.ts';
 
 type ExistingCommand = { id: string; adjusts?: readonly string[] };
 /** Shortcut inventory derives from the same declared inputs as target editors.
@@ -28,4 +30,10 @@ export function commandDegree(degrees: readonly EditableDegree[], property: stri
 }
 export function repeatedDegree(degree: EditableDegree, active: EditableDegree | undefined) {
   return !!active && degree.properties.length === active.properties.length && degree.properties.every(property => active.properties.includes(property)) && degree.targets.length === active.targets.length && degree.targets.every((target, i) => target.id === active.targets[i].id && target.input.property === active.targets[i].input.property);
+}
+/** Plain shape selection may continue a numeric adjustment, never a stale
+ * categorical editor such as Fill. Those require their own explicit action. */
+export function selectionDegree(recipe:Recipe,ids:readonly string[],property?:string){
+ const candidate=property?commandDegree(selectedEditorDegrees(recipe,ids),property):undefined;
+ return candidate&&(candidate.axes||targetParameter(candidate).kind==='number')?candidate:targetPlacementDegree(recipe,ids);
 }

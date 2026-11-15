@@ -1,3 +1,4 @@
+import {imageHull} from './world/contentEnvelope.ts';
 import {vectorAsset} from './omnic/vectorPlan.ts';
 import {vectorGlyph} from './vectorGlyph.ts';
 import * as THREE from "three";
@@ -36,7 +37,7 @@ export function visualObject(
       const label = makeText("?");
       label.scale.set(1, 1, 1);
       group.add(label); styleText(label);
-      group.userData.assetError = true;
+      group.userData.assetError = true;group.userData.contourVersion=(group.userData.contourVersion??0)+1;
       requestRender();
     }
   };
@@ -100,6 +101,7 @@ export function visualObject(
         const dimensions = map.image as { width: number; height: number };
         const aspect = dimensions.width / dimensions.height;
         sprite.scale.set(Math.min(1, aspect), Math.min(1, 1 / aspect), 1);
+        let hull:ReturnType<typeof imageHull>|undefined;sprite.userData.contentHull=()=>hull??=imageHull(map.image as CanvasImageSource);group.userData.contourVersion=(group.userData.contourVersion??0)+1;
         group.add(sprite);
         restyle.push(() => {
           repaint?.(appearance.color);
@@ -151,7 +153,7 @@ export function visualObject(
             restyle.push(update); update();
           }
         });
-        group.add(normalized);
+        group.add(normalized);group.userData.contourVersion=(group.userData.contourVersion??0)+1;
         requestRender();
       },
       fallback,

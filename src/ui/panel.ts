@@ -7,9 +7,9 @@ function retainedGeometry(initial:string){let value=initial;return {read:()=>val
 let openingPoint: { x: number; y: number } | undefined;
 document.addEventListener('pointerdown', event => { openingPoint = { x: event.clientX, y: event.clientY }; }, true);
 
-export function panel(title: string, onClose?: () => void | boolean) {
+export function panel(title: string, onClose?: () => void | boolean, placement:'cursor'|'default'='cursor') {
   const owner=`panel:${++panelSequence}`;
-  const point = openingPoint;
+  const point = placement==='cursor'?openingPoint:undefined;
   const root = document.createElement('section'); root.className = 'panel'; root.setAttribute('role', 'dialog'); root.setAttribute('aria-label', title);
   root.dataset.inputOwner = '';
   const heading = document.createElement('header'), caption = document.createElement('span'), close = document.createElement('button'), body = document.createElement('div');

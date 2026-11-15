@@ -1,4 +1,10 @@
 export type PopupRect={x:number;y:number;width:number;height:number};
+/** A radial stage replaces the previous menu at the invocation point. Only
+ * rectangular editors use button-below/parent-separation placement. */
+export function controllerCenter(requested:{x:number;y:number},child:{width:number;height:number},parents:readonly PopupRect[],button:PopupRect|null,radial:boolean,anchored:boolean){
+ if(radial||anchored)return requested;
+ return button?popupBelowButton(button,child,parents):placePopup(parents,child,requested);
+}
 /** Keep the invocation point unless the child would cover its logical parent.
  * On overlap, separate along the invocation's outward axis by the minimum
  * rectangle separation. This also works for wide value strips and compact dials. */

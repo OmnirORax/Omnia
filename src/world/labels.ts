@@ -1,3 +1,4 @@
+import {imageHull} from './contentEnvelope.ts';
 import * as THREE from 'three';
 import {labelLines,labelSize} from '../composer/runtime/graph/labels.ts';
 import {fontFamily, TEXT_DEFAULTS,type Paint} from '../properties/visual.ts';
@@ -70,6 +71,8 @@ export function textSprite(value: string, color: string, selected = false, node 
     lines.forEach((line, i) => ink.fillText(line, mask.width / 2, 10 + 24 + i * 48));
     return mask;
   };
+  let hull:ReturnType<typeof imageHull>|undefined;
+  sprite.userData.contentHull=()=>hull??=imageHull(sprite.userData.lightningMask());
   let currentStyle: [string, string, number] = [color, textColor, textGlow];
   let surfaceKey = JSON.stringify(surface);
   sprite.userData.setSurfaceStyle = (next: typeof surface) => {
@@ -103,7 +106,7 @@ export function label(caption:string,paint?:Paint){
  if(style.font==='electric'||isImportedFont(style.font))void document.fonts.load(canvasFont(style.font)).then(()=>{
    if(mesh.userData.disposed)return;
    const fresh=textSprite(caption,style.color,false,false,false,style.font,style.glow,style.color,{},true);
-   mesh.material.map?.dispose();mesh.material.map=fresh.material.map;mesh.material.needsUpdate=true;fresh.geometry.dispose();fresh.material.dispose();mesh.userData.requestRender?.();
+   mesh.material.map?.dispose();mesh.material.map=fresh.material.map;mesh.material.needsUpdate=true;mesh.userData.contentHull=fresh.userData.contentHull;fresh.geometry.dispose();fresh.material.dispose();mesh.userData.requestRender?.();
  });
  return mesh;
 }

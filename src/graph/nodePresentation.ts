@@ -9,6 +9,11 @@ export function toggleContent(state:ExpansionState,id:string,structurallyExpande
  if(contentExpanded(state,id,structurallyExpanded)){state.open.delete(id);state.closed.add(id);}
  else {state.closed.delete(id);state.open.add(id);}
 }
+/** Global content view, focused selection and explicit per-node overrides share
+ * one visibility policy. Hover is only a temporary preview. */
+export function nodeContentVisible(state:ExpansionState,id:string,mode:NodeNames|undefined,selected:boolean,hovered:boolean){
+ return contentExpanded(state,id,mode==='all'||selected)||(hovered&&!state.closed.has(id));
+}
 
 /** Incoming context belongs to the downstream node, never its source or hover. */
 export function incomingBinderVisible(target:string,selected:boolean,state:ExpansionState) {

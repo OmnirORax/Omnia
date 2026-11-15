@@ -7,7 +7,7 @@ export async function onRequest({request}:{request:Request}){
  if(request.method==='PUT'&&request.headers.get('origin')!==url.origin)return new Response('',{status:403});
  try{
   const upstream=await fetch(`https://tqjjcabekjjmmspttbli.supabase.co/functions/v1/site-draft${url.search}`,{
-   method:request.method,headers:{'x-omnium-access':token,'x-omnium-origin':url.origin,'content-type':'application/json'},body:request.method==='PUT'?request.body:undefined,
+   method:request.method,headers:{'x-omnium-access':token,'x-omnium-origin':url.origin,'content-type':request.headers.get('content-type')??'application/json'},body:request.method==='PUT'?request.body:undefined,
   });
   return new Response(upstream.body,{status:upstream.status,headers:{'content-type':upstream.headers.get('content-type')??'application/json','cache-control':'no-store'}});
  }catch(error){return Response.json({error:connectionFailure(error)},{status:502,headers:{'cache-control':'no-store'}});}

@@ -18,7 +18,7 @@ export function fieldReferenceFor(snapshot:OperationGeometry,degree:EditableDegr
  if(axis&&own?.transformed)return;
  if(axis&&bounds&&own){
   const extent=axis==='x'?'width':'height',offset=Number(targetDegreeValue(snapshot.recipe,degree))-(own.bounds[axis]+own.bounds[extent]/2);
-  return {id:reference,label:self?'Self':reference==='@environment'?'Environment':reference.slice(0,6),value:bounds[axis]+bounds[extent]/2+offset,min:bounds[axis]+offset,max:bounds[axis]+bounds[extent]+offset,thresholds:[{id:`${reference}/${axis}:start`,value:bounds[axis]+offset},{id:`${reference}/${axis}:centre`,value:bounds[axis]+bounds[extent]/2+offset},{id:`${reference}/${axis}:end`,value:bounds[axis]+bounds[extent]+offset}]};
+  return {id:reference,label:self?'Self':reference==='@environment'?'Omnic composer':reference.slice(0,6),value:bounds[axis]+bounds[extent]/2+offset,min:bounds[axis]+offset,max:bounds[axis]+bounds[extent]+offset,thresholds:[{id:`${reference}/${axis}:start`,value:bounds[axis]+offset},{id:`${reference}/${axis}:centre`,value:bounds[axis]+bounds[extent]/2+offset},{id:`${reference}/${axis}:end`,value:bounds[axis]+bounds[extent]+offset}]};
  }
  if(parameter.selection&&(own?.transformed||snapshot.views.get(reference)?.transformed))return;
  if((quantity==='length'||quantity==='radius')&&targetDegrees(snapshot.recipe,[reference]).filter(d=>targetParameter(d).measurement===quantity).length===1){

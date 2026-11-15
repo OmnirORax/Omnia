@@ -1,4 +1,5 @@
 import {useNavigationState} from '../../../ui/useNavigationState.tsx';
+import {createFramePreview} from './framePreview.ts';
 import {createValueScrub,type ValueScrub} from './valueScrub';
 import type {StateSelectionMode} from '../properties/stateSelection';
 import { cursorPosition } from './cursorPosition';
@@ -56,12 +57,16 @@ type Props = Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "value" | "min
   configuration?:'step';
   configurationKey?:string;
   values?:readonly number[];
+  pixelsPerStep?:number;
   onConfigure?:(which:Edit,duringGesture:boolean)=>boolean|void;
 };
 /** A shared slider presentation with track-wide dragging and native keyboard support.
  * Local working intervals and jump size never alter property validation bounds. */
 export function RangeControl({ value: storedValue, min, max, onValueChange, onMinimumChange, onMaximumChange,
-  hardMin = min, hardMax = max, inputRef, onValueCommit, onValueCancel, onWheel, configuration, configurationKey, values, onConfigure, ...inputProps }: Props) {
+  hardMin = min, hardMax = max, inputRef, onValueCommit, onValueCancel, onWheel, configuration, configurationKey, values, pixelsPerStep, onConfigure, ...inputProps }: Props) {
+  const previewCallback=useRef(onValueChange);previewCallback.current=onValueChange;
+  const [valuePreview]=useState(()=>createFramePreview<number>(value=>previewCallback.current(value)));
+  useEffect(()=>()=>valuePreview.discard(),[valuePreview]);
   const externalGesture=useContext(RangeGestureTarget),track=useRef<HTMLSpanElement>(null);
   const axisAngle=useContext(RangeAxis)*Math.PI/180;
   const value = Math.max(min, Math.min(max, storedValue));
@@ -81,13 +86,14 @@ export function RangeControl({ value: storedValue, min, max, onValueChange, onMi
   const input = useRef<HTMLInputElement>(null);
   const drag = useRef<{ id: number; scrub?:ValueScrub; cx:number;cy:number;ux:number;uy:number;width: number; low: number; high: number; step: number; values?:readonly number[]; before: number; next: number } | null>(null);
   const cancelDrag = () => {
+    valuePreview.discard();
     const active = drag.current;
     if (!active) return;
     drag.current = null;
     if (onValueCancel) onValueCancel(active.before); else onValueChange(active.before);
   };
   useCancelValueEdit(input, cancelDrag);
-  const confirmDrag=()=>{const active=drag.current;if(!active)return;drag.current=null;onValueCommit?.(active.next);};
+  const confirmDrag=()=>{const active=drag.current;if(!active)return;valuePreview.flush();drag.current=null;onValueCommit?.(active.next);};
   useContextNavigation({owner:track,cancel:drag.current?cancelDrag:undefined,confirm:drag.current?confirmDrag:undefined});
   const cancelLatest = useRef(cancelDrag); cancelLatest.current = cancelDrag;
   useEffect(() => {
@@ -101,15 +107,16 @@ export function RangeControl({ value: storedValue, min, max, onValueChange, onMi
     const fraction=((clientX-active.cx)*active.ux+(clientY-active.cy)*active.uy)/active.width+.5;
     const next=active.scrub?active.scrub.sample({x:clientX,y:clientY}):active.values?sequenceAt(active.values,fraction):rangeValue(active.low+fraction*(active.high-active.low),active.low,active.high,active.step);
     if(next===undefined)return;
-    if (next !== active.next) { active.next = next; onValueChange(next); }
+    if (next !== active.next) { active.next = next; valuePreview.push(next); }
   };
   const startDrag=(id:number,x:number,y:number,relative=false,horizontal=false)=>{
+    relative=relative||pixelsPerStep!==undefined;
     const node=track.current;if(!node||valueDisabled||drag.current)return false;
     const bounds=node.getBoundingClientRect(),ux=Math.cos(axisAngle),uy=Math.sin(axisAngle);
     const projected=Math.abs(ux)*node.offsetWidth+Math.abs(uy)*node.offsetHeight;
     const scale=projected>0?bounds.width/projected:1,width=Math.max(1,node.offsetWidth*scale);
     const fraction=sequence?sequence.length<2?.5:sequenceIndex(sequence,value)/(sequence.length-1):high===low?.5:(value-low)/(high-low);
-    drag.current={id,...(relative?{scrub:createValueScrub({origin:{x,y},width,value,min:low,max:high,step:jump,values:sequence,horizontal})}:{}),cx:relative?x-(fraction-.5)*width*ux:bounds.left+bounds.width/2,cy:relative?y-(fraction-.5)*width*uy:bounds.top+bounds.height/2,ux,uy,width,low,high,step:jump,values:sequence,before:storedValue,next:value};
+    drag.current={id,...(relative?{scrub:createValueScrub({origin:{x,y},width,value,min:low,max:high,step:jump,values:sequence,horizontal,pixelsPerStep,...(pixelsPerStep?{axis:{x:ux,y:uy}}:{})})}:{}),cx:relative?x-(fraction-.5)*width*ux:bounds.left+bounds.width/2,cy:relative?y-(fraction-.5)*width*uy:bounds.top+bounds.height/2,ux,uy,width,low,high,step:jump,values:sequence,before:storedValue,next:value};
     claimUIPress(id);return true;
   };
   const finishDrag=(x:number,y:number)=>{if(!drag.current)return;moveDrag(x,y);confirmDrag();};
@@ -117,7 +124,7 @@ export function RangeControl({ value: storedValue, min, max, onValueChange, onMi
   useLayoutEffect(()=>{if(!externalGesture)return;const api:RangeGesture={start:(...args)=>gestureAPI.current.start(...args),move:(...args)=>gestureAPI.current.move(...args),finish:(...args)=>gestureAPI.current.finish(...args),cancel:()=>gestureAPI.current.cancel()};externalGesture.current=api;return()=>{if(externalGesture.current===api)externalGesture.current=null;};},[externalGesture]);
   const label = inputProps["aria-label"] ?? "Value";
   useLayoutEffect(()=>{if(editing){cancelled.current=false;setText(String(editing==='min'?low:editing==='max'?high:editing==='jump'?jump:value));}},[editing,popupPoint,low,high,jump,value]);
-  const edit = (which: Edit) => { const duringGesture=!!drag.current;if(drag.current){const active=drag.current;drag.current=null;onValueCommit?.(active.next);}else cancelDrag();if(onConfigure&&onConfigure(which,duringGesture)!==false)return;setPopupPoint(cursorPosition());cancelled.current = false; setText(String(which === "min" ? low : which === "max" ? high : which === "jump" ? jump : value)); setEditing(which); };
+  const edit = (which: Edit) => { const duringGesture=!!drag.current;if(drag.current){const active=drag.current;valuePreview.flush();drag.current=null;onValueCommit?.(active.next);}else cancelDrag();if(onConfigure&&onConfigure(which,duringGesture)!==false)return;setPopupPoint(cursorPosition());cancelled.current = false; setText(String(which === "min" ? low : which === "max" ? high : which === "jump" ? jump : value)); setEditing(which); };
   const choose = (next: number|undefined) => { if(next===undefined||valueDisabled)return;onValueChange(next); onValueCommit?.(next); };
   const nudge=(direction:-1|1)=>choose(sequence?sequenceStep(sequence,value,direction):rangeValue(value+direction*jump,low,high,resolution));
   const cancel = () => { cancelled.current = true; setEditing(null); };
@@ -171,8 +178,7 @@ export function RangeControl({ value: storedValue, min, max, onValueChange, onMi
         onPointerUp={event => {
           if (drag.current?.id !== event.pointerId) return;
           event.stopPropagation(); moveDrag(event.clientX,event.clientY);
-          const next = drag.current!.next; drag.current = null;
-          onValueCommit?.(next);
+          confirmDrag();
           event.currentTarget.releasePointerCapture(event.pointerId);
         }}
         onPointerCancel={cancelDrag} onLostPointerCapture={cancelDrag}
