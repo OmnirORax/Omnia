@@ -34,10 +34,10 @@ export function moveBranch(world: World, origin: Origin, desired: Vec3) {
 }
 export function prepareTranslation(world: World, origins: readonly Origin[]) {
   const index = lattice(world), moving = new Set(origins.map(address));
-  for (const node of world.nodes) if (node.parent && moving.has(address(node.parent))) moving.add(address(node.origin));
-  // Parent order need not match insertion order.
-  let changed = true;
-  while (changed) { changed = false; for (const node of world.nodes) if (node.parent && moving.has(address(node.parent)) && !moving.has(address(node.origin))) { moving.add(address(node.origin)); changed = true; } }
+  const carried=new Set(world.nodes.filter(node=>moving.has(address(node.origin))&&node.collapsed).map(node=>address(node.origin)));
+  for(const node of world.nodes)if(node.hidden&&node.parent&&moving.has(address(node.parent))){carried.add(address(node.origin));moving.add(address(node.origin));}
+  let changed=true;
+  while(changed){changed=false;for(const node of world.nodes)if(node.parent&&carried.has(address(node.parent))&&!carried.has(address(node.origin))){carried.add(address(node.origin));moving.add(address(node.origin));changed=true;}}
   return (delta: Vec3): Map<string, Vec3> | undefined => {
     const step = cellAt(point(delta)), result = new Map<string, Vec3>();
     for (const id of moving) {

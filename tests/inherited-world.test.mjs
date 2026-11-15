@@ -85,3 +85,17 @@ test('reused document rendering escapes authored HTML while preserving Markdown'
 test('native system audio retains bounded queues and rejects malformed PCM',()=>{
   assert.equal(decodePcmPacket(new ArrayBuffer(1)),undefined);const queue=new PcmQueue();for(let i=0;i<100;i++)queue.push(new Float32Array(2048),2,48000);assert.ok(queue.count<=Math.ceil(48000*.06));queue.clear();assert.equal(queue.count,0);
 });
+
+test('expanded children stay fixed while collapsed descendants follow the moving parent',()=>{
+ const world=emptyWorld(),root=addStructure(world,[0,0,0],1),child=addStructure(world,[2,0,0],2),grand=addStructure(world,[4,0,0],3);child.parent=root.origin;grand.parent=child.origin;
+ const expanded=prepareTranslation(world,[root.origin])([0,2,0]);assert.deepEqual([...expanded.keys()],[address(root.origin)]);
+ root.collapsed=true;const collapsed=prepareTranslation(world,[root.origin])([0,2,0]);assert.equal(collapsed.size,3);assert.deepEqual(collapsed.get(address(grand.origin)),[4,2,0]);
+ root.collapsed=false;const selected=prepareTranslation(world,[root.origin,child.origin])([0,2,0]);assert.equal(selected.size,2);
+});
+test('driving an expanded parent previews only its movement targets and cancellation restores it',()=>{
+ const {world,root,child}=fixture(),hosts=new Map(world.nodes.map(node=>{const group=new THREE.Group();group.position.set(...node.position);return [address(node.origin),{group,anchor:group.position}];}));
+ const drive=createNavigatorDrive({hosts:()=>hosts,commit:()=>null});
+ drive.begin(geometry(world),address(root.origin),1,1,[address(root.origin)]);drive.move(new THREE.Vector3(0,2,0));
+ assert.deepEqual(hosts.get(address(root.origin)).group.position.toArray(),[0,2,0]);assert.deepEqual(hosts.get(address(child.origin)).group.position.toArray(),child.position);
+ drive.cancel();assert.deepEqual(hosts.get(address(root.origin)).group.position.toArray(),root.position);
+});
