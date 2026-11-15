@@ -1,3 +1,4 @@
+import {handleContentViewShortcut} from './ui/contentViewShortcut.ts';
 import {createImmersiveMode,handleImmersiveShortcut,type KeyboardLock} from './ui/immersiveMode.ts';
 import {createSettingsCatalog} from './ui/settingsCatalog.ts';
 import {installBrowserShortcutGuard,browserShortcutsEnabled,enableBrowserShortcuts} from './ui/browserShortcuts.ts';
@@ -282,10 +283,14 @@ window.addEventListener('keydown',event=>{if(immersive.phase==='active'&&event.c
 const settingsCatalog=createSettingsCatalog<SearchSetting>();
 const worldSettings=settingsCatalog.define('world',()=>[
     {label:'Lattice scale',keywords:'world lattice',definition:{key:'latticeScale',label:'Lattice scale',kind:'number' as const,min:1e-9},read:()=>store.world.settings?.latticeScale??1,write:(world:World,value:string|number|boolean)=>{world.settings??={latticeScale:1,names:'expanded'};world.settings.latticeScale=Number(value);}},
-    {label:'Content view',keywords:'world names labels glyph contents visibility contour expansion all on off focused selection',definition:{key:'names',label:'Content view',kind:'toggle'},read:()=>store.world.settings?.names==='all',write:(world:World,value:Value)=>{world.settings??={latticeScale:1,names:'expanded'};world.settings.names=value?'all':'selection';}},
+    {label:'Content view',keywords:'world names labels glyph contents visibility contour expansion all on off focused selection v shortcut',definition:{key:'names',label:'Content view',kind:'toggle'},read:()=>store.world.settings?.names==='all',write:(world:World,value:Value)=>{world.settings??={latticeScale:1,names:'expanded'};world.settings.names=value?'all':'selection';}},
     {label:'Browser shortcuts',keywords:'world browser chrome keyboard shortcuts',definition:{key:'browserShortcuts',label:'Browser shortcuts',kind:'toggle'},read:browserShortcutsEnabled,set:value=>{enableBrowserShortcuts(Boolean(value));if(value)void immersive.leave().catch(error=>feedback(error.message));}},
 ]);
 
+window.addEventListener('keydown',event=>{
+ const target=event.target,typing=target instanceof Element&&!!target.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"]),[role="textbox"],.cm-editor');
+ handleContentViewShortcut(event,typing,()=>{const setting=worldSettings().find(item=>item.definition.key==='names')!;attempt(()=>store.change(world=>setting.write!(world,!setting.read())));});
+},true);
 const historySettings=settingsCatalog.define('history',()=>[
     {label:'History · Scope',keywords:'history scope selective context categories recent all actions',definition:HISTORY_MODE,read:()=>universalHistory.options.mode,set:value=>universalHistory.configure({mode:value as typeof universalHistory.options.mode})},
     {label:'History · Steps',keywords:'history undo redo count steps',definition:HISTORY_STEPS,read:()=>universalHistory.options.steps,set:value=>universalHistory.configure({steps:Number(value)})},

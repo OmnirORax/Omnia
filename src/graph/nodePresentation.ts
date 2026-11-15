@@ -9,10 +9,10 @@ export function toggleContent(state:ExpansionState,id:string,structurallyExpande
  if(contentExpanded(state,id,structurallyExpanded)){state.open.delete(id);state.closed.add(id);}
  else {state.closed.delete(id);state.open.add(id);}
 }
-/** Global content view, focused selection and explicit per-node overrides share
- * one visibility policy. Hover is only a temporary preview. */
-export function nodeContentVisible(state:ExpansionState,id:string,mode:NodeNames|undefined,selected:boolean,hovered:boolean){
- return contentExpanded(state,id,mode==='all'||selected)||(hovered&&!state.closed.has(id));
+/** Global content view and focused selection share
+ * one visibility policy. Relocation hides contents temporarily, never persistently. */
+export function nodeContentVisible(state:ExpansionState,id:string,mode:NodeNames|undefined,selected:boolean,hovered:boolean,relocating=false){
+ return !relocating&&(mode==='all'||selected||hovered||state.open.has(id));
 }
 
 /** Incoming context belongs to the downstream node, never its source or hover. */
