@@ -485,6 +485,8 @@ search.onkeydown = event => { if (event.key === 'Enter' && shown && !selection.r
 tools.addEventListener('contextmenu', event => { event.preventDefault(); event.stopPropagation(); });
 window.addEventListener('keydown',event=>{
   if(event.key!=='Escape'||event.defaultPrevented)return;
+  // The document owns its search panel and editor Escape hierarchy.
+  if(event.target instanceof Element&&event.target.closest('.node-document-panel .document-content'))return;
   if(event.repeat){event.preventDefault();event.stopImmediatePropagation();return;}
   const gesture=view?.cancel();
   if(!gesture&&uiPointerHeld())return;

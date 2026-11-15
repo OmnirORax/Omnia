@@ -40,6 +40,7 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
   }
   const toolbar = document.createElement('div'), host = document.createElement('div'); toolbar.className = 'document-tools'; host.className = 'document-content'; view.body.append(toolbar, host);
   host.addEventListener('keydown',event => event.stopPropagation());
+  host.addEventListener('keydown',event=>{if(event.key==='Escape'&&event.repeat){event.preventDefault();event.stopImmediatePropagation();}},true);
   const run = (command: StateCommand) => { if (editor) { command(editor); editor.focus(); } };
   for (const [label, command] of [['B',wrap('**')],['I',wrap('*')],['1.',list('numbered')],['•',list('bullet')],['→',indentMore],['←',indentLess]] as const) {
     const b = document.createElement('button'); b.textContent = label; b.setAttribute('aria-label', ({ B:'Bold',I:'Italic','1.':'Numbered list','•':'Bullet list','→':'Indent','←':'Outdent' })[label]);
