@@ -40,7 +40,7 @@ import { capabilities, translate } from './core/capabilities.ts';
 import { createSelection } from './core/selection.ts';
 import { createStore } from './core/store.ts';
 import { createWorld, type Edge } from './world.ts';
-import { moveBranch, inherited } from './core/lattice.ts';
+import { inherited } from './core/lattice.ts';
 import { adoptNodes, childNode, copyNode, detachNode, removeNodes, toggleSubtree } from './core/nodeOperations.ts';
 import type { editDocument } from './text/editor.ts';
 import {scenePanel,SCENE_TABS,type SceneTab} from './scene/panel.ts';
@@ -91,8 +91,9 @@ const view = (() => {
       transform(origins,rotation,pivot,layout){store.change(world=>transformNodes(world,origins,rotation,pivot,layout));},
       move(origins, delta) { store.change(world => translate(world, origins, delta)); },
       adopt(origins, owner, delta) { store.change(world => adoptNodes(world, origins, owner, delta)); },
-      park(origin, position) { message = ''; store.change(world => moveBranch(world, origin, position)); return store.world; },
+      park(origin, position) { message = ''; store.change(world => {const node=locate(world,origin)!;translate(world,[origin],position.map((v,i)=>v-node.position[i]) as Vec3);}); return store.world; },
       paint(positions, source) { store.change(world => { const node = source && locate(world, source); for (const position of positions) { if (node) copyNode(world, node, position).parts = []; else addStructure(world, position); } }); },
+      connect(origin){connectNode(origin);},
       subtree(origin) { store.change(world => toggleSubtree(world, origin)); },
       edge(edge) { selection.set([edge]); refresh(); },
       feedback,
@@ -148,7 +149,8 @@ function button(label: string, action: () => void, parent = tools) {
 }
 function create(position: Vec3) {
   let origin: Origin | undefined;
-  store.change(world => { origin = addStructure(world, position).origin; });
+  const owner=selectedOrigins()[0];
+  store.change(world => { origin = owner?childNode(world,owner).origin:addStructure(world, position).origin;if(owner)locate(world,owner)!.collapsed=false; });
   selection.set([origin!]); search.value = ''; close(); message = ''; refresh();
 }
 const editCapability=defineMenu('capability',(capabilityKey: string)=>{
@@ -248,23 +250,22 @@ function openLibrary(restore?:ViewSpec){renderClose();if(library?.root.isConnect
 const context=defineMenu('context',(position: Vec3,origin?:Origin,edge?:Edge)=>{
   if (edge) { edgeContext(edge); return; }
   open(origin ? `${selectedOrigins().length} selected` : 'Omnium');
-  if (!origin) { button('Create structure', () => create(position)); button('Omnic',()=>openComposer(undefined)); button('Library · Atlas',openLibrary); button('👁', appearance).setAttribute('aria-label', 'Appearance'); return; }
+  if (!origin) { button('Create structure (N)', () => create(position)); button('Omnic',()=>openComposer(undefined)); button('Library · Atlas',openLibrary); button('👁', appearance).setAttribute('aria-label', 'Appearance'); return; }
   const node = selectedNodes(store.world)[0]; if (!node) return;
-  for (const capability of capabilities(node).filter(c => !['color','carrier'].includes(c.key))) button(capability.label, () => editCapability(capability.key));
+  for (const capability of capabilities(node).filter(c => !['color','carrier','move'].includes(c.key))) button(capability.key==='label'?'Label (L)':capability.label, () => editCapability(capability.key));
   button('👁', appearance).setAttribute('aria-label', 'Appearance');
   for (const capability of capabilities(node).filter(c => ['color','carrier'].includes(c.key))) {
     const shortcut = button(`👁 ${capability.label}`, () => editCapability(capability.key)); shortcut.dataset.searchOnly = 'true'; shortcut.dataset.keywords = capability.properties.map(p => p.property.label).join(' ');
   }
   if (selectedOrigins().length === 1) { const shortcut = button('👁 Visual', visuals); shortcut.dataset.searchOnly = 'true'; shortcut.dataset.keywords = 'image SVG GLB character size text'; }
-  if (selectedOrigins().length === 1) { button('Omnic',()=>openComposer(selectedOrigins()[0])); button('Library · Atlas',openLibrary); button('Composition', parts); button('Document', openDocument); button('Node tools…', nodeTools); }
+  if (selectedOrigins().length === 1) { button('Omnic',()=>openComposer(selectedOrigins()[0])); button('Library · Atlas',openLibrary); button('Composition', parts); button('Document (D)', openDocument); button('Node tools…', nodeTools); }
   button('Include…', chooseReference);
   button(node.invariant ? '⚬ Release invariant' : '⚬ Activate invariant', () => {
     if(!node.invariant&&!node.parts.length&&!node.omnic&&!node.omnicEdits){openComposer(node.origin);return;}
     store.change(world => { for (const target of selectedNodes(world)) setInvariant(world, target, !node.invariant); }); close();
   });
   for (const [name, action] of [['Scene', openScene], ['World', worldControls]] as const) { const shortcut = button(`👁 ${name}`, action); shortcut.dataset.searchOnly = 'true'; }
-  button('Focus', () => { view?.focus(selectedOrigins(), true); close(); });
-  button('Remove', remove);
+  button('Focus (F)', () => { view?.focus(selectedOrigins(), true); close(); });
 });
 const immersive=createImmersiveMode({
  keyboard:(navigator as Navigator&{keyboard?:KeyboardLock}).keyboard,
@@ -327,8 +328,8 @@ function searchActions():SearchAction[]{return [
  {label:'History',keywords:'history undo redo scope steps',run:openHistory},
  {label:'Undo',keywords:'undo history mb4 ctrl z control z',run:()=>travelHistory('undo')},
  {label:'Redo',keywords:'redo history mb5 ctrl y control y',run:()=>travelHistory('redo')},
- {label:'Create structure',keywords:'add new node structure',run:()=>create(view!.center()),available:!!view},
- {label:'Document',keywords:'node document text notes writing',run:openDocument,available:!!selectedOrigins().length},
+ {label:'Create structure (N)',keywords:'add new node structure',run:()=>create(view!.center()),available:!!view},
+ {label:'Document (D)',keywords:'node document text notes writing',run:openDocument,available:!!selectedOrigins().length},
  {label:'Composition',keywords:'node parts include references invariants',run:parts,available:!!selectedOrigins().length},
  {label:'Node tools',keywords:'node child parent copy variants attach detach hide connect remove',run:nodeTools,available:!!selectedOrigins().length},
  {label:'Node visual',keywords:'import image svg glb character object mesh show text size',run:visuals,available:!!selectedOrigins().length},
@@ -398,19 +399,19 @@ function requestNode(accept: (target: Origin) => void) {
   close(); selection.request(target => { if (!isNode(target)) return false; try { accept(target); message = ''; return true; } catch (error) { message = error instanceof Error ? error.message : String(error); return false; } });
   message = 'Choose a node · Esc cancels'; refresh();
 }
+function connectNode(origin:Origin){
+  requestNode(target=>{if(key(origin)===key(target))throw Error('Choose another node.');store.change(world=>{world.relationships??=[];world.relationships.push({from:bind(locate(world,origin)!,'follow',world),to:bind(locate(world,target)!,'follow',world),label:'',kind:'relation'});});});
+  view?.connect(origin);
+}
 const nodeTools=defineMenu('nodeTools',()=>{
   const origin = selectedOrigins()[0], node = origin && locate(store.world, origin); if (!node) return;
   open(node.label || 'Node');
-  button('Add child', () => { let child: Origin | undefined; store.change(world => { child = childNode(world, origin).origin; locate(world, origin)!.collapsed = false; }); selection.set([child!]); close(); refresh(); });
   button('Variants', () => { view?.variants(origin); close(); });
   button('Add variant', () => { let child: Origin | undefined; store.change(world => { child = childNode(world, origin, true).origin; }); selection.set([child!]); view?.variants(origin, true); close(); refresh(); });
-  button(node.collapsed ? 'Expand children' : 'Collapse children', () => { store.change(world => { locate(world, origin)!.collapsed = !node.collapsed; }); close(); });
 
-  button('Copy', () => { let result: Origin | undefined; store.change(world => { const source = locate(world, origin)!; result = copyNode(world, source, source.position).origin; }); selection.set([result!]); close(); refresh(); });
-  button('Connect to…', () => requestNode(target => store.change(world => { world.relationships ??= []; world.relationships.push({ from: bind(locate(world, origin)!, 'follow', world), to: bind(locate(world, target)!, 'follow', world), label: '', kind: 'relation' }); })));
+  button('Connect to…', () => connectNode(origin));
   button('Attach to…', () => requestNode(target => store.change(world => { const source = locate(world, origin)!; source.parent = structuredClone(target); })));
   if (node.parent || node.variantOf) button('Detach', () => { store.change(world => detachNode(world, origin)); close(); });
-  button('Hide', () => { store.change(world => { locate(world, origin)!.hidden = true; }); selection.set([]); close(); refresh(); });
 });
 const VISUAL_TARGETS=[['nodeDefaults','Nodes'],['text','Text'],['background','UI backgrounds'],['nodes','Selected nodes'],['nodeText','Selected node text']]as const;
 const openVisualSettings=defineMenu('visualSettings',(target:VisualTarget,origins:readonly Origin[],title:string)=>{
@@ -516,7 +517,11 @@ window.addEventListener('keydown',event=>{
 document.addEventListener('keydown', event => {
   const editing = event.target instanceof Element && (!!event.target.closest('[data-input-owner]') || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement);
   if (event.target instanceof Element && event.target.closest('[data-input-owner]')) return;
-  if (editing) return;
+  if (editing || event.target instanceof HTMLElement && event.target.isContentEditable) return;
+  if(!event.ctrlKey&&!event.metaKey&&!event.altKey&&!event.shiftKey&&!event.repeat&&!selection.requesting){
+    const action:Record<string,()=>void>={n:()=>{if(view)create(view.center());},f:()=>view?.focus(selectedOrigins(),true),d:()=>openDocument(),l:()=>{if(selectedOrigins().length)editCapability('label');}};
+    const run=action[event.key.toLowerCase()];if(run){event.preventDefault();attempt(run);return;}
+  }
   if(event.key.toLowerCase()==='s'&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&!event.repeat){event.preventDefault();searchSettings();return;}
 
   if (event.key === 'Delete' && selection.values.length && !selection.requesting) { event.preventDefault(); attempt(remove); }

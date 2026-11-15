@@ -13,10 +13,10 @@ export function createNavigatorDrive(env:{
  return {get active(){return !!session;},get id(){return session?.id;},get document(){return session?.doc;},get valid(){return session?.valid??true;},get position(){return session?.last;},get origin(){return session?.root;},
   refresh(){if(session)paint(session.lastWorlds);},
   owns(id:string){return session?.ids.has(id)??false;},
-  begin(doc:Document,id:string,size?:number,scale?:number){
+  begin(doc:Document,id:string,size?:number,scale?:number,moveChildren:boolean|readonly string[]=true){
    if(session)throw Error('Park or cancel the current node before taking control.');
    if(!doc.placements.some(p=>p.id===id))throw Error('The node no longer exists.');
-   const ids=placementSubtree(doc,[id]),hosts=env.hosts();if([...ids].filter(id=>hosts.has(id)).length>256)throw Error('Drive up to 256 visible nodes at once.');
+   const ids=typeof moveChildren==='boolean'?(moveChildren?placementSubtree(doc,[id]):new Set([id])):new Set(moveChildren),hosts=env.hosts();if([...ids].filter(id=>hosts.has(id)).length>256)throw Error('Drive up to 256 visible nodes at once.');
    const index=prepareLattice(doc,size),pitch=index.unit*latticeScale(scale),worlds=new Map([...ids].map(id=>[id,cellPoint(index.cells.get(id)!,pitch)]));
    const root=worlds.get(id)!;session={doc,id,ids,worlds,root,last:root,lastWorlds:worlds,valid:true,resolve:prepareLatticeTransform(doc,[...ids],size,scale)};return new THREE.Vector3(root.x,root.y,root.z);
   },
