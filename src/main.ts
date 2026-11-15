@@ -1,4 +1,6 @@
 import {handleContentViewShortcut} from './ui/contentViewShortcut.ts';
+import {ANIMATION_TARGETS,animationProperties} from './properties/animations.ts';
+import {animationValue} from './world/animations.ts';
 import {createImmersiveMode,handleImmersiveShortcut,type KeyboardLock} from './ui/immersiveMode.ts';
 import {createSettingsCatalog} from './ui/settingsCatalog.ts';
 import {installBrowserShortcutGuard,browserShortcutsEnabled,enableBrowserShortcuts} from './ui/browserShortcuts.ts';
@@ -283,6 +285,12 @@ window.addEventListener('pagehide',()=>{void immersive.leave().catch(()=>{});});
 window.addEventListener('keydown',event=>{if(immersive.supported&&!browserShortcutsEnabled())handleImmersiveShortcut(event,()=>immersiveAction().run());},true);
 window.addEventListener('keydown',event=>{if(immersive.phase==='active'&&event.code==='F4'&&(event.ctrlKey||event.metaKey)&&!browserShortcutsEnabled()){event.preventDefault();event.stopImmediatePropagation();}},true);
 const settingsCatalog=createSettingsCatalog<SearchSetting>();
+const animationSettings=settingsCatalog.define('animations',()=>ANIMATION_TARGETS.flatMap(target=>animationProperties(target.id).map(property=>({
+ label:`Animations · ${target.label} · ${property.label}`,keywords:`appearance animation particles stars lightning text symbols effects ${target.id}`,
+ definition:{...property,key:`${target.id}/${property.key}`},
+ read:()=>animationValue(store.world.appearance?.animations,target.id,property.key),
+ write:(world:World,value:Value)=>{world.appearance??={};world.appearance.animations??={};world.appearance.animations[target.id]??={};world.appearance.animations[target.id][property.key]=value;},
+}))));
 const worldSettings=settingsCatalog.define('world',()=>[
     {label:'Lattice scale',keywords:'world lattice',definition:{key:'latticeScale',label:'Lattice scale',kind:'number' as const,min:1e-9},read:()=>store.world.settings?.latticeScale??1,write:(world:World,value:string|number|boolean)=>{world.settings??={latticeScale:1,names:'expanded'};world.settings.latticeScale=Number(value);}},
     {label:'Content view',keywords:'world names labels glyph contents visibility contour expansion all on off focused selection v shortcut',definition:{key:'names',label:'Content view',kind:'toggle'},read:()=>store.world.settings?.names==='all',write:(world:World,value:Value)=>{world.settings??={latticeScale:1,names:'expanded'};world.settings.names=value?'all':'selection';}},
@@ -320,6 +328,7 @@ type SearchSetting={label:string;keywords:string;definition:Property;read:()=>Va
 type SearchAction={label:string;keywords:string;run:()=>void;available?:boolean};
 function searchActions():SearchAction[]{return [
  immersiveAction(),
+ {label:'Appearance · Animations',keywords:'appearance effects particles stars lightning electric text symbols animation',run:animations},
  ...SCENE_TABS.map(([tab,label])=>({label:`Scene · ${label}`,keywords:`scene ${tab} ${tab==='audio'?'system audio sound connect code import':tab==='image'?'wallpaper background import paste download library':tab==='normalization'?'normalization correction thresholds':''}`,run:()=>openScene(tab)})),
  ...VISUAL_TARGETS.map(([target,label])=>({label:`Visuals · ${label}`,keywords:`eye appearance visuals ${target==='nodeDefaults'?'global node sphere body':target==='text'?'font import typeface':target==='background'?'background ui surfaces':''}`,run:()=>openVisualSettings(target,[...selectedOrigins()],label),available:(target!=='nodes'&&target!=='nodeText')||!!selectedOrigins().length})),
  ...CAMERA_ACTIONS.map(([id,label])=>({label:`Camera · ${label}`,keywords:`camera navigation ${id}`,run:()=>view?.camera(id)})),
@@ -431,6 +440,20 @@ const appearance=defineMenu('appearance',()=>{
   open('👁');
   button('Scene', openScene); button('World', worldControls);
   button('Visuals',visualTargets);
+  button('Animations',animations);
+});
+const animations=defineMenu('animations',()=>{
+ open('Animations');
+ for(const target of ANIMATION_TARGETS)button(target.label,()=>animationControls(target.id));
+ button('All off',()=>store.change(world=>{world.appearance??={};world.appearance.animations=Object.fromEntries(ANIMATION_TARGETS.map(target=>[target.id,{...world.appearance?.animations?.[target.id],effect:'off'}]));}));
+ positionMenu();
+});
+const animationControls=defineMenu('animationControls',(id:string)=>{
+ const target=ANIMATION_TARGETS.find(target=>target.id===id);if(!target)return;
+ open(target.label);
+ for(const item of animationSettings().filter(item=>item.definition.key.startsWith(`${id}/`)))appendSetting(tools,item);
+ button('Reset',()=>store.change(world=>{if(world.appearance?.animations)delete world.appearance.animations[id];}));
+ positionMenu();
 });
 const visualTargets=defineMenu('visualTargets',()=>{
     open('👁 Visuals');

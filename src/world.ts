@@ -255,6 +255,7 @@ export function createWorld(host: HTMLElement, input: Input) {
     return true;
   }
   function update(next: World, selection: readonly Origin[], visible?: ReadonlySet<string>, edgeSelection: readonly Edge[] = []) {
+    pipeline.configure(next.appearance?.animations);
     if(world&&next!==world){navigation.finish(true);nudging.finish(true);if(gesture)restore();}
     if (drive.active && (next !== mountedWorld || !selection.some(origin => key(origin) === drive.id))) cancelDrive();
     if (world !== next) { cancelOmnic();const sources=createGlyphPresentation(next,true);if(sources!==glyphs)for(const visual of visuals.values())if(visual.object?.userData.omnic)visual.object.userData.glyphKey=undefined;glyphs=sources; prepared = prepareWorld(next); doc = geometry(next); grid = lattice(next); }
