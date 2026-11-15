@@ -6,6 +6,6 @@ export const enableBrowserShortcuts=(value:boolean)=>{enabled=value;};
 export function blockBrowserShortcut(event:KeyboardEvent){
  if(enabled)return;
  const key=event.key.toLowerCase(),mod=event.ctrlKey||event.metaKey;
- if((mod&&(/^[0-9]$/.test(key)||['w','n','t','l','r','p','s','o','h','j','d','f','g','e','u','+','=','-','0','tab','f4'].includes(key)))||['f1','f3','f5','f6','f10','f11','f12'].includes(key)||(event.altKey&&['arrowleft','arrowright','home','f4'].includes(key)))event.preventDefault();
+ if((mod&&(/^[0-9]$/.test(key)||['w','n','t','l','r','p','s','o','h','j','d','f','g','e','u','+','=','-','0','tab','f4'].includes(key)))||['f1','f3','f5','f6','f10','f12'].includes(key)||(event.altKey&&['arrowleft','arrowright','home','f4'].includes(key)))event.preventDefault();
 }
 export function installBrowserShortcutGuard(){window.addEventListener('keydown',blockBrowserShortcut);}
