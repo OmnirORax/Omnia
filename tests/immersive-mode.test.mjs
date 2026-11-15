@@ -6,9 +6,9 @@ function fixture(options={}){
  const host={keyboard:{lock:async keys=>{calls.push(['lock',keys]);if(options.denied)throw Error('Permission denied');},unlock:()=>calls.push('unlock')},fullscreen:()=>full,enter:async()=>{calls.push('fullscreen');full=true;},exit:async()=>{calls.push('exit');full=false;},changed:()=>{},...options};
  return {mode:createImmersiveMode(host),host,calls,setFull:value=>{full=value;}};
 }
-test('explicit immersive entry requests fullscreen before locking F4 and the F11 toggle; exit releases both',async()=>{
+test('fullscreen entry locks F4, F11 and Escape; leaving releases the keyboard lock',async()=>{
  const f=fixture();assert.equal(f.mode.phase,'off');assert.deepEqual(f.calls,[]);
- await f.mode.enter();assert.equal(f.mode.phase,'active');assert.deepEqual(f.calls,['fullscreen',['lock',['F4','F11']]]);
+ await f.mode.enter();assert.equal(f.mode.phase,'active');assert.deepEqual(f.calls,['fullscreen',['lock',['F4','F11','Escape']]]);
  await f.mode.leave();assert.equal(f.mode.phase,'off');assert.deepEqual(f.calls.slice(-2),['unlock','exit']);
 });
 test('permission rejection exits fullscreen and leaves normal mode usable',async()=>{
@@ -32,6 +32,6 @@ test('F11 invokes the immersive toggle before local handlers, consumes repeats a
  const enter=key();assert.equal(handleImmersiveShortcut(enter,()=>calls++),true);assert.equal(enter.defaultPrevented,true);assert.equal(calls,1);
  const repeat=key({repeat:true});handleImmersiveShortcut(repeat,()=>calls++);assert.equal(repeat.defaultPrevented,true);assert.equal(calls,1);
  const leave=key();handleImmersiveShortcut(leave,()=>calls++);assert.equal(calls,2);
- for(const extra of [{ctrlKey:true},{metaKey:true},{shiftKey:true},{altKey:true},{key:'F4'}]){const e=key(extra);assert.equal(handleImmersiveShortcut(e,()=>calls++),false);assert.equal(e.defaultPrevented,false);}
+ for(const extra of [{ctrlKey:true},{metaKey:true},{shiftKey:true},{altKey:true},{key:'F4'},{key:'Escape'}]){const e=key(extra);assert.equal(handleImmersiveShortcut(e,()=>calls++),false);assert.equal(e.defaultPrevented,false);}
  assert.equal(calls,2);
 });

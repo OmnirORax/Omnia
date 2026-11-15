@@ -281,7 +281,7 @@ function immersiveLabel(){return immersive.phase==='active'?'Exit immersive mode
 function immersiveAction():SearchAction{return {label:immersiveLabel(),keywords:'world immersive fullscreen keyboard lock chrome ctrl f4 f11',available:immersive.supported,run:()=>{if(immersive.phase==='off')enableBrowserShortcuts(false);void (immersive.phase==='active'?immersive.leave():immersive.enter()).catch(error=>feedback(error.message));}};}
 document.addEventListener('fullscreenchange',()=>immersive.fullscreenChanged());
 window.addEventListener('pagehide',()=>{void immersive.leave().catch(()=>{});});
-// Capture before document/composer handlers can stop propagation. Escape stays native.
+// Capture F11 before local handlers; locked Escape keeps its normal app handlers.
 window.addEventListener('keydown',event=>{if(immersive.supported&&!browserShortcutsEnabled())handleImmersiveShortcut(event,()=>immersiveAction().run());},true);
 window.addEventListener('keydown',event=>{if(immersive.phase==='active'&&event.code==='F4'&&(event.ctrlKey||event.metaKey)&&!browserShortcutsEnabled()){event.preventDefault();event.stopImmediatePropagation();}},true);
 const settingsCatalog=createSettingsCatalog<SearchSetting>();
