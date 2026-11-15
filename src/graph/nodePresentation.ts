@@ -11,8 +11,8 @@ export function toggleContent(state:ExpansionState,id:string,structurallyExpande
 }
 /** Global content view and focused selection share
  * one visibility policy. Relocation hides contents temporarily, never persistently. */
-export function nodeContentVisible(state:ExpansionState,id:string,mode:NodeNames|undefined,selected:boolean,hovered:boolean,relocating=false){
- return !relocating&&(mode==='all'||selected||hovered||state.open.has(id));
+export function nodeContentVisible(state:ExpansionState,id:string,mode:NodeNames|undefined,selected:boolean,_hovered:boolean,relocating=false){
+ return !relocating&&(mode==='all'||selected||state.open.has(id));
 }
 
 /** Incoming context belongs to the downstream node, never its source or hover. */

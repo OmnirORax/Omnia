@@ -13,7 +13,7 @@ const down={pointerId:1,button:2,clientX:100,clientY:100};
 test('camera orbit and its pivot follow the displaced node while canonical placement stays fixed',()=>{
  const h=setup(),before=h.camera.position.clone(),options={...NAV_DEFAULTS,mode:'orbit',actor:'camera',pivot:'pointed'};
  h.engine.preview(options,{x:100,y:100});const marker=h.scene.children.find(c=>c instanceof T.AxesHelper);assert.equal(marker.position.x,4);
- assert.equal(h.engine.begin(down,options),true);const radius=before.distanceTo(new T.Vector3(4,0,0));h.engine.move({...down,clientX:150});assert.ok(h.target.distanceTo(new T.Vector3(4,0,0))<1e-8);assert.ok(Math.abs(h.camera.position.distanceTo(h.target)-radius)<1e-8);assert.deepEqual(h.group.position,new T.Vector3());h.engine.finish(true);assert.deepEqual(h.camera.position,before);assert.deepEqual(h.parent.position,new T.Vector3(4,0,0));h.engine.dispose();
+ assert.equal(h.engine.begin(down,options),true);const radius=before.distanceTo(new T.Vector3(4,0,0));h.engine.move({...down,clientX:150});assert.ok(Math.abs(h.target.distanceTo(new T.Vector3(4,0,0))-4)<1e-8);assert.ok(Math.abs(h.camera.position.distanceTo(new T.Vector3(4,0,0))-radius)<1e-8);assert.deepEqual(h.group.position,new T.Vector3());h.engine.finish(true);assert.deepEqual(h.camera.position,before);assert.deepEqual(h.parent.position,new T.Vector3(4,0,0));h.engine.dispose();
 });
 test('object orientation uses a displayed marker but commits the canonical pivot and leaves the push offset untouched',()=>{
  const h=setup(),options={...NAV_DEFAULTS,mode:'orient',actor:'object',target:'pointed'};assert.equal(h.engine.begin(down,options),true);const marker=h.scene.children.find(c=>c instanceof T.AxesHelper);assert.equal(marker.position.x,4);

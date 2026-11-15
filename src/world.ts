@@ -1,3 +1,4 @@
+import {startsConnector,connectorDragged} from './world/connectorGesture.ts';
 import {resolveNodeAppearance,nodePaint} from './core/appearance.ts';
 import {brightHex} from './composer/runtime/appearance/resolve.ts';
 import {createContentContour,collectContentHull} from './world/contentContour.ts';
@@ -48,6 +49,7 @@ type Input = { pick: (origin: Origin, extend: boolean, toggle: boolean) => void;
   range: (origins: Origin[], extend: boolean) => void; clear: () => void;
   menu: (origin: Origin | undefined, point: Point, position: Vec3, edge?: Edge) => void;
   move: (origins: readonly Origin[], delta: Vec3) => void;
+  connect:(source:Origin,target:Origin|undefined,position:Vec3)=>void;
   adopt: (origins: readonly Origin[], owner: Origin, delta: Vec3) => void;
   park: (origin: Origin, position: Vec3) => World;
   paint: (positions: Vec3[], source?: Origin) => void;
@@ -128,7 +130,7 @@ export function createWorld(host: HTMLElement, input: Input) {
     }
   }
   function resolveContentPush(){
-    if(!pushDirty||gesture||navigation.active||drive.active||nudging.active)return;
+    if(!pushDirty||gesture||navigation.active||drive.active||nudging.active||connectorDrag)return;
     pushDirty=false;camera.updateMatrixWorld();
     const width=canvas.clientWidth,height=canvas.clientHeight;if(!width||!height)return;
     const unit=(v:Visual)=>Math.max(.00001,-v.group.position.clone().applyMatrix4(camera.matrixWorldInverse).z)*2*Math.tan(T.MathUtils.degToRad(camera.fov/2))/height;
@@ -311,9 +313,15 @@ export function createWorld(host: HTMLElement, input: Input) {
     stroke.points.forEach((position,index)=>stroke!.preview.setMatrixAt(index,new T.Matrix4().makeScale(scale,scale,scale).setPosition(new T.Vector3(...position).multiplyScalar(scale))));stroke.preview.instanceMatrix.needsUpdate=true;request();
   }
   function finishPaint(cancel=false){const active=stroke;if(!active)return false;stroke=undefined;scene.remove(active.preview);(active.preview.material as T.Material).dispose();if(!cancel&&active.points.length)input.paint(active.points,active.source);request();return true;}
-  function restore(){if(stroke)finishPaint(true);if(gesture?.mode==='move')for(const visual of visuals.values())visual.group.position.copy(new T.Vector3(...vector(cellPoint(grid.cells.get(key(visual.node.origin))!,scale))));gesture=undefined;rectangle.hidden=true;controls.enabled=!drive.active;edges.visible=true;if(relocating.size){relocating.clear();presentation();}else request();}
+  let connectorDrag:{pointer:number;button:number;source:Origin;start:Point;project:ReturnType<typeof pointerPlane>;line:T.Line<T.BufferGeometry,T.LineBasicMaterial>}|undefined;
+  function cancelConnector(){const drag=connectorDrag;if(!drag)return false;connectorDrag=undefined;scene.remove(drag.line);drag.line.geometry.dispose();drag.line.material.dispose();controls.enabled=!drive.active&&!navigation.active;request();return true;}
+  function beginConnector(event:PointerEvent,source:Origin){
+    navigation.finish(true);cancelDrive();nudging.finish(true);held.clear();secondary.cancel();const center=displayed(visuals.get(key(source))!),project=pointerPlane(camera,canvas.getBoundingClientRect(),center),line=new T.Line(new T.BufferGeometry().setFromPoints([center,center]),new T.LineBasicMaterial({color:visuals.get(key(source))!.actual.color,depthTest:false}));line.renderOrder=30;scene.add(line);connectorDrag={pointer:event.pointerId,button:event.button,source,start:{x:event.clientX,y:event.clientY},project,line};controls.enabled=false;canvas.setPointerCapture(event.pointerId);event.preventDefault();event.stopImmediatePropagation();request();
+  }
+  function restore(){cancelConnector();if(stroke)finishPaint(true);if(gesture?.mode==='move')for(const visual of visuals.values())visual.group.position.copy(new T.Vector3(...vector(cellPoint(grid.cells.get(key(visual.node.origin))!,scale))));gesture=undefined;rectangle.hidden=true;controls.enabled=!drive.active;edges.visible=true;if(relocating.size){relocating.clear();presentation();}else request();}
   canvas.addEventListener('pointerdown',event=>{
     if(event.button!==0&&event.button!==2)return;nativeWheel=false;
+    const initial=pointed({x:event.clientX,y:event.clientY});if(startsConnector(event,!!initial.origin,input.picking())){beginConnector(event,initial.origin!);return;}
     if(inputFrame){cancelAnimationFrame(inputFrame);inputFrame=0;}lastPoint={x:event.clientX,y:event.clientY};
     if(event.button===2){cancelDrive();navigation.begin(event,{...NAV_DEFAULTS,...world.settings?.navigation});}
     nudging.finish(true);held.clear();secondary.cancel();secondarySurface=undefined;
@@ -334,7 +342,7 @@ export function createWorld(host: HTMLElement, input: Input) {
     if(['move','range','drive','paint'].includes(mode)||input.picking()) {controls.enabled=false;event.stopImmediatePropagation();canvas.setPointerCapture(event.pointerId);}
   },true);
   function processPointer(){
-    inputFrame=0;const p=lastPoint;if(!p)return;const g=gesture;
+    inputFrame=0;if(connectorDrag)return;const p=lastPoint;if(!p)return;const g=gesture;
     if(g){g.end=p;g.dragged ||= Math.hypot(p.x-g.start.x,p.y-g.start.y)>=4;
       if(g.mode==='paint'){if(g.dragged)paintPoint(p);return;}
       if(g.dragged&&g.mode==='move'){
@@ -351,10 +359,12 @@ export function createWorld(host: HTMLElement, input: Input) {
     }
     if(drive.active){aimNavigator(p);return;}
     if(!input.picking())aimNavigator(p);
-    const hit=pointed(p),owned=hover?visuals.get(hover):undefined;const keep=owned?.group.visible&&ray.intersectObject(owned.contour.hit.visible?owned.contour.hit:owned.slot).length||owned?.group.visible&&ray.intersectObject(owned.slot).length;const next=keep?hover:hit.origin?key(hit.origin):undefined;if(next!==hover){hover=next;presentation();}
+    const hit=pointed(p);hover=hit.origin?key(hit.origin):undefined;
   }
-  canvas.addEventListener('pointermove',event=>{if(navigation.move(event))return;if(omnicGesture&&omnicGesture.id===event.pointerId){const point=editPoint(event,omnicGesture.surface);if(point)omnicGesture.surface.move(point,event);return;}if(omnic?.origin){const point=editPoint(event,omnic,true);omnic.hover?.(!!point);if(point)omnic.move(point,event);}lastPoint={x:event.clientX,y:event.clientY};if(!inputFrame)inputFrame=requestAnimationFrame(()=>{void processPointer();});});
+  canvas.addEventListener('pointermove',event=>{if(connectorDrag?.pointer===event.pointerId){const end=connectorDrag.project({x:event.clientX,y:event.clientY}),positions=connectorDrag.line.geometry.getAttribute('position') as T.BufferAttribute;positions.setXYZ(1,end.x,end.y,end.z);positions.needsUpdate=true;connectorDrag.line.geometry.computeBoundingSphere();request();return;}if(navigation.move(event))return;if(omnicGesture&&omnicGesture.id===event.pointerId){const point=editPoint(event,omnicGesture.surface);if(point)omnicGesture.surface.move(point,event);return;}if(omnic?.origin){const point=editPoint(event,omnic,true);omnic.hover?.(!!point);if(point)omnic.move(point,event);}lastPoint={x:event.clientX,y:event.clientY};if(!inputFrame)inputFrame=requestAnimationFrame(()=>{void processPointer();});});
   canvas.addEventListener('pointerup',event=>{
+    if(connectorDrag?.pointer===event.pointerId&&connectorDrag.button===event.button){const drag=connectorDrag,p={x:event.clientX,y:event.clientY},end=drag.project(p),target=pointed(p,new Set([key(drag.source)])).origin;cancelConnector();try{if(connectorDragged(drag.start,p))input.connect(drag.source,target,xyz(end.divideScalar(scale)));else if(event.button===0)input.subtree(drag.source);else input.menu(drag.source,p,creationPoint(p));}catch(error){input.feedback(error instanceof Error?error.message:String(error));}return;}
+
     if(navigation.acceptsRelease(event)&&navigation.finish()){secondary.cancel();secondarySurface=undefined;cancelOmnic();gesture=undefined;request();return;}
     if(omnicGesture&&omnicGesture.id===event.pointerId){const gesture=omnicGesture,point=editPoint(event,gesture.surface);if(!(event.buttons&1)){omnicGesture=undefined;controls.enabled=!drive.active;}if(point)gesture.surface.up(point,event);else gesture.surface.cancel();if(event.button===2&&secondarySurface){secondarySurface.released=true;if(secondarySurface.context)secondarySurface=undefined;}request();return;}
     const g=gesture;if(!g||g.pointer!==event.pointerId)return;g.end={x:event.clientX,y:event.clientY};g.dragged ||= Math.hypot(g.end.x-g.start.x,g.end.y-g.start.y)>=4;gesture=undefined;rectangle.hidden=true;edges.visible=true;controls.enabled=!drive.active;
@@ -445,7 +455,7 @@ export function createWorld(host: HTMLElement, input: Input) {
   document.addEventListener('visibilitychange',()=>{if(document.hidden){held.clear();nudging.finish(true);navigation.finish(true);restoreNative();restore();cancelOmnic();cancelDrive();}else request();});
   return { update,session,point:creationPoint,center:()=>navigator.initialized?xyz(navigator.position.clone().divideScalar(scale)):xyz(controls.target.clone().divideScalar(scale)),request,
     editOmnic(surface:OmnicSurface){if(omnic!==surface){cancelOmnic();omnic=surface;request();}return()=>{if(omnic===surface){cancelOmnic();omnic=undefined;request();}};},
-    cancel(){const active=navigation.active||cancelOmnic()||!!gesture||drive.active;navigation.finish(true);nudging.finish(true);restore();cancelDrive();held.clear();return active;},
+    cancel(){const active=navigation.active||cancelOmnic()||!!gesture||drive.active||!!connectorDrag;navigation.finish(true);nudging.finish(true);restore();cancelDrive();held.clear();return active;},
     variants(origin:Origin, enabled?:boolean){const id=key(origin);if(enabled===true)variants.add(id);else if(variants.has(id))variants.delete(id);else variants.add(id);update(world,selected,filter,selectedEdges);},
     camera:cameraAction,showCamera(){hud.show();request();return {root:hud.root,close:hud.close};},
     previewColor(origins:readonly Origin[],color:string){for(const origin of origins)visuals.get(key(origin))?.body.material.color.set(color);request();},
