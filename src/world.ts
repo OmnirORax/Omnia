@@ -51,6 +51,7 @@ export type Edge = { kind: 'part'; owner: Origin; index: number } | { kind: 'rel
 type Point = { x: number; y: number };
 type Input = { pick: (origin: Origin, extend: boolean, toggle: boolean) => void;
   origin:(id:string,position:Vec3)=>void;
+  nodeOrigin:(origin:Origin)=>void;
   range: (origins: Origin[], extend: boolean) => void; clear: () => void;
   menu: (origin: Origin | undefined, point: Point, position: Vec3, edge?: Edge) => void;
   move: (origins: readonly Origin[], delta: Vec3) => void;
@@ -538,7 +539,7 @@ export function createWorld(host: HTMLElement, input: Input) {
     editOmnic(surface:OmnicSurface){if(omnic!==surface){cancelOmnic();omnic=surface;request();}return()=>{if(omnic===surface){cancelOmnic();omnic=undefined;request();}};},
     focusInput(){canvas.focus();},
     get inputContext(){return originPick?'origin':axisPicking?(axisPicking.first?'axis-second':'axis-first'):creating?'create':'world';},
-    pickOrigin(){if(originPick){originPick=undefined;ghost.visible=false;request();return;}const frame=activeAxis();if(!frame){input.feedback('Select an axis first.');return;}const slots=originSlots(world,frame);originPick={id:frame.id,slots};ghost.visible=true;ghost.count=slots.length;ghost.material.color.set('#00d8ff');updateAtomicCarrier(ghost.material,.8,0,0,1);slots.forEach((p,i)=>ghost.setMatrixAt(i,new T.Matrix4().makeScale(scale*.2,scale*.2,scale*.2).setPosition(new T.Vector3(...p).multiplyScalar(scale))));ghost.instanceMatrix.needsUpdate=true;request();},
+    pickOrigin(){const hovered=pointerInside&&lastPoint?pointed(lastPoint).origin:undefined;if(hovered){originPick=undefined;ghost.visible=false;input.nodeOrigin(hovered);request();return;}if(originPick){originPick=undefined;ghost.visible=false;request();return;}const frame=activeAxis();if(!frame){input.feedback('Select an axis first.');return;}const slots=originSlots(world,frame);originPick={id:frame.id,slots};ghost.visible=true;ghost.count=slots.length;ghost.material.color.set('#00d8ff');updateAtomicCarrier(ghost.material,.8,0,0,1);slots.forEach((p,i)=>ghost.setMatrixAt(i,new T.Matrix4().makeScale(scale*.2,scale*.2,scale*.2).setPosition(new T.Vector3(...p).multiplyScalar(scale))));ghost.instanceMatrix.needsUpdate=true;request();},
     toggleCreation(){originPick=undefined;creating=!creating;if(stroke)finishPaint(true);hoverPaint=undefined;hoverCandidate=undefined;ghost.visible=false;if(creating){cancelDrive();if(lastPoint)processPointer();}else axisView.brushCoordinates(world,activeAxis(),[],scale,camera,coordinatesVisible);request();return creating;},
     get canCreate(){return !hoverCandidate||hoverCandidate.valid;},
     toggleCoordinates(){coordinatesVisible=!coordinatesVisible;axisView.setCoordinatesVisible(coordinatesVisible);if(lastPoint)processPointer();request();},

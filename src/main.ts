@@ -100,6 +100,7 @@ const view = (() => {
       adopt(origins, owner, delta) { store.change(world => adoptNodes(world, origins, owner, delta)); },
       park(origin, position) { message = ''; store.change(world => {const node=locate(world,origin)!;translate(world,[origin],position.map((v,i)=>v-node.position[i]) as Vec3);}); return store.world; },
       paint(positions,source,axis){store.change(world=>paintNodes(world,positions,source,axis));},
+      nodeOrigin(origin){store.change(world=>{const frame=world.axes?.find(frame=>frame.id===world.activeAxis);if(frame)frame.origin=[...locate(world,origin)!.position];else {const basis=view!.frameBasis();focusNodeFrame(world,origin,basis.right,basis.up);}});},
       origin(id,position){store.change(world=>setAxisOrigin(world,id,position));},
       axis(first,second,up){store.change(world=>{createAxis(world,first,second,up);});selection.set([]);refresh();},
       slot(origins,axis,point){store.change(world=>slotNode(world,origins[0],axis,point,origins));},
@@ -587,7 +588,7 @@ window.addEventListener('keydown',event=>{
 },true);
 function worldShortcutActions(){return [
  ...spaceActions().filter(action=>action.available!==false).map(action=>{const match=/^(.*?) \(([^)]+)\)$/.exec(action.label);return {label:match?.[1]??action.label,key:match?.[2],run:action.run};}),
- ...(store.world.activeAxis?[{label:'Set axis origin',key:'O',run:()=>view?.pickOrigin()}]:[]),
+ ...([{label:'Set origin',key:'O',run:()=>view?.pickOrigin()}]),
  {label:'Create nodes',key:'N',run:()=>view?.toggleCreation()},
  {label:'Search',key:'S',run:searchSettings},
  ...(selectedOrigins().length?[{label:'Document',key:'D',run:()=>openDocument()},{label:'Label',key:'L',run:()=>editCapability('label')},{label:'Remove',key:'Delete',run:remove}]:[]),
