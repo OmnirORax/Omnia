@@ -1,6 +1,6 @@
 import {locate, sameOrigin, type Origin,type Vec3,type World} from './model.ts';
 import {address,prepareTranslation} from './lattice.ts';
-export type AxisFrame={id:string;ends:[Origin]|[Origin,Origin];x:Vec3;y:Vec3;z:Vec3;members:Origin[];origin?:Vec3;directed?:boolean};
+export type AxisFrame={id:string;ends:[Origin]|[Origin,Origin];x:Vec3;y:Vec3;z:Vec3;members:Origin[];origin?:Vec3;directed?:boolean;activeAxes?:number[]};
 export const plus=(a:Vec3,b:Vec3):Vec3=>a.map((n,i)=>n+b[i]) as Vec3;
 export const minus=(a:Vec3,b:Vec3):Vec3=>a.map((n,i)=>n-b[i]) as Vec3;
 export const times=(a:Vec3,n:number):Vec3=>a.map(v=>v*n) as Vec3;
@@ -11,7 +11,7 @@ const unit=(a:Vec3)=>times(a,1/norm(a));
 export function axisAnchor(world:World,frame:AxisFrame){return locate(world,frame.ends[0])!.position;}
 export function axisCenter(world:World,frame:AxisFrame){return frame.origin??times(plus(axisAnchor(world,frame),locate(world,(frame.ends[1]??frame.ends[0]))!.position),.5);}
 export function axisCoordinates(world:World,frame:AxisFrame,p:Vec3):Vec3{const d=minus(p,axisCenter(world,frame));return [dot(d,frame.x),dot(d,frame.y),dot(d,frame.z)];}
-export function axisPoint(world:World,frame:AxisFrame,slot:Vec3):Vec3{return plus(frame.directed?axisCenter(world,frame):axisAnchor(world,frame),plus(times(frame.x,slot[0]),plus(times(frame.y,slot[1]),times(frame.z,slot[2]))));}
+export function axisPoint(world:World,frame:AxisFrame,slot:Vec3):Vec3{return plus(frame.directed||frame.origin?axisCenter(world,frame):axisAnchor(world,frame),plus(times(frame.x,slot[0]),plus(times(frame.y,slot[1]),times(frame.z,slot[2]))));}
 export function axisSlot(world:World,frame:AxisFrame,p:Vec3,mode:'axis'|'plane'|'space'='axis'):Vec3{
  const coordinates=axisCoordinates(world,frame,p),half=frame.directed?0:norm(minus(locate(world,(frame.ends[1]??frame.ends[0]))!.position,axisAnchor(world,frame)))/2;
  const slot:Vec3=[Math.round(coordinates[0]+half),Math.round(coordinates[1]),Math.round(coordinates[2])];
@@ -30,7 +30,7 @@ export function planAxis(world:World,first:Origin,second:Origin,up:Vec3){
  const delta=minus(b.position,a.position),distance=norm(delta);if(distance<1e-8)throw Error('The axis needs two distinct positions.');
  const x=unit(delta),projected=minus(up,times(x,dot(up,x))),fallback=Math.abs(x[1])<.9?[0,1,0] as Vec3:[0,0,1] as Vec3;
  const y=unit(norm(projected)>1e-6?projected:minus(fallback,times(x,dot(fallback,x)))),z=unit(cross(x,y));
- const resolve=prepareTranslation(world,[second]),moving=resolve([0,0,0]);if(!moving)throw Error('The existing arrangement overlaps another node.');
+ const resolve=prepareTranslation(world,[second],false),moving=resolve([0,0,0]);if(!moving)throw Error('The existing arrangement overlaps another node.');
  const lengths=Array.from({length:129},(_,i)=>Math.max(1,Math.round(distance))+i-64).filter(n=>n>=1).sort((a,b)=>Math.abs(a-distance)-Math.abs(b-distance)||a-b);
  for(const length of lengths){
   const shift=minus(plus(a.position,times(x,length)),b.position);
@@ -49,8 +49,9 @@ export function createAxis(world:World,first:Origin,second:Origin,up:Vec3){
 }
 export function planSlotNode(world:World,origin:Origin,id:string,desired:Vec3,origins:readonly Origin[]=[origin]){
  const frame=world.axes?.find(frame=>frame.id===id),node=locate(world,origin);if(!frame||!node)throw Error('The axis or node no longer exists.');
- const slot=axisSlot(world,frame,desired),resolve=prepareTranslation(world,origins),candidates=Array.from({length:129},(_,i)=>i===0?0:Math.ceil(i/2)*(i%2?-1:1));
- const coordinates=axisCoordinates(world,frame,desired).map(Math.abs),direction=coordinates.indexOf(Math.max(...coordinates));
+ const slot=operationSlot(world,frame,desired),resolve=prepareTranslation(world,origins,false),candidates=Array.from({length:129},(_,i)=>i===0?0:Math.ceil(i/2)*(i%2?-1:1));
+ const coordinates=axisCoordinates(world,frame,desired).map(Math.abs),direction=[...activeWorldAxes(frame)].sort((a,b)=>coordinates[b]-coordinates[a])[0];
+ if(direction===undefined)throw Error('Activate an axis first.');
  for(const offset of candidates){const trial=[...slot] as Vec3;trial[direction]+=offset;const targets=resolve(minus(axisPoint(world,frame,trial),node.position));if(!targets)continue;
   // Joining an existing arrangement must not move this frame's origin/endpoints.
   if(!frame.members.some(member=>sameOrigin(member,origin))&&frame.ends.some(end=>{const target=targets.get(address(end));return target&&norm(minus(target,locate(world,end)!.position))>1e-7;}))continue;
@@ -70,6 +71,7 @@ export function validateAxes(world:World){
  for(const frame of world.axes){
   const vector=(v:unknown):v is Vec3=>Array.isArray(v)&&v.length===3&&v.every(n=>typeof n==='number'&&Number.isFinite(n));
   if(!frame||typeof frame.id!=='string'||!frame.id||frame.id.length>100||ids.has(frame.id)||!Array.isArray(frame.ends)||![1,2].includes(frame.ends.length)||!Array.isArray(frame.members)||frame.members.length<frame.ends.length||frame.members.length>4000||![frame.x,frame.y,frame.z].every(vector))throw Error('Invalid axis frame.');
+  if(frame.activeAxes!==undefined&&(!Array.isArray(frame.activeAxes)||frame.activeAxes.length>3||new Set(frame.activeAxes).size!==frame.activeAxes.length||frame.activeAxes.some(n=>!Number.isInteger(n)||n<0||n>2)))throw Error('Invalid active axes.');
   ids.add(frame.id);
   if([frame.x,frame.y,frame.z].some(v=>Math.abs(norm(v)-1)>1e-6)||Math.abs(dot(frame.x,frame.y))>1e-6||norm(minus(cross(frame.x,frame.y),frame.z))>1e-6)throw Error('Invalid axis orientation.');
   const members=new Set<string>();
@@ -116,4 +118,21 @@ export function nodeOriginView(position:Vec3,target:Vec3,up:Vec3){
  const normal=unit(back),projected=minus(up,times(normal,dot(up,normal))),fallback=Math.abs(normal[1])<.9?[0,1,0] as Vec3:[1,0,0] as Vec3;
  const vertical=unit(norm(projected)>1e-7?projected:minus(fallback,times(normal,dot(fallback,normal))));
  return {position:[...position] as Vec3,target:[...target] as Vec3,up:vertical};
+}
+
+export const activeWorldAxes=(frame:AxisFrame)=>frame.activeAxes??[0,2];
+export function toggleWorldAxis(world:World,id:string,axis:number){
+ const frame=world.axes?.find(frame=>frame.id===id);if(!frame||!Number.isInteger(axis)||axis<0||axis>2)throw Error('Choose a valid axis.');
+ const current=activeWorldAxes(frame);frame.activeAxes=current.includes(axis)?current.filter(n=>n!==axis):[...current,axis].sort();world.activeAxis=id;
+}
+export function shiftAxisOrigin(world:World,id:string,offset:Vec3){
+ const frame=world.axes?.find(frame=>frame.id===id);if(!frame||offset.length!==3||offset.some(n=>!Number.isSafeInteger(n)))throw Error('Use whole X Y Z offsets.');
+ frame.origin=plus(axisCenter(world,frame),plus(times(frame.x,offset[0]),plus(times(frame.y,offset[1]),times(frame.z,offset[2]))));
+}
+
+export function operationSlot(world:World,frame:AxisFrame,p:Vec3):Vec3{
+ const active=activeWorldAxes(frame),coords=axisCoordinates(world,frame,p);
+ const slots=coords.map((n,i)=>active.includes(i)?Math.round(n):0) as Vec3;
+ if(!frame.directed&&!frame.origin)slots[0]+=norm(minus(locate(world,frame.ends[1]??frame.ends[0])!.position,axisAnchor(world,frame)))/2;
+ return slots;
 }

@@ -1,5 +1,5 @@
 import {installContextActions,registerContextActions,refreshContextActions} from './ui/contextActions';
-import {createAxis,setAxisOrigin,slotNode,focusNodeFrame,endpointView} from './core/axes.ts';
+import {activeWorldAxes,createAxis,toggleWorldAxis,shiftAxisOrigin,setAxisOrigin,slotNode,focusNodeFrame,endpointView} from './core/axes.ts';
 import {parseBrush,brushShape,SINGLE_BRUSH,type Brush} from './core/brush.ts';
 import {handleContentViewShortcut} from './ui/contentViewShortcut.ts';
 import {ANIMATION_TARGETS,animationProperties} from './properties/animations.ts';
@@ -103,6 +103,7 @@ const view = (() => {
       origin(id,position){store.change(world=>setAxisOrigin(world,id,position));},
       axis(first,second,up){store.change(world=>{createAxis(world,first,second,up);});selection.set([]);refresh();},
       slot(origins,axis,point){store.change(world=>slotNode(world,origins[0],axis,point,origins));},
+      toggleWorldAxis(id,axis){store.change(world=>toggleWorldAxis(world,id,axis));},
       focusAxis(id){selection.set([]);store.change(world=>{world.activeAxis=id;});},
       connect(origin){connectNode(origin);},
       subtree(origin,nextOnly=false) { store.change(world => nextOnly?toggleChildLevel(world,origin):toggleSubtree(world, origin)); },
@@ -351,7 +352,7 @@ function searchSettingsEntries(){
 type SearchSetting={label:string;keywords:string;definition:Property;read:()=>Value|undefined;write?:(world:World,value:Value)=>void;set?:(value:Value)=>void};
 type SearchAction={label:string;keywords:string;run:()=>void;available?:boolean};
 function spaceActions():SearchAction[]{
- const relation=relationFrame(),active=!!store.world.activeAxis;
+ const relation=relationFrame(),frame=store.world.axes?.find(frame=>frame.id===store.world.activeAxis),active=!!frame;
  return [
  {label:'Axis (X)',keywords:'world axis frame coordinates origin snap units distance align',run:startAxis},
  {label:'Brush (Shift+X)',keywords:'world paint cube sphere geometry recursive unit',run:openBrush},
@@ -360,6 +361,8 @@ function spaceActions():SearchAction[]{
  {label:'View from first node',keywords:'world camera perspective occupy endpoint depth z',run:()=>{if(relation)enterNodePerspective(relation.ends[0]);},available:!!relation},
  {label:'View from second node',keywords:'world camera perspective occupy endpoint depth z',run:()=>{if(relation?.ends[1])enterNodePerspective(relation.ends[1]);},available:!!relation},
  {label:'Return to user view',keywords:'world camera perspective user leave node',run:()=>view?.leaveNode(),available:!!view?.inNodeView},
+ ...(frame?[0,1,2].map(axis=>({label:`${activeWorldAxes(frame).includes(axis)?'✓ ':''}${'XYZ'[axis]} axis`,keywords:'world active axes plane line volume constrain',run:()=>store.change(world=>toggleWorldAxis(world,frame.id,axis))})):[]),
+ {label:'Shift origin…',keywords:'world plane origin elevation level offset xyz',available:active,run:()=>{const value=prompt('Origin shift: X Y Z','0 0 0');if(value===null)return;const offset=value.trim().split(/[ ,]+/).map(Number);if(offset.length!==3||offset.some(n=>!Number.isSafeInteger(n)))throw Error('Use three whole numbers.');store.change(world=>shiftAxisOrigin(world,world.activeAxis!,offset as Vec3));}},
  {label:'Unfocus frame',keywords:'world axis origin reference deactivate',run:()=>store.change(world=>{delete world.activeAxis;}),available:active},
  {label:'Release frame',keywords:'world axis origin reference remove constraints',run:()=>store.change(world=>{world.axes=world.axes?.filter(frame=>frame.id!==world.activeAxis);delete world.activeAxis;}),available:active},
  ];
@@ -594,7 +597,7 @@ registerContextActions({label:'Omnium',owns:element=>!!element.closest('#world,h
  const mode=view?.inputContext;
  if(mode==='origin')return [{label:'Choose origin slot',key:'Click'},{label:'Cancel origin picker',key:'O / Esc'}];
  if(mode==='axis-first'||mode==='axis-second')return [{label:mode==='axis-first'?'Choose first axis node':'Choose second axis node',key:'Click'},{label:'Cancel axis picker',key:'Esc'}];
- if(mode==='create')return [{label:'Expand/collapse hierarchy',key:'Click'},{label:'Relocate',key:'Drag'},{label:'Connect',key:'Shift + drag'},{label:'Place nodes',key:'Alt + click'},{label:'Paint nodes',key:'Alt + drag'},{label:'Preview paint',key:'Hold Alt'},{label:'Plane painting',key:'Alt + Shift + drag'},{label:'Exit creation',key:'N / Esc',run:()=>view?.toggleCreation()}];
+ if(mode==='create')return [{label:'Expand/collapse hierarchy',key:'Click'},{label:'Relocate',key:'Drag'},{label:'Connect',key:'Shift + drag'},{label:'Place nodes',key:'Alt + click'},{label:'Paint nodes',key:'Alt + drag'},{label:'Preview paint',key:'Hold Alt'},{label:'Exit creation',key:'N / Esc',run:()=>view?.toggleCreation()}];
  return [
  ...worldShortcutActions(),
  {label:'Expand/collapse hierarchy',key:'Click'}, {label:'Relocate',key:'Drag'},{label:'Connect',key:'Shift + drag'},{label:'Preview paint',key:'Hold Alt'},{label:'Look / orbit',key:'Right drag'},{label:'Undo',key:'Ctrl+Z',run:()=>travelHistory('undo')},{label:'Redo',key:'Ctrl+Y',run:()=>travelHistory('redo')},

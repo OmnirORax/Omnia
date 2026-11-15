@@ -7,6 +7,7 @@ import {placementSubtree} from '../graph/selection.ts';
 export function createNavigatorDrive(env:{
  hosts:()=>ReadonlyMap<string,{anchor:THREE.Vector3;group:THREE.Group}>;
  commit:(id:string,world:XYZ)=>Document|null;
+ constrain?:(id:string,world:XYZ)=>XYZ|undefined;
 }){
  let session:{doc:Document;id:string;ids:Set<string>;worlds:Map<string,XYZ>;root:XYZ;last:XYZ;lastWorlds:Map<string,XYZ>;valid:boolean;resolve:ReturnType<typeof prepareLatticeTransform>}|undefined;
  const paint=(worlds:ReadonlyMap<string,XYZ>)=>{for(const [id,p]of worlds){const host=env.hosts().get(id);if(host){host.anchor.set(p.x,p.y,p.z);host.group.position.copy(host.anchor);}}};
@@ -22,6 +23,7 @@ export function createNavigatorDrive(env:{
   },
   move(point:THREE.Vector3){
    const s=session;if(!s)return true;
+   if(env.constrain){const target=env.constrain(s.id,{x:point.x,y:point.y,z:point.z});if(!target){s.valid=false;return false;}point=new THREE.Vector3(target.x,target.y,target.z);}
    const delta=point.clone().sub(new THREE.Vector3(s.root.x,s.root.y,s.root.z));
    const candidates=new Map([...s.worlds].map(([id,p])=>[id,{x:p.x+delta.x,y:p.y+delta.y,z:p.z+delta.z}]));
    let resolved;try{resolved=s.resolve(candidates);}catch{s.valid=false;return false;}

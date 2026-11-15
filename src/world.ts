@@ -2,7 +2,7 @@ import {createOccupancy} from './graph/occupancy.ts';
 import {axisPose} from './world/axisPose.ts';
 import {createPaintSession} from './core/painting.ts';
 import {createAxisView} from './world/axisView.ts';
-import {nodeOriginView,originSlots,axisCenter,axisPoint,axisSlot,axisAnchor,planAxis,planSlotNode,endpointView,dot,minus,type AxisFrame} from './core/axes.ts';
+import {operationSlot,activeWorldAxes,nodeOriginView,originSlots,axisCenter,axisPoint,axisAnchor,planAxis,planSlotNode,endpointView,dot,minus,type AxisFrame} from './core/axes.ts';
 import {startsConnector,connectorDragged} from './world/connectorGesture.ts';
 import {resolveNodeAppearance,nodePaint,connectorPaint} from './core/appearance.ts';
 import {brightHex} from './composer/runtime/appearance/resolve.ts';
@@ -60,6 +60,7 @@ type Input = { pick: (origin: Origin, extend: boolean, toggle: boolean) => void;
   paint: (positions: Vec3[], source?: Origin, axis?:string) => void;
   axis:(first:Origin,second:Origin,up:Vec3)=>void;
   slot:(origins:readonly Origin[],axis:string,point:Vec3)=>void;
+  toggleWorldAxis:(id:string,axis:number)=>void;
   focusAxis:(id:string)=>void;
   connect: (origin: Origin)=>void;
   subtree: (origin: Origin,nextOnly?:boolean) => void;
@@ -121,6 +122,7 @@ export function createWorld(host: HTMLElement, input: Input) {
     visual.object.quaternion.identity();return result.motion;
   }
   const drive = createNavigatorDrive({ hosts: () => visuals,
+    constrain:(_id,p)=>{const frame=activeAxis();if(!frame)return p;if(!activeWorldAxes(frame).length)return;const position=axisPoint(world,frame,operationSlot(world,frame,[p.x/scale,p.y/scale,p.z/scale]));return {x:position[0]*scale,y:position[1]*scale,z:position[2]*scale};},
     commit(id, position) { const result = input.park(visuals.get(id)!.node.origin, vector({x:position.x / scale,y:position.y / scale,z:position.z / scale})); return geometry(result); },
   });
   const effectNodes:TextScene['nodes']=new Map(),effectConnectors:TextScene['connectors']=[];
@@ -196,17 +198,17 @@ export function createWorld(host: HTMLElement, input: Input) {
   const resize = new ResizeObserver(() => { const box = host.getBoundingClientRect(); pipeline.resize(box.width, box.height); camera.aspect = box.width / Math.max(1, box.height); camera.updateProjectionMatrix(); request(); }); resize.observe(host);
   controls.addEventListener('change', () => { navigator.orientation.copy(camera.quaternion); request(); });
   function pointer(p: Point) { const r = canvas.getBoundingClientRect(); ray.setFromCamera(new T.Vector2((p.x-r.left)/r.width*2-1, -(p.y-r.top)/r.height*2+1), camera); }
-  function pointed(p: Point, exclude?: ReadonlySet<string>): { origin?: Origin; edge?: Edge;axis?:string } {
+  function pointed(p: Point, exclude?: ReadonlySet<string>): { origin?: Origin; edge?: Edge;axis?:string;axisIndex?:number } {
     pointer(p); ray.params.Line!.threshold = scale * .15;
-    let axis:string|undefined;
+    let axis:string|undefined,axisIndex:number|undefined;
     for (const hit of ray.intersectObjects(picks, true)) {
-      if(hit.object.userData.axis){axis??=hit.object.userData.axis;continue;}
+      if(hit.object.userData.axis){if(axis===undefined){axis=hit.object.userData.axis;axisIndex=hit.object.userData.axisIndex;}continue;}
       let owner: T.Object3D | null = hit.object;
       while (owner && !owner.userData.origin && !owner.userData.edge) owner = owner.parent;
       if (owner?.userData.origin) { if (exclude?.has(key(owner.userData.origin))) continue; return { origin: owner.userData.origin }; }
       if (owner?.userData.edge && !exclude) return { edge: owner.userData.edge };
     }
-    return axis?{axis}:{};
+    return axis?{axis,axisIndex}:{};
   }
   function at(p: Point, anchor = controls.target) {
     pointer(p); const result = ray.ray.intersectPlane(new T.Plane().setFromNormalAndCoplanarPoint(camera.getWorldDirection(new T.Vector3()), anchor), new T.Vector3()); return result ?? anchor.clone();
@@ -216,9 +218,10 @@ export function createWorld(host: HTMLElement, input: Input) {
     pointer(p);
     const center=(pointOfView?new T.Vector3(...axisCenter(world,frame)).addScaledVector(new T.Vector3(...frame.z),-(nodeViewDepth??0)).multiplyScalar(scale):new T.Vector3(...axisCenter(world,frame)).multiplyScalar(scale));return ray.ray.intersectPlane(new T.Plane().setFromNormalAndCoplanarPoint(new T.Vector3(...frame.z),center),new T.Vector3())??center;
   }
-  function nearAxis(p:Point,position:Vec3){const frame=activeAxis();if(!frame)return;const slot=axisPoint(world,frame,axisSlot(world,frame,position)),q=new T.Vector3(...slot).multiplyScalar(scale).project(camera),box=canvas.getBoundingClientRect();return Math.hypot(box.left+(q.x+1)*box.width/2-p.x,box.top+(1-q.y)*box.height/2-p.y)<18?{frame,point:slot}:undefined;}
+  function nearAxis(_p:Point,position:Vec3){const frame=activeAxis();if(!frame||!activeWorldAxes(frame).length)return;return {frame,point:axisPoint(world,frame,operationSlot(world,frame,position))};}
+
   function creationPoint(p: Point) {
-    const frame=activeAxis();if(frame)return axisPoint(world,frame,axisSlot(world,frame,xyz(axisPlanePoint(p,frame).divideScalar(scale)),'space'));
+    const frame=activeAxis();if(frame)return axisPoint(world,frame,operationSlot(world,frame,xyz(axisPlanePoint(p,frame).divideScalar(scale))));
     pointer(p); const orientation = latticeFrame(camera.quaternion), normal = new T.Vector3(0,0,1).applyQuaternion(orientation);
     const hit = ray.ray.intersectPlane(new T.Plane().setFromNormalAndCoplanarPoint(normal, controls.target), new T.Vector3());
     return xyz((hit ?? controls.target).clone().divideScalar(scale));
@@ -331,7 +334,7 @@ export function createWorld(host: HTMLElement, input: Input) {
     controls.enabled=false;input.pick(origin,false,false);rebuildPicks();input.feedback('Driving · click an empty cell to park · Esc cancels');request();
   }
   function cancelDrive() { const active=drive.active;if(active)relocationPin=drive.id;drive.cancel();mountedWorld=undefined;navigatorOffset.set(0,0,0);controls.enabled=true;edges.visible=true;rebuildPicks();if(active)presentation();else request();return active; }
-  type Gesture={pointer:number;button:number;alt:boolean;start:Point;end:Point;origin?:Origin;edge?:Edge;axis?:string;anchor:T.Vector3;mode:'move'|'range'|'view'|'drive'|'paint';dragged:boolean;landing?:{delta:Vec3;frame?:string;point?:Vec3};origins:readonly Origin[];moving?:Set<string>;project?:ReturnType<typeof pointerPlane>;resolve?:ReturnType<typeof import('./core/lattice.ts').prepareTranslation>};
+  type Gesture={pointer:number;button:number;alt:boolean;start:Point;end:Point;origin?:Origin;edge?:Edge;axis?:string;axisIndex?:number;anchor:T.Vector3;mode:'move'|'range'|'view'|'drive'|'paint';dragged:boolean;landing?:{delta:Vec3;frame?:string;point?:Vec3};origins:readonly Origin[];moving?:Set<string>;project?:ReturnType<typeof pointerPlane>;resolve?:ReturnType<typeof import('./core/lattice.ts').prepareTranslation>};
   let gesture:Gesture|undefined;
   let connectionSource:Origin|undefined;
   const connectionLine=new T.Line(new T.BufferGeometry().setFromPoints([new T.Vector3(),new T.Vector3()]),new T.LineBasicMaterial({color:0x00d8ff,depthTest:false}));connectionLine.visible=false;connectionLine.frustumCulled=false;scene.add(connectionLine);
@@ -342,12 +345,12 @@ export function createWorld(host: HTMLElement, input: Input) {
   let originPick:{id:string;slots:Vec3[];pointer?:number;choice?:Vec3}|undefined;
   let altPreview=false;
   let creating=false;
-  let hoverPaint:{world:World;signature:string;session:ReturnType<typeof createPaintSession>}|undefined;
+  let hoverPaint:{world:World;signature:string;session:ReturnType<typeof createPaintSession>;project:(p:Point)=>Vec3}|undefined;
   let pointerAlt=false,pointerShift=false,hoverCandidate:ReturnType<ReturnType<typeof createPaintSession>['candidate']>|undefined,coordinatesVisible=true;
   function paintContext(p:Point,planes:boolean){
     const frame=activeAxis(),basis: [Vec3,Vec3,Vec3]=frame?[frame.x,frame.y,frame.z]:[xyz(new T.Vector3(1,0,0).applyQuaternion(camera.quaternion)),xyz(new T.Vector3(0,1,0).applyQuaternion(camera.quaternion)),xyz(new T.Vector3(0,0,1).applyQuaternion(camera.quaternion))];
-    const forward=camera.getWorldDirection(new T.Vector3()),normal=basis.map(v=>Math.abs(forward.dot(new T.Vector3(...v)))),plane=frame?2:normal.indexOf(Math.max(...normal));
-    const center=frame?(pointOfView?new T.Vector3(...axisCenter(world,frame)).addScaledVector(new T.Vector3(...frame.z),-(nodeViewDepth??0)).multiplyScalar(scale):new T.Vector3(...axisCenter(world,frame)).multiplyScalar(scale)):at(p),project=(q:Point)=>{pointer(q);return xyz((ray.ray.intersectPlane(new T.Plane().setFromNormalAndCoplanarPoint(new T.Vector3(...basis[plane]),center),new T.Vector3())??center).divideScalar(scale));};
+    const forward=camera.getWorldDirection(new T.Vector3()),normal=basis.map(v=>Math.abs(forward.dot(new T.Vector3(...v)))),inactive=frame?[0,1,2].filter(n=>!activeWorldAxes(frame).includes(n)):[],plane=inactive.length?inactive.reduce((a,b)=>normal[a]>=normal[b]?a:b):normal.indexOf(Math.max(...normal));
+    const center=frame?new T.Vector3(...axisCenter(world,frame)).multiplyScalar(scale):at(p),project=(q:Point)=>{pointer(q);return xyz((ray.ray.intersectPlane(new T.Plane().setFromNormalAndCoplanarPoint(frame&&activeWorldAxes(frame).length===3?forward:new T.Vector3(...basis[plane]),center),new T.Vector3())??center).divideScalar(scale));};
     const origin=project(p),planeDepth=frame&&pointOfView?dot(minus(origin,axisAnchor(world,frame)),basis[plane]):undefined;return {session:createPaintSession(world,origin,basis,frame,plane,planes,planeDepth,spaceIndex),project,frame:frame?.id,basis};
   }
   function showGhost(candidate:ReturnType<ReturnType<typeof createPaintSession>['candidate']>){
@@ -402,6 +405,7 @@ export function createWorld(host: HTMLElement, input: Input) {
     if(g){g.end=p;g.dragged ||= Math.hypot(p.x-g.start.x,p.y-g.start.y)>=4;
       if(g.mode==='paint'){if(g.dragged)paintPoint(p);return;}
       if(g.dragged&&g.mode==='move'){
+        if(activeAxis()&&!activeWorldAxes(activeAxis()!).length){g.landing=undefined;ghost.visible=false;return;}
         if(!g.moving){g.resolve=prepareTranslation(world,g.origins);const carried=g.resolve([0,0,0]);g.moving=new Set(carried?.keys()??g.origins.map(key));for(const id of carried?.keys()??g.origins.map(key))relocating.add(id);relocationPin=g.origin?key(g.origin):undefined;presentation();}
         let delta=(g.project?.(p)??at(p,g.anchor)).sub(g.anchor).divideScalar(scale);
         const original=g.origin&&locatePosition(g.origin),snap=original&&nearAxis(p,original.map((n,i)=>n+delta.getComponent(i)) as Vec3);if(snap&&original)delta=new T.Vector3(...snap.point.map((n,i)=>n-original[i]));
@@ -425,7 +429,7 @@ export function createWorld(host: HTMLElement, input: Input) {
       paintPoint(p);return;
     }
     if(altPreview){finishPaint(true);altPreview=false;}
-    if(creating&&!hitPoint&&!input.picking()){const signature=JSON.stringify([world.activeAxis,camera.quaternion.toArray(),pointerAlt,pointerShift]);if(!hoverPaint||hoverPaint.world!==world||hoverPaint.signature!==signature)hoverPaint={world,signature,session:paintContext(p,!pointerAlt||pointerShift).session};const position=activeAxis()?xyz(axisPlanePoint(p,activeAxis()!).divideScalar(scale)):xyz(at(p).divideScalar(scale));showGhost(hoverPaint.session.candidate(position));request();}else {ghost.visible=false;hoverCandidate=undefined;axisView.brushCoordinates(world,activeAxis(),[],scale,camera,coordinatesVisible);}
+    if(creating&&!hitPoint&&!input.picking()){const signature=JSON.stringify([world.activeAxis,camera.quaternion.toArray(),pointerAlt,pointerShift]);if(!hoverPaint||hoverPaint.world!==world||hoverPaint.signature!==signature)hoverPaint={world,signature,...paintContext(p,!pointerAlt||pointerShift)};const position=hoverPaint.project(p);showGhost(hoverPaint.session.candidate(position));request();}else {ghost.visible=false;hoverCandidate=undefined;axisView.brushCoordinates(world,activeAxis(),[],scale,camera,coordinatesVisible);}
     if(!input.picking())aimNavigator(p);
     const hit=pointed(p);hover=hit.origin?key(hit.origin):undefined;
   }
@@ -455,7 +459,7 @@ export function createWorld(host: HTMLElement, input: Input) {
       }
       if(g.dragged){secondary.cancel();return;}
       if(event.button===2){const position=creationPoint(g.end);secondary.release(()=>{cancelDrive();input.menu(g.origin,g.end,position,g.edge);})?.();return;}
-      if(g.axis&&!g.origin){input.focusAxis(g.axis);return;}
+      if(g.axis&&!g.origin){if(g.axisIndex!==undefined)input.toggleWorldAxis(g.axis,g.axisIndex);else input.focusAxis(g.axis);return;}
       if(g.edge){cancelDrive();input.edge(g.edge);return;}
       if(input.picking()){if(g.origin)input.pick(g.origin,false,false);return;}
       if(g.mode==='range'){cancelDrive();if(g.origin)input.pick(g.origin,true,true);return;}

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import * as T from 'three';
 import {emptyWorld,addStructure,validateWorld,locate} from '../src/core/model.ts';
 import {creationCell,prepareTranslation,lattice,geometry,address} from '../src/core/lattice.ts';
-import {createAxis,planAxis,axisCenter,axisCoordinates,axisPoint,slotNode,originSlots,setAxisOrigin,focusNodeFrame,endpointView} from '../src/core/axes.ts';
+import {createAxis,planAxis,axisCenter,axisCoordinates,axisPoint,slotNode,activeWorldAxes,toggleWorldAxis,shiftAxisOrigin,operationSlot,originSlots,setAxisOrigin,focusNodeFrame,endpointView} from '../src/core/axes.ts';
 import {translate} from '../src/core/capabilities.ts';
 import {removeNodes,paintNodes} from '../src/core/nodeOperations.ts';
 import {createStore} from '../src/core/store.ts';
@@ -93,9 +93,9 @@ test('axis painting is discrete, plane painting follows origin depth, and stamps
  const {world,a,b}=pair([4,0,0]),frame=createAxis(world,a.origin,b.origin,[0,1,0]);
  const axis=createPaintSession(world,[0,0,0],[frame.x,frame.y,frame.z],frame,2,false);
  assert.ok(axis.add([2,.1,0]));close(axis.points[0],[2,0,0]);assert.ok(axis.add([2.1,0,0]));assert.equal(axis.points.length,1);
- const plane=createPaintSession(world,[0,0,0],[frame.x,frame.y,frame.z],frame,2,true),candidate=plane.candidate([2,2,9]);assert.ok(candidate.valid);close(candidate.anchor,[4,2,9]);
+ const plane=createPaintSession(world,[0,0,0],[frame.x,frame.y,frame.z],frame,2,true),candidate=plane.candidate([2,2,9]);assert.ok(candidate.valid);close(candidate.anchor,[2,0,9]);
  plane.add([2,2,9]);paintNodes(world,plane.points,undefined,frame.id);close(world.nodes.at(-1).position,candidate.stamp[0]);validateWorld(world);
- const focused=focusNodeFrame(world,b.origin,[1,0,0],[0,1,0]);const brush=createPaintSession(world,b.position,basis,focused,2,true);close(brush.candidate([7,3,8]).anchor,[7,3,0]);
+ const focused=focusNodeFrame(world,b.origin,[1,0,0],[0,1,0]);const brush=createPaintSession(world,b.position,basis,focused,2,true);close(brush.candidate([7,3,8]).anchor,[7,0,8]);
 });
 test('a blocked stamp rejects the whole geometry, including when only one member collides',()=>{
  const world=emptyWorld();world.brush=parseBrush('2');addStructure(world,[0,0,0],1);
@@ -124,7 +124,7 @@ test('either endpoint can own the camera, with the other endpoint straight ahead
 
 test('changing node perspective does not rotate an already painted constrained arrangement',()=>{
  const {world,a,b}=pair([4,0,0]);const relation=createAxis(world,a.origin,b.origin,[0,1,0]),frame=focusNodeFrame(world,a.origin,[1,0,0],[0,1,0]);
- const session=createPaintSession(world,a.position,basis,frame,2,true);session.add([0,2,0]);paintNodes(world,session.points,undefined,frame.id);
+ const session=createPaintSession(world,a.position,basis,frame,2,true);session.add([0,0,2]);paintNodes(world,session.points,undefined,frame.id);
  const before=structuredClone(world.nodes),view=endpointView(world,relation,a.origin),next=focusNodeFrame(world,a.origin,view.right,view.up,true);
  assert.notEqual(next.id,frame.id);assert.deepEqual(world.nodes,before);validateWorld(world);
 });
@@ -132,7 +132,7 @@ test('changing node perspective does not rotate an already painted constrained a
 test('coordinate preview uses focused depth, whole brush spacing and the exact committed points',()=>{
  const world=emptyWorld(),node=addStructure(world,[.25,-.75,2.5],1),frame=focusNodeFrame(world,node.origin,[1,0,0],[0,1,0]);world.brush=parseBrush('2x2x2');
  const session=createPaintSession(world,node.position,basis,frame,2,true),candidate=session.candidate([6.42,3.02,99]);
- assert.ok(candidate.valid);close(axisCoordinates(world,frame,candidate.anchor),[6,4,0]);
+ assert.ok(candidate.valid);close(axisCoordinates(world,frame,candidate.anchor),[6,0,96]);
  paintNodes(world,candidate.stamp,undefined,frame.id);
  assert.deepEqual(world.nodes.slice(1).map(node=>node.position),candidate.stamp);validateWorld(world);
 });
@@ -148,4 +148,17 @@ test('hover-mounted camera uses the node position and chosen origin with a stabl
   close(pose.position,eye);close(pose.target,target);close(camera.getWorldDirection(new T.Vector3()).toArray(),new T.Vector3(...target).sub(new T.Vector3(...eye)).normalize().toArray());assert.ok(pose.up.every(Number.isFinite));
  }
  assert.throws(()=>nodeOriginView([0,0,0],[0,0,0],[0,1,0]),/already/);
+});
+
+test('active world axes constrain painting, whole-unit relocation and origin-relative elevation',()=>{
+ const world=emptyWorld(),origin=addStructure(world,[0,0,0],1),node=addStructure(world,[4,4,4],2),frame=focusNodeFrame(world,origin.origin,[1,0,0],[0,1,0]);
+ assert.deepEqual(activeWorldAxes(frame),[0,2]);close(operationSlot(world,frame,[3.2,7.7,5.8]),[3,0,6]);
+ let session=createPaintSession(world,[0,0,0],basis,frame);close(session.candidate([3.2,7.7,5.8]).anchor,[3,0,6]);
+ const targets=prepareTranslation(world,[node.origin])([-.8,3.7,1.8]);close(targets.get(address(node.origin)),[3,0,6]);assert.equal(targets.size,1);
+ shiftAxisOrigin(world,frame.id,[0,3,0]);session=createPaintSession(world,[0,0,0],basis,frame);close(session.candidate([3.2,7.7,5.8]).anchor,[3,3,6]);close(prepareTranslation(world,[node.origin])([-.8,3.7,1.8]).get(address(node.origin)),[3,3,6]);
+ toggleWorldAxis(world,frame.id,2);toggleWorldAxis(world,frame.id,1);assert.deepEqual(activeWorldAxes(frame),[0,1]);session=createPaintSession(world,[0,0,0],basis,frame);close(session.candidate([3.2,7.7,5.8]).anchor,[3,8,0]);
+ toggleWorldAxis(world,frame.id,0);session=createPaintSession(world,[0,0,0],basis,frame);close(session.candidate([3.2,7.7,5.8]).anchor,[0,8,0]);
+ toggleWorldAxis(world,frame.id,1);assert.equal(createPaintSession(world,[0,0,0],basis,frame).candidate([3,8,6]).valid,false);assert.equal(prepareTranslation(world,[node.origin])([1,1,1]),undefined);
+ for(const axis of [0,1,2])toggleWorldAxis(world,frame.id,axis);close(createPaintSession(world,[0,0,0],basis,frame).candidate([3.2,7.7,5.8]).anchor,[3,8,6]);
+ validateWorld(JSON.parse(JSON.stringify(world)));assert.throws(()=>shiftAxisOrigin(world,frame.id,[0,.5,0]),/whole/);
 });
