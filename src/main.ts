@@ -594,7 +594,7 @@ registerContextActions({label:'Omnium',owns:element=>!!element.closest('#world,h
  const mode=view?.inputContext;
  if(mode==='origin')return [{label:'Choose origin slot',key:'Click'},{label:'Cancel origin picker',key:'O / Esc'}];
  if(mode==='axis-first'||mode==='axis-second')return [{label:mode==='axis-first'?'Choose first axis node':'Choose second axis node',key:'Click'},{label:'Cancel axis picker',key:'Esc'}];
- if(mode==='create')return [{label:'Place nodes',key:'Click'},{label:'Paint nodes',key:'Drag'},{label:'Preview paint',key:'Hold Alt'},{label:'Plane painting',key:'Shift + drag'},{label:'Exit creation',key:'N / Esc',run:()=>view?.toggleCreation()}];
+ if(mode==='create')return [{label:'Expand/collapse hierarchy',key:'Click'},{label:'Relocate',key:'Drag'},{label:'Connect',key:'Shift + drag'},{label:'Place nodes',key:'Alt + click'},{label:'Paint nodes',key:'Alt + drag'},{label:'Preview paint',key:'Hold Alt'},{label:'Plane painting',key:'Alt + Shift + drag'},{label:'Exit creation',key:'N / Esc',run:()=>view?.toggleCreation()}];
  return [
  ...worldShortcutActions(),
  {label:'Expand/collapse hierarchy',key:'Click'}, {label:'Relocate',key:'Drag'},{label:'Connect',key:'Shift + drag'},{label:'Preview paint',key:'Hold Alt'},{label:'Look / orbit',key:'Right drag'},{label:'Undo',key:'Ctrl+Z',run:()=>travelHistory('undo')},{label:'Redo',key:'Ctrl+Y',run:()=>travelHistory('redo')},
