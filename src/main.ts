@@ -1,3 +1,4 @@
+import {createSettingsCatalog} from './ui/settingsCatalog.ts';
 import {installBrowserShortcutGuard,browserShortcutsEnabled,enableBrowserShortcuts} from './ui/browserShortcuts.ts';
 import {viewHistory,type ViewSpec} from './ui/viewHistory.ts';
 import {loadEditorModule} from './ui/moduleLoader.ts';
@@ -265,22 +266,29 @@ const context=defineMenu('context',(position: Vec3,origin?:Origin,edge?:Edge)=>{
   button('Focus', () => { view?.focus(selectedOrigins(), true); close(); });
   button('Remove', remove);
 });
+const settingsCatalog=createSettingsCatalog<SearchSetting>();
+const worldSettings=settingsCatalog.define('world',()=>[
+    {label:'Lattice scale',keywords:'world lattice',definition:{key:'latticeScale',label:'Lattice scale',kind:'number' as const,min:1e-9},read:()=>store.world.settings?.latticeScale??1,write:(world:World,value:string|number|boolean)=>{world.settings??={latticeScale:1,names:'expanded'};world.settings.latticeScale=Number(value);}},
+    {label:'Names',keywords:'world names',definition:{key:'names',label:'Names',kind:'select' as const,options:[{id:'expanded',label:'Expanded'},{id:'all',label:'All'},{id:'selection',label:'Selected'}]},read:()=>store.world.settings?.names??'expanded',write:(world:World,value:string|number|boolean)=>{world.settings??={latticeScale:1,names:'expanded'};world.settings.names=value as 'all'|'expanded'|'selection';}},
+    {label:'Browser shortcuts',keywords:'world browser chrome keyboard shortcuts',definition:{key:'browserShortcuts',label:'Browser shortcuts',kind:'toggle'},read:browserShortcutsEnabled,set:value=>enableBrowserShortcuts(Boolean(value))},
+]);
+
+const historySettings=settingsCatalog.define('history',()=>[
+    {label:'History · Scope',keywords:'history scope selective context categories recent all actions',definition:HISTORY_MODE,read:()=>universalHistory.options.mode,set:value=>universalHistory.configure({mode:value as typeof universalHistory.options.mode})},
+    {label:'History · Steps',keywords:'history undo redo count steps',definition:HISTORY_STEPS,read:()=>universalHistory.options.steps,set:value=>universalHistory.configure({steps:Number(value)})},
+    ...HISTORY_CATEGORIES.map(id=>({label:`History · ${id}`,keywords:'history selected categories filter',definition:{key:`history.${id}`,label:id==='omnium'?'Nodes / documents':id,kind:'toggle' as const},read:()=>universalHistory.options.categories.includes(id),set:(value:Value)=>universalHistory.configure({categories:value?[...new Set([...universalHistory.options.categories,id])]:universalHistory.options.categories.filter(category=>category!==id)})})),
+]);
+const navigationSettings=settingsCatalog.define('navigation',()=>NAVIGATION_PROPERTIES.map(definition=>({label:`Camera · ${definition.label}`,keywords:'world navigation 3d rotation',definition,read:()=>({...NAV_DEFAULTS,...store.world.settings?.navigation})[definition.key.slice('navigation.'.length) as keyof NavigationOptions],write:(world:World,value:Value)=>{world.settings??={latticeScale:1,names:'expanded'};world.settings.navigation={...NAV_DEFAULTS,...world.settings.navigation,[definition.key.slice('navigation.'.length)]:value};}})));
+settingsCatalog.define('workspace',searchSettingsEntries);
 function searchSettingsEntries(){
   const origins=[...selectedOrigins()],selected=origins[0]&&locate(store.world,origins[0]);
   let nodeWorld=store.world,nodeCapabilities=selected?capabilities(resolveNodeSettings(store.world,inherited(selected,store.world))):[];
   const readNode=(key:string,index:number)=>{if(nodeWorld!==store.world){nodeWorld=store.world;const node=locate(nodeWorld,origins[0]);nodeCapabilities=node?capabilities(resolveNodeSettings(nodeWorld,inherited(node,nodeWorld))):[];}return nodeCapabilities.find(c=>c.key===key)?.properties[index].read();};
   const nodeEntries=selected?nodeCapabilities.flatMap(capability=>capability.properties.map((binding,index)=>({label:`${capability.label} · ${binding.property.label}`,keywords:'selected node',definition:binding.property,read:()=>readNode(capability.key,index),write:(world:World,value:string|number|boolean)=>{if(capability.key==='move'){const first=locate(world,origins[0]);if(first){const delta:Vec3=[0,0,0];delta[index]=Number(value)-first.position[index];translate(world,origins,delta);}return;}for(const origin of origins){const node=locate(world,origin);if(!node)continue;const target=capabilities(node).find(item=>item.key===capability.key);if(!target)continue;target.properties[index].write(String(value));if(node.variantOf)node.overrides=[...new Set([...(node.overrides??[]),binding.property.key])];}}}))):[];
   const visualEntries=(['nodeDefaults','text','background',...(origins.length?['nodeText' as const,'nodes' as const]:[])] as const).flatMap(target=>(target==='nodeDefaults'||target==='nodes'?NODE_VISUAL_PROPERTIES.map(p=>({...p,key:p.id})):visualProperties(target==='text'||target==='nodeText')).map(definition=>({label:`${target} · ${definition.label}`,keywords:`eye appearance visuals ${target==='nodeDefaults'?'global nodes sphere body':''}`,definition,read:()=>readPaint(store.world,target,origins[0])[definition.key as keyof Paint]!,write:(world:World,value:string|number|boolean)=>writePaint(world,target,origins,{[definition.key]:value})})));
-  const worldEntries=[
-    {label:'Lattice scale',keywords:'world lattice',definition:{key:'latticeScale',label:'Lattice scale',kind:'number' as const,min:1e-9},read:()=>store.world.settings?.latticeScale??1,write:(world:World,value:string|number|boolean)=>{world.settings??={latticeScale:1,names:'expanded'};world.settings.latticeScale=Number(value);}},
-    {label:'Names',keywords:'world names',definition:{key:'names',label:'Names',kind:'select' as const,options:[{id:'expanded',label:'Expanded'},{id:'all',label:'All'},{id:'selection',label:'Selected'}]},read:()=>store.world.settings?.names??'expanded',write:(world:World,value:string|number|boolean)=>{world.settings??={latticeScale:1,names:'expanded'};world.settings.names=value as 'all'|'expanded'|'selection';}},
-  ];
   const entries:SearchSetting[]=[
-    {label:'History · Scope',keywords:'history scope selective context categories recent all actions',definition:HISTORY_MODE,read:()=>universalHistory.options.mode,set:value=>universalHistory.configure({mode:value as typeof universalHistory.options.mode})},
-    {label:'History · Steps',keywords:'history undo redo count steps',definition:HISTORY_STEPS,read:()=>universalHistory.options.steps,set:value=>universalHistory.configure({steps:Number(value)})},
-    ...HISTORY_CATEGORIES.map(id=>({label:`History · ${id}`,keywords:'history selected categories filter',definition:{key:`history.${id}`,label:id,kind:'toggle' as const},read:()=>universalHistory.options.categories.includes(id),set:(value:Value)=>universalHistory.configure({categories:value?[...new Set([...universalHistory.options.categories,id])]:universalHistory.options.categories.filter(category=>category!==id)})})),
-    ...nodeEntries,...visualEntries,...worldEntries,
-    ...NAVIGATION_PROPERTIES.map(definition=>({label:`Camera · ${definition.label}`,keywords:'world navigation 3d rotation',definition,read:()=>({...NAV_DEFAULTS,...store.world.settings?.navigation})[definition.key.slice('navigation.'.length) as keyof NavigationOptions],write:(world:World,value:Value)=>{world.settings??={latticeScale:1,names:'expanded'};world.settings.navigation={...NAV_DEFAULTS,...world.settings.navigation,[definition.key.slice('navigation.'.length)]:value};}})),
+    ...nodeEntries,...visualEntries,
+
     ...([{key:'prompt',label:'Scene prompt',kind:'text'},{key:'variable',label:'Scene variable',kind:'text'},{key:'source',label:'Scene prompt input',kind:'select',options:[{id:'label',label:'Label'},{id:'notes',label:'Document'},{id:'label-and-notes',label:'Label + document'}]}] as Property[]).map(definition=>({label:definition.label,keywords:'scene image generation prompt source variable',definition,read:()=>(store.world.scene??defaultScene())[definition.key as 'prompt'|'variable'|'source'],write:(world:World,value:Value)=>{world.scene??=defaultScene();Object.assign(world.scene,{[definition.key]:value});}})),
     ...Object.entries(vfxFunction.inputs).map(([key,binding])=>({label:binding.definition.label,keywords:`scene ${key}`,definition:{...binding.definition,key},read:()=>binding.read({sceneVfx:(store.world.scene??defaultScene()).vfx}),write:(world:World,value:string|number|boolean)=>{world.scene??=defaultScene();world.scene.vfx=binding.write({sceneVfx:world.scene.vfx},value).sceneVfx;}})),
     ...audioDefinitions.map(d=>({label:d.property.label,keywords:'scene audio sound pulse bounce blinking flash delay cooldown',definition:d.property,read:()=>((store.world.scene??defaultScene()).vfx.audioResponse[d.key] as number)*d.scale,write:(world:World,value:string|number|boolean)=>{world.scene??=defaultScene();world.scene.vfx.audioResponse[d.key]=Number(value)/d.scale;}})),
@@ -313,15 +321,18 @@ function searchActions():SearchAction[]{return [
  {label:'Show all nodes',keywords:'show hidden visibility expand collapse',run:()=>{store.change(world=>{for(const node of world.nodes){node.hidden=false;node.collapsed=false;}});close();refresh();}},
  {label:'Fit all',keywords:'camera zoom fit all world',run:()=>{view?.focus(store.world.nodes.map(node=>node.origin),true);close();}},
 ];}
+function appendSetting(parent:HTMLElement,item:SearchSetting,label=item.definition.label){
+ const form=document.createElement('form'),control=field({...item.definition,label},item.read()??'');form.append(control.row);parent.append(form);
+ liveForm(form,group=>attempt(()=>{if(item.set)item.set(control.value());else store.change(world=>item.write!(world,control.value()),group);}));
+ watchFields(form,[{input:control.input,read:item.read}]);
+}
 function searchRenderer(results:HTMLElement){
- const settings=searchSettingsEntries().map(item=>({item,index:searchIndex(item)})),actions=searchActions().map(item=>({item,index:searchIndex(item)}));
  return(query:string)=>{
+  const settings=settingsCatalog.all().map(item=>({item,index:searchIndex(item)})),actions=searchActions().map(item=>({item,index:searchIndex(item)}));
   results.replaceChildren();if(!query.trim())return;let count=0;
   for(const {item,index}of actions)if(searchMatches(index,query)){const control=document.createElement('button');control.type='button';control.textContent=item.label;control.disabled=item.available===false;control.onclick=()=>attempt(item.run);results.append(control);count++;}
   for(const {item,index}of settings)if(searchMatches(index,query)){
-   const form=document.createElement('form'),control=field({...item.definition,label:item.label},item.read()??'');form.append(control.row);results.append(form);count++;
-   liveForm(form,group=>attempt(()=>{if(item.set)item.set(control.value());else store.change(world=>item.write!(world,control.value()),group);}));
-   watchFields(form,[{input:control.input,read:item.read}]);
+   appendSetting(results,item,item.label);count++;
   }
   if(!count){const empty=document.createElement('output');empty.textContent='No matches';results.append(empty);}
   requestFormSync();positionMenu();
@@ -417,29 +428,16 @@ const HISTORY_STEPS:Property={key:'history.steps',label:'Steps',kind:'number',mi
 const HISTORY_CATEGORIES=['omnium','ui','appearance','settings','camera']as const;
 function openCameraHUD(restore?:ViewSpec){if(!view)return;renderClose();viewHistory.adopt('cameraHUD',{kind:'cameraHUD'},view.showCamera(),restore);}
 const openHistory=defineMenu('history',()=>{
-  open('History');const form=document.createElement('form'),options=universalHistory.options;
-  const mode=field(HISTORY_MODE,options.mode);
-  const steps=field(HISTORY_STEPS,options.steps);
-  form.append(mode.row,steps.row);
-  const categories=HISTORY_CATEGORIES.map(id=>{const entry=field({key:`history.${id}`,label:id==='omnium'?'Nodes / documents':id,kind:'toggle'},options.categories.includes(id));form.append(entry.row);return {id,entry};});
-  liveForm(form,()=>universalHistory.configure({mode:mode.value()as typeof options.mode,steps:Number(steps.value()),categories:categories.filter(c=>c.entry.value()).map(c=>c.id)}));
-  watchFields(form,[{input:mode.input,read:()=>universalHistory.options.mode},{input:steps.input,read:()=>universalHistory.options.steps},...categories.map(c=>({input:c.entry.input,read:()=>universalHistory.options.categories.includes(c.id)}))]);tools.append(form);
+  open('History');for(const item of historySettings())appendSetting(tools,item);
   button('Undo',()=>store.undo());button('Redo',()=>store.redo());positionMenu();
 });
 const openNavigation=defineMenu('navigation',()=>{
-  open('Camera & rotation');const form=document.createElement('form'),current={...NAV_DEFAULTS,...store.world.settings?.navigation};
-  const inputs=NAVIGATION_PROPERTIES.map(definition=>{const key=definition.key.slice('navigation.'.length),entry=field(definition,current[key as keyof NavigationOptions]);form.append(entry.row);return {key,entry};});
-  liveForm(form,group=>attempt(()=>store.change(world=>{world.settings??={latticeScale:1,names:'expanded'};world.settings.navigation=Object.fromEntries(inputs.map(({key,entry})=>[key,entry.value()])) as NavigationOptions;},group)));watchFields(form,inputs.map(({key,entry})=>({input:entry.input,read:()=>({...NAV_DEFAULTS,...store.world.settings?.navigation})[key as keyof NavigationOptions]})));tools.append(form);
+  open('Camera & rotation');for(const item of navigationSettings())appendSetting(tools,item);
   for(const [id,label]of [['zoom100','100%'],['cameraOrigin','Origin'],['front','Front'],['all','Fit all'],['back','Back']]as const)button(label,()=>view?.camera(id));positionMenu();
 });
 const worldControls=defineMenu('world',()=>{
   open('World');
-  const form = document.createElement('form'), scale = field({ key:'latticeScale',label:'Lattice scale',kind:'number',min:1e-9 }, store.world.settings?.latticeScale ?? 1);
-  const names = field({ key:'names',label:'Names',kind:'select',options:[{id:'expanded',label:'Expanded'},{id:'all',label:'All'},{id:'selection',label:'Selected'}] }, store.world.settings?.names ?? 'expanded');
-  form.append(scale.row,names.row);
-  liveForm(form, group => attempt(() => store.change(world => { world.settings = { ...world.settings,latticeScale:Number(scale.value()),names:names.value() as 'all'|'expanded'|'selection' }; }, group)));watchFields(form,[{input:scale.input,read:()=>store.world.settings?.latticeScale??1},{input:names.input,read:()=>store.world.settings?.names??'expanded'}]); tools.append(form);
-  const browserKeys=field({key:'browserShortcuts',label:'Browser shortcuts',kind:'toggle'},browserShortcutsEnabled());
-  browserKeys.input.addEventListener('change',()=>enableBrowserShortcuts(Boolean(browserKeys.value())));tools.append(browserKeys.row);
+  for(const item of worldSettings())appendSetting(tools,item);
   button('History',openHistory);
   button('Camera & rotation',openNavigation);
   button('Camera HUD',openCameraHUD);
