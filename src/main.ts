@@ -94,6 +94,7 @@ function selectedNodes(world: World) { return world.nodes.filter(node => selecti
 const view = (() => {
   try {
     return createWorld(element('world'), {
+      cameraChanged:state=>store.setCamera(state),
       pick, picking: () => selection.requesting,
       range(origins, extend) { if (!selection.requesting) { selection.set(extend ? [...selectedOrigins(), ...origins] : origins); refresh(); } },
       clear() { if (selection.requesting) return; close(); selection.set([]); refresh(); },
@@ -140,6 +141,7 @@ function refresh() {
   if (view){statusText.data=store.message||message;reloadModuleButton.hidden=!reloadForModule;}
 }
 store.subscribe(refresh);
+store.subscribeReplace(()=>view?.restoreCamera(store.world.camera));
 universalHistory.subscribe(()=>{requestFormSync();element<HTMLButtonElement>('undo').disabled=universalHistory.candidates('undo',globalHistoryOptions()).length===0;element<HTMLButtonElement>('redo').disabled=universalHistory.candidates('redo',globalHistoryOptions()).length===0;});
 function open(title: string) {
   disposeTools?.();disposeTools=undefined;tools.replaceChildren(); tools.hidden = false;
@@ -621,12 +623,13 @@ function worldShortcutActions(includeUnavailable=false){return [
  {id:worldShortcutId('W'),label:'Move selection / hovered',gesture:'Left click',key:'',run:()=>view?.moveHovered()},
  {label:'Mount hovered / dismount',key:'M',run:()=>view?.mountTarget()},
  {label:view?.userDetached?'Mount User':'Dismount User',key:'U',run:()=>view?.toggleUser()},
+ {label:'Save view',key:'5',run:()=>{view?.saveCamera();feedback('View saved.');}},
  {label:'Create nodes',key:'N',run:()=>view?.toggleCreation()},
  {label:'Search',key:'S',run:searchSettings},
  ...((includeUnavailable||selectedOrigins().length>1)?[{label:'Align selection',key:'I',run:()=>view?.alignSelection()}]:[]),
- ...((includeUnavailable||selectedOrigins().length)?[{label:'Document',key:'D',run:()=>openDocument()},{label:'Remove',key:'Delete',run:remove}]:[]),
+ ...((includeUnavailable||selectedOrigins().length||view?.hoveredOrigin)?[{label:'Document',key:'D',run:()=>openDocument()},{label:'Remove',key:'Delete',run:remove}]:[]),
  {label:'Label',key:'L',run:editLabel},
- ].map(action=>{const defaultKey=action.key&&normalizeShortcut(action.key),id=('id' in action?action.id:undefined)??worldShortcutId(defaultKey??action.key??action.label);return {...action,id,defaultKey:defaultKey??'',key:normalizeShortcut(action.key??'')||action.key===''?shortcuts.get({category:'Omnium',id,label:action.label,defaultKey:defaultKey??''}):action.key};});}
+ ].map(action=>{const defaultKey=action.key&&normalizeShortcut(action.key),id=('id' in action?action.id:undefined)??worldShortcutId(defaultKey??action.key??action.label);return {...action,id,defaultKey:defaultKey??'',run:()=>{if(['P','I','D','L','Delete','R','W'].some(key=>id===worldShortcutId(key))&&!view?.moving&&view?.inputContext!=='rotate'){const hovered=view?.hoveredOrigin;if(hovered&&!selection.has(hovered))pick(hovered);}action.run();},key:normalizeShortcut(action.key??'')||action.key===''?shortcuts.get({category:'Omnium',id,label:action.label,defaultKey:defaultKey??''}):action.key};});}
 installContextActions();
 registerContextActions({label:'Omnium',owns:element=>!!element.closest('#world,header'),read:()=>{
  const mode=view?.inputContext;
@@ -644,7 +647,7 @@ document.addEventListener('keydown', event => {
   const editing = event.target instanceof Element && (!!event.target.closest('[data-input-owner]') || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement);
   if (event.target instanceof Element && event.target.closest('[data-input-owner]')) return;
   if (editing || event.target instanceof HTMLElement && event.target.isContentEditable) return;
-  if(!event.ctrlKey&&!event.metaKey&&!event.altKey&&view?.userPositionKey(event.key)){event.preventDefault();return;}
+  if(!event.ctrlKey&&!event.metaKey&&!event.altKey&&!matchesShortcut(event,worldBinding('5'))&&view?.userPositionKey(event.key)){event.preventDefault();return;}
   if(!event.defaultPrevented&&!event.repeat&&!selection.requesting){
     const action=worldShortcutActions().find(action=>action.key&&matchesShortcut(event,action.key));
     if(action){event.preventDefault();attempt(action.run);return;}
@@ -679,7 +682,7 @@ if(location.hostname==='omnium.nexus'||location.hostname==='omnia-web-bae.pages.
   replace:async world=>{const before=store.world;await api.restore(world);if(store.world!==before)throw Error('Workspace changed while loading.');for(const doc of documents.values())doc?.close();sceneView?.close();if(store.world!==before)throw Error('Finish local edits before loading the shared draft.');store.replace(world);selection.set([]);refresh();},
   status:(phase,error)=>{indicator.textContent=`Draft · ${phase}`;issue=error??'';renderDraftDetails();},
  });
- store.subscribe(sync.changed);
+ store.subscribe(sync.changed);store.subscribeCamera(sync.changed);
  function renderDraftDetails(){
   const view=draftView;if(!view?.root.isConnected)return;
   const output=document.createElement('output');output.setAttribute('aria-live','polite');output.textContent=issue||sync.phase;view.body.replaceChildren(output);

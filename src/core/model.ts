@@ -13,6 +13,7 @@ import { validateAudioResponse } from '../scene/audioResponse.ts';
 import { validateAppearance, validatePaint, type Appearance, type Paint } from '../properties/visual.ts';
 import { creationCell } from './lattice.ts';
 import {validateAxes,type AxisFrame} from './axes.ts';
+import {validateCameraState,type CameraState} from './cameraState.ts';
 import {brushShape,type Brush} from './brush.ts';
 import { SPHERE_VISUAL_DEFAULTS } from '../properties/sphereVisualDefaults.ts';
 import { validateNodeText, type NodeText } from '../text/model.ts';
@@ -31,7 +32,7 @@ export type Structure = { origin: Origin; label: string; position: Vec3; color: 
   brightness?: number; opacity?: number; glow?: number; translucency?: number; translucencyRadius?: number;
 };
 export type Relationship = { from: Binding; to: Binding; label: string; kind: string };
-export type World = { format: 'omnium-world'; version: 1 | 2 | 3; atlases?:AtlasView[];activeAtlas?:number; axes?:AxisFrame[];activeAxis?:string;brush?:Brush; nodes: Structure[]; assets?: VisualAsset[]; relationships?: Relationship[]; scene?: SceneSettings; appearance?: Appearance;
+export type World = { format: 'omnium-world'; version: 1 | 2 | 3; atlases?:AtlasView[];activeAtlas?:number; axes?:AxisFrame[];activeAxis?:string;brush?:Brush;camera?:CameraState; nodes: Structure[]; assets?: VisualAsset[]; relationships?: Relationship[]; scene?: SceneSettings; appearance?: Appearance;
   settings?: { latticeScale: number; names: 'all' | 'expanded' | 'selection'; navigation?: NavigationOptions } };
 export const emptyWorld = (): World => ({ format: 'omnium-world', version: 2, nodes: [], assets: [], relationships: [], appearance:{background:{translucency:1},text:{font:DEFAULT_TEXT_FONT,color:'#ff000d',glow:1}}, scene: defaultScene(), settings: { latticeScale: 1, names: 'expanded' } });
 export const samePoint = (a: Vec3, b: Vec3) => a.every((n, i) => n === b[i]);
@@ -112,6 +113,7 @@ export function validateWorld(value: unknown): World {
   const point = (p: unknown): p is Vec3 => Array.isArray(p) && p.length === 3 && p.every(n => typeof n === 'number' && Number.isFinite(n) && Math.abs(n) <= 1e7);
   const origin = (o: Origin) => o && Number.isFinite(o.born) && point(o.at);
   validateAppearance(w.appearance);
+  validateCameraState(w.camera);
   validateAxes(w);
   if(w.brush!==undefined)brushShape(w.brush);
   validateNavigation(w.settings?.navigation);
