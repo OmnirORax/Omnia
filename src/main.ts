@@ -52,7 +52,7 @@ import { createSelection } from './core/selection.ts';
 import { createStore } from './core/store.ts';
 import { createWorld, type Edge } from './world.ts';
 import { inherited } from './core/lattice.ts';
-import { paintNodes, adoptNodes, connectNodes, childNode, detachNode, removeNodes, toggleSubtree, toggleChildLevel, toggleHierarchies } from './core/nodeOperations.ts';
+import { paintNodes, adoptNodes, connectNodes, childNode, detachNode, removeNodes, toggleSubtree, toggleChildLevel, hierarchyAction } from './core/nodeOperations.ts';
 import type { editDocument } from './text/editor.ts';
 import {scenePanel,SCENE_TABS,type SceneTab} from './scene/panel.ts';
 import { validateAsset, MAX_ASSET_BYTES, type VisualAsset } from './graph/assets.ts';
@@ -122,7 +122,7 @@ const view = (() => {
       toggleWorldAxis(id,axis){if(view?.toggleReferenceAxis(id,axis))return;store.change(world=>toggleWorldAxis(world,id,axis));},
       focusAxis(id){selection.set([]);store.change(world=>{world.activeAxis=id;});},
       connect(origin){connectNode(origin);},
-      hierarchy(origins,nextOnly=false){let affected:Origin[]=[];store.change(world=>{affected=toggleHierarchies(world,origins,nextOnly);});return affected;},
+      hierarchy(origins,nextOnly=false,contentOnly=false){if(contentOnly)return hierarchyAction(store.world,origins,nextOnly,true);let affected:Origin[]=[];store.change(world=>{affected=hierarchyAction(world,origins,nextOnly);});return affected;},
       subtree(origin,nextOnly=false) { store.change(world => nextOnly?toggleChildLevel(world,origin):toggleSubtree(world, origin)); },
       edge(edge) { selection.cancel();selection.set([edge]); refresh(); reconnectEdge(edge); },
       feedback,
@@ -149,25 +149,25 @@ function refresh() {
 store.subscribe(refresh);
 store.subscribeReplace(()=>view?.restoreCamera(store.world.camera));
 universalHistory.subscribe(()=>{requestFormSync();element<HTMLButtonElement>('undo').disabled=universalHistory.candidates('undo',globalHistoryOptions()).length===0;element<HTMLButtonElement>('redo').disabled=universalHistory.candidates('redo',globalHistoryOptions()).length===0;});
-function open(title: string,scopeSearch?:(query:string)=>void) {
+function open(title: string,scopeSearch?:(query:string)=>void,globalOnly=false) {
   disposeTools?.();disposeTools=undefined;tools.replaceChildren(); tools.hidden = false;
   const row = document.createElement('div'); row.className = 'title';
   const caption = document.createElement('span'); caption.textContent = title;
   const back = document.createElement('button'); back.textContent = '×'; back.setAttribute('aria-label', 'Close'); back.onclick = close;
   row.append(caption, back); tools.append(row);windowDrag(tools,row,()=>{menuPoint={x:parseFloat(tools.style.left)||0,y:parseFloat(tools.style.top)||0};});
-  const find = document.createElement('input'); find.type = 'search';find.value=viewHistory.state.menu?.query??''; find.placeholder = 'Search…'; find.setAttribute('aria-label', 'Search operations');
+  const find = document.createElement('input'); find.type = 'search';find.value=viewHistory.state.menu?.query??''; find.placeholder = globalOnly?'Global search…':'Section search…'; find.setAttribute('aria-label',globalOnly?'Global search':'Search current section');
   const globalResults=document.createElement('div');globalResults.className='settings-search-results';
   const filter = () => {
     const query = find.value.trim().toLocaleLowerCase();viewHistory.query(find.value);
     if(scopeSearch){scopeSearch(find.value);positionMenu();return;}
     for (const item of Array.from(tools.children)) if (item instanceof HTMLButtonElement) item.hidden = item.dataset.searchOnly === 'true' && !query || !!query && !`${item.textContent} ${item.dataset.keywords ?? ''}`.toLocaleLowerCase().includes(query);
-    for(const form of tools.querySelectorAll('form'))for(const row of form.children)if(row instanceof HTMLElement)row.hidden=!!query&&!searchMatches(row.textContent??'',query);
+    for(const form of tools.querySelectorAll('form'))if(!globalResults.contains(form))for(const row of form.children)if(row instanceof HTMLElement)row.hidden=!!query&&!searchMatches(row.textContent??'',query);
     globalResults.replaceChildren();
     positionMenu();
   };
   find.oninput = filter;
   find.onkeydown = event => { if (event.key === 'Enter') { const match = Array.from(tools.children).find(item => item instanceof HTMLButtonElement && !item.hidden) as HTMLButtonElement | undefined; if (match) { event.preventDefault(); match.click(); } } };
-  tools.append(find,globalResults);
+  const searchRow=document.createElement('div');searchRow.className='menu-searches';searchRow.append(find);if(!globalOnly){const globalFind=document.createElement('input');globalFind.type='search';globalFind.placeholder='Global search…';globalFind.setAttribute('aria-label','Global search');let globalRender:ReturnType<typeof searchRenderer>|undefined;globalFind.oninput=()=>{if(globalFind.value.trim()){globalRender??=searchRenderer(globalResults);globalRender(globalFind.value);}else globalResults.replaceChildren();positionMenu();};searchRow.append(globalFind);}tools.append(searchRow,globalResults);
   requestAnimationFrame(() => { if (!find.isConnected) return; filter(); });
   positionMenu();return find;
 }
@@ -454,7 +454,7 @@ function searchRenderer(results:HTMLElement){
  };
 }
 const searchSettings=defineMenu('search',()=>{
- const results=document.createElement('div');results.className='settings-search-results';const render=searchRenderer(results),input=open('Search',render);tools.append(results);if(input.value)render(input.value);input.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();results.querySelector<HTMLElement>('input,select,button:not(:disabled)')?.focus();}});positionMenu();input.focus();
+ const results=document.createElement('div');results.className='settings-search-results';const render=searchRenderer(results),input=open('Search',render,true);tools.append(results);if(input.value)render(input.value);input.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();results.querySelector<HTMLElement>('input,select,button:not(:disabled)')?.focus();}});positionMenu();input.focus();
 },true);
 let draftControl:HTMLButtonElement|undefined;
 let workspaceView: ReturnType<typeof workspacePanel> | undefined;
