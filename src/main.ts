@@ -1,3 +1,4 @@
+import {capturingShortcut} from './ui/shortcuts.ts';
 import {installPointerBindings,pointerActivation} from './ui/pointerBindings.ts';
 import {nativeLayout,nativeAppearance} from './composer/runtime/historyBridge.ts';
 import {navigationState} from './ui/navigationState.ts';
@@ -67,6 +68,7 @@ import { liveForm,flushLiveForms } from './ui/liveForm.ts';
 try{shortcuts.initialize(localStorage);}catch{/* Session-only bindings when storage is unavailable. */}
 installPointerBindings(()=>view?.inputContext==='rotate'?'world':view?.inputContext??'world');
 installReleaseShortcuts(event=>{
+ if(capturingShortcut())return false;
  if(/^(Control|Shift|Alt|Meta|AltGraph)$/.test(event.key)||event.isComposing)return false;
  if(event.target instanceof Element&&event.target.closest('button,a[href]')&&(event.key==='Enter'||event.key===' '))return false;
  const element=event.target instanceof Element?event.target:undefined,editor=element?.closest('.cm-editor'),typing=element?.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"]),[role="textbox"]');

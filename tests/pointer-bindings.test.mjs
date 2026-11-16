@@ -23,3 +23,14 @@ test('the input boundary preserves selection behavior and release ownership afte
  const up={pointerId:7,button:2,ctrlKey:false,shiftKey:false,altKey:false,metaKey:false};handlers.get('pointerup')(up);assert.equal(up.button,0);assert.equal(up.shiftKey,true);
  }finally{Object.assign(globalThis,old);shortcuts.initialize({getItem:()=>null,setItem(){}});}
 });
+
+test('activation capture records held letters with mouse buttons without changing the stored binding',async()=>{
+ const {installShortcutCapture,captureShortcut}=await import('../src/ui/shortcuts.ts');
+ const old={window:globalThis.window,Element:globalThis.Element},handlers=new Map(),captured=[];
+ class Element{closest(){return null;}}
+ globalThis.Element=Element;globalThis.window={addEventListener:(name,fn)=>handlers.set(name,fn)};
+ try{installShortcutCapture();const stop=captureShortcut(value=>captured.push(value),()=>{},true);
+ const event={key:'x',repeat:false,ctrlKey:false,shiftKey:false,altKey:false,metaKey:false,preventDefault(){},stopImmediatePropagation(){}};
+ handlers.get('keydown')(event);handlers.get('pointerdown')({...event,target:new Element(),button:1});assert.deepEqual(captured,['X+MB3']);stop();
+ }finally{Object.assign(globalThis,old);}
+});
