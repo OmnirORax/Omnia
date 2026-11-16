@@ -8,7 +8,7 @@ function render(){
  const rows=source.read().map(action=>{const row=document.createElement(action.run?'button':'div');row.className='context-action';const label=document.createElement('span');label.textContent=action.label;const key=document.createElement('kbd');key.textContent=action.key??'';row.append(label,key);if(action.run)row.onclick=()=>{action.run?.();refreshContextActions();};return row;});
  root.replaceChildren(heading,...rows);
 }
-export function registerContextActions(source:Source){const id=Symbol(source.label);sources.set(id,source);refreshContextActions();return()=>{sources.delete(id);if(active===id)active=undefined;refreshContextActions();};}
+export function registerContextActions(source:Source){const id=Symbol(source.label);sources.set(id,source);refreshContextActions();assignedShortcuts();return()=>{assignedShortcuts();sources.delete(id);if(active===id)active=undefined;refreshContextActions();};}
 export function installContextActions(){
  root=document.createElement('aside');root.className='context-actions';root.dataset.contextController='';root.setAttribute('aria-label','Active context actions');root.hidden=true;document.body.append(root);
  root.addEventListener('pointerdown',event=>event.preventDefault());
@@ -20,3 +20,6 @@ export function installContextActions(){
   event.preventDefault();event.stopImmediatePropagation();visible=!visible;root!.hidden=!visible;if(visible)render();
  },true);
 }
+
+const shortcutArchive=new Map<string,{label:string;key:string}[]>();
+export function assignedShortcuts(){for(const source of sources.values())shortcutArchive.set(source.label,source.read().filter(action=>action.key).map(action=>({label:action.label,key:action.key!})));return [...shortcutArchive].flatMap(([context,actions])=>actions.map(action=>({context,...action})));}

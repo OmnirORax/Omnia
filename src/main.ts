@@ -1,5 +1,5 @@
 import {applyGroupTargets} from './core/groupPlacement';
-import {installContextActions,registerContextActions,refreshContextActions} from './ui/contextActions';
+import {assignedShortcuts,installContextActions,registerContextActions,refreshContextActions} from './ui/contextActions';
 import {aimFrame,activeWorldAxes,createAxis,toggleWorldAxis,shiftAxisOrigin,setSpatialOrigin,slotNode} from './core/axes.ts';
 import {parseBrush,brushShape,SINGLE_BRUSH,type Brush} from './core/brush.ts';
 import {handleContentViewShortcut} from './ui/contentViewShortcut.ts';
@@ -374,7 +374,12 @@ function spaceActions():SearchAction[]{
  {label:'Release frame',keywords:'world axis origin reference remove constraints',run:()=>store.change(world=>{world.axes=world.axes?.filter(frame=>frame.id!==world.activeAxis);delete world.activeAxis;}),available:active},
  ];
 }
+const openShortcuts=defineMenu('shortcuts',()=>{
+ open('Shortcuts');const input=document.createElement('input'),rows=document.createElement('div');input.type='search';input.placeholder='Search shortcuts';input.setAttribute('aria-label','Search shortcuts');let defaults:{context:string;label:string;key:string}[]=[];
+ const render=()=>{const query=input.value.trim().toLowerCase(),seen=new Set<string>();const live=assignedShortcuts(),assigned=new Set(live.map(item=>item.context+' · '+item.label));const items=[...defaults.filter(item=>!assigned.has(item.context+' · '+item.label)),...live,...worldShortcutActions(true).filter(action=>action.key).map(action=>({context:'Omnium',label:action.label,key:action.key!}))];rows.replaceChildren(...items.filter(item=>{const id=[item.context,item.label,item.key].join(' · ');if(seen.has(id)||query&&!id.toLowerCase().includes(query))return false;seen.add(id);return true;}).sort((a,b)=>a.context.localeCompare(b.context)||a.label.localeCompare(b.label)).map(item=>{const row=document.createElement('div');row.className='context-action';const label=document.createElement('span'),key=document.createElement('kbd');label.textContent=`${item.context} · ${item.label}`;key.textContent=item.key;row.append(label,key);return row;}));};input.oninput=render;tools.append(input,rows);render();input.focus();void Promise.all([import('./text/editor'),import('./composer/runtime/featureActions'),import('./composer/runtime/workspaceActions')]).then(([doc,features,workspace])=>{defaults=[...doc.documentShortcutCatalog(),...features.FEATURE_ACTIONS.map(action=>({context:'Omnic',label:action.label,key:workspace.shortcutBinding(action.id,{})})).filter(item=>item.key)];if(input.isConnected)render();});
+});
 function searchActions():SearchAction[]{return [
+ {label:'Shortcuts',keywords:'keyboard shortcuts hotkeys keybindings controls bindings',run:openShortcuts},
  immersiveAction(),
  ...spaceActions(),
  {label:'Appearance · Animations',keywords:'appearance effects particles stars lightning electric text symbols animation',run:animations},
@@ -589,8 +594,8 @@ window.addEventListener('keydown',event=>{
   else if(!closeActiveWindow())selection.set([]);
   event.preventDefault();event.stopImmediatePropagation();message='';refresh();
 },true);
-function worldShortcutActions(){return [
- ...spaceActions().filter(action=>action.available!==false).map(action=>{const match=/^(.*?) \(([^)]+)\)$/.exec(action.label);return {label:match?.[1]??action.label,key:match?.[2],run:action.run};}),
+function worldShortcutActions(includeUnavailable=false){return [
+ ...spaceActions().filter(action=>includeUnavailable||action.available!==false).map(action=>{const match=/^(.*?) \(([^)]+)\)$/.exec(action.label);return {label:match?.[1]??action.label,key:match?.[2],run:action.run};}),
  ...([{label:'Set origin',key:'O',run:()=>view?.pickOrigin()}]),
  {label:'Toggle contents facing camera',key:'F',run:()=>view?.toggleContentsFacing()},
  {label:'Rotate hovered',key:'R',run:()=>view?.rotateHovered()},
@@ -599,8 +604,8 @@ function worldShortcutActions(){return [
  {label:view?.userDetached?'Mount User':'Dismount User',key:'U',run:()=>view?.toggleUser()},
  {label:'Create nodes',key:'N',run:()=>view?.toggleCreation()},
  {label:'Search',key:'S',run:searchSettings},
- ...(selectedOrigins().length>1?[{label:'Align selection',key:'I',run:()=>view?.alignSelection()}]:[]),
- ...(selectedOrigins().length?[{label:'Document',key:'D',run:()=>openDocument()},{label:'Label',key:'L',run:()=>editCapability('label')},{label:'Remove',key:'Delete',run:remove}]:[]),
+ ...((includeUnavailable||selectedOrigins().length>1)?[{label:'Align selection',key:'I',run:()=>view?.alignSelection()}]:[]),
+ ...((includeUnavailable||selectedOrigins().length)?[{label:'Document',key:'D',run:()=>openDocument()},{label:'Label',key:'L',run:()=>editCapability('label')},{label:'Remove',key:'Delete',run:remove}]:[]),
  ];}
 installContextActions();
 registerContextActions({label:'Omnium',owns:element=>!!element.closest('#world,header'),read:()=>{
