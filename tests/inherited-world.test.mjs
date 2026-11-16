@@ -6,7 +6,7 @@ import { geometry, lattice, address, prepareTranslation, moveBranch, inherited, 
 import { childNode, detachNode, removeNodes } from '../src/core/nodeOperations.ts';
 import { nearestCell, cellAt } from '../src/graph/lattice.ts';
 import { createNavigatorDrive } from '../src/navigation/navigatorDrive.ts';
-import { capabilities } from '../src/core/capabilities.ts';
+import { capabilities,translate } from '../src/core/capabilities.ts';
 import { atomicCarrierMaterial, atomicCarrierGeometry } from '../src/atomicCarrier.ts';
 import { SPHERE_VISUAL_DEFAULTS } from '../src/properties/sphereVisualDefaults.ts';
 import { createStore } from '../src/core/store.ts';
@@ -105,4 +105,10 @@ test('next-level hierarchy expansion leaves grandchildren collapsed',async()=>{
  toggleChildLevel(world,root.origin);assert.equal(root.collapsed,false);assert.equal(child.collapsed,true);
  toggleSubtree(world,root.origin);assert.equal(root.collapsed,false);assert.equal(child.collapsed,false);
  toggleSubtree(world,root.origin);assert.equal(root.collapsed,true);assert.equal(child.collapsed,true);
+});
+
+test('driving a selected group previews, cancels and commits every selected node together',()=>{
+ const world=emptyWorld(),a=addStructure(world,[0,0,0],1),b=addStructure(world,[2,0,0],2),ids=[a.origin,b.origin],hosts=new Map(world.nodes.map(node=>{const group=new THREE.Group();group.position.set(...node.position);return [address(node.origin),{group,anchor:group.position}];}));let commits=0;
+ const drive=createNavigatorDrive({hosts:()=>hosts,commit:(_id,p)=>{commits++;translate(world,ids,[p.x-a.position[0],p.y-a.position[1],p.z-a.position[2]]);return geometry(world);}});
+ const begin=()=>drive.begin(geometry(world),address(a.origin),1,1,ids.map(address));begin();assert.equal(drive.move(new THREE.Vector3(0,5,0)),true);assert.deepEqual(hosts.get(address(b.origin)).group.position.toArray(),[2,5,0]);assert.deepEqual(b.position,[2,0,0]);drive.cancel();assert.deepEqual(hosts.get(address(b.origin)).group.position.toArray(),[2,0,0]);begin();drive.move(new THREE.Vector3(0,5,0));drive.park();assert.equal(commits,1);assert.deepEqual(a.position,[0,5,0]);assert.deepEqual(b.position,[2,5,0]);validateWorld(world);
 });

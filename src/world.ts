@@ -65,7 +65,7 @@ type Input = { pick: (origin: Origin, extend: boolean, toggle: boolean) => void;
   move: (origins: readonly Origin[], delta: Vec3) => void;
   connectDrag:(source:Origin,target:Origin|undefined,position:Vec3)=>void;
   adopt: (origins: readonly Origin[], owner: Origin, delta: Vec3) => void;
-  park: (origin: Origin, position: Vec3) => World;
+  park: (origin: Origin, position: Vec3, origins:readonly Origin[]) => World;
   paint: (positions: Vec3[], source?: Origin, axis?:string) => void;
   aimOrigin:()=>void;
   axis:(first:Origin,second:Origin,up:Vec3)=>void;
@@ -136,9 +136,10 @@ export function createWorld(host: HTMLElement, input: Input) {
     }
     visual.object.quaternion.identity();return result.motion;
   }
+  let drivingOrigins:readonly Origin[]=[];
   const drive = createNavigatorDrive({ hosts: () => visuals,
     constrain:(_id,p)=>{const frame=activeAxis();if(!frame)return p;if(!activeWorldAxes(frame).length)return;const position=axisPoint(world,frame,operationSlot(world,frame,[p.x/scale,p.y/scale,p.z/scale]));return {x:position[0]*scale,y:position[1]*scale,z:position[2]*scale};},
-    commit(id, position) { const result = input.park(visuals.get(id)!.node.origin, vector({x:position.x / scale,y:position.y / scale,z:position.z / scale})); return geometry(result); },
+    commit(id, position) { const result = input.park(visuals.get(id)!.node.origin, vector({x:position.x / scale,y:position.y / scale,z:position.z / scale}),drivingOrigins); return geometry(result); },
   });
   const effectNodes:TextScene['nodes']=new Map(),effectConnectors:TextScene['connectors']=[];
   const effectSource:TextScene={nodes:effectNodes,connectors:effectConnectors,animateSelection(camera,seconds,animate){
@@ -347,10 +348,11 @@ export function createWorld(host: HTMLElement, input: Input) {
     navigator.position.copy(projected).add(navigatorOffset.clone().applyQuaternion(navigator.orientation));
     if(drive.active)drive.move(navigator.position.clone().sub(visuals.get(drive.id!)?.host.position??new T.Vector3()));request();
   }
-  function mount(origin: Origin,p: Point) {
-    const position=drive.begin(doc,key(origin),1,scale,[...(prepareTranslation(operationWorld(),[origin])([0,0,0])?.keys()??[key(origin)])]).add(visuals.get(key(origin))!.host.position);mountedWorld=world;navigator.initialize(position);navigator.position.copy(position);navigator.orientation.copy(camera.quaternion);pointer(p);
+  function mount(origin: Origin,p: Point,origins:readonly Origin[]=[origin]) {
+    drivingOrigins=[...origins];
+    const position=drive.begin(doc,key(origin),1,scale,[...(prepareTranslation(operationWorld(),origins)([0,0,0])?.keys()??[key(origin)])]).add(visuals.get(key(origin))!.host.position);mountedWorld=world;navigator.initialize(position);navigator.position.copy(position);navigator.orientation.copy(camera.quaternion);pointer(p);
     const projected=navigator.project(ray.ray);navigatorOffset.copy(projected?position.clone().sub(projected).applyQuaternion(navigator.orientation.clone().invert()):new T.Vector3());navigatorOffset.z=0;
-    controls.enabled=false;input.pick(origin,false,false);rebuildPicks();input.feedback('Driving · click an empty cell to park · Esc cancels');request();
+    controls.enabled=false;if(origins.length===1)input.pick(origin,false,false);rebuildPicks();input.feedback('Driving · click an empty cell to park · Esc cancels');request();
   }
   function cancelDrive() { const active=drive.active;if(active)relocationPin=drive.id;drive.cancel();mountedWorld=undefined;navigatorOffset.set(0,0,0);controls.enabled=true;edges.visible=true;rebuildPicks();if(active)presentation();else request();return active; }
   type Gesture={pointer:number;button:number;alt:boolean;start:Point;end:Point;origin?:Origin;edge?:Edge;axis?:string;axisIndex?:number;anchor:T.Vector3;mode:'move'|'range'|'view'|'drive'|'paint';dragged:boolean;volume?:{center:Vec3;right:Vec3;up:Vec3;forward:Vec3;a:Vec3;b:Vec3};group?:{origin:Vec3;order:Vec3};groupLanding?:ReturnType<typeof groupTargets>;landing?:{delta:Vec3;frame?:string;point?:Vec3};origins:readonly Origin[];moving?:Set<string>;project?:ReturnType<typeof pointerPlane>;resolve?:ReturnType<typeof import('./core/lattice.ts').prepareTranslation>};
@@ -610,8 +612,8 @@ export function createWorld(host: HTMLElement, input: Input) {
     toggleContentsFacing(){contentsFaceCamera=!contentsFaceCamera;request();},
     positionUser(){positionUser();},
     userPositionKey(key:string){if(!userPosition)return false;if(/^\d$/.test(key)){if(userDistanceDigits.length>=7)return true;userDistanceDigits+=key;const distance=Number(userDistanceDigits);if(distance>0)positionUser(distance);return true;}userPosition=undefined;return false;},
-    rotateHovered(){if(!pointerInside||!lastPoint)return;boundRotation.down({button:2,clientX:lastPoint.x,clientY:lastPoint.y,preventDefault(){},stopImmediatePropagation(){}} as PointerEvent);},
-    moveHovered(){if(!pointerInside||!lastPoint)return;if(drive.active){const parked=drive.park();if(parked){mountedWorld=undefined;controls.enabled=true;navigatorOffset.set(0,0,0);rebuildPicks();request();}return;}const origin=pointed(lastPoint).origin;if(origin)mount(origin,lastPoint);},
+    rotateHovered(){const p=lastPoint??{x:canvas.getBoundingClientRect().left+canvas.clientWidth/2,y:canvas.getBoundingClientRect().top+canvas.clientHeight/2};if(!selected.length&&!pointerInside)return;boundRotation.down({button:2,clientX:p.x,clientY:p.y,preventDefault(){},stopImmediatePropagation(){}} as PointerEvent,selected[0]);},
+    moveHovered(){const p=lastPoint??{x:canvas.getBoundingClientRect().left+canvas.clientWidth/2,y:canvas.getBoundingClientRect().top+canvas.clientHeight/2};if(drive.active){const parked=drive.park();if(parked){mountedWorld=undefined;controls.enabled=true;navigatorOffset.set(0,0,0);rebuildPicks();request();}return;}const origins=selected.length?[...selected]:pointerInside?[pointed(p).origin].filter((id):id is Origin=>!!id):[];if(origins.length)mount(origins[0],p,origins);},
     mountTarget(){
       const hovered=pointerInside&&lastPoint?pointed(lastPoint).origin:undefined,userHit=pointerInside&&lastPoint&&boundRotation.userAt(lastPoint);
       cancelDrive();boundRotation.cancel();navigation.finish(true);
