@@ -29,9 +29,9 @@ export function createAxisView(scene:T.Scene,host:HTMLElement){
     const marker=createOriginSphere(scale,active);marker.position.copy(center);marker.scale.setScalar(scale);marker.userData.axis=frame.id;marker.userData.originMarker=true;group.add(marker);picks.push(marker);
     for(const [index,basis]of [frame.x,frame.y,frame.z].entries()){
      if(!active&&index)continue;
-     const selected=active&&activeWorldAxes(frame).includes(index);const direction=new T.Vector3(...basis),line=new T.Line(new T.BufferGeometry().setFromPoints(originSegment(center,direction,scale)),new T.LineBasicMaterial({color:active?['#ff5566','#66ee99','#66aaff'][index]:'#888888',transparent:true,opacity:selected?1:active?.16:.1,depthTest:false,depthWrite:false}));
-     line.material.color.multiplyScalar(selected?2.5:.2);line.renderOrder=45;line.userData.axis=frame.id;line.userData.axisIndex=index;line.userData.glowIntensity=selected?2:0;group.add(line);picks.push(line);
-     if(active){const caption=label(['X','Y','Z'][index]);caption.scale.multiplyScalar(.12*scale);caption.position.copy(center).addScaledVector(direction,extent);caption.material.opacity=selected?1:.18;caption.userData.axis=frame.id;caption.userData.axisIndex=index;group.add(caption);picks.push(caption);}
+     const selected=active&&activeWorldAxes(frame).includes(index);const direction=new T.Vector3(...basis),line=new T.Line(new T.BufferGeometry().setFromPoints(originSegment(center,direction,scale)),new T.LineBasicMaterial({color:active?['#ff5566','#66ee99','#66aaff'][index]:'#888888',transparent:true,opacity:selected?1:active?.55:.35,depthTest:false,depthWrite:false}));
+     line.material.color.multiplyScalar(selected?1:.7);line.renderOrder=45;line.userData.axis=frame.id;line.userData.axisIndex=index;line.userData.glowIntensity=selected?.25:0;group.add(line);picks.push(line);
+     if(active){const caption=label(['X','Y','Z'][index]);caption.scale.multiplyScalar(.12*scale);caption.position.copy(center).addScaledVector(direction,extent);caption.material.opacity=selected?1:.55;caption.userData.axis=frame.id;caption.userData.axisIndex=index;group.add(caption);picks.push(caption);}
     }
     const caption=label(frame.ends.length<=1?'0':`${Math.round(length)} u`);caption.userData.axis=frame.id;caption.scale.multiplyScalar(.12*scale);caption.position.copy(center).addScaledVector(new T.Vector3(...frame.y),(ORIGIN_RADIUS+.1)*scale);group.add(caption);picks.push(caption);
    }
