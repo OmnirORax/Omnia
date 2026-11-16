@@ -1,3 +1,4 @@
+import {useHoverPreview} from './HoverPreview';
 import {useNavigationState} from '../../../ui/useNavigationState.tsx';
 import {createFramePreview} from './framePreview.ts';
 import {createValueScrub,type ValueScrub} from './valueScrub';
@@ -58,12 +59,13 @@ type Props = Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "value" | "min
   configurationKey?:string;
   values?:readonly number[];
   pixelsPerStep?:number;
+  autoAdjust?:boolean;
   onConfigure?:(which:Edit,duringGesture:boolean)=>boolean|void;
 };
 /** A shared slider presentation with track-wide dragging and native keyboard support.
  * Local working intervals and jump size never alter property validation bounds. */
 export function RangeControl({ value: storedValue, min, max, onValueChange, onMinimumChange, onMaximumChange,
-  hardMin = min, hardMax = max, inputRef, onValueCommit, onValueCancel, onWheel, configuration, configurationKey, values, pixelsPerStep, onConfigure, ...inputProps }: Props) {
+  hardMin = min, hardMax = max, inputRef, onValueCommit, onValueCancel, onWheel, configuration, configurationKey, values, pixelsPerStep, autoAdjust=false, onConfigure, ...inputProps }: Props) {
   const previewCallback=useRef(onValueChange);previewCallback.current=onValueChange;
   const [valuePreview]=useState(()=>createFramePreview<number>(value=>previewCallback.current(value)));
   useEffect(()=>()=>valuePreview.discard(),[valuePreview]);
@@ -109,7 +111,7 @@ export function RangeControl({ value: storedValue, min, max, onValueChange, onMi
     if(next===undefined)return;
     if (next !== active.next) { active.next = next; valuePreview.push(next); }
   };
-  const startDrag=(id:number,x:number,y:number,relative=false,horizontal=false)=>{
+  const startDrag=(id:number,x:number,y:number,relative=false,horizontal=false,claim=true)=>{
     relative=relative||pixelsPerStep!==undefined;
     const node=track.current;if(!node||valueDisabled||drag.current)return false;
     const bounds=node.getBoundingClientRect(),ux=Math.cos(axisAngle),uy=Math.sin(axisAngle);
@@ -117,11 +119,26 @@ export function RangeControl({ value: storedValue, min, max, onValueChange, onMi
     const scale=projected>0?bounds.width/projected:1,width=Math.max(1,node.offsetWidth*scale);
     const fraction=sequence?sequence.length<2?.5:sequenceIndex(sequence,value)/(sequence.length-1):high===low?.5:(value-low)/(high-low);
     drag.current={id,...(relative?{scrub:createValueScrub({origin:{x,y},width,value,min:low,max:high,step:jump,values:sequence,horizontal,pixelsPerStep,...(pixelsPerStep?{axis:{x:ux,y:uy}}:{})})}:{}),cx:relative?x-(fraction-.5)*width*ux:bounds.left+bounds.width/2,cy:relative?y-(fraction-.5)*width*uy:bounds.top+bounds.height/2,ux,uy,width,low,high,step:jump,values:sequence,before:storedValue,next:value};
-    claimUIPress(id);return true;
+    if(claim)claimUIPress(id);return true;
   };
   const finishDrag=(x:number,y:number)=>{if(!drag.current)return;moveDrag(x,y);confirmDrag();};
   const gestureAPI=useRef<RangeGesture>(null!);gestureAPI.current={start:(id,x,y)=>startDrag(id,x,y,true),move:moveDrag,finish:finishDrag,cancel:cancelDrag};
   useLayoutEffect(()=>{if(!externalGesture)return;const api:RangeGesture={start:(...args)=>gestureAPI.current.start(...args),move:(...args)=>gestureAPI.current.move(...args),finish:(...args)=>gestureAPI.current.finish(...args),cancel:()=>gestureAPI.current.cancel()};externalGesture.current=api;return()=>{if(externalGesture.current===api)externalGesture.current=null;};},[externalGesture]);
+  const pointerPreview=useHoverPreview(),pointerOwner=useRef({});
+  const pointerActions=useRef({startDrag,moveDrag,confirmDrag,cancelDrag});
+  pointerActions.current={startDrag,moveDrag,confirmDrag,cancelDrag};
+  const pointerEnabled=autoAdjust&&!valueDisabled&&!editing;
+  useLayoutEffect(()=>{
+    if(!pointerEnabled||!pointerPreview)return;
+    const owner=pointerOwner.current,point=cursorPosition();
+    pointerPreview.enter(owner,{
+      start:(x,y=0)=>{pointerActions.current.startDrag(-1,x,y,true,false,false);},
+      move:(x,y=0)=>pointerActions.current.moveDrag(x,y),
+      commit:()=>pointerActions.current.confirmDrag(),
+      cancel:()=>pointerActions.current.cancelDrag(),
+    },point.x,point.y);
+    return()=>pointerPreview.release(owner);
+  },[pointerEnabled,pointerPreview]);
   const label = inputProps["aria-label"] ?? "Value";
   useLayoutEffect(()=>{if(editing){cancelled.current=false;setText(String(editing==='min'?low:editing==='max'?high:editing==='jump'?jump:value));}},[editing,popupPoint,low,high,jump,value]);
   const edit = (which: Edit) => { const duringGesture=!!drag.current;if(drag.current){const active=drag.current;valuePreview.flush();drag.current=null;onValueCommit?.(active.next);}else cancelDrag();if(onConfigure&&onConfigure(which,duringGesture)!==false)return;setPopupPoint(cursorPosition());cancelled.current = false; setText(String(which === "min" ? low : which === "max" ? high : which === "jump" ? jump : value)); setEditing(which); };

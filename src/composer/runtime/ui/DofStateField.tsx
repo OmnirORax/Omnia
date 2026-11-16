@@ -84,7 +84,7 @@ export function DofStateField({property,label,symbol='⠒❉',domain,value,disab
   {!choice&&!settings&&!picking&&projectedExecution&&referenceUse!=='match'&&projectedExecution}
   {!choice&&!settings&&!picking&&(execution==='value'||referenceUse==='match')&&(domain.cyclic?<DofAxisWheel field={field} value={sample??value} label={label} symbol={symbol} disabled={disabled||!!operation?.selection?.unavailable} onPreview={preview} onCommit={apply} onCancel={restore} onConfigure={()=>show('options')}/>:<div className="dof-value-slider">
    <span className="dof-state-grip" data-dial-drag role="button" tabIndex={0} title="Move controls">{symbol}</span>
-   <RangeControl aria-label={label} value={sample??value} min={field.min} max={field.max} step={domain.resolution} hardMin={domain.min} hardMax={domain.max}
+   <RangeControl autoAdjust aria-label={label} value={sample??value} min={field.min} max={field.max} step={domain.resolution} hardMin={domain.min} hardMax={domain.max}
     values={generatedValues} disabled={disabled||!!settings||picking||operation?.selection?.unavailable} onValueChange={preview} onValueCommit={apply} onValueCancel={restore}
     onMinimumChange={working.minChange} onMaximumChange={working.maxChange}
     onConfigure={(which,duringGesture)=>{if(duringGesture){show('options');return true;}if(which==='value')return false;show(which==='jump'?'rule':which);return true;}}/>
