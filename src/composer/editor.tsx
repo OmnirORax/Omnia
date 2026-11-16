@@ -19,7 +19,7 @@ import type {UIFunction} from './runtime/ui/context.tsx';
 import './runtime/host.css';
 import {setToolCursorZone} from './runtime/ui/toolCursorZone.ts';
 export type ComposerHost={historyScope?:string;restorePlacement?:boolean;surface?:(surface:OmnicSurface)=>()=>void;redraw?:()=>void;library?:()=>void;read:()=>World;change:(edit:(world:World)=>void,group?:string)=>void;select:(origin:Origin)=>void;feedback:(message:string)=>void;subscribe:(listener:()=>void)=>()=>void};
-const seed=():Recipe=>({version:2,revision:0,atomnic:{active:true},components:[{id:'unit',generator:'dot',params:{size:10,color:'#ffffff',thickness:.25}}],operations:[],frames:[]});
+const seed=():Recipe=>({version:2,revision:0,atomnic:{active:false},components:[],operations:[],frames:[]});
 let active:{close:()=>void}|undefined;
 const journal=universalHistory;
 

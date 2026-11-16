@@ -150,7 +150,7 @@ export function createWorld(host: HTMLElement, input: Input) {
   const effectNodes:TextScene['nodes']=new Map(),effectConnectors:TextScene['connectors']=[];
   const effectSource:TextScene={nodes:effectNodes,connectors:effectConnectors,animateSelection(_camera,seconds,animate){
     const pulse=animate?(Math.sin(seconds*Math.PI*1.5)+1)/2:.5;
-    for(const item of effectNodes.values())if(item.outline.visible){item.outline.quaternion.identity();item.outline.scale.setScalar(item.selected?1+pulse*.1:1);item.outline.material.opacity=item.opacity*(item.selected?.55+pulse*.3:.45);}
+    for(const item of effectNodes.values())if(item.outline.visible){item.outline.quaternion.identity();item.outline.scale.setScalar(item.selected?1+pulse*.1:1);item.outline.material.opacity=1;}
   }};
   const pipeline = createPipeline(renderer, scene, camera, request,()=>effectSource), session = createSceneSession(pipeline.wallpaper, input.feedback);
   let fontRevision=0,pushDirty=false,pushSignature='',pushRevision=0,relocationPin:string|undefined;const relocating=new Set<string>();
