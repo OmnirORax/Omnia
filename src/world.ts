@@ -420,7 +420,7 @@ export function createWorld(host: HTMLElement, input: Input) {
     showGhost(stroke.session.candidate(next));stroke.previous=next;stroke.preview.count=stroke.session.points.length;
     stroke.session.points.forEach((position,index)=>stroke!.preview.setMatrixAt(index,new T.Matrix4().makeScale(scale,scale,scale).setPosition(new T.Vector3(...position).multiplyScalar(scale))));stroke.preview.instanceMatrix.needsUpdate=true;request();
   }
-  function finishPaint(cancel=false){const active=stroke;if(!active)return false;stroke=undefined;scene.remove(active.preview);(active.preview.material as T.Material).dispose();ghost.visible=false;if(!cancel&&active.session.points.length){input.paint(active.session.points,active.source,active.axis,active.parent);if(creating)exitCreation();}request();return true;}
+  function finishPaint(cancel=false){const active=stroke;if(!active)return false;stroke=undefined;scene.remove(active.preview);(active.preview.material as T.Material).dispose();ghost.visible=false;if(!cancel){if(active.session.points.length)input.paint(active.session.points,active.source,active.axis,active.parent);if(creating)exitCreation();}request();return true;}
   let creationRightPointer:number|undefined;
   function exitCreation(){creating=false;creationParent=undefined;altPreview=false;if(stroke)finishPaint(true);hoverPaint=undefined;hoverCandidate=undefined;ghost.visible=false;axisView.brushCoordinates(world,activeAxis(),[],scale,camera,coordinatesVisible);request();}
   let axisStroke:{pointer:number;seen:Set<string>}|undefined;
