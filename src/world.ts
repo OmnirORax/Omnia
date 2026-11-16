@@ -70,7 +70,7 @@ type Input = { cameraChanged:(state:CameraState)=>void; pick: (origin: Origin, e
   connectDrag:(source:Origin,target:Origin|undefined,position:Vec3)=>void;
   adopt: (origins: readonly Origin[], owner: Origin, delta: Vec3) => void;
   park: (origin: Origin, position: Vec3, origins:readonly Origin[]) => World;
-  paint: (positions: Vec3[], source?: Origin, axis?:string) => void;
+  paint: (positions: Vec3[], source?: Origin, axis?:string,parent?:Origin) => void;
   aimOrigin:()=>void;
   axis:(first:Origin,second:Origin,up:Vec3)=>void;
   slot:(origins:readonly Origin[],axis:string,point:Vec3)=>void;
@@ -160,8 +160,8 @@ export function createWorld(host: HTMLElement, input: Input) {
       if(!content){v.contour.outline.visible=v.contour.hit.visible=false;continue;}
       const signature=JSON.stringify([v.text.visible,v.text.material.map?.uuid,v.text.scale.toArray(),v.text.position.toArray(),v.object?.visible,v.object?.userData.glyphKey,v.object?.userData.contourVersion,v.object?.scale.toArray(),scale]);
       if(signature!==v.contourKey){
-        v.contourKey=signature;const boundary=v.text.visible&&!v.object?.visible;const points=boundary?collectContentHull(v.text,true):convexHull([...(v.text.visible?collectContentHull(v.text):[]),...(v.object?.visible?collectContentHull(v.object):[])]);
-        const shapeKey=JSON.stringify([scale,points.map(p=>[Math.round(p.x*1e6),Math.round(p.y*1e6)])]);if(shapeKey!==v.contourShapeKey){v.contourShapeKey=shapeKey;v.contour.update(points,scale,boundary);pushDirty=true;}
+        v.contourKey=signature;const points=convexHull([...(v.text.visible?collectContentHull(v.text):[]),...(v.object?.visible?collectContentHull(v.object):[])]);
+        const shapeKey=JSON.stringify([scale,points.map(p=>[Math.round(p.x*1e6),Math.round(p.y*1e6)])]);if(shapeKey!==v.contourShapeKey){v.contourShapeKey=shapeKey;v.contour.update(points,scale);pushDirty=true;}
       }
       v.contour.outline.visible=v.contour.hit.visible=v.contour.points.length>=3;
       v.ring.visible=!v.contour.outline.visible&&selectionMarked(key(v.node.origin));
@@ -388,7 +388,7 @@ export function createWorld(host: HTMLElement, input: Input) {
   const ghost=new T.InstancedMesh(sphere,atomicCarrierMaterial('#eeeeee',.45,0,.2),4000);ghost.visible=false;ghost.frustumCulled=false;scene.add(ghost);
   let originPick:{id:string;slots:Vec3[];pointer?:number;choice?:Vec3}|undefined;
   let altPreview=false;
-  let creating=false;
+  let creating=false,creationParent:Origin|undefined;
   let hoverPaint:{world:World;signature:string;session:ReturnType<typeof createPaintSession>;project:(p:Point)=>Vec3}|undefined;
   let pointerAlt=false,pointerShift=false,hoverCandidate:ReturnType<ReturnType<typeof createPaintSession>['candidate']>|undefined,coordinatesVisible=true;
   function paintContext(p:Point,planes:boolean){
@@ -402,16 +402,16 @@ export function createWorld(host: HTMLElement, input: Input) {
     candidate.stamp.forEach((p,i)=>ghost.setMatrixAt(i,new T.Matrix4().makeScale(scale,scale,scale).setPosition(new T.Vector3(...p).multiplyScalar(scale))));ghost.instanceMatrix.needsUpdate=true;hoverCandidate=candidate;
     axisView.brushCoordinates(world,activeAxis(),candidate.stamp,scale,camera,coordinatesVisible);
   }
-  let stroke:{session:ReturnType<typeof createPaintSession>;previous:Vec3;project:(p:Point)=>Vec3;axis?:string;source?:Origin;preview:T.InstancedMesh}|undefined;
+  let stroke:{session:ReturnType<typeof createPaintSession>;previous:Vec3;project:(p:Point)=>Vec3;axis?:string;source?:Origin;parent?:Origin;preview:T.InstancedMesh}|undefined;
   function paintPoint(p: Point) {
     if(!stroke)return;const next=stroke.project(p),samples=paintSamples(point(stroke.previous),point(next),.4);
     for(const sample of samples)stroke.session.add(vector(sample));
     showGhost(stroke.session.candidate(next));stroke.previous=next;stroke.preview.count=stroke.session.points.length;
     stroke.session.points.forEach((position,index)=>stroke!.preview.setMatrixAt(index,new T.Matrix4().makeScale(scale,scale,scale).setPosition(new T.Vector3(...position).multiplyScalar(scale))));stroke.preview.instanceMatrix.needsUpdate=true;request();
   }
-  function finishPaint(cancel=false){const active=stroke;if(!active)return false;stroke=undefined;scene.remove(active.preview);(active.preview.material as T.Material).dispose();ghost.visible=false;if(!cancel&&active.session.points.length)input.paint(active.session.points,active.source,active.axis);request();return true;}
+  function finishPaint(cancel=false){const active=stroke;if(!active)return false;stroke=undefined;scene.remove(active.preview);(active.preview.material as T.Material).dispose();ghost.visible=false;if(!cancel&&active.session.points.length){input.paint(active.session.points,active.source,active.axis,active.parent);if(creating)exitCreation();}request();return true;}
   let creationRightPointer:number|undefined;
-  function exitCreation(){creating=false;altPreview=false;if(stroke)finishPaint(true);hoverPaint=undefined;hoverCandidate=undefined;ghost.visible=false;axisView.brushCoordinates(world,activeAxis(),[],scale,camera,coordinatesVisible);request();}
+  function exitCreation(){creating=false;creationParent=undefined;altPreview=false;if(stroke)finishPaint(true);hoverPaint=undefined;hoverCandidate=undefined;ghost.visible=false;axisView.brushCoordinates(world,activeAxis(),[],scale,camera,coordinatesVisible);request();}
   let axisStroke:{pointer:number;seen:Set<string>}|undefined;
   function sweepAxis(p:Point){const hit=pointed(p);if(!axisStroke||!hit.axis||hit.axisIndex===undefined)return;const id=`${hit.axis}:${hit.axisIndex}`;if(axisStroke.seen.has(id))return;axisStroke.seen.add(id);input.toggleWorldAxis(hit.axis,hit.axisIndex);}
   let connectorDrag:{pointer:number;button:number;source:Origin;start:Point;project:ReturnType<typeof pointerPlane>;line:T.Line<T.BufferGeometry,T.LineBasicMaterial>}|undefined;
@@ -424,7 +424,7 @@ export function createWorld(host: HTMLElement, input: Input) {
     if(event.button===1){event.preventDefault();event.stopImmediatePropagation();navigation.finish(true);finishAlignment();lastPoint={x:event.clientX,y:event.clientY};pointerInside=true;if(!boundRotation.active){cancelDrive();originPick=undefined;axisPicking=undefined;axisView.preview();exitCreation();restore();const origin=pointed(lastPoint).origin;boundRotation.startWheel(event,origin);}return;}
     if(event.button===0&&boundRotation.active&&boundRotation.confirm()){event.preventDefault();event.stopImmediatePropagation();secondary.cancel();return;}
     if(event.button!==0&&event.button!==2)return;nativeWheel=false;
-    if(event.button===2&&creating&&!event.altKey&&!event.shiftKey&&!event.ctrlKey&&!event.metaKey&&!boundRotation.active){event.preventDefault();event.stopImmediatePropagation();creationRightPointer=event.pointerId;secondary.cancel();const context=paintContext({x:event.clientX,y:event.clientY},false),candidate=context.session.candidate(context.project({x:event.clientX,y:event.clientY}));try{if(!candidate.valid)throw Error('Choose a free creation position.');input.paint(candidate.stamp,undefined,context.frame);exitCreation();}catch(error){input.feedback(error instanceof Error?error.message:String(error));}return;}
+    if(event.button===2&&creating&&!event.altKey&&!event.shiftKey&&!event.ctrlKey&&!event.metaKey&&!boundRotation.active){event.preventDefault();event.stopImmediatePropagation();creationRightPointer=event.pointerId;secondary.cancel();const context=paintContext({x:event.clientX,y:event.clientY},false),candidate=context.session.candidate(context.project({x:event.clientX,y:event.clientY}));try{if(!candidate.valid)throw Error('Choose a free creation position.');input.paint(candidate.stamp,undefined,context.frame,creationParent);exitCreation();}catch(error){input.feedback(error instanceof Error?error.message:String(error));}return;}
     if(boundRotation.active){event.preventDefault();event.stopImmediatePropagation();secondary.cancel();navigation.finish(true);finishAlignment();controls.enabled=!boundRotation.active&&!drive.active;return;}
     if(event.button===2&&event.altKey&&!event.ctrlKey&&!event.metaKey&&!event.shiftKey){event.preventDefault();event.stopImmediatePropagation();finishAlignment();originPick=undefined;axisPicking=undefined;axisView.preview();secondary.cancel();navigation.finish(true);cancelDrive();ghost.visible=false;input.aimOrigin();return;}
 
@@ -443,7 +443,7 @@ export function createWorld(host: HTMLElement, input: Input) {
     if(event.button===0&&creating&&!range&&!input.picking()){
       cancelDrive();mode='paint';const paint=nodePaint(world);
       const preview=new T.InstancedMesh(sphere,atomicCarrierMaterial(brightHex(paint.color!,paint.brightness!),paint.opacity!*.7,paint.translucency,paint.glow,paint.translucencyRadius),4000);preview.count=0;preview.frustumCulled=false;scene.add(preview);
-      const context=paintContext(p,event.shiftKey);stroke={session:context.session,project:context.project,axis:context.frame,previous:context.project(p),source:undefined,preview};paintPoint(p);
+      const context=paintContext(p,event.shiftKey);stroke={session:context.session,project:context.project,axis:context.frame,previous:context.project(p),source:undefined,parent:creating?creationParent:undefined,preview};paintPoint(p);
     }
     if(moving&&!creating&&!event.altKey&&!event.shiftKey&&!selected.some(origin=>sameOrigin(origin,hit.origin!)))input.pick(hit.origin!,false,false);
     if(event.button===2)secondary.press(()=>{});
@@ -632,10 +632,10 @@ export function createWorld(host: HTMLElement, input: Input) {
     toggleHierarchy(nextOnly=false){const origin=pointerInside&&lastPoint?pointed(lastPoint).origin:undefined;for(const id of origin?[origin]:selected)input.subtree(id,nextOnly);},
     get inputContext(){return boundRotation.active?'rotate':alignment?'align':originPick?'origin':axisPicking?(axisPicking.first?'axis-second':'axis-first'):creating?'create':'world';},
     pickOrigin:pickSpatialOrigin,
-    toggleCreation(){originPick=undefined;creating=!creating;if(stroke)finishPaint(true);hoverPaint=undefined;hoverCandidate=undefined;ghost.visible=false;if(creating){cancelDrive();if(lastPoint)processPointer();}else axisView.brushCoordinates(world,activeAxis(),[],scale,camera,coordinatesVisible);request();return creating;},
+    toggleCreation(){originPick=undefined;creating=!creating;if(stroke)finishPaint(true);hoverPaint=undefined;hoverCandidate=undefined;ghost.visible=false;if(creating){creationParent=(pointerInside&&lastPoint?pointed(lastPoint).origin:undefined)??selected[0];cancelDrive();if(lastPoint)processPointer();}else axisView.brushCoordinates(world,activeAxis(),[],scale,camera,coordinatesVisible);request();return creating;},
     get canCreate(){return !hoverCandidate||hoverCandidate.valid;},
     toggleCoordinates(){coordinatesVisible=!coordinatesVisible;axisView.setCoordinatesVisible(coordinatesVisible);if(lastPoint)processPointer();request();},
-    stamp(){if(hoverCandidate?.valid)input.paint(hoverCandidate.stamp,undefined,activeAxis()?.id);else input.feedback('Choose a free brush placement.');},
+    stamp(){if(hoverCandidate?.valid)input.paint(hoverCandidate.stamp,undefined,activeAxis()?.id,creating?creationParent:undefined);else input.feedback('Choose a free brush placement.');},
     mountHovered(){const origin=pointerInside&&lastPoint?pointed(lastPoint).origin:undefined;if(!origin)return false;const frame=activeAxis(),target=frame?axisCenter(world,frame):selected[0]&&locatePosition(selected[0]);if(!target){input.feedback('Select an origin first.');return true;}try{applyNodeView(origin,nodeOriginView(locatePosition(origin)!,target,xyz(camera.up)),true);}catch(error){input.feedback(error instanceof Error?error.message:String(error));}return true;},
     toggleContentsFacing(){contentsFaceCamera=!contentsFaceCamera;request();},
     positionUser(){positionUser();},

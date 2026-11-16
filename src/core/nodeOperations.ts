@@ -82,13 +82,14 @@ export function connectNodes(world:World,source:Origin,target:Origin|undefined,p
  const child=childNode(world,source,false,position);owner.collapsed=false;return child.origin;
 }
 
-export function paintNodes(world:World,positions:Vec3[],source?:Origin,axis?:string){
+export function paintNodes(world:World,positions:Vec3[],source?:Origin,axis?:string,parent?:Origin){
+ const owner=parent&&locate(world,parent);if(parent&&!owner)throw Error('The parent is no longer available.');
  if(positions.length+world.nodes.length>4000)throw Error('This workbench supports 4,000 nodes.');
  const occupied=createOccupancy(world.nodes.map(node=>[address(node.origin),{x:node.position[0],y:node.position[1],z:node.position[2]}] as const));
  const check=createOccupancy(world.nodes.map(node=>[address(node.origin),{x:node.position[0],y:node.position[1],z:node.position[2]}] as const));
  for(const [i,p]of positions.entries()){const point={x:p[0],y:p[1],z:p[2]};if(!check.free(point))throw Error('The brush overlaps an occupied position.');check.add(String(i),point);}
  const node=source&&locate(world,source),frame=world.axes?.find(frame=>frame.id===axis);
- for(const position of positions){const created=node?copyNode(world,node,position,occupied):addStructure(world,position,Date.now(),occupied);created.parts=[];if(frame)frame.members.push(structuredClone(created.origin));}
+ for(const position of positions){const created=node?copyNode(world,node,position,occupied):addStructure(world,position,Date.now(),occupied);created.parts=[];if(owner){created.parent=structuredClone(owner.origin);owner.parts.push(bind(created,'follow',world));owner.collapsed=false;}if(frame)frame.members.push(structuredClone(created.origin));}
 }
 
 export function toggleChildLevel(world:World,origin:Origin){

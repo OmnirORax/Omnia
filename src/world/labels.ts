@@ -72,8 +72,7 @@ export function textSprite(value: string, color: string, selected = false, node 
     return mask;
   };
   let hull:ReturnType<typeof imageHull>|undefined;
-  sprite.userData.contentBoundary=true;
-  sprite.userData.contentHull=()=>hull??=imageHull(sprite.userData.lightningMask(),true);
+  sprite.userData.contentHull=()=>hull??=imageHull(sprite.userData.lightningMask());
   let currentStyle: [string, string, number] = [color, textColor, textGlow];
   let surfaceKey = JSON.stringify(surface);
   sprite.userData.setSurfaceStyle = (next: typeof surface) => {

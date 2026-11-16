@@ -24,11 +24,11 @@ export function alphaHull(data:Uint8ClampedArray,width:number,height:number){
  }
  return convexHull(points);
 }
-export function imageHull(image:CanvasImageSource,boundary=false){
+export function imageHull(image:CanvasImageSource){
  const source=image as {naturalWidth?:number;naturalHeight?:number;width?:number;height?:number},w=source.naturalWidth||source.width||0,h=source.naturalHeight||source.height||0;if(!w||!h)return [];
  const ratio=Math.min(1,256/Math.max(w,h)),canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(w*ratio));canvas.height=Math.max(1,Math.round(h*ratio));
  const context=canvas.getContext('2d',{willReadFrequently:true});if(!context)return [];
- try{context.drawImage(image,0,0,canvas.width,canvas.height);return (boundary?alphaBoundary:alphaHull)(context.getImageData(0,0,canvas.width,canvas.height).data,canvas.width,canvas.height);}catch{return [];}
+ try{context.drawImage(image,0,0,canvas.width,canvas.height);return alphaHull(context.getImageData(0,0,canvas.width,canvas.height).data,canvas.width,canvas.height);}catch{return [];}
 }
 /** Offset the actual convex ink boundary, retaining every straight-edge normal.
  * Only the rounded joins are subdivided (at most one sixteenth-turn per arc).
@@ -45,18 +45,6 @@ export function inkEnvelope(points:readonly Point2[],padding:number):Point2[]{
   for(let i=0;i<=steps;i++){const angle=start+(end-start)*i/steps;result.push({x:p.x+Math.cos(angle)*padding,y:p.y+Math.sin(angle)*padding});}
  }
  return result;
-}
-/** One column envelope joins ink islands and holes, but retains changes in the
- * word's top/bottom silhouette. Only genuinely empty columns are bridged. */
-export function alphaBoundary(data:Uint8ClampedArray,width:number,height:number){
- const top=new Array<number>(width).fill(Infinity),bottom=new Array<number>(width).fill(-Infinity);
- for(let x=0;x<width;x++)for(let y=0;y<height;y++)if(data[(y*width+x)*4+3]>=16){top[x]=Math.min(top[x],y);bottom[x]=y+1;}
- const first=top.findIndex(Number.isFinite);if(first<0)return [];let last=width-1;while(!Number.isFinite(top[last]))last--;
- let previous=first;for(let x=first+1;x<=last;x++)if(Number.isFinite(top[x])){for(let gap=previous+1;gap<x;gap++){const t=(gap-previous)/(x-previous);top[gap]=top[previous]*(1-t)+top[x]*t;bottom[gap]=bottom[previous]*(1-t)+bottom[x]*t;}previous=x;}
- const upper:Point2[]=[],lower:Point2[]=[];
- for(let x=first;x<=last;x++){const lo=top[x],hi=bottom[x];upper.push({x:x/width-.5,y:.5-lo/height});lower.push({x:x/width-.5,y:.5-hi/height});}
- upper.push({x:(last+1)/width-.5,y:upper.at(-1)!.y});lower.push({x:(last+1)/width-.5,y:lower.at(-1)!.y});
- return [...lower,...upper.reverse()];
 }
 /** Matched offsets for an ordered silhouette. Bounded miters avoid spikes. */
 export function boundaryOffset(points:readonly Point2[],padding:number){

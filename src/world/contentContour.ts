@@ -2,7 +2,7 @@ import * as T from 'three';
 import {attachMaterialCoverage,pixelCoverageGLSL} from '../materialCoverage.ts';
 import {boundaryOffset,inkEnvelope,convexHull,type Point2} from './contentEnvelope.ts';
 /** Local ink only: geometry, texture masks and their cache stay with each visual. */
-export function collectContentHull(root:T.Object3D,boundary=false){
+export function collectContentHull(root:T.Object3D){
  const points:Point2[]=[];
  const visit=(object:T.Object3D,matrix:T.Matrix4)=>{
   if(!object.visible)return;object.updateMatrix();const local=matrix.clone().multiply(object.matrix),read=object.userData.contentHull as (()=>readonly Point2[])|undefined;
@@ -10,7 +10,7 @@ export function collectContentHull(root:T.Object3D,boundary=false){
   if(object instanceof T.Mesh){object.geometry.computeBoundingBox();const box=object.geometry.boundingBox;if(box)for(const x of [box.min.x,box.max.x])for(const y of [box.min.y,box.max.y])for(const z of [box.min.z,box.max.z]){const p=new T.Vector3(x,y,z).applyMatrix4(local);points.push({x:p.x,y:p.y});}}
   for(const child of object.children)visit(child,local);
  };
- visit(root,new T.Matrix4());return boundary?points:convexHull(points);
+ visit(root,new T.Matrix4());return convexHull(points);
 }
 export function createContentContour(){
  const material=new T.MeshBasicMaterial({transparent:true,depthWrite:false,depthTest:false,side:T.DoubleSide});
@@ -26,8 +26,8 @@ export function createContentContour(){
  const outline=new T.Mesh(new T.BufferGeometry(),material),hit=new T.Mesh(new T.BufferGeometry(),new T.MeshBasicMaterial({visible:false,side:T.DoubleSide}));
  outline.renderOrder=20;outline.visible=hit.visible=false;let polygon:Point2[]=[];
  return {outline,hit,get points(){return polygon;},
-  update(points:readonly Point2[],unit:number,boundary=false){
-   const padding=0,width=unit*.032,fringe=boundary?width*.75:width*2;const envelope=boundaryOffset;const hull=boundary?[...points]:convexHull(points);points=hull.length>=3?hull:inkEnvelope(hull,width/2);stroke.value=width/2;
+  update(points:readonly Point2[],unit:number){
+   const padding=0,width=unit*.032,fringe=width*.75;const envelope=boundaryOffset;const hull=convexHull(points);points=hull.length>=3?hull:inkEnvelope(hull,width/2);stroke.value=width/2;
    polygon=envelope(points,padding+width/2);
    const inner=envelope(points,padding-fringe),outer=envelope(points,padding+fringe),vertices:number[]=[],distance:number[]=[],indices:number[]=[];
    for(let n=0;n<outer.length;n++){vertices.push(inner[n].x,inner[n].y,0,outer[n].x,outer[n].y,0);distance.push(-fringe,fringe);const next=(n+1)%outer.length;indices.push(n*2,n*2+1,next*2,n*2+1,next*2+1,next*2);}
