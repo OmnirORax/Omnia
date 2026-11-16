@@ -363,7 +363,7 @@ export function createWorld(host: HTMLElement, input: Input) {
   function placeDrive(target?:Origin){
     const parent=target&&!drive.owns(key(target))?target:undefined;
     const parked=drive.park(!!parent,parent?(id,position)=>{const source=visuals.get(id)!.node.position,delta=vector(position).map((n,i)=>n/scale-source[i]) as Vec3;input.adopt(drivingOrigins,parent,delta);return geometry(world);}:undefined);
-    if(!parked){input.feedback('Choose a free position or a parent node. Esc cancels.');return false;}
+    if(!parked){const rejected=drive.rejection;const name=(id:string)=>visuals.get(id)?.node.label||id;input.feedback(rejected&&'blocker'in rejected?`Cannot place: ${name(rejected.moving!)} overlaps ${name(rejected.blocker!)} at ${[rejected.point!.x,rejected.point!.y,rejected.point!.z].map(n=>Number((n/scale).toFixed(3))).join(', ')}. Hidden nodes and carried children also occupy space.`:`Cannot place: ${rejected?.reason??'placement was rejected'}`);return false;}
     mountedWorld=undefined;controls.enabled=true;navigatorOffset.set(0,0,0);rebuildPicks();input.feedback('');request();return true;
   }
   function pickSpatialOrigin(){const hovered=pointerInside&&lastPoint?pointed(lastPoint).origin:undefined;if(hovered){originPick=undefined;ghost.visible=false;input.nodeOrigin(hovered);request();return;}if(selected.length>1){const origin=selectionCenter(world,selected);originPick=undefined;ghost.visible=false;selectionGroup={ids:selected.map(key),order:xyz(new T.Vector3(1,0,0).applyQuaternion(camera.quaternion))};input.selectionOrigin(selected,origin);request();return;}if(originPick){originPick=undefined;ghost.visible=false;request();return;}const frame=activeAxis();if(pointerInside&&lastPoint){input.origin(frame.id,creationPoint(lastPoint));ghost.visible=false;request();}}
@@ -517,7 +517,7 @@ export function createWorld(host: HTMLElement, input: Input) {
 
     if(navigation.acceptsRelease(event)&&navigation.finish()){secondary.cancel();secondarySurface=undefined;cancelOmnic();gesture=undefined;axisView.setCoordinatesVisible(coordinatesVisible);if(lastPoint)processPointer();request();return;}
     if(omnicGesture&&omnicGesture.id===event.pointerId){const gesture=omnicGesture,point=editPoint(event,gesture.surface);if(!(event.buttons&1)){omnicGesture=undefined;controls.enabled=!drive.active;}if(point)gesture.surface.up(point,event);else gesture.surface.cancel();if(event.button===2&&secondarySurface){secondarySurface.released=true;if(secondarySurface.context)secondarySurface=undefined;}request();return;}
-    if((gesture?.mode==='move'||gesture?.mode==='range')&&gesture.pointer===event.pointerId){if(inputFrame)cancelAnimationFrame(inputFrame);lastPoint={x:event.clientX,y:event.clientY};processPointer();}
+    if((gesture?.mode==='move'||gesture?.mode==='range'||gesture?.mode==='drive')&&gesture.pointer===event.pointerId){if(inputFrame)cancelAnimationFrame(inputFrame);lastPoint={x:event.clientX,y:event.clientY};processPointer();}
     const g=gesture;if(!g||g.pointer!==event.pointerId||g.button!==event.button)return;if(g.mode==='move')ghost.visible=false;g.end={x:event.clientX,y:event.clientY};g.dragged ||= Math.hypot(g.end.x-g.start.x,g.end.y-g.start.y)>=4;gesture=undefined;previewRange();rectangle.hidden=true;edges.visible=true;controls.enabled=!drive.active;
     try{
       if(g.mode==='paint'){paintPoint(g.end);finishPaint();return;}
@@ -528,13 +528,14 @@ export function createWorld(host: HTMLElement, input: Input) {
         const landing=g.landing;if(!landing)return;
         if(landing.frame&&g.origin&&landing.point)input.slot(g.origins,landing.frame,landing.point);else input.move(g.origins,landing.delta);return;
       }
-      if(g.dragged){secondary.cancel();return;}
+      if(g.dragged&&g.mode!=='drive'){secondary.cancel();return;}
       if(event.button===2){const position=creationPoint(g.end);secondary.release(()=>{cancelDrive();input.menu(g.origin,g.end,position,g.edge);})?.();return;}
+      if(drive.active){relocationPin=drive.id;placeDrive(g.origin);return;}
       if(g.axis&&!g.origin&&!drive.active){if(g.axisIndex!==undefined)input.toggleWorldAxis(g.axis,g.axisIndex);else input.focusAxis(g.axis);return;}
       if(g.edge){cancelDrive();input.edge(g.edge);return;}
       if(input.picking()){if(g.origin)input.pick(g.origin,false,false);return;}
       if(event.shiftKey&&!drive.active){if(g.origin)input.connect(g.origin);return;}
-      if(drive.active){relocationPin=drive.id;placeDrive(g.origin);return;}
+
       if(g.origin){const origins=selected.some(origin=>sameOrigin(origin,g.origin!))?[...selected]:[g.origin];mount(g.origin,g.end,origins);}else{navigator.initialize(controls.target);navigator.position.copy(at(g.end,navigator.position));navigatorOffset.set(0,0,0);}
     }catch(error){gesture=g;restore();input.feedback(error instanceof Error?error.message:String(error));}
     finally{if(relocating.size||g.mode==='drive'){relocating.clear();presentation();}else request();}
