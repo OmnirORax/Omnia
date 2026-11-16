@@ -1,3 +1,4 @@
+import {useValueConfirmation} from './useValueConfirmation';
 import {useHoverPreview} from './HoverPreview';
 import {useNavigationState} from '../../../ui/useNavigationState.tsx';
 import {createFramePreview} from './framePreview.ts';
@@ -87,6 +88,7 @@ export function RangeControl({ value: storedValue, min, max, onValueChange, onMi
   const endpoint = useRef<HTMLInputElement>(null), cancelled = useRef(false);
   const input = useRef<HTMLInputElement>(null);
   const drag = useRef<{ id: number; scrub?:ValueScrub; cx:number;cy:number;ux:number;uy:number;width: number; low: number; high: number; step: number; values?:readonly number[]; before: number; next: number } | null>(null);
+  const confirmValue=useValueConfirmation({owner:track,candidate:()=>{valuePreview.flush();const active=drag.current;drag.current=null;return active?.next;},onCommit:(next:number)=>onValueCommit?.(next),disabled:valueDisabled,keyboard:!!drag.current,selection:autoAdjust?'single':'accumulate'});
   const cancelDrag = () => {
     valuePreview.discard();
     const active = drag.current;
@@ -95,8 +97,8 @@ export function RangeControl({ value: storedValue, min, max, onValueChange, onMi
     if (onValueCancel) onValueCancel(active.before); else onValueChange(active.before);
   };
   useCancelValueEdit(input, cancelDrag);
-  const confirmDrag=()=>{const active=drag.current;if(!active)return;valuePreview.flush();drag.current=null;onValueCommit?.(active.next);};
-  useContextNavigation({owner:track,cancel:drag.current?cancelDrag:undefined,confirm:drag.current?confirmDrag:undefined});
+  const confirmDrag=()=>{const active=drag.current;if(!active)return;valuePreview.flush();drag.current=null;confirmValue(active.next);};
+  useContextNavigation({owner:track,cancel:drag.current?cancelDrag:undefined});
   const cancelLatest = useRef(cancelDrag); cancelLatest.current = cancelDrag;
   useEffect(() => {
     const cancel = () => cancelLatest.current();
@@ -142,7 +144,7 @@ export function RangeControl({ value: storedValue, min, max, onValueChange, onMi
   const label = inputProps["aria-label"] ?? "Value";
   useLayoutEffect(()=>{if(editing){cancelled.current=false;setText(String(editing==='min'?low:editing==='max'?high:editing==='jump'?jump:value));}},[editing,popupPoint,low,high,jump,value]);
   const edit = (which: Edit) => { const duringGesture=!!drag.current;if(drag.current){const active=drag.current;valuePreview.flush();drag.current=null;onValueCommit?.(active.next);}else cancelDrag();if(onConfigure&&onConfigure(which,duringGesture)!==false)return;setPopupPoint(cursorPosition());cancelled.current = false; setText(String(which === "min" ? low : which === "max" ? high : which === "jump" ? jump : value)); setEditing(which); };
-  const choose = (next: number|undefined) => { if(next===undefined||valueDisabled)return;onValueChange(next); onValueCommit?.(next); };
+  const choose = (next: number|undefined) => { if(next===undefined||valueDisabled)return;onValueChange(next); confirmValue(next); };
   const nudge=(direction:-1|1)=>choose(sequence?sequenceStep(sequence,value,direction):rangeValue(value+direction*jump,low,high,resolution));
   const cancel = () => { cancelled.current = true; setEditing(null); };
   useCancelValueEdit(endpoint, cancel, editing);
