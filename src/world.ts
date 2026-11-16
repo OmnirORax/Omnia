@@ -348,7 +348,7 @@ export function createWorld(host: HTMLElement, input: Input) {
       visual.node=node;visual.actual=actual;visual.group.quaternion.set(node.orientation?.x??0,node.orientation?.y??0,node.orientation?.z??0,node.orientation?.w??1);visual.group.position.copy(new T.Vector3(...vector(cellPoint(grid.cells.get(id)!,scale))));
       visual.body.scale.setScalar(scale);visual.slot.scale.setScalar(scale);visual.body.material.color.set(actual.color);
       updateAtomicCarrier(visual.body.material,actual.opacity??defaults.opacity,actual.translucency??defaults.translucency,actual.glow??defaults.glow,actual.translucencyRadius??defaults.translucencyRadius);
-      visual.body.userData.glowIntensity=actual.glow??defaults.glow;visual.group.userData.origin=node.origin;visual.slot.userData.origin=node.origin;visual.text.userData.origin=node.origin;
+      visual.group.userData.glowIntensity=actual.glow??defaults.glow;visual.group.userData.origin=node.origin;visual.slot.userData.origin=node.origin;visual.text.userData.origin=node.origin;
       visual.group.visible=true;
     }
     if(!sameValue(next.camera,seenCamera)){seenCamera=next.camera;restoreCamera(next.camera);}
@@ -543,13 +543,13 @@ export function createWorld(host: HTMLElement, input: Input) {
       }
       if(g.dragged&&g.mode!=='drive'){secondary.cancel();return;}
       if(event.button===2){const position=creationPoint(g.end);secondary.release(()=>{cancelDrive();input.menu(g.origin,g.end,position,g.edge);},g.end)?.();return;}
-      if(drive.active){relocationPin=drive.id;placeDrive(g.origin);return;}
+      if(drive.active){relocationPin=drive.id;if(placeDrive(g.origin)&&!g.origin)input.clear();return;}
       if(g.axis&&!g.origin&&!drive.active){if(g.axisIndex!==undefined)input.toggleWorldAxis(g.axis,g.axisIndex);else input.focusAxis(g.axis);return;}
       if(g.edge){cancelDrive();input.edge(g.edge);return;}
       if(input.picking()){if(g.origin)input.pick(g.origin,false,false);return;}
       if(event.shiftKey&&!drive.active){if(g.origin)input.connect(g.origin);return;}
 
-      if(g.origin){const committed=input.committedSelection(),origins=pickupSelection(committed,g.origin,sameOrigin);mount(g.origin,g.end,origins);}else{navigator.initialize(controls.target);navigator.position.copy(at(g.end,navigator.position));navigatorOffset.set(0,0,0);}
+      if(g.origin){const committed=input.committedSelection(),origins=pickupSelection(committed,g.origin,sameOrigin);mount(g.origin,g.end,origins);}else{input.clear();navigator.initialize(controls.target);navigator.position.copy(at(g.end,navigator.position));navigatorOffset.set(0,0,0);}
     }catch(error){gesture=g;restore();input.feedback(error instanceof Error?error.message:String(error));}
     finally{if(relocating.size||g.mode==='drive'){relocating.clear();presentation();}else request();}
   });

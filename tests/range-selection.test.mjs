@@ -26,3 +26,7 @@ test('plain rectangles include visible nodes away from the origin plane and rema
  for(const activeAxes of [[],[0],[0,1],[0,2]]){const frame={id:'origin',ends:[],members:[],origin:[0,10,10],x:[1,0,0],y:[0,1,0],z:[0,0,1],activeAxes};const position=[0,0,3];assert.equal(insideActivePlane(world,frame,position),false);const projected=new Vector3(...position).project(camera);assert.equal(insideScreenSelection(projected,rect,start,end),true);assert.equal(insideScreenSelection(projected,rect,end,start),true);}
  assert.equal(insideScreenSelection(new Vector3(0,0,2),rect,start,end),false);
 });
+
+test('explicit deselection clears both the clicked group and a stale hover target',()=>{
+ const selection=createSelection((a,b)=>a===b);selection.set(['a','b']);selection.hover('b');selection.clear();assert.deepEqual(selection.values,[]);assert.deepEqual(selection.committed,[]);selection.hover(undefined);assert.deepEqual(selection.values,[]);
+});

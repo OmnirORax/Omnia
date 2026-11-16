@@ -126,8 +126,8 @@ const view = (() => {
       hover(origin,edge){selection.hover(edge??origin);return selectedOrigins();},
       pick, picking: () => selection.requesting,
       range(origins, extend) { if (!selection.requesting) { selection.set(extend ? [...selection.committed.filter(isNode), ...origins] : origins); refresh(); } },
-      clear() { if (selection.requesting) return; close(); selection.set([]); refresh(); },
-      menu(origin, point, position, edge) { if (selection.requesting) {if(edge)selection.cancel();else return;} message = ''; if(edge)selection.set([edge]);else if(origin)selection.set(selection.has(origin)?selectedOrigins():[origin]);else selection.set([]); menuPoint = point; refresh(); context(position,origin,edge); },
+      clear() { if (selection.requesting) return; close(); selection.clear(); refresh(); },
+      menu(origin, point, position, edge) { if (selection.requesting) {if(edge)selection.cancel();else return;} message = ''; if(edge)selection.set([edge]);else if(origin)selection.set(selection.has(origin)?selectedOrigins():[origin]);else selection.clear(); menuPoint = point; refresh(); context(position,origin,edge); },
       navigationSettings:()=>openNavigation(),
       rotateCommit(nodes,frame){store.change(world=>{if(nodes.size){applyGroupTargets(world,new Map([...nodes].map(([id,n])=>[id,n.position])));for(const node of world.nodes){const next=nodes.get(key(node.origin));if(next)node.orientation={...next.orientation};}}if(frame){const found=world.axes?.find(f=>f.id===frame.id);if(!found&&frame.id==='@user'){const basis=view!.frameBasis();const created=setSpatialOrigin(world,undefined,frame.state.origin,basis.right,basis.up);Object.assign(created,frame.state,{directed:true});}else if(!found)throw Error('The frame was removed.');else Object.assign(found,frame.state,{directed:true});}});},
       transform(origins,rotation,pivot,layout){store.change(world=>transformNodes(world,origins,rotation,pivot,layout));},
@@ -141,10 +141,10 @@ const view = (() => {
       nodeOrigin(origin){assignOrigin(origin,locate(store.world,origin)!.position);},
       origin(id,position){const frame=store.world.axes?.find(frame=>frame.id===id)??view?.reference;if(frame)assignOrigin(frame.ends[0],position);},
       aimOrigin(){aimOrigin();},
-      axis(first,second,up){store.change(world=>{createAxis(world,first,second,up);});selection.set([]);refresh();},
+      axis(first,second,up){store.change(world=>{createAxis(world,first,second,up);});selection.clear();refresh();},
       slot(origins,axis,point){store.change(world=>slotNode(view!.operationWorld(world),origins[0],axis,point,origins));},
       toggleWorldAxis(id,axis){if(view?.toggleReferenceAxis(id,axis))return;store.change(world=>toggleWorldAxis(world,id,axis));},
-      focusAxis(id){selection.set([]);store.change(world=>{world.activeAxis=id;});},
+      focusAxis(id){selection.clear();store.change(world=>{world.activeAxis=id;});},
       connect(origin){connectNode(origin);},
       hierarchy(origins,nextOnly=false,contentOnly=false){if(contentOnly)return hierarchyAction(store.world,origins,nextOnly,true);let affected:Origin[]=[];store.change(world=>{affected=hierarchyAction(world,origins,nextOnly);});return affected;},
       subtree(origin,nextOnly=false) { store.change(world => nextOnly?toggleChildLevel(world,origin):toggleSubtree(world, origin)); },
@@ -312,7 +312,7 @@ function remove() {
     }
     removeNodes(world, selectedOrigins());
   });
-  selection.hover(undefined);selection.set([]); close(); refresh();
+  selection.hover(undefined);selection.clear(); close(); refresh();
 }
 const composers=new Set<ReturnType<typeof composerPanel>>(),openingComposers=new Set<string>();
 function openComposer(origin?:Origin,restore?:ViewSpec){
@@ -483,7 +483,7 @@ let workspaceView: ReturnType<typeof workspacePanel> | undefined;
 function openWorkspace(restore?:ViewSpec) {
   if(!viewHistory.performing){viewHistory.perform(()=>openWorkspace(restore));return;}
   renderClose(); if (workspaceView?.root.isConnected) { close();workspaceView.root.focus(); return; }
-  workspaceView = workspacePanel({ omnic:()=>openComposer(),atlas:openLibrary,draft:draftControl, selected: () => selectedOrigins().map(origin => JSON.stringify(origin)), read: () => store.world, replace: world => { store.replace(world); selection.set([]); search.value = ''; refresh(); }, recover: () => { store.recover(); selection.set([]); search.value = ''; refresh(); }, beforeReplace: () => {
+  workspaceView = workspacePanel({ omnic:()=>openComposer(),atlas:openLibrary,draft:draftControl, selected: () => selectedOrigins().map(origin => JSON.stringify(origin)), read: () => store.world, replace: world => { store.replace(world); selection.clear(); search.value = ''; refresh(); }, recover: () => { store.recover(); selection.clear(); search.value = ''; refresh(); }, beforeReplace: () => {
     for(const composer of composers.values())composer.close(); library?.close();
     documentEpoch++; view?.cancel(); close(); selection.cancel(); sceneView?.close();
     for (const document of documents.values()) document?.close();
@@ -649,7 +649,7 @@ window.addEventListener('keydown',event=>{
   flushLiveForms();
   if(gesture||selection.cancel()){ /* Cancel the current gesture before closing its window. */ }
   else if(!tools.hidden)close();
-  else if(!closeActiveWindow())selection.set([]);
+  else if(!closeActiveWindow())selection.clear();
   event.preventDefault();event.stopImmediatePropagation();message='';refresh();
 },true);
 function originShortcutBinding(){return shortcuts.get({category:'Omnium',id:worldShortcutId('O'),label:'Set origin',defaultKey:'X'});}
@@ -725,7 +725,7 @@ if(location.hostname==='omnium.nexus'||location.hostname==='omnia-web-bae.pages.
   load:()=>api.load(),save:(world,revision)=>api.save(world,revision),
   marker:()=>{try{const value=JSON.parse(localStorage.getItem('omnium.shared-draft.base.1')??'null');return value&&Number.isSafeInteger(value.revision)&&typeof value.signature==='string'?value as Marker:null;}catch{return null;}},
   remember:value=>{localStorage.setItem('omnium.shared-draft.base.1',JSON.stringify(value));},
-  replace:async world=>{const before=store.world;await api.restore(world);if(store.world!==before)throw Error('Workspace changed while loading.');for(const doc of documents.values())doc?.close();sceneView?.close();if(store.world!==before)throw Error('Finish local edits before loading the shared draft.');selection.set([]);store.replace(world);refresh();},
+  replace:async world=>{const before=store.world;await api.restore(world);if(store.world!==before)throw Error('Workspace changed while loading.');for(const doc of documents.values())doc?.close();sceneView?.close();if(store.world!==before)throw Error('Finish local edits before loading the shared draft.');selection.clear();store.replace(world);refresh();},
   status:(phase,error)=>{indicator.textContent=`Draft · ${phase}`;issue=error??'';renderDraftDetails();},
  });
  saveSharedDraft=sync.save;

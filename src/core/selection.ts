@@ -8,6 +8,7 @@ export function createSelection<T>(equal: (a: T, b: T) => boolean) {
     hover(value:T|undefined){hovered=!request&&value!==undefined?[value]:undefined;},
     has: (value: T) => (hovered??values).some(item => equal(item, value)),
     retain(keep:(value:T)=>boolean){values=values.filter(keep);if(hovered&&!hovered.every(keep))hovered=undefined;},
+    clear(){values=[];hovered=undefined;},
     set(next: readonly T[]) { values = next.filter((v, i) => next.findIndex(other => equal(v, other)) === i); },
     pick(value: T, extend = false, toggle = false) {
       if (request) {
