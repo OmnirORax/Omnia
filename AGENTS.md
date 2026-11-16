@@ -49,7 +49,7 @@ migrations; never reset the deployed database or replay the archive blindly.
 
 ## User instructions
 
-- **Performance first:** always consider and optimize performance costs. Mention performance costs only when there are material additional costs or trade-offs; do not mention them when there are none.
+- **Performance first:** review performance before implementation and again before delivery. If a change adds runtime work, memory, storage, network traffic or startup cost, tell the user explicitly before introducing it and summarize the remaining cost in the final response. State when the work runs (per frame, per input, on content change or on save), how it is bounded/cached, and whether costs were measured or only assessed from code. Do not silently dismiss a cost as small or assume caching makes it free. Include a performance disclosure check in the delivery checklist; if no additional cost is identified, no performance claim is required. Do not claim zero cost without evidence.
 - **UI Compactness:** smallest practical layout + contents, neatly arranged, minimal wasted space, minimal text, no tooltips or descriptions.
 - **User handles interaction testing:** if asked for resolving or optimizing something, only target & fix the suspects - i do the testing. Don’t run unsolicited browser suites or treat a narrowly authorized check as ongoing permission.
 

@@ -30,3 +30,19 @@ export function imageHull(image:CanvasImageSource){
  const context=canvas.getContext('2d',{willReadFrequently:true});if(!context)return [];
  try{context.drawImage(image,0,0,canvas.width,canvas.height);return alphaHull(context.getImageData(0,0,canvas.width,canvas.height).data,canvas.width,canvas.height);}catch{return [];}
 }
+/** Offset the actual convex ink boundary, retaining every straight-edge normal.
+ * Only the rounded joins are subdivided (at most one sixteenth-turn per arc).
+ * Offsets share topology, so the antialiased stroke can use matched strips. */
+export function inkEnvelope(points:readonly Point2[],padding:number):Point2[]{
+ const hull=convexHull(points);if(!hull.length)return [];
+ if(hull.length===1)return contentEnvelope(hull,padding);
+ const result:Point2[]=[];
+ for(let n=0;n<hull.length;n++){
+  const p=hull[n],before=hull[(n+hull.length-1)%hull.length],after=hull[(n+1)%hull.length];
+  const start=Math.atan2(-(p.x-before.x),p.y-before.y);let end=Math.atan2(-(after.x-p.x),after.y-p.y);
+  while(end<start-1e-12)end+=Math.PI*2;
+  const steps=Math.max(1,Math.ceil((end-start)/(Math.PI/16)));
+  for(let i=0;i<=steps;i++){const angle=start+(end-start)*i/steps;result.push({x:p.x+Math.cos(angle)*padding,y:p.y+Math.sin(angle)*padding});}
+ }
+ return result;
+}

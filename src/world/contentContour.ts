@@ -1,6 +1,6 @@
 import * as T from 'three';
 import {attachMaterialCoverage,pixelCoverageGLSL} from '../materialCoverage.ts';
-import {contentEnvelope,convexHull,type Point2} from './contentEnvelope.ts';
+import {inkEnvelope,convexHull,type Point2} from './contentEnvelope.ts';
 /** Local ink only: geometry, texture masks and their cache stay with each visual. */
 export function collectContentHull(root:T.Object3D){
  const points:Point2[]=[];
@@ -28,8 +28,8 @@ export function createContentContour(){
  return {outline,hit,get points(){return polygon;},
   update(points:readonly Point2[],unit:number){
    const padding=unit*.12,width=unit*.032,fringe=width*2;stroke.value=width/2;
-   polygon=contentEnvelope(points,padding+width/2);
-   const inner=contentEnvelope(points,padding-fringe),outer=contentEnvelope(points,padding+fringe),vertices:number[]=[],distance:number[]=[],indices:number[]=[];
+   polygon=inkEnvelope(points,padding+width/2);
+   const inner=inkEnvelope(points,padding-fringe),outer=inkEnvelope(points,padding+fringe),vertices:number[]=[],distance:number[]=[],indices:number[]=[];
    for(let n=0;n<outer.length;n++){vertices.push(inner[n].x,inner[n].y,0,outer[n].x,outer[n].y,0);distance.push(-fringe,fringe);const next=(n+1)%outer.length;indices.push(n*2,n*2+1,next*2,n*2+1,next*2+1,next*2);}
    const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.Float32BufferAttribute(vertices,3));geometry.setAttribute('contourDistance',new T.Float32BufferAttribute(distance,1));geometry.setIndex(indices);geometry.computeBoundingSphere();outline.geometry.dispose();outline.geometry=geometry;
    const pick=new T.BufferGeometry(),faces:number[]=[];pick.setAttribute('position',new T.Float32BufferAttribute(polygon.flatMap(p=>[p.x,p.y,0]),3));for(let n=1;n+1<polygon.length;n++)faces.push(0,n,n+1);pick.setIndex(faces);pick.computeBoundingSphere();hit.geometry.dispose();hit.geometry=pick;
