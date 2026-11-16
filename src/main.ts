@@ -1,3 +1,4 @@
+import {applyGroupTargets} from './core/groupPlacement';
 import {installContextActions,registerContextActions,refreshContextActions} from './ui/contextActions';
 import {activeWorldAxes,createAxis,toggleWorldAxis,shiftAxisOrigin,setAxisOrigin,slotNode,focusNodeFrame,endpointView} from './core/axes.ts';
 import {parseBrush,brushShape,SINGLE_BRUSH,type Brush} from './core/brush.ts';
@@ -95,12 +96,13 @@ const view = (() => {
       menu(origin, point, position, edge) { if (selection.requesting) return; message = ''; if(edge)selection.set([edge]);else if(origin)selection.set(selection.has(origin)?selectedOrigins():[origin]);else selection.set([]); menuPoint = point; refresh(); context(position,origin,edge); },
       navigationSettings:()=>openNavigation(),
       transform(origins,rotation,pivot,layout){store.change(world=>transformNodes(world,origins,rotation,pivot,layout));},
+      groupMove(targets){store.change(world=>applyGroupTargets(world,targets));},
       move(origins, delta) { store.change(world => translate(world, origins, delta)); },
       connectDrag(source,target,position){let child:Origin|undefined;store.change(world=>{child=connectNodes(world,source,target,position);});if(child)selection.set([child]);refresh();},
       adopt(origins, owner, delta) { store.change(world => adoptNodes(world, origins, owner, delta)); },
       park(origin, position) { message = ''; store.change(world => {const node=locate(world,origin)!;translate(world,[origin],position.map((v,i)=>v-node.position[i]) as Vec3);}); return store.world; },
       paint(positions,source,axis){store.change(world=>paintNodes(world,positions,source,axis));},
-      nodeOrigin(origin){store.change(world=>{const frame=world.axes?.find(frame=>frame.id===world.activeAxis);if(frame)frame.origin=[...locate(world,origin)!.position];else {const basis=view!.frameBasis();focusNodeFrame(world,origin,basis.right,basis.up);}});},
+      nodeOrigin(origin){store.change(world=>{const frame=world.axes?.find(frame=>frame.id===world.activeAxis);if(frame&&frame.ends.length===2)frame.origin=[...locate(world,origin)!.position];else {const basis=view!.frameBasis();focusNodeFrame(world,origin,basis.right,basis.up,true);}});},
       origin(id,position){store.change(world=>setAxisOrigin(world,id,position));},
       axis(first,second,up){store.change(world=>{createAxis(world,first,second,up);});selection.set([]);refresh();},
       slot(origins,axis,point){store.change(world=>slotNode(world,origins[0],axis,point,origins));},
@@ -363,6 +365,7 @@ function spaceActions():SearchAction[]{
  {label:'View from second node',keywords:'world camera perspective occupy endpoint depth z',run:()=>{if(relation?.ends[1])enterNodePerspective(relation.ends[1]);},available:!!relation},
  {label:'Return to user view',keywords:'world camera perspective user leave node',run:()=>view?.leaveNode(),available:!!view?.inNodeView},
  ...(frame?[0,1,2].map(axis=>({label:`${activeWorldAxes(frame).includes(axis)?'✓ ':''}${'XYZ'[axis]} axis`,keywords:'world active axes plane line volume constrain',run:()=>store.change(world=>toggleWorldAxis(world,frame.id,axis))})):[]),
+ ...(frame&&activeWorldAxes(frame).length===3?[{label:`Selection depth · ${view?.selectionDepth??8}`,keywords:'selection volume box depth',run:()=>{const value=prompt('Selection depth',String(view?.selectionDepth??8));if(value!==null)view?.setSelectionDepth(Number(value));}}]:[]),
  {label:'Shift origin…',keywords:'world plane origin elevation level offset xyz',available:active,run:()=>{const value=prompt('Origin shift: X Y Z','0 0 0');if(value===null)return;const offset=value.trim().split(/[ ,]+/).map(Number);if(offset.length!==3||offset.some(n=>!Number.isSafeInteger(n)))throw Error('Use three whole numbers.');store.change(world=>shiftAxisOrigin(world,world.activeAxis!,offset as Vec3));}},
  {label:'Unfocus frame',keywords:'world axis origin reference deactivate',run:()=>store.change(world=>{delete world.activeAxis;}),available:active},
  {label:'Release frame',keywords:'world axis origin reference remove constraints',run:()=>store.change(world=>{world.axes=world.axes?.filter(frame=>frame.id!==world.activeAxis);delete world.activeAxis;}),available:active},
@@ -591,11 +594,13 @@ function worldShortcutActions(){return [
  ...([{label:'Set origin',key:'O',run:()=>view?.pickOrigin()}]),
  {label:'Create nodes',key:'N',run:()=>view?.toggleCreation()},
  {label:'Search',key:'S',run:searchSettings},
+ ...(selectedOrigins().length>1?[{label:'Align selection',key:'I',run:()=>view?.alignSelection()}]:[]),
  ...(selectedOrigins().length?[{label:'Document',key:'D',run:()=>openDocument()},{label:'Label',key:'L',run:()=>editCapability('label')},{label:'Remove',key:'Delete',run:remove}]:[]),
  ];}
 installContextActions();
 registerContextActions({label:'Omnium',owns:element=>!!element.closest('#world,header'),read:()=>{
  const mode=view?.inputContext;
+ if(mode==='align')return [{label:'Rotate alignment axis',key:'Drag'},{label:`Gap ${view?.alignmentGap??0} (0 = adjacent)`,key:'0–9'},{label:'Set gap',key:'Alt + right click'},{label:'Apply alignment',key:'Enter'},{label:'Cancel',key:'Esc'}];
  if(mode==='origin')return [{label:'Choose origin slot',key:'Click'},{label:'Cancel origin picker',key:'O / Esc'}];
  if(mode==='axis-first'||mode==='axis-second')return [{label:mode==='axis-first'?'Choose first axis node':'Choose second axis node',key:'Click'},{label:'Cancel axis picker',key:'Esc'}];
  if(mode==='create')return [{label:'Expand/collapse hierarchy',key:'Click'},{label:'Relocate',key:'Drag'},{label:'Connect',key:'Shift + drag'},{label:'Place nodes',key:'Alt + click'},{label:'Paint nodes',key:'Alt + drag'},{label:'Preview paint',key:'Hold Alt'},{label:'Exit creation',key:'N / Esc',run:()=>view?.toggleCreation()}];
