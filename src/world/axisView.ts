@@ -31,7 +31,7 @@ export function createAxisView(scene:T.Scene,host:HTMLElement){
      line.userData.axis=frame.id;line.userData.axisIndex=index;line.userData.glowIntensity=selected?1:0;group.add(line);picks.push(line);
      if(active){const caption=label(['X','Y','Z'][index]);caption.scale.multiplyScalar(.5*scale);caption.position.copy(center).addScaledVector(direction,extent);caption.material.opacity=selected?1:.3;caption.userData.axis=frame.id;caption.userData.axisIndex=index;group.add(caption);picks.push(caption as unknown as T.Line);}
     }
-    const caption=label(frame.ends.length<=1?'0':`${Math.round(length)} u`);caption.userData.axis=frame.id;caption.scale.multiplyScalar(.5*scale);caption.position.copy(center).addScaledVector(new T.Vector3(...frame.y),.3*scale);group.add(caption);
+    const caption=label(frame.ends.length<=1?'0':`${Math.round(length)} u`);caption.userData.axis=frame.id;caption.scale.multiplyScalar(.5*scale);caption.position.copy(center).addScaledVector(new T.Vector3(...frame.y),.3*scale);group.add(caption);picks.push(caption as unknown as T.Line);
    }
   },
   coordinates(world:World,frame:AxisFrame|undefined,p:Vec3|undefined,screen:{x:number;y:number}|undefined){

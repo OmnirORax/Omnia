@@ -17,7 +17,7 @@ export function shortcutEvent(event:Pick<KeyboardEvent,'key'|'ctrlKey'|'metaKey'
  const key=event.key===' '?'Space':event.key;
  return normalizeShortcut([event.ctrlKey||category!=='Document'&&event.metaKey?'Ctrl':'',category==='Document'&&event.metaKey?'Cmd':'',event.altKey?'Alt':'',event.shiftKey?'Shift':'',key].filter(Boolean).join('+'));
 }
-export function matchesShortcut(event:KeyboardEvent,binding:string,category:ShortcutCategory='Omnium'){return !!binding&&shortcutEvent(event,category)===normalizeShortcut(binding);}
+export function matchesShortcut(event:KeyboardEvent,binding:string,category:ShortcutCategory='Omnium'){const expected=normalizeShortcut(binding);return expected!==undefined&&shortcutEvent(event,category)===expected;}
 export const worldShortcutId=(key:string)=>`world:${normalizeShortcut(key)??key}`;
 const overlaps=(a:ShortcutDefinition,b:ShortcutDefinition)=>a.scope==='application'||b.scope==='application'||(a.scope==='applicationExceptDocument'||b.scope==='applicationExceptDocument')&&a.category!=='Document'&&b.category!=='Document'||a.category===b.category&&(a.scope??'main')===(b.scope??'main');
 const address=(d:ShortcutDefinition)=>`${d.category}/${d.id}`;
