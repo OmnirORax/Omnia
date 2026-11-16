@@ -5,6 +5,8 @@ export const WORLD_GESTURES:ShortcutDefinition[]=[
  ['multi-plane','Select box · plane','Ctrl + drag','multi select multiselect multiple selection rectangle box marquee'],
  ['multi-depth','Select box · depth','Ctrl + Shift + drag','multi select multiselect multiple selection rectangle volume box marquee'],
  ['selection-depth','Adjust selection depth','Wheel in depth box','multi selection volume'],
+ ['hierarchy-contents','Toggle hierarchy contents','Hold V + Q','content view hierarchy subtree'],
+ ['binder-reconnect','Reconnect binder','Click binder, then node','edge connection link target'],
  ['connect','Connect nodes','Shift + drag','connector link'],
  ['paint-preview','Preview painting nodes','Hold Alt','create stamp'],
  ['paint-confirm','Confirm paint preview','Alt + left click','create stamp apply'],

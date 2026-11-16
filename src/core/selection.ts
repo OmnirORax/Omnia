@@ -27,3 +27,6 @@ export function createSelection<T>(equal: (a: T, b: T) => boolean) {
     cancel() { if (request) { values = request.restore; request = undefined; return true; } return false; },
   };
 }
+
+/** A hover target must not narrow a committed group when its member is picked up. */
+export function pickupSelection<T>(committed:readonly T[],target:T,equal:(a:T,b:T)=>boolean):readonly T[]{return committed.some(item=>equal(item,target))?[...committed]:[target];}

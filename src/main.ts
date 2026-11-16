@@ -1,3 +1,4 @@
+import {reconnectBinder} from './core/connections';
 import {WORLD_GESTURES,DOCUMENT_GESTURES} from './ui/gestureShortcuts';
 import {shortcuts,installShortcutCapture,normalizeShortcut,worldBinding,worldShortcutId,matchesShortcut,type ShortcutDefinition} from './ui/shortcuts';
 import {shortcutWindow} from './ui/shortcutWindow';
@@ -5,7 +6,7 @@ import {applyGroupTargets} from './core/groupPlacement';
 import {installContextActions,registerContextActions,refreshContextActions} from './ui/contextActions';
 import {aimFrame,activeWorldAxes,createAxis,toggleWorldAxis,shiftAxisOrigin,setSpatialOrigin,slotNode} from './core/axes.ts';
 import {parseBrush,brushShape,SINGLE_BRUSH,type Brush} from './core/brush.ts';
-import {handleContentViewShortcut} from './ui/contentViewShortcut.ts';
+import {heldContentAction,handleContentViewShortcut} from './ui/contentViewShortcut.ts';
 import {ANIMATION_TARGETS,animationProperties} from './properties/animations.ts';
 import {animationValue} from './world/animations.ts';
 import {createImmersiveMode,handleImmersiveShortcut,type KeyboardLock} from './ui/immersiveMode.ts';
@@ -51,7 +52,7 @@ import { createSelection } from './core/selection.ts';
 import { createStore } from './core/store.ts';
 import { createWorld, type Edge } from './world.ts';
 import { inherited } from './core/lattice.ts';
-import { paintNodes, adoptNodes, connectNodes, childNode, detachNode, removeNodes, toggleSubtree, toggleChildLevel } from './core/nodeOperations.ts';
+import { paintNodes, adoptNodes, connectNodes, childNode, detachNode, removeNodes, toggleSubtree, toggleChildLevel, toggleHierarchies } from './core/nodeOperations.ts';
 import type { editDocument } from './text/editor.ts';
 import {scenePanel,SCENE_TABS,type SceneTab} from './scene/panel.ts';
 import { validateAsset, MAX_ASSET_BYTES, type VisualAsset } from './graph/assets.ts';
@@ -98,11 +99,11 @@ const view = (() => {
       toggleAllContent(){store.change(world=>{world.settings??={latticeScale:1,names:'selection'};world.settings.names=world.settings.names==='all'?'selection':'all';});},
       cameraChanged:state=>store.setCamera(state),
       committedSelection:()=>selection.committed.filter(isNode),
-      hover(origin){selection.hover(origin);return selectedOrigins();},
+      hover(origin,edge){selection.hover(edge??origin);return selectedOrigins();},
       pick, picking: () => selection.requesting,
       range(origins, extend) { if (!selection.requesting) { selection.set(extend ? [...selection.committed.filter(isNode), ...origins] : origins); refresh(); } },
       clear() { if (selection.requesting) return; close(); selection.set([]); refresh(); },
-      menu(origin, point, position, edge) { if (selection.requesting) return; message = ''; if(edge)selection.set([edge]);else if(origin)selection.set(selection.has(origin)?selectedOrigins():[origin]);else selection.set([]); menuPoint = point; refresh(); context(position,origin,edge); },
+      menu(origin, point, position, edge) { if (selection.requesting) {if(edge)selection.cancel();else return;} message = ''; if(edge)selection.set([edge]);else if(origin)selection.set(selection.has(origin)?selectedOrigins():[origin]);else selection.set([]); menuPoint = point; refresh(); context(position,origin,edge); },
       navigationSettings:()=>openNavigation(),
       rotateCommit(nodes,frame){store.change(world=>{if(nodes.size){applyGroupTargets(world,new Map([...nodes].map(([id,n])=>[id,n.position])));for(const node of world.nodes){const next=nodes.get(key(node.origin));if(next)node.orientation={...next.orientation};}}if(frame){const found=world.axes?.find(f=>f.id===frame.id);if(!found&&frame.id==='@user'){const basis=view!.frameBasis();const created=setSpatialOrigin(world,undefined,frame.state.origin,basis.right,basis.up);Object.assign(created,frame.state,{directed:true});}else if(!found)throw Error('The frame was removed.');else Object.assign(found,frame.state,{directed:true});}});},
       transform(origins,rotation,pivot,layout){store.change(world=>transformNodes(world,origins,rotation,pivot,layout));},
@@ -121,8 +122,9 @@ const view = (() => {
       toggleWorldAxis(id,axis){if(view?.toggleReferenceAxis(id,axis))return;store.change(world=>toggleWorldAxis(world,id,axis));},
       focusAxis(id){selection.set([]);store.change(world=>{world.activeAxis=id;});},
       connect(origin){connectNode(origin);},
+      hierarchy(origins,nextOnly=false){let affected:Origin[]=[];store.change(world=>{affected=toggleHierarchies(world,origins,nextOnly);});return affected;},
       subtree(origin,nextOnly=false) { store.change(world => nextOnly?toggleChildLevel(world,origin):toggleSubtree(world, origin)); },
-      edge(edge) { selection.set([edge]); refresh(); },
+      edge(edge) { selection.cancel();selection.set([edge]); refresh(); reconnectEdge(edge); },
       feedback,
     });
   } catch { status.textContent = 'The 3D renderer could not start. WebGL is required; your saved world is preserved.'; return undefined; }
@@ -206,6 +208,7 @@ const editCapability=defineMenu('capability',(capabilityKey: string)=>{
   tools.append(form); positionMenu(); inputs[0].focus(); if (inputs[0].type === 'text') inputs[0].select();
 });
 function editLabel(){
+ const edge=selection.values.find((target):target is Edge=>!isNode(target));if(edge){edgeContext(edge);const input=tools.querySelector<HTMLInputElement>('form input[type=text]');input?.focus();input?.select();return;}
  const hovered=view?.hoveredOrigin;view?.cancel();
  if(hovered&&!selection.has(hovered))pick(hovered);
  if(!selectedOrigins().length){feedback('Point to or select a node to name.');return;}
@@ -285,7 +288,7 @@ function remove() {
     }
     removeNodes(world, selectedOrigins());
   });
-  selection.set([]); close(); refresh();
+  selection.hover(undefined);selection.set([]); close(); refresh();
 }
 const composers=new Set<ReturnType<typeof composerPanel>>(),openingComposers=new Set<string>();
 function openComposer(origin?:Origin,restore?:ViewSpec){
@@ -347,9 +350,13 @@ const worldSettings=settingsCatalog.define('world',()=>[
     {label:'Browser shortcuts',keywords:'world browser chrome keyboard shortcuts',definition:{key:'browserShortcuts',label:'Browser shortcuts',kind:'toggle'},read:browserShortcutsEnabled,set:value=>{enableBrowserShortcuts(Boolean(value));if(value)void immersive.leave().catch(error=>feedback(error.message));}},
 ]);
 
+const contentHold=heldContentAction(()=>attempt(()=>view?.toggleContentView()));
+window.addEventListener('keyup',event=>{contentHold.release(event.key);},true);
+window.addEventListener('blur',()=>contentHold.cancel());
+function hierarchyShortcut(nextOnly=false){const content=contentHold.active;contentHold.consume();view?.toggleHierarchy(nextOnly,content);}
 window.addEventListener('keydown',event=>{
  const target=event.target,typing=target instanceof Element&&!!target.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"]),[role="textbox"],.cm-editor,[data-input-owner]');
- handleContentViewShortcut(event,typing,()=>attempt(()=>view?.toggleContentView()),worldBinding('V'),view?.selectingRange);
+ handleContentViewShortcut(event,typing,()=>contentHold.press(event.key),worldBinding('V'),view?.selectingRange);
 },true);
 const historySettings=settingsCatalog.define('history',()=>[
     {label:'History · Scope',keywords:'history scope selective context categories recent all actions',definition:HISTORY_MODE,read:()=>universalHistory.options.mode,set:value=>universalHistory.configure({mode:value as typeof universalHistory.options.mode})},
@@ -580,6 +587,9 @@ const visuals=defineMenu('visualAsset',()=>{
   watchFields(form,[{input:character.input,read:()=>{const n=locate(store.world,origin);return n?inherited(n,store.world).visual?.character??'':undefined;}},{input:size.input,read:()=>{const n=locate(store.world,origin);return n?inherited(n,store.world).visual?.size??1.4:undefined;}},{input:showText.input,read:()=>{const n=locate(store.world,origin);return n?inherited(n,store.world).visual?.showText??true:undefined;}}]);
   if(node.visual)button('Clear visual',()=>{store.change(world=>{delete locate(world,origin)!.visual;});close();});positionMenu();
 });
+function reconnectEdge(edge:Edge){
+ requestNode(target=>store.change(world=>reconnectBinder(world,edge,target)));
+}
 const edgeContext=defineMenu('edge',(edge: Edge)=>{
   open('Connection');
   const relation=edge.kind==='relationship'?store.world.relationships?.[edge.index]:undefined;
@@ -589,7 +599,9 @@ const edgeContext=defineMenu('edge',(edge: Edge)=>{
     button('Reverse',()=>{store.change(world=>{const r=world.relationships![edge.index];[r.from,r.to]=[r.to,r.from];});close();});
     for(const [key,label] of [['from','Reconnect source…'],['to','Reconnect target…']] as const)button(label,()=>requestNode(target=>store.change(world=>{world.relationships![edge.index][key]=bind(locate(world,target)!,'follow',world);})));
   }else if(edge.kind==='part')button('Reconnect target…',()=>requestNode(target=>store.change(world=>{locate(world,edge.owner)!.parts[edge.index]=bind(locate(world,target)!,'follow',world);})));
-  button('Remove',remove);positionMenu();
+  if(edge.kind==='child')button('Reconnect parent…',()=>reconnectEdge(edge));
+  if(edge.kind==='variant')button('Reconnect template…',()=>reconnectEdge(edge));
+  button('Remove (Del)',remove);positionMenu();
 });
 element('workspace').onclick = ()=>openWorkspace();
 element<HTMLButtonElement>('create').disabled = !view;
@@ -620,8 +632,8 @@ window.addEventListener('keydown',event=>{
 function worldShortcutActions(includeUnavailable=false){return [
  ...spaceActions().filter(action=>includeUnavailable||action.available!==false).map(action=>{const match=/^(.*?) \(([^)]+)\)$/.exec(action.label);return {label:match?.[1]??action.label,key:match?.[2],run:action.run};}),
  {id:worldShortcutId('O'),label:'Set origin',gesture:undefined,key:'X',run:()=>view?.pickOrigin()},
- {label:'Expand/collapse hierarchy',key:'Q',run:()=>view?.toggleHierarchy()},
- {label:'Expand/collapse next level',key:'Shift+Q',run:()=>view?.toggleHierarchy(true)},
+ {label:'Expand/collapse hierarchy',key:'Q',run:()=>hierarchyShortcut()},
+ {label:'Expand/collapse next level',key:'Shift+Q',run:()=>hierarchyShortcut(true)},
  {label:'Toggle contents facing camera',key:'F',run:()=>view?.toggleContentsFacing()},
  {id:worldShortcutId('R'),label:'Rotate node / orbit camera',gesture:'MB3 + scroll',key:'',run:()=>view?.rotateHovered()},
  {id:worldShortcutId('W'),label:'Move selection / hovered',gesture:'Left click',key:'',run:()=>view?.moveHovered()},
@@ -631,7 +643,8 @@ function worldShortcutActions(includeUnavailable=false){return [
  {label:'Create nodes',key:'N',run:()=>view?.toggleCreation()},
  {label:'Search',key:'S',run:searchSettings},
  ...((includeUnavailable||selectedOrigins().length>1)?[{label:'Align selection',key:'I',run:()=>view?.alignSelection()}]:[]),
- ...((includeUnavailable||selectedOrigins().length||view?.hoveredOrigin)?[{label:'Document',key:'D',run:()=>openDocument()},{label:'Remove',key:'Delete',run:remove}]:[]),
+ ...((includeUnavailable||selectedOrigins().length||view?.hoveredOrigin)?[{label:'Document',key:'D',run:()=>openDocument()}]:[]),
+ ...((includeUnavailable||selection.values.length)?[{label:'Remove',key:'Delete',run:remove}]:[]),
  {label:'Label',key:'L',run:editLabel},
  ].map(action=>{const defaultKey=action.key&&normalizeShortcut(action.key),id=('id' in action?action.id:undefined)??worldShortcutId(defaultKey??action.key??action.label);return {...action,id,defaultKey:defaultKey??'',run:action.run,key:normalizeShortcut(action.key??'')||action.key===''?shortcuts.get({category:'Omnium',id,label:action.label,defaultKey:defaultKey??''}):action.key};});}
 installContextActions();
@@ -651,6 +664,7 @@ document.addEventListener('keydown', event => {
   const editing = event.target instanceof Element && (!!event.target.closest('[data-input-owner]') || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement);
   if (event.target instanceof Element && event.target.closest('[data-input-owner]')) return;
   if (editing || event.target instanceof HTMLElement && event.target.isContentEditable) return;
+  if(selection.requesting&&selection.values.some(target=>!isNode(target))&&(matchesShortcut(event,worldBinding('Delete'))||matchesShortcut(event,worldBinding('L')))){event.preventDefault();selection.cancel();attempt(()=>matchesShortcut(event,worldBinding('Delete'))?remove():editLabel());return;}
   if(!event.ctrlKey&&!event.metaKey&&!event.altKey&&!matchesShortcut(event,worldBinding('5'))&&view?.userPositionKey(event.key)){event.preventDefault();return;}
   if(!event.defaultPrevented&&!event.repeat&&!selection.requesting){
     const action=worldShortcutActions().find(action=>action.key&&matchesShortcut(event,action.key));
