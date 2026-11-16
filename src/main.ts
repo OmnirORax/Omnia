@@ -102,6 +102,7 @@ const view = (() => {
       adopt(origins, owner, delta) { store.change(world => adoptNodes(world, origins, owner, delta)); },
       park(origin, position) { message = ''; store.change(world => {const node=locate(world,origin)!;translate(world,[origin],position.map((v,i)=>v-node.position[i]) as Vec3);}); return store.world; },
       paint(positions,source,axis){store.change(world=>paintNodes(world,positions,source,axis));},
+      selectionOrigin(ids,position){store.change(world=>{let frame=world.axes?.find(frame=>frame.id===world.activeAxis);if(!frame){const basis=view!.frameBasis();frame=focusNodeFrame(world,ids[0],basis.right,basis.up);}frame.origin=[...position];});},
       nodeOrigin(origin){store.change(world=>{const frame=world.axes?.find(frame=>frame.id===world.activeAxis);if(frame&&frame.ends.length===2)frame.origin=[...locate(world,origin)!.position];else {const basis=view!.frameBasis();focusNodeFrame(world,origin,basis.right,basis.up,true);}});},
       origin(id,position){store.change(world=>setAxisOrigin(world,id,position));},
       axis(first,second,up){store.change(world=>{createAxis(world,first,second,up);});selection.set([]);refresh();},

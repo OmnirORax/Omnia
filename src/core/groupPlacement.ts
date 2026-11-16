@@ -19,3 +19,9 @@ export function validGroupTargets(world:World,targets:ReadonlyMap<string,Vec3>){
 }
 export function applyGroupTargets(world:World,targets:ReadonlyMap<string,Vec3>){if(!validGroupTargets(world,targets))throw Error('The group overlaps another node.');for(const n of world.nodes){const p=targets.get(address(n.origin));if(p)n.position=[...p];}}
 export function insideSelectionBox(position:Vec3,center:Vec3,right:Vec3,up:Vec3,forward:Vec3,a:Vec3,b:Vec3,depth:number){const p=minus(position,center),x=dot(p,right),y=dot(p,up);return x>=Math.min(a[0],b[0])-1e-7&&x<=Math.max(a[0],b[0])+1e-7&&y>=Math.min(a[1],b[1])-1e-7&&y<=Math.max(a[1],b[1])+1e-7&&Math.abs(dot(p,forward))<=depth/2+1e-7;}
+
+export function selectionCenter(world:World,ids:readonly Origin[]):Vec3{
+ const selected=new Set(ids.map(address)),sum:Vec3=[0,0,0];let count=0;
+ for(const node of world.nodes)if(selected.has(address(node.origin))){count++;for(let i=0;i<3;i++)sum[i]+=node.position[i];}
+ if(!count)throw Error('Select a node first.');return times(sum,1/count);
+}
