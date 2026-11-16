@@ -1,3 +1,4 @@
+import {pickAxisSegment} from './world/axisHit.ts';
 import {pickupSelection} from './core/selection';
 import {cameraHistoryMatches} from './world/cameraHistory.ts';
 import {releaseRange} from './world/rangeSelection.ts';
@@ -222,11 +223,14 @@ export function createWorld(host: HTMLElement, input: Input) {
   const resize = new ResizeObserver(() => { const box = host.getBoundingClientRect(); pipeline.resize(box.width, box.height); camera.aspect = box.width / Math.max(1, box.height); camera.updateProjectionMatrix(); request(); }); resize.observe(host);
   controls.addEventListener('change', () => { navigator.orientation.copy(camera.quaternion); request(); });
   function pointer(p: Point) { const r = canvas.getBoundingClientRect(); ray.setFromCamera(new T.Vector2((p.x-r.left)/r.width*2-1, -(p.y-r.top)/r.height*2+1), camera); }
-  function pointed(p: Point, exclude?: ReadonlySet<string>): { origin?: Origin; edge?: Edge;axis?:string;axisIndex?:number } {
+  function pointed(p: Point, exclude?: ReadonlySet<string>, nodesOnly=false): { origin?: Origin; edge?: Edge;axis?:string;axisIndex?:number } {
     pointer(p); ray.params.Line!.threshold = scale * .15;
+    if(!nodesOnly){const axis=pickAxisSegment(p,axisView.picks,camera,canvas.getBoundingClientRect());if(axis)return axis;}
     let axis:string|undefined,axisIndex:number|undefined,marker:string|undefined;
     for (const hit of ray.intersectObjects(picks, true)) {
       if(!hit.object.visible)continue;
+      if(hit.object instanceof T.Line&&hit.object.userData.axisIndex!==undefined)continue;
+      if(nodesOnly&&hit.object.userData.axis)continue;
       if(hit.object.userData.originMarker){marker=hit.object.userData.axis;continue;}
       if(hit.object.userData.axis){if(hit.object.userData.axisIndex===undefined)return {axis:hit.object.userData.axis};if(axis===undefined){axis=hit.object.userData.axis;axisIndex=hit.object.userData.axisIndex;}continue;}
       let owner: T.Object3D | null = hit.object;
@@ -369,7 +373,7 @@ export function createWorld(host: HTMLElement, input: Input) {
     if(!parked){const rejected=drive.rejection;const name=(id:string)=>visuals.get(id)?.node.label||id;input.feedback(rejected&&'blocker'in rejected?`Cannot place: ${name(rejected.moving!)} overlaps ${name(rejected.blocker!)} at ${[rejected.point!.x,rejected.point!.y,rejected.point!.z].map(n=>Number((n/scale).toFixed(3))).join(', ')}. Hidden nodes and carried children also occupy space.`:`Cannot place: ${rejected?.reason??'placement was rejected'}`);return false;}
     mountedWorld=undefined;controls.enabled=true;navigatorOffset.set(0,0,0);rebuildPicks();input.feedback('');request();return true;
   }
-  function pickSpatialOrigin(){const hovered=pointerInside&&lastPoint?pointed(lastPoint).origin:undefined;if(hovered){originPick=undefined;ghost.visible=false;input.nodeOrigin(hovered);request();return;}if(selected.length>1){const origin=selectionCenter(world,selected);originPick=undefined;ghost.visible=false;selectionGroup={ids:selected.map(key),order:xyz(new T.Vector3(1,0,0).applyQuaternion(camera.quaternion))};input.selectionOrigin(selected,origin);request();return;}if(originPick){originPick=undefined;ghost.visible=false;request();return;}const frame=activeAxis();if(pointerInside&&lastPoint){input.origin(frame.id,creationPoint(lastPoint));ghost.visible=false;request();}}
+  function pickSpatialOrigin(){const hovered=pointerInside&&lastPoint?pointed(lastPoint,undefined,true).origin:undefined;if(hovered){originPick=undefined;ghost.visible=false;input.nodeOrigin(hovered);request();return;}if(selected.length>1){const origin=selectionCenter(world,selected);originPick=undefined;ghost.visible=false;selectionGroup={ids:selected.map(key),order:xyz(new T.Vector3(1,0,0).applyQuaternion(camera.quaternion))};input.selectionOrigin(selected,origin);request();return;}if(originPick){originPick=undefined;ghost.visible=false;request();return;}const frame=activeAxis();if(pointerInside&&lastPoint){input.origin(frame.id,creationPoint(lastPoint));ghost.visible=false;request();}}
   function cancelDrive() { const active=drive.active;if(active)relocationPin=drive.id;drive.cancel();mountedWorld=undefined;navigatorOffset.set(0,0,0);controls.enabled=true;edges.visible=true;rebuildPicks();if(active)presentation();else request();return active; }
   type Gesture={pointer:number;button:number;alt:boolean;start:Point;end:Point;origin?:Origin;edge?:Edge;axis?:string;axisIndex?:number;anchor:T.Vector3;mode:'move'|'range'|'view'|'drive'|'paint'|'pickup';dragged:boolean;volume?:{center:Vec3;right:Vec3;up:Vec3;forward:Vec3;a:Vec3;b:Vec3};group?:{origin:Vec3;order:Vec3};groupLanding?:ReturnType<typeof groupTargets>;landing?:{delta:Vec3;frame?:string;point?:Vec3};origins:readonly Origin[];moving?:Set<string>;project?:ReturnType<typeof pointerPlane>;resolve?:ReturnType<typeof import('./core/lattice.ts').prepareTranslation>};
   let selectionDepth=8,selectionGroup:{ids:string[];order:Vec3}|undefined;
