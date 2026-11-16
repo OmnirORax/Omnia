@@ -95,6 +95,7 @@ function selectedNodes(world: World) { return world.nodes.filter(node => selecti
 const view = (() => {
   try {
     return createWorld(element('world'), {
+      toggleAllContent(){store.change(world=>{world.settings??={latticeScale:1,names:'selection'};world.settings.names=world.settings.names==='all'?'selection':'all';});},
       cameraChanged:state=>store.setCamera(state),
       hover(origin){selection.hover(origin);return selectedOrigins();},
       pick, picking: () => selection.requesting,
@@ -345,7 +346,7 @@ const worldSettings=settingsCatalog.define('world',()=>[
 
 window.addEventListener('keydown',event=>{
  const target=event.target,typing=target instanceof Element&&!!target.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"]),[role="textbox"],.cm-editor,[data-input-owner]');
- handleContentViewShortcut(event,typing,()=>{const setting=worldSettings().find(item=>item.definition.key==='names')!;attempt(()=>store.change(world=>setting.write!(world,!setting.read())));},worldBinding('V'));
+ handleContentViewShortcut(event,typing,()=>attempt(()=>view?.toggleContentView()),worldBinding('V'),view?.selectingRange);
 },true);
 const historySettings=settingsCatalog.define('history',()=>[
     {label:'History · Scope',keywords:'history scope selective context categories recent all actions',definition:HISTORY_MODE,read:()=>universalHistory.options.mode,set:value=>universalHistory.configure({mode:value as typeof universalHistory.options.mode})},

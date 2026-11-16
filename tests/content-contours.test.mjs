@@ -50,9 +50,9 @@ test('temporary parent displacement keeps picking, drag deltas and canonical coo
  const hull=structuredClone(contour.points);camera.position.set(-6,3,8);camera.lookAt(0,0,0);camera.updateMatrixWorld();presentation.quaternion.copy(camera.quaternion);scene.updateMatrixWorld(true);assert.deepEqual(host.position,new T.Vector3(3,1,0));assert.deepEqual(contour.points,hull);assert.deepEqual(group.position,baseline);contour.dispose();
 });
 
-test('content on/off applies to all content; focus stays visible without hover reveal or sticky click-hiding',()=>{
- const state=expansionState();assert.equal(nodeContentVisible(state,'a','all',false,false),true);assert.equal(nodeContentVisible(state,'a','selection',false,false),false);assert.equal(nodeContentVisible(state,'a','selection',true,false),true);assert.equal(nodeContentVisible(state,'a','selection',false,true),false);
- toggleContent(state,'a',true);assert.equal(nodeContentVisible(state,'a','all',true,true),true);assert.equal(nodeContentVisible(state,'a','selection',true,false),true);toggleContent(state,'a',true);assert.equal(nodeContentVisible(state,'a','selection',false,false),true);
+test('selection and hover never reveal content; explicit per-node visibility overrides global view',()=>{
+ const state=expansionState();assert.equal(nodeContentVisible(state,'a','all',false,false),true);assert.equal(nodeContentVisible(state,'a','selection',false,false),false);assert.equal(nodeContentVisible(state,'a','selection',true,false),false);assert.equal(nodeContentVisible(state,'a','selection',false,true),false);
+ toggleContent(state,'a',true);assert.equal(nodeContentVisible(state,'a','all',true,true),false);assert.equal(nodeContentVisible(state,'a','selection',true,false),false);toggleContent(state,'a',true);assert.equal(nodeContentVisible(state,'a','selection',false,false),true);
 });
 
 test('untouched closed-node overlaps outside the activated component do not trigger unrelated rearrangement',()=>{
@@ -61,9 +61,9 @@ test('untouched closed-node overlaps outside the activated component do not trig
 });
 
 test('relocation temporarily uses the carrier and restores content without leaving a hiding record',()=>{
- const state=expansionState(),before=structuredClone(state);
+ const state=expansionState();state.open.add('a');const before=structuredClone(state);
  for(const mode of ['all','selection']){assert.equal(nodeContentVisible(state,'a',mode,true,true,true),false);assert.equal(nodeContentVisible(state,'a',mode,true,false,false),true);}
- assert.deepEqual(state,before);assert.equal(nodeContentVisible(state,'a','selection',false,true),false);
+ assert.deepEqual(state,before);assert.equal(nodeContentVisible(state,'a','selection',false,true),true);
 });
 test('reference endpoints remain at canonical centers while mobile content clears both',()=>{
  const a={...node('a',0,0,circle(2)),fixed:true},b={...node('b',3,0,circle(2)),fixed:true},c=node('c',1,0,circle(1));

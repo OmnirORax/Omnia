@@ -11,3 +11,5 @@ test('V remains text and modified V remains available to the editor/clipboard',(
  for(const extra of [{ctrlKey:true},{metaKey:true},{altKey:true},{shiftKey:true},{key:'x'}]){const event=key(extra);assert.equal(handleContentViewShortcut(event,false,()=>calls++),false);assert.equal(event.defaultPrevented,false);}
  assert.equal(calls,0);
 });
+
+test('V works while selection modifiers are held but retains clipboard handling elsewhere',()=>{let calls=0;for(const extra of [{ctrlKey:true},{ctrlKey:true,shiftKey:true},{metaKey:true}]){assert.equal(handleContentViewShortcut(key(extra),false,()=>calls++,'V',true),true);assert.equal(handleContentViewShortcut(key(extra),false,()=>calls++,'V',false),false);}assert.equal(calls,3);assert.equal(handleContentViewShortcut(key({ctrlKey:true}),true,()=>calls++,'V',true),false);});
