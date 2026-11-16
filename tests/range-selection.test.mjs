@@ -30,3 +30,19 @@ test('plain rectangles include visible nodes away from the origin plane and rema
 test('explicit deselection clears both the clicked group and a stale hover target',()=>{
  const selection=createSelection((a,b)=>a===b);selection.set(['a','b']);selection.hover('b');selection.clear();assert.deepEqual(selection.values,[]);assert.deepEqual(selection.committed,[]);selection.hover(undefined);assert.deepEqual(selection.values,[]);
 });
+test('cursor selection dimensions give depth priority and reserve Shift for a line',async()=>{
+ const {selectionDimension}=await import('../src/world/rangeSelection.ts');
+ assert.equal(selectionDimension({ctrlKey:false,shiftKey:false}),undefined);
+ assert.equal(selectionDimension({ctrlKey:false,shiftKey:true}),1);
+ assert.equal(selectionDimension({ctrlKey:true,shiftKey:false}),2);
+ assert.equal(selectionDimension({ctrlKey:true,shiftKey:true}),3);
+ assert.equal(selectionDimension({ctrlKey:false,metaKey:true,shiftKey:true}),3);
+});
+test('line selection follows a finite diagonal segment rather than its bounding rectangle',async()=>{
+ const {insideScreenLine,insideScreenSelection}=await import('../src/world/rangeSelection.ts');
+ const rect={left:10,top:20,width:200,height:200},a={x:10,y:20},b={x:210,y:220};
+ assert.equal(insideScreenLine({x:0,y:0,z:0},rect,a,b),true);
+ const corner={x:-.8,y:-.8,z:0};assert.equal(insideScreenSelection(corner,rect,a,b),true);assert.equal(insideScreenLine(corner,rect,a,b),false);
+ assert.equal(insideScreenLine({x:0,y:0,z:2},rect,a,b),false);
+ assert.equal(insideScreenLine({x:0,y:0,z:0},rect,b,a),true);
+});
