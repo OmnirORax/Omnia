@@ -629,7 +629,7 @@ function worldShortcutActions(includeUnavailable=false){return [
  ...((includeUnavailable||selectedOrigins().length>1)?[{label:'Align selection',key:'I',run:()=>view?.alignSelection()}]:[]),
  ...((includeUnavailable||selectedOrigins().length||view?.hoveredOrigin)?[{label:'Document',key:'D',run:()=>openDocument()},{label:'Remove',key:'Delete',run:remove}]:[]),
  {label:'Label',key:'L',run:editLabel},
- ].map(action=>{const defaultKey=action.key&&normalizeShortcut(action.key),id=('id' in action?action.id:undefined)??worldShortcutId(defaultKey??action.key??action.label);return {...action,id,defaultKey:defaultKey??'',run:()=>{if(['P','I','D','L','Delete','R','W'].some(key=>id===worldShortcutId(key))&&!view?.moving&&view?.inputContext!=='rotate'){const hovered=view?.hoveredOrigin;if(hovered&&!selection.has(hovered))pick(hovered);}action.run();},key:normalizeShortcut(action.key??'')||action.key===''?shortcuts.get({category:'Omnium',id,label:action.label,defaultKey:defaultKey??''}):action.key};});}
+ ].map(action=>{const defaultKey=action.key&&normalizeShortcut(action.key),id=('id' in action?action.id:undefined)??worldShortcutId(defaultKey??action.key??action.label);return {...action,id,defaultKey:defaultKey??'',run:()=>{if(['P','I','D','L','Delete','R','W'].some(key=>id===worldShortcutId(key))&&!view?.moving&&view?.inputContext!=='rotate'){const hovered=view?.hoveredOrigin;if(hovered)pick(hovered);}action.run();},key:normalizeShortcut(action.key??'')||action.key===''?shortcuts.get({category:'Omnium',id,label:action.label,defaultKey:defaultKey??''}):action.key};});}
 installContextActions();
 registerContextActions({label:'Omnium',owns:element=>!!element.closest('#world,header'),read:()=>{
  const mode=view?.inputContext;
