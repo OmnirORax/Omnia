@@ -387,13 +387,13 @@ export function createWorld(host: HTMLElement, input: Input) {
   function finishAlignment(apply=false){const a=alignment;if(!a)return;if(apply&&!a.valid){input.feedback('Alignment is occupied.');return;}alignment=undefined;alignmentLine.visible=false;ghost.visible=false;if(apply&&a.valid){input.groupMove(a.targets);selectionGroup={ids:a.ids.map(key),order:a.order};}controls.enabled=!drive.active;request();}
   function configureRangeVolume(g:Gesture){if(!g.project)return;const center=activeAxis()?axisCenter(world,activeAxis()!):xyz(controls.target.clone().divideScalar(scale)),right=xyz(new T.Vector3(1,0,0).applyQuaternion(camera.quaternion)),up=xyz(new T.Vector3(0,1,0).applyQuaternion(camera.quaternion)),forward=xyz(camera.getWorldDirection(new T.Vector3())),start=xyz(g.project!(g.start).divideScalar(scale)),d=minus(start,center);g.volume={center,right,up,forward,a:[dot(d,right),dot(d,up),0],b:[dot(d,right),dot(d,up),0]};}
   let cursorSelectionBlocked=false;
-  function finishCursorRange(){if(!gesture?.passive)return;cursorSelectionBlocked=true;if(inputFrame){cancelAnimationFrame(inputFrame);inputFrame=0;processPointer();}const ids=rangeCandidates(gesture);restore();input.range(ids,false);}
+  function finishCursorRange(){if(!gesture?.passive)return;cursorSelectionBlocked=true;if(inputFrame){cancelAnimationFrame(inputFrame);inputFrame=0;processPointer();}if(!gesture.dragged){restore();return;}const ids=rangeCandidates(gesture);restore();input.range(ids,false);}
   function cursorRange(event:Pick<KeyboardEvent,'ctrlKey'|'metaKey'|'shiftKey'|'altKey'|'target'>){
     const dimension=selectionDimension(event);
     if(!dimension){finishCursorRange();return;}
     if(creating||input.picking()||originPick||axisPicking||connectorDrag||alignment||drive.active||navigation.active||boundRotation.active||!pointerInside||!lastPoint||event.altKey||event.target instanceof Element&&event.target.closest('input,textarea,select,[contenteditable=true],[data-input-owner]'))return;
     if(gesture&&!gesture.passive)return;
-    if(!gesture){cancelDrive();const anchor=new T.Vector3(...(activeAxis()?axisCenter(world,activeAxis()!):xyz(controls.target.clone().divideScalar(scale)))).multiplyScalar(scale);gesture={pointer:-1,button:0,alt:false,start:{...lastPoint},end:{...lastPoint},anchor,project:pointerPlane(camera,canvas.getBoundingClientRect(),anchor),mode:'range',dragged:true,origins:[],passive:true};controls.enabled=false;}
+    if(!gesture){cancelDrive();const anchor=new T.Vector3(...(activeAxis()?axisCenter(world,activeAxis()!):xyz(controls.target.clone().divideScalar(scale)))).multiplyScalar(scale);gesture={pointer:-1,button:0,alt:false,start:{...lastPoint},end:{...lastPoint},anchor,project:pointerPlane(camera,canvas.getBoundingClientRect(),anchor),mode:'range',dragged:false,origins:[],passive:true};controls.enabled=false;}
     gesture.dimension=dimension;gesture.volume=undefined;if(dimension===3)configureRangeVolume(gesture);
     processPointer();
   }
