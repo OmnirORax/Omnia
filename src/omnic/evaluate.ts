@@ -1,4 +1,3 @@
-import {repetitionOffset} from './repetition.ts';
 import {readRegionShape} from '../properties/regionShape.ts';
 import {filledRegionShape,regionFrame,regionShapeInFrame,type LegacyRegionAttachment} from './fillRegion.ts';
 import {pathTrace,readPathRule} from './pathRule.ts';
@@ -39,10 +38,7 @@ export function evaluateRecipe(input:Recipe,resolve?:RecipeResolver,time=0):Eval
       const units=regionShapeInFrame(readRegionShape(String(p.shape)),{x:root.x,y:root.y,angle:num(p,'angle'),scale:num(p,'scale',1)});
       units.forEach((unit,i)=>{const node=point(`:region:${i}`,unit.x,unit.y,'dot',unit.radius);node.clip=unit.clip;node.fill=true;node.thickness=0;node.color=component.params.color===undefined?unit.color:root.color;node.opacity=root.opacity*unit.opacity;});
     }
-    if(component.generator==="dot"||component.generator==="ring"){
-      const radius=num(p,component.generator==="ring"?"radius":"size",6),count=num(p,"count",1),angle=num(p,"angle"),anchored=component.generator==="dot"&&recipe.atomnic?.active===true&&(recipe.atomnic?.mode??"constrained")==="constrained";
-      for(let i=0;i<count;i++){const offset=repetitionOffset(i,count,radius*2,angle,anchored);point(i===0?":shape":`:shape:${i}`,root.x+offset.x,root.y+offset.y,component.generator,radius);}
-    }
+    if(component.generator==="dot"||component.generator==="ring")point(":shape",root.x,root.y,component.generator,num(p,component.generator==="ring"?"radius":"size",6));
     if(component.generator==="path-rule"){
       if(!Number.isInteger(root.x)||!Number.isInteger(root.y))throw Error("Substrate-bound positions require whole units, including inherited offsets.");
       substrates.push({x:generation.origin.x+num(p,"left",-100),y:generation.origin.y+num(p,"top",-100),width:num(p,"right",100)-num(p,"left",-100),height:num(p,"bottom",100)-num(p,"top",-100)});
@@ -70,7 +66,7 @@ export function evaluateRecipe(input:Recipe,resolve?:RecipeResolver,time=0):Eval
     }
     if(component.generator==="line"){
       const a=rad(num(p,"angle")),half=num(p,"length",80)/2,dx=Math.cos(a)*half,dy=Math.sin(a)*half;
-      for(let i=0,count=num(p,"count",1);i<count;i++){const offset=repetitionOffset(i,count,half*2,num(p,"angle"),false),line=point(i===0?":shape":`:shape:${i}`,root.x+offset.x-dx,root.y+offset.y-dy,"line");line.x2=root.x+offset.x+dx;line.y2=root.y+offset.y+dy;}
+      const line=point(":shape",root.x-dx,root.y-dy,"line");line.x2=root.x+dx;line.y2=root.y+dy;
     }
     if(component.generator==="chain"||component.generator==="radial"){
       const count=num(p,"count",6),angle=rad(num(p,"angle"));

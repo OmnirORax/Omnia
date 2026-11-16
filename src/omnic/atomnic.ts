@@ -1,5 +1,3 @@
-import {repetitionOffset} from './repetition.ts';
-import {LIMITS} from './model.ts';
 import type {Evaluation} from './evaluate.ts';
 import { deleteComponents } from './componentTargets.ts';
 import type { Component, Params, Recipe } from './model.ts';
@@ -43,15 +41,11 @@ export function placementPoint(point:Point,settings:Params):Point {
 }
 export function legalAtoms(recipe:Recipe):boolean {
   const settings=atomnicSettings(recipe);if(!settings.active||settings.mode!=='constrained')return true;
-  const source=atoms(recipe),pitch=Number(settings.size)*2,total=source.reduce((n,a)=>n+Number(a.values['omnic.count']??1),0);
-  if(total>LIMITS.nodes)return false;
-  const maxRadius=Math.max(pitch/2,...source.map(a=>a.radius)),cellSize=Math.max(pitch,maxRadius*2),bins=new Map<string,Point[]>();
-  for(const atom of source){const count=Number(atom.values['omnic.count']??1),angle=Number(atom.values['omnic.angle']??0);if(!Number.isInteger(count)||count<1||count>64)return false;
-    for(let i=0;i<count;i++){const offset=repetitionOffset(i,count,atom.radius*2,angle,true),a={x:atom.x+offset.x,y:atom.y+offset.y,radius:atom.radius},slot=snapLattice(a,pitch);
-      if(Math.hypot(slot.x-a.x,slot.y-a.y)>.001)return false;
-      const x=Math.floor(a.x/cellSize),y=Math.floor(a.y/cellSize);for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++)for(const other of bins.get(`${x+dx},${y+dy}`)??[]){const b=other as Point&{radius:number};if(Math.hypot(a.x-b.x,a.y-b.y)<a.radius+b.radius-.001)return false;}
-      const key=`${x},${y}`,bucket=bins.get(key)??[];bucket.push(a);bins.set(key,bucket);
-    }
+  const list=atoms(recipe),pitch=Number(settings.size)*2;
+  for(let i=0;i<list.length;i++) {
+    const a=list[i],slot=snapLattice(a,pitch);
+    if(Math.hypot(slot.x-a.x,slot.y-a.y)>.001)return false;
+    for(let j=0;j<i;j++)if(Math.hypot(a.x-list[j].x,a.y-list[j].y)<a.radius+list[j].radius-.001)return false;
   }return true;
 }
 export function transformAtoms(recipe:Recipe,ids:ReadonlySet<string>,change:(atom:Atom)=>Point):Recipe {
