@@ -12,5 +12,5 @@ export function ObjectDegreeMenu({recipe,degrees,scope,onPreview,onCommit,onOpen
  return <RadialMenu navigationRef={navigationRef} onClose={onClose} items={[...objectDegreeMenu(degrees,degree=>({
   setter:<DegreeSetter recipe={recipe} degree={degree} onPreview={value=>onPreview(degree,value)} onCommit={value=>onCommit(degree,value)} onOpen={()=>onOpen(degree)}/>,
   content:<><UIAction registerOnly id={`${scope}:${degree.id}`} category="Omnic" label={degree.label} onClick={()=>onOpen(degree)} onConfigure={()=>onConfigure(degree)}/><FunctionControl id={`${scope}:${degree.id}`} mirror symbol={degree.symbol??'⊕'} symbolOpacity={degree.symbolOpacity} symbolFill={degree.symbolFill} tooltip={degree.label}/></>
- })),...(extra??[])]}/>;
+ })),...(extra??[]).map(node=>({...node,row:{id:'actions',axis:{x:0,y:1}}}))]}/>;
 }
