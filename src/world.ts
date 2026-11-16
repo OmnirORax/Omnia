@@ -61,7 +61,7 @@ import type { Document } from './graph/geometryTypes.ts';
 import { TEXT_DEFAULTS } from './properties/visual.ts';
 
 type Point = { x: number; y: number };
-type Input = { toggleAllContent:()=>void;hover:(origin?:Origin)=>readonly Origin[];cameraChanged:(state:CameraState)=>void; pick: (origin: Origin, extend: boolean, toggle: boolean) => void;
+type Input = { toggleAllContent:()=>void;committedSelection:()=>readonly Origin[];hover:(origin?:Origin)=>readonly Origin[];cameraChanged:(state:CameraState)=>void; pick: (origin: Origin, extend: boolean, toggle: boolean) => void;
   origin:(id:string,position:Vec3)=>void;
   nodeOrigin:(origin:Origin)=>void;
   selectionOrigin:(ids:readonly Origin[],position:Vec3)=>void;
@@ -175,14 +175,14 @@ export function createWorld(host: HTMLElement, input: Input) {
     pushDirty=false;camera.updateMatrixWorld();
     const width=canvas.clientWidth,height=canvas.clientHeight;if(!width||!height)return;
     const unit=(v:Visual)=>Math.max(.00001,-v.group.position.clone().applyMatrix4(camera.matrixWorldInverse).z)*2*Math.tan(T.MathUtils.degToRad(camera.fov/2))/height;
-    const bodies:ContourBody[]=[],units=new Map<string,number>(),fixed=new Set([...selectedKeys,...(world.axes??[]).flatMap(frame=>frame.ends.map(key))]);
+    const bodies:ContourBody[]=[],units=new Map<string,number>(),fixed=new Set([...input.committedSelection().map(key),...(world.axes??[]).flatMap(frame=>frame.ends.map(key))]);
     for(const [id,v]of visuals){if(!v.group.visible)continue;const p=v.group.position.clone().project(camera);if(p.z< -1||p.z>1)continue;
       const u=unit(v),points=v.contour.outline.visible?v.contour.points:contentEnvelope([{x:0,y:0}],scale*.5,32);
       bodies.push({id,fixed:fixed.has(id),passive:!v.contour.outline.visible,x:(p.x+1)*width/2,y:(1-p.y)*height/2,points:points.map(q=>({x:q.x/u,y:-q.y/u}))});units.set(id,u);
     }
     // Expansion is anchored to the selected node's canonical position. A
     // previous display offset or an unrelated hovered node cannot move its root.
-    const activeId=relocationPin??(selected.length?key(selected.at(-1)!):undefined),active=activeId?visuals.get(activeId):undefined,pinned=active?.group.visible?active.group.position.clone().project(camera):undefined;
+    const activeId=relocationPin??(input.committedSelection().length?key(input.committedSelection().at(-1)!):undefined),active=activeId?visuals.get(activeId):undefined,pinned=active?.group.visible?active.group.position.clone().project(camera):undefined;
     const pin=active&&pinned&&units.has(activeId!)?{id:activeId!,x:(pinned.x+1)*width/2,y:(1-pinned.y)*height/2}:undefined;
     const hasContent=bodies.some(b=>visuals.get(b.id)!.contour.outline.visible),positions=hasContent?pushContours(bodies,pin,0):new Map();
     const right=new T.Vector3(1,0,0).applyQuaternion(camera.quaternion),up=new T.Vector3(0,1,0).applyQuaternion(camera.quaternion);
@@ -255,6 +255,7 @@ export function createWorld(host: HTMLElement, input: Input) {
     for (const [id, visual] of visuals) if (visual.group.visible && !drive.owns(id)) { picks.push(visual.contour.hit.visible?visual.contour.hit:visual.slot); }
     for (const child of edges.children) if (child.userData.edge) picks.push(child);
   }
+  function hoverPresentation(){for(const [id,v]of visuals)v.ring.visible=!v.contour.outline.visible&&selectionMarked(id);request();}
   function presentation() {
     for (const [id,v] of visuals) {
       const chosen=selectedKeys.has(id),show=nodeContentVisible(retained,id,world.settings?.names,chosen,hover===id,relocating.has(id)||drive.owns(id));
@@ -267,7 +268,7 @@ export function createWorld(host: HTMLElement, input: Input) {
       if(v.object)v.object.position.y=glyphVisible&&textVisible?(v.text.scale.y+.3)/2:0;
       v.body.visible=!(textVisible||glyphVisible);v.ring.visible=chosen&&v.body.visible;v.contour.outline.material.color.set(v.actual.color);
     }
-    const signature=JSON.stringify([world.activeAxis,(world.axes??[]).map(frame=>frame.ends),selected.map(key),[...visuals].map(([id,v])=>[id,v.group.visible,v.group.position.toArray(),v.text.visible,!!v.object?.visible,v.caption,v.textKey,v.visualKey])]);
+    const signature=JSON.stringify([world.activeAxis,(world.axes??[]).map(frame=>frame.ends),input.committedSelection().map(key),[...visuals].map(([id,v])=>[id,v.group.visible,v.group.position.toArray(),v.text.visible,!!v.object?.visible,v.caption,v.textKey,v.visualKey])]);
     if(signature!==pushSignature){pushSignature=signature;pushDirty=true;}
     refreshContours();rebuildPicks();request();
   }
@@ -494,7 +495,7 @@ export function createWorld(host: HTMLElement, input: Input) {
     if(altPreview){finishPaint(true);altPreview=false;}
     if(creating&&!hitPoint&&!input.picking()){const signature=JSON.stringify([world.activeAxis,camera.quaternion.toArray(),pointerAlt,pointerShift]);if(!hoverPaint||hoverPaint.world!==world||hoverPaint.signature!==signature)hoverPaint={world,signature,...paintContext(p,!pointerAlt||pointerShift)};const position=hoverPaint.project(p);showGhost(hoverPaint.session.candidate(position));request();}else {ghost.visible=false;hoverCandidate=undefined;axisView.brushCoordinates(world,activeAxis(),[],scale,camera,coordinatesVisible);}
     if(!input.picking())aimNavigator(p);
-    const hit=pointed(p),next=hit.origin?key(hit.origin):undefined;if(!creating&&!input.picking()&&next!==hover){hover=next;selected=input.hover(hit.origin);selectedKeys=new Set(selected.map(key));presentation();}
+    const hit=pointed(p),next=hit.origin?key(hit.origin):undefined;if(!creating&&!input.picking()&&next!==hover){hover=next;selected=input.hover(hit.origin);selectedKeys=new Set(selected.map(key));hoverPresentation();}
   }
   window.addEventListener('keyup',event=>{if(event.key==='Alt'){pointerAlt=false;if(altPreview){finishPaint(true);altPreview=false;}request();}});
   canvas.addEventListener('pointerleave',()=>{pointerInside=false;if(!gesture){ghost.visible=false;hoverCandidate=undefined;axisView.setCoordinatesVisible(false);request();}});
@@ -542,7 +543,7 @@ export function createWorld(host: HTMLElement, input: Input) {
   canvas.addEventListener('contextmenu',event=>{event.preventDefault();event.stopPropagation();if(secondarySurface){const pending=secondarySurface;pending.context=true;const point=editPoint(event,pending.surface);if(point)pending.surface.context(point,event);if(pending.released)secondarySurface=undefined;}else secondary.context()?.();});
   canvas.addEventListener('pointercancel',()=>{creationRightPointer=undefined;boundRotation.cancel();navigation.finish(true);secondary.cancel();secondarySurface=undefined;cancelOmnic();restore();cancelDrive();});
   canvas.addEventListener('lostpointercapture',()=>{if(boundRotation.active)return;cancelOmnic();if(gesture?.mode!=='view')restore();});
-  canvas.addEventListener('pointerleave',()=>{if(gesture||drive.active||boundRotation.active)return;hover=undefined;selected=input.hover();selectedKeys=new Set(selected.map(key));presentation();});
+  canvas.addEventListener('pointerleave',()=>{if(gesture||drive.active||boundRotation.active)return;hover=undefined;selected=input.hover();selectedKeys=new Set(selected.map(key));hoverPresentation();});
   window.addEventListener('blur',()=>{secondary.cancel();secondarySurface=undefined;nudging.finish(true);navigation.finish(true);restoreNative();rebind();cancelOmnic();restore();cancelDrive();held.clear();});
   const cameraHistory:{position:T.Vector3;target:T.Vector3;up:T.Vector3;pov?:Origin;depth?:number;returnView?:{position:number[];target:number[];up:number[]}}[]=[];
   const remember=()=>{cameraHistory.push({position:camera.position.clone(),target:controls.target.clone(),up:camera.up.clone(),pov:pointOfView,depth:nodeViewDepth,returnView:userView?{position:userView.position,target:userView.target,up:userView.up}:undefined});if(cameraHistory.length>50)cameraHistory.shift();};

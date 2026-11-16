@@ -97,6 +97,7 @@ const view = (() => {
     return createWorld(element('world'), {
       toggleAllContent(){store.change(world=>{world.settings??={latticeScale:1,names:'selection'};world.settings.names=world.settings.names==='all'?'selection':'all';});},
       cameraChanged:state=>store.setCamera(state),
+      committedSelection:()=>selection.committed.filter(isNode),
       hover(origin){selection.hover(origin);return selectedOrigins();},
       pick, picking: () => selection.requesting,
       range(origins, extend) { if (!selection.requesting) { selection.set(extend ? [...selection.committed.filter(isNode), ...origins] : origins); refresh(); } },
@@ -146,25 +147,27 @@ function refresh() {
 store.subscribe(refresh);
 store.subscribeReplace(()=>view?.restoreCamera(store.world.camera));
 universalHistory.subscribe(()=>{requestFormSync();element<HTMLButtonElement>('undo').disabled=universalHistory.candidates('undo',globalHistoryOptions()).length===0;element<HTMLButtonElement>('redo').disabled=universalHistory.candidates('redo',globalHistoryOptions()).length===0;});
-function open(title: string) {
+function open(title: string,scopeSearch?:(query:string)=>void) {
   disposeTools?.();disposeTools=undefined;tools.replaceChildren(); tools.hidden = false;
   const row = document.createElement('div'); row.className = 'title';
   const caption = document.createElement('span'); caption.textContent = title;
   const back = document.createElement('button'); back.textContent = '×'; back.setAttribute('aria-label', 'Close'); back.onclick = close;
   row.append(caption, back); tools.append(row);windowDrag(tools,row,()=>{menuPoint={x:parseFloat(tools.style.left)||0,y:parseFloat(tools.style.top)||0};});
   const find = document.createElement('input'); find.type = 'search';find.value=viewHistory.state.menu?.query??''; find.placeholder = 'Search…'; find.setAttribute('aria-label', 'Search operations');
-  const globalResults=document.createElement('div');globalResults.className='settings-search-results';let renderGlobal:ReturnType<typeof searchRenderer>|undefined;
+  const globalResults=document.createElement('div');globalResults.className='settings-search-results';
   const filter = () => {
     const query = find.value.trim().toLocaleLowerCase();viewHistory.query(find.value);
+    if(scopeSearch){scopeSearch(find.value);positionMenu();return;}
     for (const item of Array.from(tools.children)) if (item instanceof HTMLButtonElement) item.hidden = item.dataset.searchOnly === 'true' && !query || !!query && !`${item.textContent} ${item.dataset.keywords ?? ''}`.toLocaleLowerCase().includes(query);
-    if(query){renderGlobal??=searchRenderer(globalResults);renderGlobal(query);}else globalResults.replaceChildren();
+    for(const form of tools.querySelectorAll('form'))for(const row of form.children)if(row instanceof HTMLElement)row.hidden=!!query&&!searchMatches(row.textContent??'',query);
+    globalResults.replaceChildren();
     positionMenu();
   };
   find.oninput = filter;
   find.onkeydown = event => { if (event.key === 'Enter') { const match = Array.from(tools.children).find(item => item instanceof HTMLButtonElement && !item.hidden) as HTMLButtonElement | undefined; if (match) { event.preventDefault(); match.click(); } } };
   tools.append(find,globalResults);
-  requestAnimationFrame(() => { if (!find.isConnected) return; if (tools.querySelector('form')) find.hidden = true; else { filter(); find.focus(); } });
-  positionMenu();
+  requestAnimationFrame(() => { if (!find.isConnected) return; filter(); find.focus(); });
+  positionMenu();return find;
 }
 function positionMenu() {
   requestAnimationFrame(() => {
@@ -391,11 +394,11 @@ function spaceActions():SearchAction[]{
  ];
 }
 const openShortcuts=defineMenu('shortcuts',()=>{
- view?.cancel();open('Shortcuts');let defaults:ShortcutDefinition[]=[],omnicDefaults:()=>ShortcutDefinition[]=()=>[],ready=false;
+ view?.cancel();let shortcutView:ReturnType<typeof shortcutWindow>|undefined;const find=open('Shortcuts',query=>shortcutView?.filter(query));let defaults:ShortcutDefinition[]=[],omnicDefaults:()=>ShortcutDefinition[]=()=>[],ready=false;
  const read=()=>{const native=worldShortcutActions(true).flatMap(action=>(action.defaultKey||action.key===''||action.id===worldShortcutId('R')||action.id===worldShortcutId('W')||action.id===worldShortcutId('O'))?[{category:'Omnium' as const,id:action.id,label:action.label,defaultKey:action.defaultKey,gesture:'gesture' in action?action.gesture:undefined}]:[]);
  const global:ShortcutDefinition[]=[['V','Content view'],['F11','Fullscreen'],['Esc','Cancel'],['.','Toggle actions'],['Ctrl+Z','Undo'],['Ctrl+Y','Redo'],['Ctrl+Shift+Z','Redo (alternate)'],['Enter','Apply alignment'],['ArrowUp','Navigator up'],['ArrowDown','Navigator down'],['ArrowLeft','Navigator left'],['ArrowRight','Navigator right']].map(([key,label])=>({category:'Omnium',id:worldShortcutId(key),defaultKey:key,label,scope:key==='F11'?'application':key.includes('Ctrl')||key==='.'?'applicationExceptDocument':undefined}));
  return [...new Map([...native,...global,...WORLD_GESTURES,...DOCUMENT_GESTURES,...defaults,...omnicDefaults()].map(item=>[`${item.category}/${item.id}`,item])).values()].sort((a,b)=>a.label.localeCompare(b.label));};
- const root=document.createElement('div');root.className='shortcut-window';tools.append(root);const window=shortcutWindow(root,read,()=>ready);disposeTools=window.dispose;
+ const root=document.createElement('div');root.className='shortcut-window';tools.append(root);const window=shortcutWindow(root,read,()=>ready,find);shortcutView=window;disposeTools=window.dispose;
  void Promise.all([import('./text/editor'),import('./composer/runtime/featureActions'),import('./composer/runtime/workspaceActions')]).then(([doc,features,workspace])=>{
  defaults=doc.documentShortcutCatalog();omnicDefaults=()=>features.FEATURE_ACTIONS.filter(action=>!action.id.startsWith('document.')&&!action.id.startsWith('world.')).flatMap(action=>{const key=normalizeShortcut(workspace.shortcutBinding(action.id,{})),current=normalizeShortcut(workspace.shortcutBinding(action.id,shortcuts.getSnapshot().Omnic??{}));return key||current?[{category:'Omnic' as const,id:action.id,label:action.label,defaultKey:key??'',currentKey:current??'',scope:action.scope}]:[];});ready=true;
  if(root.isConnected)window.refresh();}).catch(error=>feedback(String(error)));
@@ -444,9 +447,7 @@ function searchRenderer(results:HTMLElement){
  };
 }
 const searchSettings=defineMenu('search',()=>{
- open('Search');tools.querySelector('input[type=search]')?.remove();
- const input=document.createElement('input');input.type='search';input.placeholder='Search';input.setAttribute('aria-label','Search');const results=document.createElement('div');results.className='settings-search-results';tools.append(input,results);
- const render=searchRenderer(results);input.value=viewHistory.state.menu?.query??'';if(input.value)render(input.value);input.addEventListener('input',()=>{viewHistory.query(input.value);render(input.value);});input.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();results.querySelector<HTMLElement>('input,select,button:not(:disabled)')?.focus();}});positionMenu();input.focus();
+ const results=document.createElement('div');results.className='settings-search-results';const render=searchRenderer(results),input=open('Search',render);tools.append(results);if(input.value)render(input.value);input.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();results.querySelector<HTMLElement>('input,select,button:not(:disabled)')?.focus();}});positionMenu();input.focus();
 },true);
 let draftControl:HTMLButtonElement|undefined;
 let workspaceView: ReturnType<typeof workspacePanel> | undefined;
