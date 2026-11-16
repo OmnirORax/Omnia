@@ -1,3 +1,4 @@
+import {userPositionPlan} from './world/userPosition';
 import {createUserReference} from './world/userReference';
 import {createSharedReference,USER_REFERENCE} from './core/sharedReference';
 import {orientNodeContent} from './world/nodeOrientation';
@@ -560,6 +561,14 @@ export function createWorld(host: HTMLElement, input: Input) {
     camera.lookAt(controls.target);rebind();recordCamera(before);request();
   }
   function applyNodeView(origin:Origin,next:{position:Vec3;target:Vec3;up:Vec3},useOriginPlane=false){const before=pose();if(!pointOfView)userView=before;remember();pointOfView=origin;nodeViewDepth=useOriginPlane?0:new T.Vector3(...next.position).distanceTo(new T.Vector3(...next.target));camera.position.set(...next.position).multiplyScalar(scale);controls.target.set(...next.target).multiplyScalar(scale);camera.up.set(...next.up);camera.lookAt(controls.target);ghost.visible=false;axisView.setCoordinatesVisible(false);rebind();update(world,selected,filter,selectedEdges);recordCamera(before);canvas.focus();request();}
+  let userPosition:ReturnType<typeof userPositionPlan>|undefined,userDistanceDigits='';
+  function positionUser(distance?:number){
+    cancelDrive();boundRotation.cancel();navigation.finish(true);
+    if(distance===undefined){const center=new T.Vector3(...(selected.length?selectionCenter(world,selected):axisCenter(world,activeAxis()))).multiplyScalar(scale),bounds=new T.Box3();for(const id of selected.length?selected.map(key):[...visuals.keys()]){const visual=visuals.get(id);if(visual?.group.visible)bounds.expandByObject(visual.group);}if(bounds.isEmpty())bounds.setFromCenterAndSize(center,new T.Vector3(scale*2,scale*2,scale*2));userPosition=userPositionPlan(activeAxis(),center,new T.Vector3(...userReference.read().position),bounds,camera);userDistanceDigits='';}
+    const next=userPosition!(distance===undefined?undefined:distance*scale),value={position:next.position.toArray(),target:next.target.toArray(),up:next.up.toArray()};
+    if(userReference.detached)userReference.set(value);else{pointOfView=undefined;nodeViewDepth=undefined;userView=undefined;camera.position.copy(next.position);controls.target.copy(next.target);camera.up.copy(next.up);camera.lookAt(controls.target);rebind();}update(world,selected,filter,selectedEdges);request();
+  }
+  canvas.addEventListener('pointerdown',()=>{userPosition=undefined;},true);
   const boundRotation=createBoundRotation({scene,camera,canvas,host,read:()=>world,scale:()=>scale,hit:pointed,selected:()=>selected,reference:()=>activeAxis(),user:()=>userReference.read(),visual:id=>visuals.get(id),commit:input.rotateCommit,frameVisibility:(id,visible)=>axisView.referenceVisible(id,visible),enabled:value=>{controls.enabled=value&&!drive.active;},request,feedback:input.feedback});
   guardCameraPointer(canvas,active=>{controls.enabled=!active&&!navigation.active&&!drive.active;},()=>{navigation.finish(true);restoreNative();restore();cancelDrive();rebind();});
   const held=new Set<NudgeActionId>();let nudgeDepth=false;
@@ -596,6 +605,8 @@ export function createWorld(host: HTMLElement, input: Input) {
     toggleCoordinates(){coordinatesVisible=!coordinatesVisible;axisView.setCoordinatesVisible(coordinatesVisible);if(lastPoint)processPointer();request();},
     stamp(){if(hoverCandidate?.valid)input.paint(hoverCandidate.stamp,undefined,activeAxis()?.id);else input.feedback('Choose a free brush placement.');},
     mountHovered(){const origin=pointerInside&&lastPoint?pointed(lastPoint).origin:undefined;if(!origin)return false;const frame=activeAxis(),target=frame?axisCenter(world,frame):selected[0]&&locatePosition(selected[0]);if(!target){input.feedback('Select an origin first.');return true;}try{applyNodeView(origin,nodeOriginView(locatePosition(origin)!,target,xyz(camera.up)),true);}catch(error){input.feedback(error instanceof Error?error.message:String(error));}return true;},
+    positionUser(){positionUser();},
+    userPositionKey(key:string){if(!userPosition)return false;if(/^\d$/.test(key)){if(userDistanceDigits.length>=7)return true;userDistanceDigits+=key;const distance=Number(userDistanceDigits);if(distance>0)positionUser(distance);return true;}userPosition=undefined;return false;},
     mountTarget(){
       const hovered=pointerInside&&lastPoint?pointed(lastPoint).origin:undefined,userHit=pointerInside&&lastPoint&&boundRotation.userAt(lastPoint);
       cancelDrive();boundRotation.cancel();navigation.finish(true);

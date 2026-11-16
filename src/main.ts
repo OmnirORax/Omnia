@@ -212,7 +212,7 @@ function reference(mode: Binding['mode']) {
   message = 'Choose a component · Esc cancels'; refresh();
 }
 function assignOrigin(anchor:Origin|undefined,position:Vec3){const basis=view!.frameBasis(),axes=[...activeWorldAxes(view!.reference)];store.change(world=>{const frame=setSpatialOrigin(world,anchor,position,basis.right,basis.up);frame.activeAxes=axes;});}
-function focusSelection(){if(view?.mountHovered())return;const origins=selectedOrigins();if(view&&origins.length){view.focus(origins,true);}else view?.focusAxis();}
+function focusSelection(){view?.positionUser();}
 function relationFrame(origin?:Origin){
  const world=store.world,active=world.axes?.find(frame=>frame.id===world.activeAxis),anchor=origin??active?.ends[0];
  return active?.ends.length===2&&(!origin||active.ends.some(end=>sameOrigin(end,origin)))?active:[...(world.axes??[])].reverse().find(frame=>frame.ends.length===2&&anchor&&frame.ends.some(end=>sameOrigin(end,anchor)));
@@ -299,7 +299,7 @@ const context=defineMenu('context',(_position: Vec3,origin?:Origin,edge?:Edge)=>
     store.change(world => { for (const target of selectedNodes(world)) setInvariant(world, target, !node.invariant); }); close();
   });
   for (const [name, action] of [['Scene', openScene], ['World', worldControls]] as const) { const shortcut = button(`👁 ${name}`, action); shortcut.dataset.searchOnly = 'true'; }
-  button('Focus (F)', () => {focusSelection();close();});
+  button('Position User (P)', () => {focusSelection();close();});
   if(relationFrame(selectedOrigins()[0]))button('View from node',()=>{enterNodePerspective(selectedOrigins()[0]);close();});
 });
 const immersive=createImmersiveMode({
@@ -363,7 +363,7 @@ function spaceActions():SearchAction[]{
  {label:'Face node (Alt+Right click)',keywords:'world origin axes direction aim face align',run:aimOrigin,available:active},
  {label:'Brush (Shift+X)',keywords:'world paint cube sphere geometry recursive unit',run:openBrush},
  {label:'Coordinates (C)',keywords:'world cursor brush coordinates xy xyz readout labels',run:()=>view?.toggleCoordinates()},
- {label:'Mount hovered / focus (F)',keywords:'world camera node axis reference origin focus align',run:focusSelection,available:active||!!selectedOrigins().length},
+ {label:'Position User (P)',keywords:'world camera node axis reference origin focus align',run:focusSelection,available:true},
  {label:'View from first node',keywords:'world camera perspective occupy endpoint depth z',run:()=>{if(relation)enterNodePerspective(relation.ends[0]);},available:!!relation},
  {label:'View from second node',keywords:'world camera perspective occupy endpoint depth z',run:()=>{if(relation?.ends[1])enterNodePerspective(relation.ends[1]);},available:!!relation},
  {label:'Return to user view',keywords:'world camera perspective user leave node',run:()=>view?.leaveNode(),available:!!view?.inNodeView},
@@ -616,6 +616,7 @@ document.addEventListener('keydown', event => {
   const editing = event.target instanceof Element && (!!event.target.closest('[data-input-owner]') || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement);
   if (event.target instanceof Element && event.target.closest('[data-input-owner]')) return;
   if (editing || event.target instanceof HTMLElement && event.target.isContentEditable) return;
+  if(!event.ctrlKey&&!event.metaKey&&!event.altKey&&view?.userPositionKey(event.key)){event.preventDefault();return;}
   if(!event.ctrlKey&&!event.metaKey&&!event.altKey&&!event.shiftKey&&!event.repeat&&!selection.requesting){
     const action=worldShortcutActions().find(action=>action.key?.toLowerCase()===event.key.toLowerCase());
     if(action){event.preventDefault();attempt(action.run);return;}
