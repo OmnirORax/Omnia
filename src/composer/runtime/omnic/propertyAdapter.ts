@@ -1,10 +1,13 @@
-import { useLayoutEffect, useRef } from "react";
+import { useLayoutEffect, useMemo, useRef } from "react";
 import { PROPERTY_REGISTRY } from "../appearance/registry.ts";
 import { bindStateProperties, type PropertyValue, type StatePropertyAdapters } from "../properties/registry.ts";
 import type { PropertyBindings } from "../properties/CoupledProperties.tsx";
 import { installContextBindings } from "../properties/contextBindings.ts";
 import omnicFunction, { OMNIC_CONSUMER, type OmnicParameterState } from "./omnic.function.ts";
 import type { Parameter } from "./registry.ts";
+import {degreeParameterBinding,type DegreeEditValue} from './targetDegrees.ts';
+import type {EditableDegree} from '../properties/editableDegrees.ts';
+import type {Recipe} from './model.ts';
 export const OMNIC_PROPERTY_ADAPTERS: StatePropertyAdapters<OmnicParameterState> = {
   [OMNIC_CONSUMER]:{channels:Object.fromEntries(Object.entries(omnicFunction.inputs).map(([property,input])=>[property,{read:input.read!,write:input.write!}]))},
 };
@@ -37,3 +40,17 @@ export function useOmnicParameterBindings(params:Record<string,PropertyValue>, o
   useLayoutEffect(()=>()=>{session.current?.dispose();session.current=null;},[]);
   useLayoutEffect(()=>{if(!parameters.length){session.current?.dispose();session.current=null;}},[parameters.length]);
 }
+
+/** Single binding owner for preset and selected DOFs. Atomnic's paint settings
+ * remain an explicit fallback, sharing the same subscription and cleanup. */
+export function useOmnicDegreeBindings(recipe:Recipe,degree:EditableDegree|undefined,onChange:(value:DegreeEditValue,temporary?:boolean)=>void,fallback?:{
+ values:Record<string,PropertyValue>;parameters:readonly Parameter[];onChange:(params:Record<string,PropertyValue>,temporary?:boolean)=>void;
+}) {
+ const binding=useMemo(()=>degree?degreeParameterBinding(degree):undefined,[degree]);
+ const values=useMemo(()=>binding?.read(recipe),[binding,recipe]);
+ useOmnicParameterBindings(values??fallback?.values??EMPTY_PARAMS,(next,temporary)=>{
+  if(binding)onChange(binding.edit(next),temporary);else fallback?.onChange(next,temporary);
+ },binding?.parameters??fallback?.parameters??EMPTY_PARAMETERS);
+}
+const EMPTY_PARAMS:Record<string,PropertyValue>={};
+const EMPTY_PARAMETERS:readonly Parameter[]=[];

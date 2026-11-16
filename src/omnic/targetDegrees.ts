@@ -53,6 +53,19 @@ export function targetDegreeValue(recipe:Recipe,degree:EditableDegree):Value {
   const target=degree.targets[0],component=[...components(recipe.components),...recipe.operations].find(item=>item.id===target.id)!;
   return parameterValue(target.input as Parameter,component?.params??{});
 }
+/** Contextual editors lend parameter-keyed state to MC, then return either a
+ * scalar or a property-keyed vector to the existing target writer. Both preset
+ * and selected-object editing must use this adapter rather than copy the mapping. */
+export function degreeParameterBinding(degree:EditableDegree) {
+ const axes=degree.axes??[degree],parameters=axes.map(targetParameter);
+ return {
+  parameters,
+  read:(recipe:Recipe):Record<string,Value>=>Object.fromEntries(axes.map((axis,index)=>[parameters[index].key,targetDegreeValue(recipe,axis)])),
+  edit:(params:Readonly<Record<string,Value>>):DegreeEditValue=>degree.axes
+   ?Object.fromEntries(axes.map((axis,index)=>[axis.properties[0],Number(params[parameters[index].key])]))
+   :params[parameters[0].key],
+ };
+}
 export function writeTargetDegree(recipe:Recipe,degree:EditableDegree,value:DegreeEditValue):Recipe {
  const vector=typeof value==='object';
  if(degree.properties.length!==1&&(!degree.axes||!vector))throw Error('This freedom requires a vector value.');

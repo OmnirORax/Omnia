@@ -5,7 +5,7 @@ export type PointerBinding=ShortcutDefinition&{activation:true;context:string};
 const make=(id:string,label:string,combo:string,context='world',category:'Omnium'|'Document'='Omnium'):PointerBinding=>({id:`gesture:${id}`,label,defaultKey:combo,category,activation:true,context,gesture:label.includes('box')?'Drag':undefined,keywords:label.includes('box')?'multi selection multiselect multiple rectangle ctrl drag':'',scope:`pointer:${context}`});
 export const POINTER_BINDINGS=[
  make('multi-plane','Select / select box · plane','Ctrl+MB1'),make('multi-depth','Select box · depth','Ctrl+Shift+MB1'),
- make('connect','Connect nodes','Shift+MB1'),make('connect-secondary','Connect nodes · alternate','Shift+MB2'),make('move','Move / parent / reconnect / toggle axes','MB1'),make('menu','Context menu / navigate camera','MB2'),
+ make('connect','Connect nodes','Shift+MB1'),make('camera-rotate','Rotate camera','Shift+MB2'),make('move','Move / parent / reconnect / toggle axes','MB1'),make('menu','Context menu / navigate camera','MB2'),
  make('face-origin','Aim origin','Alt+MB2'),make('paint-confirm','Confirm paint preview','Alt+MB1'),
  make('rotate','Rotate / aim / confirm','MB3'),make('origin-rotation','Rotate origin','X+MB3'),
  make('create-place','Place / paint nodes','MB1','create'),make('create-secondary','Place node · alternate','MB2','create'),
@@ -13,7 +13,7 @@ export const POINTER_BINDINGS=[
  make('cursor','Add cursor / word / text selection','Alt+MB1','document','Document'),
 ];
 export function resolvePointerBinding(combo:string,context:string,read=(definition:ShortcutDefinition)=>shortcuts.get(definition)){
- const candidates=POINTER_BINDINGS.filter(item=>item.context===context||context==='create'&&item.context==='world'&&['gesture:multi-plane','gesture:multi-depth','gesture:paint-confirm','gesture:rotate','gesture:origin-rotation','gesture:zoom'].includes(item.id));
+ const candidates=POINTER_BINDINGS.filter(item=>item.context===context||context==='create'&&item.context==='world'&&['gesture:multi-plane','gesture:multi-depth','gesture:paint-confirm','gesture:camera-rotate','gesture:rotate','gesture:origin-rotation','gesture:zoom'].includes(item.id));
  const action=candidates.find(item=>read(item)===combo);return action?{id:action.id,combo:action.defaultKey}:undefined;
 }
 let activeAction:string|undefined;
@@ -40,6 +40,6 @@ export function installPointerBindings(context:()=>string){
  window.addEventListener('mousedown',event=>{if(capturingShortcut()||!(event.target instanceof Element)||!event.target.closest('.cm-content'))return;const combo=pointerCombo(event,[...held]);const binding=combo&&resolvePointerBinding(combo,'document');if(binding)apply(event,binding.combo);else apply(event,'MB1');},true);
 }
 
-export const PREVIEW_BINDING:ShortcutDefinition={id:'gesture:paint-preview',category:'Omnium',label:'Preview painting nodes',defaultKey:'Alt',activation:true,hold:true};
+export const PREVIEW_BINDING:ShortcutDefinition={id:'gesture:paint-preview',category:'Omnium',label:'Toggle painting nodes in creation mode',defaultKey:'Alt',activation:true,hold:false};
 const pressed=new Set<string>();
 export function previewActivation(event:Pick<KeyboardEvent,'ctrlKey'|'metaKey'|'altKey'|'shiftKey'>){return [event.ctrlKey||event.metaKey?'Ctrl':'',event.altKey?'Alt':'',event.shiftKey?'Shift':'',...pressed].filter(Boolean).join('+')===shortcuts.get(PREVIEW_BINDING);}
