@@ -1,4 +1,5 @@
 import {createSharedReference,USER_REFERENCE} from './core/sharedReference';
+import {orientNodeContent} from './world/nodeOrientation';
 import {createBoundRotation,type NodeRotationState} from './world/boundRotation';
 import {selectionCenter,groupTargets,alignmentTargets,validGroupTargets,insideSelectionBox} from './core/groupPlacement';
 import {createOccupancy} from './graph/occupancy.ts';
@@ -185,7 +186,7 @@ export function createWorld(host: HTMLElement, input: Input) {
     frame = requestAnimationFrame(now => {
       frame = 0;
 
-      for (const visual of visuals.values()) { visual.ring.quaternion.copy(visual.group.quaternion).invert().multiply(camera.quaternion);visual.presentation.quaternion.copy(visual.group.quaternion).invert().multiply(camera.quaternion); }
+      for (const visual of visuals.values()) { visual.ring.quaternion.copy(visual.group.quaternion).invert().multiply(camera.quaternion);orientNodeContent(visual.presentation.quaternion,camera.quaternion); }
       for (const child of edges.children) if (child instanceof T.Mesh && child.userData.isLabel && child.userData.ends) {
         const [a,b] = child.userData.ends as T.Vector3[], p = a.clone().project(camera), q = b.clone().project(camera);
         let angle = Math.atan2((q.x - p.x) * camera.aspect, q.y - p.y); const reversed = angle > Math.PI / 2 || angle < -Math.PI / 2;

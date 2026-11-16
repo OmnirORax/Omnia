@@ -39,3 +39,11 @@ for(const axis of [0,1,2])test(`one active ${'XYZ'[axis]} axis supports rotation
   h.down(4);h.move(76);h.down(99);assert.equal(h.commits[2].nodes.size,0);assert.deepEqual(h.commits[2].f.state.origin,[3,4,5]);assert.ok(new T.Vector3(...h.commits[2].f.state.x).distanceTo(new T.Vector3(...h.frame.x).applyQuaternion(expected))<1e-7);
  }finally{h.restore();}
 });
+
+test('rotation controls retain their click targets and halve/double without a numeric box',()=>{
+ const h=harness();try{h.down(1);const tools=h.host.children[0],buttons=[...tools.children];assert.deepEqual(buttons.map(b=>b.textContent),['Unit','Axis','/2','x2']);h.move(76);assert.deepEqual(tools.children,buttons);
+ buttons[2].onclick();const half=new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),Math.PI/4);assert.ok(h.visuals.get(address(h.a.origin)).group.quaternion.angleTo(half)<1e-7);
+ buttons[3].onclick();const full=new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),Math.PI/2);assert.ok(h.visuals.get(address(h.a.origin)).group.quaternion.angleTo(full)<1e-7);
+ buttons[0].onclick();assert.equal(buttons[0].dataset.active,'true');assert.equal(buttons[1].dataset.active,'false');assert.deepEqual(tools.children,buttons);
+ }finally{h.restore();}
+});
