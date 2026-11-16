@@ -407,7 +407,7 @@ export function createWorld(host: HTMLElement, input: Input) {
   function restore(){previewRange();axisStroke=undefined;ghost.visible=false;cancelConnector();if(stroke)finishPaint(true);if(gesture?.mode==='move')for(const visual of visuals.values())visual.group.position.copy(new T.Vector3(...vector(cellPoint(grid.cells.get(key(visual.node.origin))!,scale))));gesture=undefined;rectangle.hidden=true;controls.enabled=!drive.active;edges.visible=true;if(relocating.size){relocating.clear();presentation();}else request();}
   canvas.addEventListener('pointerdown',event=>{
     if(event.button!==0&&event.button!==2)return;nativeWheel=false;
-    if(boundRotation.down(event)){secondary.cancel();navigation.finish(true);finishAlignment();controls.enabled=!boundRotation.active&&!drive.active;return;}
+    if(boundRotation.active&&boundRotation.down(event)){secondary.cancel();navigation.finish(true);finishAlignment();controls.enabled=!boundRotation.active&&!drive.active;return;}
     if(event.button===2&&event.altKey&&!event.ctrlKey&&!event.metaKey&&!event.shiftKey){event.preventDefault();event.stopImmediatePropagation();finishAlignment();originPick=undefined;axisPicking=undefined;axisView.preview();secondary.cancel();navigation.finish(true);cancelDrive();ghost.visible=false;input.aimOrigin();return;}
 
     if(originPick&&event.button===0){lastPoint={x:event.clientX,y:event.clientY};processPointer();originPick.pointer=event.pointerId;event.preventDefault();event.stopImmediatePropagation();canvas.setPointerCapture(event.pointerId);return;}
@@ -420,7 +420,7 @@ export function createWorld(host: HTMLElement, input: Input) {
     nudging.finish(true);held.clear();secondary.cancel();secondarySurface=undefined;
     if(omnicGesture&&omnicGesture.id===event.pointerId){const point=editPoint(event,omnicGesture.surface);if(point)omnicGesture.surface.down(point,event);event.preventDefault();event.stopImmediatePropagation();return;}
     if(!creating&&omnic?.origin&&omnic.worldInput!==false&&!drive.active&&!input.picking()){const hit=pointed({x:event.clientX,y:event.clientY}),point=hit.origin&&sameOrigin(hit.origin,omnic.origin)?editPoint(event,omnic,true):undefined;if(point){omnicGesture={surface:omnic,id:event.pointerId,bounds:{...omnic.bounds}};if(event.button===2)secondarySurface={surface:omnic,released:false,context:false};controls.enabled=false;event.preventDefault();event.stopImmediatePropagation();canvas.setPointerCapture(event.pointerId);omnic.down(point,event);return;}}
-    const p={x:event.clientX,y:event.clientY},hit=pointed(p),range=event.button===0&&(event.ctrlKey||event.metaKey),moving=event.button===0&&!!hit.origin&&!range&&!drive.active&&!input.picking();
+    const p={x:event.clientX,y:event.clientY},hit=pointed(p),range=event.button===0&&(event.ctrlKey||event.metaKey),moving=false;
     let mode:Gesture['mode']=drive.active&&event.button===0?'drive':range?'range':moving?'move':'view';
     if(event.button===0&&creating&&!range&&!input.picking()){
       cancelDrive();mode='paint';const paint=nodePaint(world);
@@ -509,7 +509,7 @@ export function createWorld(host: HTMLElement, input: Input) {
       if(g.mode==='range'){cancelDrive();if(g.origin)input.pick(g.origin,true,true);return;}
       if(event.shiftKey&&!drive.active){if(g.origin)input.connect(g.origin);return;}
       if(drive.active){relocationPin=drive.id;const parked=drive.park(!!g.origin);if(!parked){input.feedback('Choose a free lattice cell to park. Esc cancels.');return;}mountedWorld=undefined;controls.enabled=true;navigatorOffset.set(0,0,0);rebuildPicks();input.feedback('');return;}
-      if(g.origin){mount(g.origin,g.end);}else{navigator.initialize(controls.target);navigator.position.copy(at(g.end,navigator.position));navigatorOffset.set(0,0,0);}
+      if(g.origin){input.pick(g.origin,false,false);input.subtree(g.origin,g.alt);}else{navigator.initialize(controls.target);navigator.position.copy(at(g.end,navigator.position));navigatorOffset.set(0,0,0);}
     }catch(error){gesture=g;restore();input.feedback(error instanceof Error?error.message:String(error));}
     finally{if(relocating.size||g.mode==='drive'){relocating.clear();presentation();}else request();}
   });
@@ -608,6 +608,8 @@ export function createWorld(host: HTMLElement, input: Input) {
     mountHovered(){const origin=pointerInside&&lastPoint?pointed(lastPoint).origin:undefined;if(!origin)return false;const frame=activeAxis(),target=frame?axisCenter(world,frame):selected[0]&&locatePosition(selected[0]);if(!target){input.feedback('Select an origin first.');return true;}try{applyNodeView(origin,nodeOriginView(locatePosition(origin)!,target,xyz(camera.up)),true);}catch(error){input.feedback(error instanceof Error?error.message:String(error));}return true;},
     positionUser(){positionUser();},
     userPositionKey(key:string){if(!userPosition)return false;if(/^\d$/.test(key)){if(userDistanceDigits.length>=7)return true;userDistanceDigits+=key;const distance=Number(userDistanceDigits);if(distance>0)positionUser(distance);return true;}userPosition=undefined;return false;},
+    rotateHovered(){if(!pointerInside||!lastPoint)return;boundRotation.down({button:2,clientX:lastPoint.x,clientY:lastPoint.y,preventDefault(){},stopImmediatePropagation(){}} as PointerEvent);},
+    moveHovered(){if(!pointerInside||!lastPoint)return;if(drive.active){const parked=drive.park();if(parked){mountedWorld=undefined;controls.enabled=true;navigatorOffset.set(0,0,0);rebuildPicks();request();}return;}const origin=pointed(lastPoint).origin;if(origin)mount(origin,lastPoint);},
     mountTarget(){
       const hovered=pointerInside&&lastPoint?pointed(lastPoint).origin:undefined,userHit=pointerInside&&lastPoint&&boundRotation.userAt(lastPoint);
       cancelDrive();boundRotation.cancel();navigation.finish(true);
