@@ -600,7 +600,7 @@ function worldShortcutActions(){return [
 installContextActions();
 registerContextActions({label:'Omnium',owns:element=>!!element.closest('#world,header'),read:()=>{
  const mode=view?.inputContext;
- if(mode==='align')return [{label:'Rotate alignment axis',key:'Drag'},{label:`Gap ${view?.alignmentGap??0} (0 = adjacent)`,key:'0–9'},{label:'Set gap',key:'Alt + right click'},{label:'Apply alignment',key:'Enter'},{label:'Cancel',key:'Esc'}];
+ if(mode==='align')return [{label:'Toggle alignment rotation',key:'R'},{label:'Rotate (after R)',key:'Drag'},{label:'Toggle axes',key:'Hold left + sweep'},{label:`Gap ${view?.alignmentGap??0} (0 = adjacent)`,key:'0–9'},{label:'Set gap',key:'Alt + right click'},{label:'Apply alignment',key:'Enter'},{label:'Cancel',key:'Esc'}];
  if(mode==='origin')return [{label:'Choose origin slot',key:'Click'},{label:'Cancel origin picker',key:'O / Esc'}];
  if(mode==='axis-first'||mode==='axis-second')return [{label:mode==='axis-first'?'Choose first axis node':'Choose second axis node',key:'Click'},{label:'Cancel axis picker',key:'Esc'}];
  if(mode==='create')return [{label:'Expand/collapse hierarchy',key:'Click'},{label:'Relocate',key:'Drag'},{label:'Connect',key:'Shift + drag'},{label:'Place nodes',key:'Alt + click'},{label:'Paint nodes',key:'Alt + drag'},{label:'Preview paint',key:'Hold Alt'},{label:'Exit creation',key:'N / Esc',run:()=>view?.toggleCreation()}];
