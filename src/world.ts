@@ -1,3 +1,5 @@
+import {worldConnections,type Edge} from './core/connections.ts';
+export type {Edge} from './core/connections.ts';
 import {worldBinding,matchesShortcut} from './ui/shortcuts';
 import {userPositionPlan} from './world/userPosition';
 import {createUserReference} from './world/userReference';
@@ -54,7 +56,6 @@ import { createSceneSession } from './scene/session.ts';
 import type { Document } from './graph/geometryTypes.ts';
 import { TEXT_DEFAULTS } from './properties/visual.ts';
 
-export type Edge = { kind: 'part'; owner: Origin; index: number } | { kind: 'relationship'; index: number } | { kind: 'variant'; owner: Origin };
 type Point = { x: number; y: number };
 type Input = { pick: (origin: Origin, extend: boolean, toggle: boolean) => void;
   origin:(id:string,position:Vec3)=>void;
@@ -290,9 +291,7 @@ export function createWorld(host: HTMLElement, input: Input) {
   }
   function connections() {
     clearEdges();
-    for (const owner of world.nodes) owner.parts.forEach((binding,index) => { for (const target of prepared.resolve(binding)) connection(owner,target, '', {kind:'part',owner:owner.origin,index}); });
-    for (const node of world.nodes) if (node.variantOf) { const base = world.nodes.find(candidate => sameOrigin(candidate.origin,node.variantOf!)); if (base) connection(base,node,'variant',{kind:'variant',owner:node.origin}); }
-    (world.relationships ?? []).forEach((relation,index) => { for (const a of prepared.resolve(relation.from)) for (const b of prepared.resolve(relation.to)) connection(a,b,relation.label || relation.kind,{kind:'relationship',index}); });
+    for(const edge of worldConnections(world,prepared))connection(edge.source,edge.target,edge.text,edge.edge);
   }
   function visibility(node: Structure) {
     if (pointOfView&&sameOrigin(node.origin,pointOfView))return false;

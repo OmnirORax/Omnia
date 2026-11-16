@@ -132,7 +132,7 @@ function refresh() {
   const atlas=visibleInAtlas(store.world);
   shown = query ? new Set(store.world.nodes.filter(node => node.label.toLocaleLowerCase().includes(query)).map(node => key(node.origin))) : atlas;
   if(atlas&&shown)shown=new Set([...shown].filter(id=>atlas.has(id)));
-  selection.set(selection.values.filter(target => isNode(target) ? !!locate(store.world, target) : target.kind === 'part' ? !!locate(store.world, target.owner)?.parts[target.index] : target.kind === 'variant' ? !!locate(store.world,target.owner)?.variantOf : !!store.world.relationships?.[target.index]));
+  selection.set(selection.values.filter(target => isNode(target) ? !!locate(store.world, target) : target.kind === 'part' ? !!locate(store.world, target.owner)?.parts[target.index] : target.kind === 'variant' ? !!locate(store.world,target.owner)?.variantOf : target.kind==='child'?!!locate(store.world,target.child)?.parent&&sameOrigin(locate(store.world,target.child)!.parent!,target.owner):!!store.world.relationships?.[target.index]));
   view?.update(store.world, selectedOrigins(), shown, selection.values.filter((target): target is Edge => !isNode(target)));
   element('empty').hidden = store.world.nodes.length > 0;
   element<HTMLButtonElement>('undo').disabled = universalHistory.candidates('undo',globalHistoryOptions()).length===0;
@@ -263,9 +263,10 @@ const chooseReference=defineMenu('include',()=>{
 });
 function remove() {
   store.change(world => {
-    for (const edge of selection.values.filter((value): value is Edge => !isNode(value)).sort((a,b) => (b.kind === 'variant' ? -1 : b.index) - (a.kind === 'variant' ? -1 : a.index))) {
+    for (const edge of selection.values.filter((value): value is Edge => !isNode(value)).sort((a,b) => ('index' in b?b.index:-1)-('index' in a?a.index:-1))) {
       if (edge.kind === 'relationship') world.relationships?.splice(edge.index,1);
       else if (edge.kind === 'variant') detachNode(world,edge.owner);
+      else if(edge.kind==='child')detachNode(world,edge.child);
       else locate(world,edge.owner)?.parts.splice(edge.index,1);
     }
     removeNodes(world, selectedOrigins());
