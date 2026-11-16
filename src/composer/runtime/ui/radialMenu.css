@@ -23,7 +23,6 @@
 .radial-menu-editor .radial-menu-inset:nth-child(3){left:40px;top:50%}
 .radial-menu-canvas>.atomnic-surface{width:100%;height:100%;max-height:none;border:0;border-radius:50%;background:transparent}
 .omnic-composer-radar{position:relative;width:100%;height:100%;min-width:0;min-height:0}
-.omnic-composer-radar .radial-menu-editor>.radial-menu-slot:has(>[data-ui-function="omnic:atomnic-mode"]){left:24px!important;top:calc(50% + 28px)!important;visibility:visible;opacity:1;pointer-events:auto}
 .omnic-radar-feedback{position:absolute;bottom:38px;left:50%;transform:translateX(-50%);max-width:65%;padding:2px 4px;border-radius:4px;font-size:11px;pointer-events:none;background:#050b10;color:#ffe0ab;z-index:3}
 
 .radial-menu-inset.radial-menu-primary{width:auto;display:flex;gap:2px}
