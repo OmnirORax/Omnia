@@ -604,10 +604,10 @@ registerContextActions({label:'Omnium',owns:element=>!!element.closest('#world,h
  if(mode==='align')return [{label:'Rotate alignment axis',key:'Right drag'},{label:'Toggle axes',key:'Hold left + sweep'},{label:`Gap ${view?.alignmentGap??0} (0 = adjacent)`,key:'0–9'},{label:'Face origin toward node',key:'Alt + right click',run:aimOrigin},{label:'Apply alignment',key:'Enter'},{label:'Cancel',key:'Esc'}];
  if(mode==='origin')return [{label:'Choose origin slot',key:'Click'},{label:'Cancel origin picker',key:'O / Esc'}];
  if(mode==='axis-first'||mode==='axis-second')return [{label:mode==='axis-first'?'Choose first axis node':'Choose second axis node',key:'Click'},{label:'Cancel axis picker',key:'Esc'}];
- if(mode==='create')return [{label:'Expand/collapse hierarchy',key:'Click'},{label:'Relocate',key:'Drag'},{label:'Connect',key:'Shift + drag'},{label:'Place nodes',key:'Alt + click'},{label:'Paint nodes',key:'Alt + drag'},{label:'Preview paint',key:'Hold Alt'},{label:'Exit creation',key:'N / Esc',run:()=>view?.toggleCreation()}];
+ if(mode==='create')return [{label:'Expand/collapse hierarchy',key:'Q'},{label:'Pick up / place',key:'Click'},{label:'Connect',key:'Shift + drag'},{label:'Place nodes',key:'Alt + click'},{label:'Paint nodes',key:'Alt + drag'},{label:'Preview paint',key:'Hold Alt'},{label:'Exit creation',key:'N / Esc',run:()=>view?.toggleCreation()}];
  return [
  ...worldShortcutActions(),
- {label:'Select in plane',key:'Ctrl + drag'},{label:'Select with depth',key:'Ctrl + Shift + drag'},{label:'Expand/collapse hierarchy',key:'Click'}, {label:'Relocate',key:'Drag'},{label:'Connect',key:'Shift + drag'},{label:'Preview paint',key:'Hold Alt'},{label:'Look / orbit',key:'Right drag'},{label:'Undo',key:'Ctrl+Z',run:()=>travelHistory('undo')},{label:'Redo',key:'Ctrl+Y',run:()=>travelHistory('redo')},
+ {label:'Expand/collapse next level',key:'Shift + Q'},{label:'Select in plane',key:'Ctrl + drag'},{label:'Select with depth',key:'Ctrl + Shift + drag'},{label:'Expand/collapse hierarchy',key:'Q'}, {label:'Pick up / place',key:'Click'},{label:'Connect',key:'Shift + drag'},{label:'Preview paint',key:'Hold Alt'},{label:'Look / orbit',key:'Right drag'},{label:'Undo',key:'Ctrl+Z',run:()=>travelHistory('undo')},{label:'Redo',key:'Ctrl+Y',run:()=>travelHistory('redo')},
  {label:'Cancel',key:'Esc'},{label:'Toggle actions',key:'.'}
 ];}});
 document.addEventListener('keydown', event => {
@@ -618,6 +618,7 @@ document.addEventListener('keydown', event => {
     const action=worldShortcutActions().find(action=>action.key?.toLowerCase()===event.key.toLowerCase());
     if(action){event.preventDefault();attempt(action.run);return;}
   }
+  if(event.key.toLowerCase()==='q'&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&!event.repeat&&!selection.requesting){event.preventDefault();attempt(()=>view?.toggleHierarchy(event.shiftKey));return;}
   if(event.key.toLowerCase()==='x'&&event.shiftKey&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&!event.repeat){event.preventDefault();openBrush();return;}
   if(event.key.toLowerCase()==='s'&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&!event.repeat){event.preventDefault();searchSettings();return;}
 
