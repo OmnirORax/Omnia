@@ -1,3 +1,4 @@
+import {cameraHistoryMatches} from './world/cameraHistory.ts';
 import {releaseRange} from './world/rangeSelection.ts';
 import {sameValue} from './core/equality.ts';
 import type {CameraState} from './core/cameraState.ts';
@@ -563,7 +564,7 @@ export function createWorld(host: HTMLElement, input: Input) {
   function rebind(){controls=rebindOrbitControls(camera,canvas,controls);controls.addEventListener('change',request);controls.addEventListener('start',nativeStart);controls.addEventListener('end',nativeEnd);}
   controls.addEventListener('start',nativeStart);controls.addEventListener('end',nativeEnd);
   canvas.addEventListener('wheel',()=>{nativeWheel=true;},{capture:true,passive:true});
-  universalHistory.register('world.camera',{read:pose,write:(value:Pose)=>{
+  universalHistory.register('world.camera',{read:pose,matches:cameraHistoryMatches,write:(value:Pose)=>{
     if(![value.position,value.target,value.up].every(v=>Array.isArray(v)&&v.length===3&&v.every(Number.isFinite)))throw Error('Invalid camera history.');
     navigation.finish(true);cancelDrive();nativeBefore=undefined;
     pointOfView=value.pov;nodeViewDepth=value.depth;userView=value.returnView;camera.position.fromArray(value.position);camera.up.fromArray(value.up);controls.target.fromArray(value.target);camera.lookAt(controls.target);rebind();update(world,selected,filter,selectedEdges);request();
@@ -594,10 +595,10 @@ export function createWorld(host: HTMLElement, input: Input) {
   function applyNodeView(origin:Origin,next:{position:Vec3;target:Vec3;up:Vec3},useOriginPlane=false){const before=pose();if(!pointOfView)userView=before;remember();pointOfView=origin;nodeViewDepth=useOriginPlane?0:new T.Vector3(...next.position).distanceTo(new T.Vector3(...next.target));camera.position.set(...next.position).multiplyScalar(scale);controls.target.set(...next.target).multiplyScalar(scale);camera.up.set(...next.up);camera.lookAt(controls.target);ghost.visible=false;axisView.setCoordinatesVisible(false);rebind();update(world,selected,filter,selectedEdges);recordCamera(before);canvas.focus();request();}
   let userPosition:ReturnType<typeof userPositionPlan>|undefined,userDistanceDigits='';
   function positionUser(distance?:number){
-    cancelDrive();boundRotation.cancel();navigation.finish(true);
+    cancelDrive();boundRotation.cancel();navigation.finish(true);const before=pose();
     if(distance===undefined){const center=new T.Vector3(...(selected.length?selectionCenter(world,selected):axisCenter(world,activeAxis()))).multiplyScalar(scale),bounds=new T.Box3();for(const id of selected.length?selected.map(key):[...visuals.keys()]){const visual=visuals.get(id);if(visual?.group.visible)bounds.expandByObject(visual.group);}if(bounds.isEmpty())bounds.setFromCenterAndSize(center,new T.Vector3(scale*2,scale*2,scale*2));userPosition=userPositionPlan(activeAxis(),center,new T.Vector3(...userReference.read().position),bounds,camera);userDistanceDigits='';}
     const next=userPosition!(distance===undefined?undefined:distance*scale),value={position:next.position.toArray(),target:next.target.toArray(),up:next.up.toArray()};
-    if(userReference.detached)userReference.set(value);else{pointOfView=undefined;nodeViewDepth=undefined;userView=undefined;camera.position.copy(next.position);controls.target.copy(next.target);camera.up.copy(next.up);camera.lookAt(controls.target);rebind();}update(world,selected,filter,selectedEdges);request();
+    if(userReference.detached)userReference.set(value);else{pointOfView=undefined;nodeViewDepth=undefined;userView=undefined;camera.position.copy(next.position);controls.target.copy(next.target);camera.up.copy(next.up);camera.lookAt(controls.target);rebind();}update(world,selected,filter,selectedEdges);recordCamera(before,'camera.position-user');request();
   }
   canvas.addEventListener('pointerdown',()=>{userPosition=undefined;},true);
   let wheelOrbitBefore:ReturnType<typeof pose>|undefined;
