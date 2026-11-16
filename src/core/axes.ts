@@ -136,3 +136,12 @@ export function operationSlot(world:World,frame:AxisFrame,p:Vec3):Vec3{
  if(!frame.directed&&!frame.origin)slots[0]+=norm(minus(locate(world,frame.ends[1]??frame.ends[0])!.position,axisAnchor(world,frame)))/2;
  return slots;
 }
+
+/** Aim the spatial frame without transforming its nodes or camera. */
+export function aimFrame(world:World,id:string,target:Origin){
+ const frame=world.axes?.find(frame=>frame.id===id),node=locate(world,target);if(!frame||!node)throw Error('Choose an origin and target node.');
+ const origin=axisCenter(world,frame),delta=minus(node.position,origin);if(norm(delta)<1e-7)throw Error('Choose a target away from the origin.');
+ const z=unit(delta),projected=minus(frame.y,times(z,dot(frame.y,z))),fallback=Math.abs(z[1])<.9?[0,1,0] as Vec3:[1,0,0] as Vec3;
+ const y=unit(norm(projected)>1e-7?projected:minus(fallback,times(z,dot(fallback,z)))),x=unit(cross(y,z));
+ frame.origin=[...origin];frame.x=x;frame.y=unit(cross(z,x));frame.z=z;frame.directed=true;
+}

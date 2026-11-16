@@ -1,6 +1,6 @@
 import {applyGroupTargets} from './core/groupPlacement';
 import {installContextActions,registerContextActions,refreshContextActions} from './ui/contextActions';
-import {activeWorldAxes,createAxis,toggleWorldAxis,shiftAxisOrigin,setAxisOrigin,slotNode,focusNodeFrame,endpointView} from './core/axes.ts';
+import {aimFrame,activeWorldAxes,createAxis,toggleWorldAxis,shiftAxisOrigin,setAxisOrigin,slotNode,focusNodeFrame,endpointView} from './core/axes.ts';
 import {parseBrush,brushShape,SINGLE_BRUSH,type Brush} from './core/brush.ts';
 import {handleContentViewShortcut} from './ui/contentViewShortcut.ts';
 import {ANIMATION_TARGETS,animationProperties} from './properties/animations.ts';
@@ -103,8 +103,9 @@ const view = (() => {
       park(origin, position) { message = ''; store.change(world => {const node=locate(world,origin)!;translate(world,[origin],position.map((v,i)=>v-node.position[i]) as Vec3);}); return store.world; },
       paint(positions,source,axis){store.change(world=>paintNodes(world,positions,source,axis));},
       selectionOrigin(ids,position){store.change(world=>{let frame=world.axes?.find(frame=>frame.id===world.activeAxis);if(!frame){const basis=view!.frameBasis();frame=focusNodeFrame(world,ids[0],basis.right,basis.up);}frame.origin=[...position];});},
-      nodeOrigin(origin){store.change(world=>{const frame=world.axes?.find(frame=>frame.id===world.activeAxis);if(frame&&frame.ends.length===2)frame.origin=[...locate(world,origin)!.position];else {const basis=view!.frameBasis();focusNodeFrame(world,origin,basis.right,basis.up,true);}});},
+      nodeOrigin(origin){store.change(world=>{const frame=world.axes?.find(frame=>frame.id===world.activeAxis);if(frame&&(frame.ends.length===2||frame.directed))frame.origin=[...locate(world,origin)!.position];else {const basis=view!.frameBasis();focusNodeFrame(world,origin,basis.right,basis.up,true);}});},
       origin(id,position){store.change(world=>setAxisOrigin(world,id,position));},
+      aimOrigin(){aimOrigin();},
       axis(first,second,up){store.change(world=>{createAxis(world,first,second,up);});selection.set([]);refresh();},
       slot(origins,axis,point){store.change(world=>slotNode(world,origins[0],axis,point,origins));},
       toggleWorldAxis(id,axis){store.change(world=>toggleWorldAxis(world,id,axis));},
@@ -218,7 +219,7 @@ function enterNodePerspective(origin:Origin){
  const relation=relationFrame(origin);if(!view||!relation)return;const basis=endpointView(store.world,relation,origin);
  store.change(world=>focusNodeFrame(world,origin,basis.right,basis.up,true));view.enterNode(origin,relation.id);
 }
-function startAxis(){close();selection.cancel();view?.startAxis();}
+function aimOrigin(){const id=store.world.activeAxis;if(!id){feedback('Set an origin with O first.');return;}requestNode(target=>store.change(world=>aimFrame(world,id,target)));}
 const openBrush=defineMenu('brush',()=>{
  open('Brush');let unit:Brush|undefined=store.world.brush?.unit;
  const form=document.createElement('form'),input=document.createElement('input'),count=document.createElement('output');input.type='text';input.setAttribute('aria-label','Brush geometry');input.placeholder='2×2×2 / sphere 2';
@@ -358,7 +359,7 @@ type SearchAction={label:string;keywords:string;run:()=>void;available?:boolean}
 function spaceActions():SearchAction[]{
  const relation=relationFrame(),frame=store.world.axes?.find(frame=>frame.id===store.world.activeAxis),active=!!frame;
  return [
- {label:'Axis (X)',keywords:'world axis frame coordinates origin snap units distance align',run:startAxis},
+ {label:'Face node (Alt+Right click)',keywords:'world origin axes direction aim face align',run:aimOrigin,available:active},
  {label:'Brush (Shift+X)',keywords:'world paint cube sphere geometry recursive unit',run:openBrush},
  {label:'Coordinates (C)',keywords:'world cursor brush coordinates xy xyz readout labels',run:()=>view?.toggleCoordinates()},
  {label:'Mount hovered / focus (F)',keywords:'world camera node axis reference origin focus align',run:focusSelection,available:active||!!selectedOrigins().length},
@@ -601,7 +602,7 @@ function worldShortcutActions(){return [
 installContextActions();
 registerContextActions({label:'Omnium',owns:element=>!!element.closest('#world,header'),read:()=>{
  const mode=view?.inputContext;
- if(mode==='align')return [{label:'Rotate alignment axis',key:'Right drag'},{label:'Toggle axes',key:'Hold left + sweep'},{label:`Gap ${view?.alignmentGap??0} (0 = adjacent)`,key:'0–9'},{label:'Set gap',key:'Alt + right click'},{label:'Apply alignment',key:'Enter'},{label:'Cancel',key:'Esc'}];
+ if(mode==='align')return [{label:'Rotate alignment axis',key:'Right drag'},{label:'Toggle axes',key:'Hold left + sweep'},{label:`Gap ${view?.alignmentGap??0} (0 = adjacent)`,key:'0–9'},{label:'Face origin toward node',key:'Alt + right click',run:aimOrigin},{label:'Apply alignment',key:'Enter'},{label:'Cancel',key:'Esc'}];
  if(mode==='origin')return [{label:'Choose origin slot',key:'Click'},{label:'Cancel origin picker',key:'O / Esc'}];
  if(mode==='axis-first'||mode==='axis-second')return [{label:mode==='axis-first'?'Choose first axis node':'Choose second axis node',key:'Click'},{label:'Cancel axis picker',key:'Esc'}];
  if(mode==='create')return [{label:'Expand/collapse hierarchy',key:'Click'},{label:'Relocate',key:'Drag'},{label:'Connect',key:'Shift + drag'},{label:'Place nodes',key:'Alt + click'},{label:'Paint nodes',key:'Alt + drag'},{label:'Preview paint',key:'Hold Alt'},{label:'Exit creation',key:'N / Esc',run:()=>view?.toggleCreation()}];

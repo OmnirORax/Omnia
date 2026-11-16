@@ -162,3 +162,8 @@ test('active world axes constrain painting, whole-unit relocation and origin-rel
  for(const axis of [0,1,2])toggleWorldAxis(world,frame.id,axis);close(createPaintSession(world,[0,0,0],basis,frame).candidate([3.2,7.7,5.8]).anchor,[3,8,6]);
  validateWorld(JSON.parse(JSON.stringify(world)));assert.throws(()=>shiftAxisOrigin(world,frame.id,[0,.5,0]),/whole/);
 });
+test('aiming the origin changes only its frame direction and preserves roll stability',async()=>{
+ const {aimFrame}=await import('../src/core/axes.ts');const w=emptyWorld(),a=addStructure(w,[2,3,4],1),b=addStructure(w,[2,8,4],2),frame=focusNodeFrame(w,a.origin,[1,0,0],[0,1,0]),before=structuredClone(w.nodes);
+ aimFrame(w,frame.id,b.origin);close(axisCenter(w,frame),a.position);close(frame.z,[0,1,0]);assert.deepEqual(w.nodes,before);validateWorld(w);
+ const saved=structuredClone(frame);assert.throws(()=>aimFrame(w,frame.id,a.origin),/away/);assert.deepEqual(frame,saved);validateWorld(JSON.parse(JSON.stringify(w)));
+});
