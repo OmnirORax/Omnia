@@ -592,6 +592,7 @@ window.addEventListener('keydown',event=>{
 function worldShortcutActions(){return [
  ...spaceActions().filter(action=>action.available!==false).map(action=>{const match=/^(.*?) \(([^)]+)\)$/.exec(action.label);return {label:match?.[1]??action.label,key:match?.[2],run:action.run};}),
  ...([{label:'Set origin',key:'O',run:()=>view?.pickOrigin()}]),
+ {label:'Toggle contents facing camera',key:'F',run:()=>view?.toggleContentsFacing()},
  {label:'Rotate hovered',key:'R',run:()=>view?.rotateHovered()},
  {label:'Move hovered',key:'W',run:()=>view?.moveHovered()},
  {label:'Mount hovered / dismount',key:'M',run:()=>view?.mountTarget()},

@@ -183,13 +183,14 @@ export function createWorld(host: HTMLElement, input: Input) {
     pushRevision++;relocationPin=undefined;
     connections();rebuildPicks();
   }
+  let contentsFaceCamera=false;
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
   function request() {
     if (frame) return;
     frame = requestAnimationFrame(now => {
       frame = 0;
 
-      for (const visual of visuals.values()) { visual.ring.quaternion.copy(visual.group.quaternion).invert().multiply(camera.quaternion);orientNodeContent(visual.presentation.quaternion,camera.quaternion); }
+      for (const visual of visuals.values()) { visual.ring.quaternion.copy(visual.group.quaternion).invert().multiply(camera.quaternion);orientNodeContent(visual.presentation.quaternion,camera.quaternion,visual.group.quaternion,contentsFaceCamera); }
       for (const child of edges.children) if (child instanceof T.Mesh && child.userData.isLabel && child.userData.ends) {
         const [a,b] = child.userData.ends as T.Vector3[], p = a.clone().project(camera), q = b.clone().project(camera);
         let angle = Math.atan2((q.x - p.x) * camera.aspect, q.y - p.y); const reversed = angle > Math.PI / 2 || angle < -Math.PI / 2;
@@ -606,6 +607,7 @@ export function createWorld(host: HTMLElement, input: Input) {
     toggleCoordinates(){coordinatesVisible=!coordinatesVisible;axisView.setCoordinatesVisible(coordinatesVisible);if(lastPoint)processPointer();request();},
     stamp(){if(hoverCandidate?.valid)input.paint(hoverCandidate.stamp,undefined,activeAxis()?.id);else input.feedback('Choose a free brush placement.');},
     mountHovered(){const origin=pointerInside&&lastPoint?pointed(lastPoint).origin:undefined;if(!origin)return false;const frame=activeAxis(),target=frame?axisCenter(world,frame):selected[0]&&locatePosition(selected[0]);if(!target){input.feedback('Select an origin first.');return true;}try{applyNodeView(origin,nodeOriginView(locatePosition(origin)!,target,xyz(camera.up)),true);}catch(error){input.feedback(error instanceof Error?error.message:String(error));}return true;},
+    toggleContentsFacing(){contentsFaceCamera=!contentsFaceCamera;request();},
     positionUser(){positionUser();},
     userPositionKey(key:string){if(!userPosition)return false;if(/^\d$/.test(key)){if(userDistanceDigits.length>=7)return true;userDistanceDigits+=key;const distance=Number(userDistanceDigits);if(distance>0)positionUser(distance);return true;}userPosition=undefined;return false;},
     rotateHovered(){if(!pointerInside||!lastPoint)return;boundRotation.down({button:2,clientX:lastPoint.x,clientY:lastPoint.y,preventDefault(){},stopImmediatePropagation(){}} as PointerEvent);},
