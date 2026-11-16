@@ -686,7 +686,7 @@ registerContextActions({label:'Omnium',owns:element=>!!element.closest('#world,h
  if(mode==='axis-first'||mode==='axis-second')return [{label:mode==='axis-first'?'Choose first axis node':'Choose second axis node',key:'Click'},{label:'Cancel axis picker',key:'Esc'}];
  if(mode==='create')return [{label:'Expand/collapse hierarchy',key:worldBinding('Q')},{label:'Pick up / place',key:'Click'},{label:'Rotate camera',key:'Shift + right drag'},{label:'Place nodes',key:'Click'},{label:'Paint nodes',key:'W, then Alt'},{label:'Toggle painting',key:'W, then Alt'},{label:'Exit creation',key:'W / Esc',run:()=>view?.toggleCreation()}];
  return [
- {label:`Selection ${selectionLatch.active?'on':'off'} · depth ${selectionLatch.depth?'on':'off'}`,key:'Tap Ctrl / Shift'},
+ {label:`Selection ${selectionLatch.depth?'depth':selectionLatch.control?'plane':selectionLatch.shift?'line':'off'}`,key:'Tap Ctrl / Shift'},
  ...worldShortcutActions(),
  {label:'Expand/collapse next level',key:worldBinding('Shift+Q')},{label:'Select in plane',key:'Ctrl + move'},{label:'Select along line',key:'Shift + move'},{label:'Select with depth',key:'Ctrl + Shift + move'},{label:'Expand/collapse hierarchy',key:worldBinding('Q')}, {label:'Pick up / place',key:'Click'},{label:'Rotate camera',key:'Shift + right drag'},{label:'Toggle painting',key:'W, then Alt'},{label:'Rotate node / orbit camera',key:'MB3, then move mouse'},{label:'Look / orbit empty space',key:'Right drag'},{label:'Undo',key:'Ctrl+Z',run:()=>travelHistory('undo')},{label:'Redo',key:'Ctrl+Y',run:()=>travelHistory('redo')},
  {label:'Cancel',key:'Esc'},{label:'Toggle actions',key:'.'}

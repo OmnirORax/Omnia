@@ -42,3 +42,15 @@ test('camera rotation activation is inherited by creation mode after rebinding',
   for(const context of ['world','create'])assert.deepEqual(resolvePointerBinding('Alt+MB2',context),{id:rotate.id,combo:'Shift+MB2'});
  }finally{shortcuts.initialize({getItem:()=>null,setItem(){}});}
 });
+
+test('history side buttons never become rotation activations',async()=>{const {pointerCombo}=await import('../src/ui/activationCombo.ts');for(const button of [3,4,5,-1])for(const ctrlKey of [true,false])assert.equal(pointerCombo({button,ctrlKey,metaKey:false,altKey:false,shiftKey:false}),undefined);});
+
+test('MB4 and MB5 reach history before world rotation, including compatibility mouse events',async()=>{
+ const {installHistoryBindings}=await import('../src/ui/historyBindings.ts');
+ const old={window:globalThis.window,Element:globalThis.Element},handlers=new Map();class Element{closest(selector){return selector==='#world,.cm-content'||selector==='#world'?this:null;}}
+ globalThis.Element=Element;globalThis.window={addEventListener:(name,fn)=>{const list=handlers.get(name)??[];list.push(fn);handlers.set(name,list);}};let undo=0,redo=0;
+ try{installPointerBindings(()=> 'world');installHistoryBindings({undo(){undo++;},redo(){redo++;},configure(){}});
+ const emit=(type,button)=>{const event={target:new Element(),pointerId:1,button,ctrlKey:false,metaKey:false,altKey:false,shiftKey:false,preventDefault(){this.defaultPrevented=true;},stopImmediatePropagation(){this.stopped=true;}};for(const fn of handlers.get(type)??[]){fn(event);if(event.stopped)break;}assert.equal(event.button,button);};
+ for(const button of [3,4]){emit('pointerdown',button);emit('mousedown',button);emit('pointerup',button);emit('mouseup',button);}assert.equal(undo,1);assert.equal(redo,1);
+ }finally{Object.assign(globalThis,old);}
+});
