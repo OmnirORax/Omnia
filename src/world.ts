@@ -596,6 +596,19 @@ export function createWorld(host: HTMLElement, input: Input) {
     toggleCoordinates(){coordinatesVisible=!coordinatesVisible;axisView.setCoordinatesVisible(coordinatesVisible);if(lastPoint)processPointer();request();},
     stamp(){if(hoverCandidate?.valid)input.paint(hoverCandidate.stamp,undefined,activeAxis()?.id);else input.feedback('Choose a free brush placement.');},
     mountHovered(){const origin=pointerInside&&lastPoint?pointed(lastPoint).origin:undefined;if(!origin)return false;const frame=activeAxis(),target=frame?axisCenter(world,frame):selected[0]&&locatePosition(selected[0]);if(!target){input.feedback('Select an origin first.');return true;}try{applyNodeView(origin,nodeOriginView(locatePosition(origin)!,target,xyz(camera.up)),true);}catch(error){input.feedback(error instanceof Error?error.message:String(error));}return true;},
+    mountTarget(){
+      const hovered=pointerInside&&lastPoint?pointed(lastPoint).origin:undefined,userHit=pointerInside&&lastPoint&&boundRotation.userAt(lastPoint);
+      cancelDrive();boundRotation.cancel();navigation.finish(true);
+      if(hovered&&(!pointOfView||!sameOrigin(hovered,pointOfView))){
+        userReference.dismount();const position=locatePosition(hovered)!,origin=axisCenter(world,activeAxis());let next;
+        if(new T.Vector3(...position).distanceTo(new T.Vector3(...origin))<1e-7){const forward=camera.getWorldDirection(new T.Vector3());next={position:[...position] as Vec3,target:xyz(new T.Vector3(...position).add(forward)),up:xyz(camera.up)};}else next=nodeOriginView(position,origin,xyz(camera.up));
+        applyNodeView(hovered,next,true);return;
+      }
+      const before=pose();
+      if(userHit){const next=userReference.mount()??userReference.read();pointOfView=undefined;nodeViewDepth=undefined;userView=undefined;camera.position.fromArray(next.position);controls.target.fromArray(next.target);camera.up.fromArray(next.up);camera.lookAt(controls.target);}
+      else {userReference.dismount();pointOfView=undefined;nodeViewDepth=undefined;userView=undefined;}
+      rebind();update(world,selected,filter,selectedEdges);recordCamera(before);canvas.focus();request();
+    },
     get userDetached(){return userReference.detached;},
     toggleUser(){cancelDrive();boundRotation.cancel();navigation.finish(true);const before=pose();if(!userReference.detached){userReference.dismount();}else{const next=userReference.mount()!;pointOfView=undefined;nodeViewDepth=undefined;userView=undefined;camera.position.fromArray(next.position);camera.up.fromArray(next.up);controls.target.fromArray(next.target);camera.lookAt(controls.target);}rebind();update(world,selected,filter,selectedEdges);recordCamera(before);canvas.focus();request();},
     get inNodeView(){return !!pointOfView;},
