@@ -325,6 +325,18 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
           prepareSelection();return;
         }
       }
+      if(event.button===0&&tool==='select'&&!extraPanel&&!menu){
+        const element=event.target instanceof Element?event.target:null;
+        const owner=role?selectionOwners.get(role):element?.tagName==='CANVAS'?selectionOwners.get(pickStructuralNode(evaluation?.nodes??[],point)?.id??''):undefined;
+        if(owner&&componentIndex(recipeRef.current).get(owner)?.component.generator!=='path-rule'){
+          const base=referencePicker?.snapshot?.recipe??recipeRef.current,ids=selectedRef.current.has(owner)?[...selectedRef.current]:[owner],degree=targetPlacementDegree(base,ids);
+          if(degree?.axes?.length===2){localSurface.current?.focus({preventScroll:true});activateTarget?.();dofHover?.cancel();cancelPreview?.();positionPreview.current={base,degree,ids,next:base,boundary:{...bounds},fields:positionFields(base,degree),pending:false,source:referencePicker};
+            dofHover?.enter(positionHoverOwner.current,{capturePress:false,start:()=>{},move:()=>{},commit:()=>{stopPositionRef.current(true);},cancel:()=>{stopPositionRef.current();}},event.clientX,event.clientY);
+            if(referencePicker?.chooseReference(degree,'@environment'))positionPreview.current.pending=true;
+            return;
+          }
+        }
+      }
       if(event.button===0&&(!target||!compatible)){
         const ids=onPickGeometry?.(point,role,true);
         if(Array.isArray(ids)&&ids.length){prepareSelection();return;}
@@ -372,13 +384,6 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
         const owner=role?selectionOwners.get(role):element?.tagName==='CANVAS'?selectionOwners.get(pickStructuralNode(evaluation?.nodes??[],point)?.id??''):undefined;
         if(!positionPreview.current){
           if(owner!==hoverTarget.current){hoverTarget.current=owner;setHovered(owner?[owner]:[]);}
-          if(owner&&!hoverSuppressed.current&&componentIndex(recipeRef.current).get(owner)?.component.generator!=='path-rule'){
-            const base=referencePicker?.snapshot?.recipe??recipeRef.current,ids=selectedRef.current.has(owner)?[...selectedRef.current]:[owner],degree=targetPlacementDegree(base,ids);
-            if(degree?.axes?.length===2){localSurface.current?.focus({preventScroll:true});activateTarget?.();dofHover?.cancel();cancelPreview?.();positionPreview.current={base,degree,ids,next:base,boundary:{...bounds},fields:positionFields(base,degree),pending:false,source:referencePicker};
-              dofHover?.enter(positionHoverOwner.current,{capturePress:false,start:()=>{},move:()=>{},commit:()=>{stopPositionRef.current(true);},cancel:()=>{stopPositionRef.current();}},event.clientX,event.clientY);
-              if(referencePicker?.chooseReference(degree,'@environment'))positionPreview.current.pending=true;
-            }
-          }
         }
         const activePosition=positionPreview.current;
         if(activePosition){
