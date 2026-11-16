@@ -17,6 +17,7 @@ export const WORLD_GESTURES:ShortcutDefinition[]=[
  ['menu','Open context menu','Right click','menu'],
  ['view','Navigate camera','Right drag','view look orbit'],
  ['zoom','Zoom camera','Wheel','view'],
+ ['origin-rotation','Rotate origin','Hold X + MB3','frame origin axis rotation'],
  ['rotate','Rotate / orbit','MB3 + scroll','rotation middle mouse'],
  ['aim','Aim rotation target','MB3 on node','rotation face middle mouse'],
  ['rotation-confirm','Confirm rotation','MB3 on empty space','rotation middle mouse'],

@@ -24,3 +24,5 @@ export function installContextActions(){
 
 const shortcutArchive=new Map<string,{label:string;key:string}[]>();
 export function assignedShortcuts(){for(const source of sources.values())shortcutArchive.set(source.label,source.read().filter(action=>action.key).map(action=>({label:action.label,key:action.key!})));return [...shortcutArchive].flatMap(([context,actions])=>actions.map(action=>({context,...action})));}
+
+export function shortcutContextFor(element:Element){return [...sources.values()].reverse().find(source=>source.owns(element))?.label;}

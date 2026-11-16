@@ -1,4 +1,5 @@
 import * as T from 'three';
+import {ORIGIN_RADIUS,originSegment,createOriginSphere} from './originMarker.ts';
 import {activeWorldAxes,axisCenter,axisCoordinates,axisAnchor,norm,minus,dot,type AxisFrame} from '../core/axes.ts';
 import {locate,type World,type Vec3} from '../core/model.ts';
 import {label,disposeLabel} from './labels.ts';
@@ -8,9 +9,9 @@ export function createAxisView(scene:T.Scene,host:HTMLElement){
  const readout=document.createElement('canvas');readout.className='axis-coordinate-canvas';readout.setAttribute('aria-hidden','true');host.append(readout);const context=readout.getContext('2d')!;
  let coordinatesVisible=true;
  const preview=new T.Line(new T.BufferGeometry().setFromPoints([new T.Vector3(),new T.Vector3()]),new T.LineBasicMaterial({color:'#ffffff',depthTest:false}));preview.visible=false;preview.frustumCulled=false;scene.add(preview);
- let previous='';const picks:T.Line[]=[];
+ let previous='';const picks:T.Object3D[]=[];
  function clear(){for(const child of [...group.children]){group.remove(child);if(child.userData.isLabel)disposeLabel(child as ReturnType<typeof label>);else {const line=child as T.Line;line.geometry.dispose();(line.material as T.Material).dispose();}}picks.length=0;}
- function updateUser(world:World,scale:number){const frame=world.axes?.find(f=>f.id==='@user');if(!frame)return;const center=new T.Vector3(...axisCenter(world,frame)).multiplyScalar(scale),basis=[frame.x,frame.y,frame.z];for(const child of group.children){if(child.userData.axis!==frame.id)continue;const index=child.userData.axisIndex;if(index===undefined){child.position.copy(center).addScaledVector(new T.Vector3(...frame.y),.3*scale);continue;}const direction=new T.Vector3(...basis[index]);if(child.userData.isLabel)child.position.copy(center).addScaledVector(direction,4*scale);else{const line=child as T.Line,positions=line.geometry.getAttribute('position') as T.BufferAttribute;positions.setXYZ(0,...center.clone().addScaledVector(direction,-4*scale).toArray() as Vec3);positions.setXYZ(1,...center.clone().addScaledVector(direction,4*scale).toArray() as Vec3);positions.needsUpdate=true;line.geometry.computeBoundingSphere();}}}
+ function updateUser(world:World,scale:number){const frame=world.axes?.find(f=>f.id==='@user');if(!frame)return;const center=new T.Vector3(...axisCenter(world,frame)).multiplyScalar(scale),basis=[frame.x,frame.y,frame.z];for(const child of group.children){if(child.userData.axis!==frame.id)continue;const index=child.userData.axisIndex;if(index===undefined){child.position.copy(center);if(!child.userData.originMarker)child.position.addScaledVector(new T.Vector3(...frame.y),(ORIGIN_RADIUS+.1)*scale);continue;}const direction=new T.Vector3(...basis[index]);if(child.userData.isLabel)child.position.copy(center).addScaledVector(direction,ORIGIN_RADIUS*scale);else{const line=child as T.Line,positions=line.geometry.getAttribute('position') as T.BufferAttribute;const segment=originSegment(center,direction,scale);positions.setXYZ(0,...segment[0].toArray() as Vec3);positions.setXYZ(1,...segment[1].toArray() as Vec3);positions.needsUpdate=true;line.geometry.computeBoundingSphere();}}}
  return {picks,
   referenceVisible(id:string,visible:boolean){for(const child of group.children)if(child.userData.axis===id)child.visible=visible;},
   setCoordinatesVisible(visible:boolean){coordinatesVisible=visible;readout.hidden=!visible;if(!visible)hint.hidden=true;},
@@ -24,14 +25,15 @@ export function createAxisView(scene:T.Scene,host:HTMLElement){
   orient(camera:T.Camera){for(const child of group.children)if(child.userData.isLabel)child.quaternion.copy(camera.quaternion);},
   update(world:World,scale:number){
    const signature=JSON.stringify([(world.axes??[]).map(f=>f.id==='@user'?{id:f.id,activeAxes:f.activeAxes}:f),world.activeAxis,scale,(world.axes??[]).map(frame=>frame.ends.map(end=>locate(world,end)?.position))]);if(signature===previous){updateUser(world,scale);return;}previous=signature;clear();
-   for(const frame of world.axes??[]){const center=new T.Vector3(...axisCenter(world,frame)).multiplyScalar(scale),active=frame.id===world.activeAxis,length=norm(minus((frame.ends[0]?locate(world,(frame.ends[1]??frame.ends[0]))!.position:axisCenter(world,frame)),axisAnchor(world,frame))),extent=Math.max(4,length/2+2)*scale;
+   for(const frame of world.axes??[]){const center=new T.Vector3(...axisCenter(world,frame)).multiplyScalar(scale),active=frame.id===world.activeAxis,length=norm(minus((frame.ends[0]?locate(world,(frame.ends[1]??frame.ends[0]))!.position:axisCenter(world,frame)),axisAnchor(world,frame))),extent=ORIGIN_RADIUS*scale;
+    const marker=createOriginSphere(scale,active);marker.position.copy(center);marker.scale.setScalar(scale);marker.userData.axis=frame.id;marker.userData.originMarker=true;group.add(marker);picks.push(marker);
     for(const [index,basis]of [frame.x,frame.y,frame.z].entries()){
      if(!active&&index)continue;
-     const selected=active&&activeWorldAxes(frame).includes(index);const direction=new T.Vector3(...basis),line=new T.Line(new T.BufferGeometry().setFromPoints([center.clone().addScaledVector(direction,-extent),center.clone().addScaledVector(direction,extent)]),new T.LineBasicMaterial({color:active?['#ff5566','#66ee99','#66aaff'][index]:'#888888',transparent:true,opacity:selected?1:active?.22:.15,depthWrite:false}));
+     const selected=active&&activeWorldAxes(frame).includes(index);const direction=new T.Vector3(...basis),line=new T.Line(new T.BufferGeometry().setFromPoints(originSegment(center,direction,scale)),new T.LineBasicMaterial({color:active?['#ff5566','#66ee99','#66aaff'][index]:'#888888',transparent:true,opacity:selected?1:active?.22:.15,depthWrite:false}));
      line.userData.axis=frame.id;line.userData.axisIndex=index;line.userData.glowIntensity=selected?1:0;group.add(line);picks.push(line);
-     if(active){const caption=label(['X','Y','Z'][index]);caption.scale.multiplyScalar(.5*scale);caption.position.copy(center).addScaledVector(direction,extent);caption.material.opacity=selected?1:.3;caption.userData.axis=frame.id;caption.userData.axisIndex=index;group.add(caption);picks.push(caption as unknown as T.Line);}
+     if(active){const caption=label(['X','Y','Z'][index]);caption.scale.multiplyScalar(.12*scale);caption.position.copy(center).addScaledVector(direction,extent);caption.material.opacity=selected?1:.3;caption.userData.axis=frame.id;caption.userData.axisIndex=index;group.add(caption);picks.push(caption);}
     }
-    const caption=label(frame.ends.length<=1?'0':`${Math.round(length)} u`);caption.userData.axis=frame.id;caption.scale.multiplyScalar(.5*scale);caption.position.copy(center).addScaledVector(new T.Vector3(...frame.y),.3*scale);group.add(caption);picks.push(caption as unknown as T.Line);
+    const caption=label(frame.ends.length<=1?'0':`${Math.round(length)} u`);caption.userData.axis=frame.id;caption.scale.multiplyScalar(.12*scale);caption.position.copy(center).addScaledVector(new T.Vector3(...frame.y),(ORIGIN_RADIUS+.1)*scale);group.add(caption);picks.push(caption);
    }
   },
   coordinates(world:World,frame:AxisFrame|undefined,p:Vec3|undefined,screen:{x:number;y:number}|undefined){
