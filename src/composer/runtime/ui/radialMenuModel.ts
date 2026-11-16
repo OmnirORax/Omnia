@@ -1,4 +1,4 @@
-export type RadialGroup={id:string;label:string;symbol:string;symbolMask?:string;hidden?:boolean;flatten?:boolean};
+export type RadialGroup={id:string;label:string;symbol:string;symbolMask?:string;hidden?:boolean;flatten?:boolean;axis?:{x:number;y:number}};
 export type RadialEntry<T>={id:string;label:string;symbol:string;group?:readonly RadialGroup[];content:T;setter?:T};
 export type RadialNode<T>=RadialGroup & {children?:RadialNode<T>[];content?:T;setter?:T};
 /** Shared presentation grouping; commands/values remain with their existing owner. */
@@ -25,7 +25,7 @@ export function radialLayout<T>(nodes:readonly RadialNode<T>[],depth=0){
   const setterHeight=nodes.some(node=>node.setter)?radialDimensions(depth,nodes.length).size+RADIAL_GEOMETRY.setterGap:0;
   const dimensions=radialDimensions(depth,nodes.length,setterHeight);
   return {...dimensions,slots:nodes.map((_,index)=>{
-    const slot=radialSlot(index,nodes.length,depth,setterHeight),angle=index/nodes.length*Math.PI*2;
+    const base=radialSlot(index,nodes.length,depth,setterHeight),axis=nodes[index].axis,length=axis?Math.hypot(axis.x,axis.y)||1:1,angle=axis?Math.atan2(axis.x,-axis.y):index/nodes.length*Math.PI*2,slot=axis?{...base,x:50+axis.x/length*dimensions.radius/dimensions.extent*100,y:50+axis.y/length*dimensions.radius/dimensions.extent*100}:base;
     return {...slot,setterX:slot.size/2+Math.sin(angle)*(slot.size+RADIAL_GEOMETRY.setterGap),setterY:slot.size/2-Math.cos(angle)*(slot.size+RADIAL_GEOMETRY.setterGap),setterAngle:index/nodes.length*360-90};
   })};
 }
