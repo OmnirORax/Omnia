@@ -633,7 +633,7 @@ function worldShortcutActions(includeUnavailable=false){return [
 installContextActions();
 registerContextActions({label:'Omnium',owns:element=>!!element.closest('#world,header'),read:()=>{
  const mode=view?.inputContext;
- if(mode==='rotate')return [{label:'Confirm rotation',key:'Left click'},{label:'Rotate preview',key:'Scroll'},{label:'Snap value',key:'0–9'},{label:'Cancel',key:'Esc'}];
+ if(mode==='rotate')return [{label:'Confirm rotation',key:'MB3'},{label:'Rotate preview',key:'Scroll'},{label:'Snap value',key:'0–9'},{label:'Cancel',key:'Esc'}];
  if(mode==='align')return [{label:'Rotate alignment axis',key:'Right drag'},{label:'Toggle axes',key:'Hold left + sweep'},{label:`Gap ${view?.alignmentGap??0} (0 = adjacent)`,key:'0–9'},{label:'Face origin toward node',key:'Alt + right click',run:aimOrigin},{label:'Apply alignment',key:'Enter'},{label:'Cancel',key:'Esc'}];
  if(mode==='origin')return [{label:'Choose origin slot',key:'Click'},{label:'Cancel origin picker',key:'O / Esc'}];
  if(mode==='axis-first'||mode==='axis-second')return [{label:mode==='axis-first'?'Choose first axis node':'Choose second axis node',key:'Click'},{label:'Cancel axis picker',key:'Esc'}];
