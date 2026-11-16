@@ -148,7 +148,7 @@ export function createWorld(host: HTMLElement, input: Input) {
   const effectNodes:TextScene['nodes']=new Map(),effectConnectors:TextScene['connectors']=[];
   const effectSource:TextScene={nodes:effectNodes,connectors:effectConnectors,animateSelection(camera,seconds,animate){
     const pulse=animate?(Math.sin(seconds*Math.PI*1.5)+1)/2:.5;
-    for(const [id,item] of effectNodes)if(item.outline.visible){if(item.outline===visuals.get(id)?.ring){item.outline.quaternion.copy(item.group.quaternion).invert().multiply(camera.quaternion);item.outline.scale.setScalar(scale*.8*(item.selected?1+pulse*.1:1));item.outline.material.opacity=item.opacity*(item.selected?.55+pulse*.3:.45);}else {item.outline.quaternion.identity();item.outline.scale.setScalar(1);item.outline.material.opacity=item.opacity;}}
+    for(const [id,item] of effectNodes)if(item.outline.visible){if(item.outline===visuals.get(id)?.ring){item.outline.quaternion.copy(item.group.quaternion).invert().multiply(camera.quaternion);item.outline.scale.setScalar(scale*.8*(item.selected?1+pulse*.1:1));}else {item.outline.quaternion.identity();item.outline.scale.setScalar(item.selected?1+pulse*.1:1);}item.outline.material.opacity=item.opacity*(item.selected?.55+pulse*.3:.45);}
   }};
   const pipeline = createPipeline(renderer, scene, camera, request,()=>effectSource), session = createSceneSession(pipeline.wallpaper, input.feedback);
   let fontRevision=0,pushDirty=false,pushSignature='',pushRevision=0,relocationPin:string|undefined;const relocating=new Set<string>();
@@ -174,7 +174,7 @@ export function createWorld(host: HTMLElement, input: Input) {
     const unit=(v:Visual)=>Math.max(.00001,-v.group.position.clone().applyMatrix4(camera.matrixWorldInverse).z)*2*Math.tan(T.MathUtils.degToRad(camera.fov/2))/height;
     const bodies:ContourBody[]=[],units=new Map<string,number>(),fixed=new Set([...selectedKeys,...(world.axes??[]).flatMap(frame=>frame.ends.map(key))]);
     for(const [id,v]of visuals){if(!v.group.visible)continue;const p=v.group.position.clone().project(camera);if(p.z< -1||p.z>1)continue;
-      const u=unit(v),points=v.contour.outline.visible?convexHull(v.contour.points):contentEnvelope([{x:0,y:0}],scale*.5,32);
+      const u=unit(v),points=v.contour.outline.visible?v.contour.points:contentEnvelope([{x:0,y:0}],scale*.5,32);
       bodies.push({id,fixed:fixed.has(id),passive:!v.contour.outline.visible,x:(p.x+1)*width/2,y:(1-p.y)*height/2,points:points.map(q=>({x:q.x/u,y:-q.y/u}))});units.set(id,u);
     }
     // Expansion is anchored to the selected node's canonical position. A

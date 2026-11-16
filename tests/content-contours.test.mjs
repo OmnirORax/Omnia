@@ -2,7 +2,7 @@ import {expansionState,nodeContentVisible,toggleContent} from '../src/graph/node
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as T from 'three';
-import {alphaHull,contentEnvelope,inkEnvelope} from '../src/world/contentEnvelope.ts';
+import {alphaHull,contentEnvelope} from '../src/world/contentEnvelope.ts';
 import {createContentContour,collectContentHull} from '../src/world/contentContour.ts';
 import {pushContours,contourClearance} from '../src/world/contourPush.ts';
 import {pointerPlane} from '../src/navigation/pointerPlane.ts';
@@ -11,10 +11,10 @@ const node=(id,x,y,points=circle(.4))=>({id,x,y,points});
 const moved=(items,positions)=>items.map(i=>({...i,...positions.get(i.id)}));
 function clear(items){for(let n=0;n<items.length;n++)for(let m=n+1;m<items.length;m++){const a=items[n],b=items[m],dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy);assert.equal(contourClearance(a,b,{x:dx/(d||1),y:dy/(d||1)},0),0,`overlap ${a.id}/${b.id}`);}}
 
-test('one outer ink envelope bridges letters/holes without including bounding-box corners',()=>{
+test('one padded ink envelope bridges letters/holes without including bounding-box corners',()=>{
  const width=80,height=40,data=new Uint8ClampedArray(width*height*4);
  for(let y=0;y<height;y++)for(let x=0;x<width;x++)if([20,60].some(cx=>Math.hypot(x-cx,y-20)<10&&Math.hypot(x-cx,y-20)>5))data[(y*width+x)*4+3]=255;
- const hull=alphaHull(data,width,height),contour=createContentContour();contour.update(hull,1);assert.ok(contour.points.length>=3);
+ const hull=alphaHull(data,width,height),contour=createContentContour();contour.update(hull,1);assert.equal(contour.points.length,64);
  contour.hit.updateMatrixWorld();const ray=new T.Raycaster(new T.Vector3(0,0,2),new T.Vector3(0,0,-1));assert.ok(ray.intersectObject(contour.hit).length,'gap between letters belongs to one node');
  const right=Math.max(...contour.points.map(p=>p.x)),top=Math.max(...contour.points.map(p=>p.y));ray.ray.origin.set(right-.002,top-.002,2);assert.equal(ray.intersectObject(contour.hit).length,0,'no rectangular hit box');
  const before=structuredClone(hull);contour.update(hull,1);assert.deepEqual(hull,before);contour.update([],1);assert.equal(contour.outline.visible,false);assert.equal(contour.hit.visible,false);contour.dispose();
@@ -71,24 +71,4 @@ test('reference endpoints remain at canonical centers while mobile content clear
   const positions=pushContours([c,b,a],pin,0);assert.deepEqual(positions.get('a'),{x:0,y:0});assert.deepEqual(positions.get('b'),{x:3,y:0});
   const mobile={...c,...positions.get('c')};assert.equal(contourClearance(a,mobile,{x:1,y:0}),0);assert.equal(contourClearance(b,mobile,{x:1,y:0}),0);
  }
-});
-
-test('ink envelope retains exact oblique support edges instead of quantizing their directions',()=>{
- const angle=.037,c=Math.cos(angle),s=Math.sin(angle),points=[[-4,-.3],[4,-.3],[4,.3],[-4,.3]].map(([x,y])=>({x:x*c-y*s,y:x*s+y*c}));
- const polygon=inkEnvelope(points,.12),normal={x:-s,y:c},support=Math.max(...polygon.map(p=>p.x*normal.x+p.y*normal.y));
- assert.ok(Math.abs(support-(.3+.12))<1e-10);
- for(const distance of [.056,.136,.184])assert.equal(inkEnvelope(points,distance).length,polygon.length);
- assert.ok(polygon.length<=points.length*2+32);
-});
-test('ink envelope handles empty, point and collinear content with finite matched geometry',()=>{
- assert.deepEqual(inkEnvelope([],.1),[]);for(const points of [[{x:0,y:0}],[{x:-2,y:0},{x:0,y:0},{x:2,y:0}]]){const outer=inkEnvelope(points,.2),inner=inkEnvelope(points,.1);assert.equal(outer.length,inner.length);assert.ok(outer.length>=3);assert.ok(outer.every(p=>Number.isFinite(p.x)&&Number.isFinite(p.y)));}
-});
-
-test('word contour stays outside the whole word and never enters gaps between letters',()=>{
- const points=[{x:-1,y:-.5},{x:1,y:-.5},{x:1,y:.5},{x:.2,y:.5},{x:.1,y:0},{x:0,y:.5},{x:-1,y:.5}],contour=createContentContour();contour.update(points,1);contour.hit.updateMatrixWorld();
- const ray=new T.Raycaster(new T.Vector3(.1,.3,2),new T.Vector3(0,0,-1));assert.ok(ray.intersectObject(contour.hit).length,'letter indentation remains inside the macro outline');assert.ok(contour.points.every(p=>Math.abs(p.y)>.48||Math.abs(p.x)>.98),'outline never dips into the word');contour.dispose();
-});
-test('silhouette stroke is centered on ink rather than separated by padding',()=>{
- const points=[{x:-1,y:-.5},{x:1,y:-.5},{x:1,y:.5},{x:-1,y:.5}],contour=createContentContour();contour.update(points,1);const positions=contour.outline.geometry.attributes.position;
- assert.ok(Math.abs((positions.getY(0)+positions.getY(1))/2+.5)<1e-7);contour.dispose();
 });

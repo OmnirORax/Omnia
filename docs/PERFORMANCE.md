@@ -7,9 +7,10 @@ before relaxing a feature.
 
 ## Detailed content contours
 
-**Current behavior:** outlines use the combined outer convex ink hull and sit on
-its edge without padding. They bridge letter gaps and indentations rather than
-dipping into the word. Picking and non-overlap use outer convex boundaries.
+**Status:** recent detailed-contour experiments were rolled back at the user's
+request after visual and selection regressions. The earlier fixed 64-direction,
+padded envelope, hit geometry and selection animation are restored. Keep this
+entry as a future performance watch item if detailed contours are attempted again.
 
 **Significance:** estimated low for small scenes; potentially moderate with
 hundreds or thousands of visible labels. Not measured in a representative large
@@ -18,9 +19,8 @@ browser scene.
 **Where the cost occurs:**
 
 - Creating or changing labels scans a cached mask, capped at 256 pixels on its
-  longest dimension, and builds/triangulates contour geometry. Vertex count follows
-  the outer hull rather than the original fixed 64. Individual letter
-  indentations are not traced.
+  longest dimension, and builds contour geometry. The restored envelope uses
+  64 directions; future detailed boundaries could increase the vertex count.
 - First content-view activation or changing many labels together can concentrate
   this work into a noticeable pause. Later toggles can reuse cached contours.
 - Visible contours add geometry memory and drawing work. Camera movement does
@@ -31,7 +31,7 @@ browser scene.
 **If this becomes a bottleneck, consider:**
 
 1. Simplify the silhouette with a bounded error and vertex budget, preserving
-   the zero-gap appearance as closely as possible.
+   the intended appearance as closely as possible.
 2. Use cheaper contours or hide fine outline detail for small/distant nodes;
    retain detail for focused nodes. Keep picking and separation consistent with
    the displayed boundary.
