@@ -328,7 +328,7 @@ export function createWorld(host: HTMLElement, input: Input) {
     const present = new Set(next.nodes.map(node => key(node.origin)));
     for (const [id, visual] of visuals) if (!present.has(id)) { scene.remove(visual.host);visual.contour.dispose(); visual.body.material.dispose(); disposeLabel(visual.text); if (visual.object) disposeVisual(visual.object); visuals.delete(id);effectNodes.delete(id); }
     for (const node of next.nodes) {
-      const actual = resolveNodeAppearance(next,inherited(node,next)), id=key(node.origin), textPaint={...TEXT_DEFAULTS,...next.appearance?.text,...actual.textAppearance},textKey=JSON.stringify([textPaint,fontRevision]), caption=`${actual.label || (node.invariant ? '⚬' : '')}${node.parts.some(binding => !prepared.resolve(binding).length) ? ' !' : ''}`;
+      const actual = resolveNodeAppearance(next,inherited(node,next)), id=key(node.origin), textPaint={...TEXT_DEFAULTS,...next.appearance?.text,...actual.textAppearance,...((actual.glow??defaults.glow)>0?{glow:0}:{})},textKey=JSON.stringify([textPaint,fontRevision]), caption=`${actual.label || (node.invariant ? '⚬' : '')}${node.parts.some(binding => !prepared.resolve(binding).length) ? ' !' : ''}`;
       let visual=visuals.get(id);
       if (!visual) {
         const host=new T.Group(),group=new T.Group(),presentation=new T.Group(),body=new T.Mesh(sphere,atomicCarrierMaterial(actual.color)),slot=new T.Mesh(sphere,slotMaterial),text=label(caption,textPaint);text.userData.requestRender=request;
@@ -416,7 +416,7 @@ export function createWorld(host: HTMLElement, input: Input) {
   let stroke:{session:ReturnType<typeof createPaintSession>;previous:Vec3;project:(p:Point)=>Vec3;axis?:string;source?:Origin;parent?:Origin;preview:T.InstancedMesh}|undefined;
   function paintPoint(p: Point) {
     if(!stroke)return;const next=stroke.project(p),samples=paintSamples(point(stroke.previous),point(next),.4);
-    for(const sample of samples)stroke.session.add(vector(sample));
+    for(const sample of samples)stroke.session.toggle(vector(sample));
     showGhost(stroke.session.candidate(next));stroke.previous=next;stroke.preview.count=stroke.session.points.length;
     stroke.session.points.forEach((position,index)=>stroke!.preview.setMatrixAt(index,new T.Matrix4().makeScale(scale,scale,scale).setPosition(new T.Vector3(...position).multiplyScalar(scale))));stroke.preview.instanceMatrix.needsUpdate=true;request();
   }
@@ -474,7 +474,7 @@ export function createWorld(host: HTMLElement, input: Input) {
     axisView.setCoordinatesVisible(coordinatesVisible&&(!g||g.mode==='paint'||g.mode==='move'));if(g&&g.mode!=='paint'&&!(g.mode==='move'&&(g.landing||g.groupLanding)))ghost.visible=false;
     const frame=activeAxis(),hitPoint=pointed(p).origin;axisView.coordinates(world,frame,hitPoint?locatePosition(hitPoint):frame?xyz(axisPlanePoint(p,frame).divideScalar(scale)):undefined,p);
     if(g){g.end=p;g.dragged ||= Math.hypot(p.x-g.start.x,p.y-g.start.y)>=4;
-      if(g.mode==='paint'){if(g.dragged)paintPoint(p);return;}
+      if(g.mode==='paint')return;
       if(g.mode==='pickup'&&g.dragged&&g.origin){if(!drive.active)mount(g.origin,g.start,g.origins);aimNavigator(p);return;}
       if(g.dragged&&g.mode==='move'){
         if(activeAxis()&&!activeWorldAxes(activeAxis()!).length){g.groupLanding=undefined;g.landing=undefined;ghost.visible=false;return;}
@@ -499,8 +499,8 @@ export function createWorld(host: HTMLElement, input: Input) {
       else {const source=visuals.get(key(connectionSource)),hit=pointed(p).origin,target=hit&&visuals.get(key(hit));if(source){const start=displayed(source),end=target?displayed(target):at(p,start);const positions=connectionLine.geometry.getAttribute('position') as T.BufferAttribute;positions.setXYZ(0,start.x,start.y,start.z);positions.setXYZ(1,end.x,end.y,end.z);positions.needsUpdate=true;connectionLine.visible=true;request();}return;}
     }
     if(drive.active){const position=paintContext(p,true).project(p);drive.move(new T.Vector3(...position).multiplyScalar(scale));request();return;}
-    if(pointerAlt&&!input.picking()){
-      if(!altPreview){const context=paintContext(p,pointerShift),paint=nodePaint(world),preview=new T.InstancedMesh(sphere,atomicCarrierMaterial(brightHex(paint.color!,paint.brightness!),paint.opacity!*.7,paint.translucency,paint.glow,paint.translucencyRadius),4000);preview.count=0;preview.frustumCulled=false;scene.add(preview);stroke={session:context.session,project:context.project,axis:context.frame,previous:context.project(p),preview};altPreview=true;}
+    if(creating&&pointerAlt&&!input.picking()){
+      if(!altPreview){const context=paintContext(p,pointerShift),paint=nodePaint(world),preview=new T.InstancedMesh(sphere,atomicCarrierMaterial(brightHex(paint.color!,paint.brightness!),paint.opacity!*.7,paint.translucency,paint.glow,paint.translucencyRadius),4000);preview.count=0;preview.frustumCulled=false;scene.add(preview);stroke={session:context.session,project:context.project,axis:context.frame,previous:context.project(p),parent:creationParent,preview};altPreview=true;}
       paintPoint(p);return;
     }
     if(altPreview){finishPaint(true);altPreview=false;}
@@ -532,7 +532,7 @@ export function createWorld(host: HTMLElement, input: Input) {
     if((gesture?.mode==='move'||gesture?.mode==='range'||gesture?.mode==='drive')&&gesture.pointer===event.pointerId){if(inputFrame)cancelAnimationFrame(inputFrame);lastPoint={x:event.clientX,y:event.clientY};processPointer();}
     const g=gesture;if(!g||g.pointer!==event.pointerId||g.button!==event.button)return;if(g.mode==='move')ghost.visible=false;g.end={x:event.clientX,y:event.clientY};g.dragged ||= Math.hypot(g.end.x-g.start.x,g.end.y-g.start.y)>=4;gesture=undefined;previewRange();rectangle.hidden=true;edges.visible=true;controls.enabled=!drive.active;
     try{
-      if(g.mode==='paint'){paintPoint(g.end);finishPaint();return;}
+      if(g.mode==='paint'){finishPaint();return;}
       if(g.dragged&&g.mode==='move'){
         if(g.group){const plan=g.groupLanding;if(!plan)return;if(event.altKey){beginAlignment(g.origins,plan.origin,g.group.order);}else{input.groupMove(plan.targets);selectionGroup={ids:g.origins.map(key),order:g.group.order};}return;}
 

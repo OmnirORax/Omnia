@@ -13,5 +13,6 @@ export function createOccupancy(entries:Iterable<readonly [string,XYZ]>,unit=1){
   }
   return undefined;
  };
- return {add,blocker,free(point:XYZ,exclude?:ReadonlySet<string>){return [point.x,point.y,point.z].every(Number.isFinite)&&blocker(point,exclude)===undefined;}};
+ const remove=(id:string,point:XYZ)=>{const k=key(Math.floor(point.x/unit),Math.floor(point.y/unit),Math.floor(point.z/unit)),bin=bins.get(k);if(!bin)return;const next=bin.filter(item=>item.id!==id);if(next.length)bins.set(k,next);else bins.delete(k);};
+ return {add,remove,blocker,free(point:XYZ,exclude?:ReadonlySet<string>){return [point.x,point.y,point.z].every(Number.isFinite)&&blocker(point,exclude)===undefined;}};
 }
