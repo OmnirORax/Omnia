@@ -197,6 +197,12 @@ const editCapability=defineMenu('capability',(capabilityKey: string)=>{
   watchFields(form,inputs.map((input,index)=>({input,read:()=>{const node=locate(store.world,origins[0]);if(!node)return undefined;if(capabilityKey==='move'&&origins.length>1)return node.position[index]-start[index];return capabilities(resolveNodeSettings(store.world,inherited(node,store.world))).find(c=>c.key===capabilityKey)?.properties[index].read();}})));
   tools.append(form); positionMenu(); inputs[0].focus(); if (inputs[0].type === 'text') inputs[0].select();
 });
+function editLabel(){
+ const hovered=view?.hoveredOrigin;view?.cancel();
+ if(hovered&&!selection.has(hovered))pick(hovered);
+ if(!selectedOrigins().length){feedback('Point to or select a node to name.');return;}
+ editCapability('label');
+}
 function reference(mode: Binding['mode']) {
   const owners = [...selectedOrigins()]; close();
   selection.request(target => {
@@ -618,7 +624,8 @@ function worldShortcutActions(includeUnavailable=false){return [
  {label:'Create nodes',key:'N',run:()=>view?.toggleCreation()},
  {label:'Search',key:'S',run:searchSettings},
  ...((includeUnavailable||selectedOrigins().length>1)?[{label:'Align selection',key:'I',run:()=>view?.alignSelection()}]:[]),
- ...((includeUnavailable||selectedOrigins().length)?[{label:'Document',key:'D',run:()=>openDocument()},{label:'Label',key:'L',run:()=>editCapability('label')},{label:'Remove',key:'Delete',run:remove}]:[]),
+ ...((includeUnavailable||selectedOrigins().length)?[{label:'Document',key:'D',run:()=>openDocument()},{label:'Remove',key:'Delete',run:remove}]:[]),
+ {label:'Label',key:'L',run:editLabel},
  ].map(action=>{const defaultKey=action.key&&normalizeShortcut(action.key),id=('id' in action?action.id:undefined)??worldShortcutId(defaultKey??action.key??action.label);return {...action,id,defaultKey:defaultKey??'',key:normalizeShortcut(action.key??'')||action.key===''?shortcuts.get({category:'Omnium',id,label:action.label,defaultKey:defaultKey??''}):action.key};});}
 installContextActions();
 registerContextActions({label:'Omnium',owns:element=>!!element.closest('#world,header'),read:()=>{

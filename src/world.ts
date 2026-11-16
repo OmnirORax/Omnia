@@ -615,6 +615,7 @@ export function createWorld(host: HTMLElement, input: Input) {
     setSelectionDepth(value:number){if(!Number.isInteger(value)||value<1||value>10000)throw Error('Depth must be from 1 to 10,000 units.');selectionDepth=value;},
     get alignmentGap(){return alignment?alignment.interval-1:0;},
     alignSelection(){if(selected.length<2){input.feedback('Select multiple nodes.');return;}beginAlignment(selected,axisCenter(world,activeAxis()),selectionGroup?.order??xyz(new T.Vector3(1,0,0).applyQuaternion(camera.quaternion)));},
+    get hoveredOrigin(){return pointerInside&&lastPoint?pointed(lastPoint).origin:undefined;},
     toggleHierarchy(nextOnly=false){const origin=pointerInside&&lastPoint?pointed(lastPoint).origin:undefined;for(const id of origin?[origin]:selected)input.subtree(id,nextOnly);},
     get inputContext(){return boundRotation.active?'rotate':alignment?'align':originPick?'origin':axisPicking?(axisPicking.first?'axis-second':'axis-first'):creating?'create':'world';},
     pickOrigin:pickSpatialOrigin,

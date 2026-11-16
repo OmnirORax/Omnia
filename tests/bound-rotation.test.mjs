@@ -15,15 +15,15 @@ function harness(){
  const controller=createBoundRotation(env);controller.render();const event=(x,y=100,ctrlKey=false)=>({button:2,clientX:x,clientY:y,ctrlKey,preventDefault(){},stopImmediatePropagation(){}});
  return {world,a,b,c,frame,controller,host,visuals,commits,get enabled(){return enabled;},select:ids=>{selection=ids;},down:(x,y,ctrl,origin)=>controller.down(event(x,y,ctrl),origin),move:y=>{controller.move({clientY:y});while(frames.length)frames.shift()();},restore:()=>Object.assign(globalThis,old)};
 }
-test('own-origin rotation previews without authoring; right-empty confirms once and Escape cancels',()=>{
+test('rotation about the active own-origin previews without authoring; right-empty confirms once and Escape cancels',()=>{
  const h=harness();try{const before=structuredClone(h.world);h.down(1);assert.equal(h.enabled,false);h.move(76);assert.deepEqual(h.world,before);assert.notEqual(h.visuals.get(address(h.a.origin)).group.quaternion.y,0);h.down(99);assert.equal(h.commits.length,1);assert.deepEqual(h.commits[0].nodes.get(address(h.a.origin)).position,[0,0,0]);assert.equal(h.controller.active,false);assert.equal(h.enabled,true);
  h.down(1);h.move(52);h.controller.cancel();assert.equal(h.commits.length,1);assert.deepEqual(h.visuals.get(address(h.a.origin)).group.quaternion.toArray(),[0,0,0,1]);}finally{h.restore();}
 });
 test('the next right click confirms the shared-frame preview even over another node',()=>{
  const h=harness();try{h.down(1);h.move(76);h.down(2);assert.equal(h.commits.length,1);assert.equal(h.controller.active,false);const q=h.commits[0].nodes.get(address(h.a.origin)).orientation,expected=new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),Math.PI/2);assert.ok(new T.Quaternion(q.x,q.y,q.z,q.w).angleTo(expected)<1e-7);assert.equal(h.commits[0].nodes.has(address(h.b.origin)),false);assert.deepEqual(h.frame.origin,undefined);}finally{h.restore();}
 });
-test('Ctrl-right orbit changes position; spatial-frame rotation never authors object transforms',()=>{
- const h=harness();try{h.frame.origin=[0,0,5];h.down(1,100,true);h.move(76);h.down(99);assert.notDeepEqual(h.commits[0].nodes.get(address(h.a.origin)).position,[0,0,0]);h.down(4);h.move(76);h.down(99);assert.equal(h.commits[1].nodes.size,0);assert.equal(h.commits[1].f.id,h.frame.id);assert.deepEqual(h.commits[1].f.state.origin,[0,0,5]);}finally{h.restore();}
+test('plain rotation uses the active remote origin; spatial-frame rotation never authors object transforms',()=>{
+ const h=harness();try{h.frame.origin=[0,0,5];h.down(1,100,false);h.move(76);h.down(99);assert.notDeepEqual(h.commits[0].nodes.get(address(h.a.origin)).position,[0,0,0]);h.down(4);h.move(76);h.down(99);assert.equal(h.commits[1].nodes.size,0);assert.equal(h.commits[1].f.id,h.frame.id);assert.deepEqual(h.commits[1].f.state.origin,[0,0,5]);}finally{h.restore();}
 });
 
 test('the shared active plane determines the rotation axis',()=>{
@@ -34,8 +34,8 @@ for(const axis of [0,1,2])test(`one active ${'XYZ'[axis]} axis supports rotation
  const h=harness();try{
   h.frame.activeAxes=[axis];h.frame.origin=[3,4,5];const before=structuredClone(h.world),direction=new T.Vector3(...[h.frame.x,h.frame.y,h.frame.z][axis]),expected=new T.Quaternion().setFromAxisAngle(direction,Math.PI/2);
   h.down(1);assert.equal(h.controller.active,true);h.move(76);assert.deepEqual(h.world,before);assert.ok(h.visuals.get(address(h.a.origin)).group.quaternion.angleTo(expected)<1e-7);h.down(99);
-  const own=h.commits[0].nodes.get(address(h.a.origin));assert.deepEqual(own.position,[0,0,0]);assert.ok(new T.Quaternion(own.orientation.x,own.orientation.y,own.orientation.z,own.orientation.w).angleTo(expected)<1e-7);
-  h.down(1,100,true);h.move(76);h.down(99);const orbit=h.commits[1].nodes.get(address(h.a.origin)),position=new T.Vector3(-3,-4,-5).applyQuaternion(expected).add(new T.Vector3(3,4,5));assert.ok(new T.Vector3(...orbit.position).distanceTo(position)<1e-7);assert.deepEqual(orbit.orientation,{x:0,y:0,z:0,w:1});
+  const position=new T.Vector3(-3,-4,-5).applyQuaternion(expected).add(new T.Vector3(3,4,5)),own=h.commits[0].nodes.get(address(h.a.origin));assert.ok(new T.Vector3(...own.position).distanceTo(position)<1e-7);assert.ok(new T.Quaternion(own.orientation.x,own.orientation.y,own.orientation.z,own.orientation.w).angleTo(expected)<1e-7);
+  h.down(1,100,true);h.move(76);h.down(99);const orbit=h.commits[1].nodes.get(address(h.a.origin));assert.ok(new T.Vector3(...orbit.position).distanceTo(position)<1e-7);assert.ok(new T.Quaternion(orbit.orientation.x,orbit.orientation.y,orbit.orientation.z,orbit.orientation.w).angleTo(expected)<1e-7);
   h.down(4);h.move(76);h.down(99);assert.equal(h.commits[2].nodes.size,0);assert.deepEqual(h.commits[2].f.state.origin,[3,4,5]);assert.ok(new T.Vector3(...h.commits[2].f.state.x).distanceTo(new T.Vector3(...h.frame.x).applyQuaternion(expected))<1e-7);
  }finally{h.restore();}
 });
@@ -48,7 +48,7 @@ test('rotation controls retain their click targets and halve/double without a nu
  }finally{h.restore();}
 });
 
-test('rotation operates on the selected group without a hovered target',()=>{const h=harness();try{h.select([h.a.origin,h.b.origin]);h.down(99,100,false,h.a.origin);assert.equal(h.controller.active,true);h.move(76);h.down(99);assert.equal(h.commits[0].nodes.size,2);assert.deepEqual(h.commits[0].nodes.get(address(h.a.origin)).position,h.a.position);assert.deepEqual(h.commits[0].nodes.get(address(h.b.origin)).position,h.b.position);}finally{h.restore();}});
+test('rotation operates on the selected group without a hovered target',()=>{const h=harness();try{h.select([h.a.origin,h.b.origin]);h.down(99,100,false,h.a.origin);assert.equal(h.controller.active,true);h.move(76);h.down(99);assert.equal(h.commits[0].nodes.size,2);assert.deepEqual(h.commits[0].nodes.get(address(h.a.origin)).position,h.a.position);const expected=new T.Vector3(...h.b.position).applyAxisAngle(new T.Vector3(0,1,0),Math.PI/2);assert.ok(new T.Vector3(...h.commits[0].nodes.get(address(h.b.origin)).position).distanceTo(expected)<1e-7);}finally{h.restore();}});
 
 test('right press arms rotation only after a drag, release latches it, and later motion continues the preview',()=>{
  const h=harness(),press={button:2,clientX:1,clientY:100,preventDefault(){},stopImmediatePropagation(){}};try{
@@ -56,4 +56,8 @@ test('right press arms rotation only after a drag, release latches it, and later
  h.controller.arm(press);h.move(96);assert.equal(h.controller.release(),true);assert.equal(h.controller.active,true);h.move(76);assert.equal(h.commits.length,0);h.down(2);assert.equal(h.commits.length,1);assert.equal(h.controller.active,false);
  h.controller.arm(press);h.controller.cancel();assert.equal(h.controller.active,false);assert.equal(h.enabled,true);
  }finally{h.restore();}
+});
+
+test('putting the active origin on a node gives own-center spin without moving that node',()=>{
+ const h=harness();try{h.frame.origin=[...h.b.position];h.down(2);h.move(76);h.down(99);const result=h.commits[0].nodes.get(address(h.b.origin));assert.deepEqual(result.position,h.b.position);const q=new T.Quaternion(result.orientation.x,result.orientation.y,result.orientation.z,result.orientation.w);assert.ok(q.angleTo(new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),Math.PI/2))<1e-7);}finally{h.restore();}
 });
