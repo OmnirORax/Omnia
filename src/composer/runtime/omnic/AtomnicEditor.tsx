@@ -35,7 +35,7 @@ import type { Recipe, Component } from './model';
 import { validateRecipe } from './model';
 import { atoms, atomnicSettings, atomnicEditable, addAtom, mapAtoms, transformAtoms, rotateAtoms, placementPoint, selectionScope, legalAtoms, removeAtoms, eraseAtomsAlong, atomIdsAlong, ungroupAtoms } from './atomnic';
 import { ATOMNIC_PARAMETERS, ATOMNIC_OPERATION_INPUTS, type AtomnicConfigAction } from './atomnicSettings';
-import { useOmnicParameterBindings } from './propertyAdapter';
+import { useOmnicDegreeBindings } from './propertyAdapter';
 import { PropertyEditor } from '../appearance/Controls';
 import { divisions, directionTurn, snapTurn, turnStep, turnDelta } from '../properties/halving';
 import { HalvingPicker } from '../properties/HalvingPicker';
@@ -148,9 +148,10 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
   const editingMark=panel.kind==='operation'&&panel.action==='atomnic.highlight';
   const displayed=useMemo(()=>{const values={...settings};if(first&&settings.paint==='selection'&&!editingMark)for(const key of ['size','fill','color','opacity','thickness'])values[key]=first.component.params[key]??values[key];return values;},[settings,first,editingMark]);
   const degree=panel.kind==='degree'?panel.degree:undefined;
-  const degreeParameters=useMemo(()=>degree?degree.axes?.map(targetParameter)??[targetParameter(degree)]:[],[degree]);
-  const degreeValues=useMemo(()=>degree?Object.fromEntries((degree.axes??[degree]).map(a=>[targetParameter(a).key,targetDegreeValue(recipe,a)])):displayed,[degree,recipe,displayed]);
-  useOmnicParameterBindings(degreeValues,(next,temporary)=>{if(degree){changeDegree(degree,degree.axes?Object.fromEntries(degree.axes.map(a=>[a.properties[0],Number(next[targetParameter(a).key])])):next[degree.targets[0].input.key],temporary);return;}let changed=false;for(const key of Object.keys(next))if(next[key]!==displayed[key]){changed=true;input(key,next[key],temporary);}if(!changed&&!temporary)commit(recipeRef.current);},degree?degreeParameters:bindParameters&&isAtomnic&&!extraPanel&&!normalSelection.length?ATOMNIC_PARAMETERS:[]);
+  useOmnicDegreeBindings(recipe,degree,(value,temporary)=>{if(degree)changeDegree(degree,value,temporary);},{
+    values:displayed,parameters:bindParameters&&isAtomnic&&!extraPanel&&!normalSelection.length?ATOMNIC_PARAMETERS:[],
+    onChange:(next,temporary)=>{let changed=false;for(const key of Object.keys(next))if(next[key]!==displayed[key]){changed=true;input(key,next[key],temporary);}if(!changed&&!temporary)commit(recipeRef.current);},
+  });
   const beginRotation=(step=false)=>{if(!selectedRef.current.size){setMessage('Select atoms before rotating.');return;}stepOnly.current=step;setTool('rotate');setMenu(null);setPanel({kind:'functions'});setPhase('pivot');setMessage('Pick the pivot: exact click or detected target.');};
   const cancel=()=>{stopPosition();referencePicker?.cancelPick();secondary.current.cancel();setCursorOperation(null);const active=gesture.current;gesture.current=null;if(active)commit(active.base,true);setPhase('idle');setMenu(null);setHovered([]);setMessage('');};
   const prepareSelection=()=>{cancel();dismissPanel?.();cancelPreview?.();setActiveDof(null);setPanel({kind:'functions'});setGhost(undefined);};

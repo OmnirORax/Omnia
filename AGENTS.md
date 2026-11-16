@@ -9,6 +9,7 @@ docs/DEPLOYMENT.md before changing hosting, workflows or backend integration.
 
 ## Working approach
 
+- Before implementing a function, inspect its closest related functions and identify their shared invariants and intended differences (deltas). Preserve shared behavior and implement only the necessary delta. If shared behavior is independently duplicated without a common origin, extract it into a reusable canonical mechanism that all applicable functions inherit, rather than maintaining local copies that can diverge. Preserve existing behavior during extraction.
 - Investigate relevant code and infrastructure before consequential decisions.
   Explain trade-offs and ask when an answer would materially change architecture.
 - Establish canonical reusable capabilities/DOFs. Compatible targets declare
