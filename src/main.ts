@@ -1,3 +1,4 @@
+import {selectionLatch} from './ui/selectionLatch.ts';
 import {capturingShortcut} from './ui/shortcuts.ts';
 import {installPointerBindings,pointerActivation} from './ui/pointerBindings.ts';
 import {nativeLayout,nativeAppearance} from './composer/runtime/historyBridge.ts';
@@ -7,7 +8,7 @@ import {reconnectBinder} from './core/connections';
 import {WORLD_GESTURES,DOCUMENT_GESTURES} from './ui/gestureShortcuts';
 import {shortcuts,installShortcutCapture,normalizeShortcut,shortcutEvent,worldBinding,worldShortcutId,matchesShortcut,type ShortcutDefinition} from './ui/shortcuts';
 import {shortcutWindow} from './ui/shortcutWindow';
-import {applyGroupTargets} from './core/groupPlacement';
+import {selectionCenter,applyGroupTargets} from './core/groupPlacement';
 import {shortcutContextFor,assignedShortcuts,installContextActions,registerContextActions,refreshContextActions} from './ui/contextActions';
 import {aimFrame,activeWorldAxes,createAxis,toggleWorldAxis,shiftAxisOrigin,setSpatialOrigin,slotNode} from './core/axes.ts';
 import {parseBrush,brushShape,SINGLE_BRUSH,type Brush} from './core/brush.ts';
@@ -114,7 +115,7 @@ function defineMenu<Args extends unknown[]>(kind:string,render:(...args:Args)=>v
  menuFactories.set(kind,args=>render(...args as Args));
  return(...args:Args)=>{if(viewHistory.rendering){render(...args);return;}if(atCursor)menuPoint={...cursorPosition()};viewHistory.menu({kind,args,point:{...menuPoint},selection:selection.values as Target[]});};
 }
-function pick(origin: Origin, extend = false, toggle = false) { universalHistory.activeContext=`node:${key(origin)}`;universalHistory.contextPath=['omnium',universalHistory.activeContext]; selection.pick(origin, extend, toggle); refresh(); }
+function pick(origin: Origin, extend = false, toggle = false) { universalHistory.activeContext=`node:${key(origin)}`;universalHistory.contextPath=['omnium',universalHistory.activeContext]; selection.pick(origin, extend, toggle);followSelectionOrigin();refresh(); }
 function selectedNodes(world: World) { return world.nodes.filter(node => selection.has(node.origin)); }
 const view = (() => {
   try {
@@ -125,17 +126,17 @@ const view = (() => {
       committedSelection:()=>selection.committed.filter(isNode),
       hover(origin,edge){selection.hover(edge??origin);return selectedOrigins();},
       pick, picking: () => selection.requesting,
-      range(origins, extend) { if (!selection.requesting) { selection.set(extend ? [...selection.committed.filter(isNode), ...origins] : origins); refresh(); } },
+      range(origins, extend) { if (!selection.requesting) { selection.hover(undefined);selection.set(extend ? [...selection.committed.filter(isNode), ...origins] : origins);followSelectionOrigin();refresh(); } },
       clear() { if (selection.requesting) return; close(); selection.clear(); refresh(); },
       menu(origin, point, position, edge) { if (selection.requesting) {if(edge)selection.cancel();else return;} message = ''; if(edge)selection.set([edge]);else if(origin)selection.set(selection.has(origin)?selectedOrigins():[origin]);else selection.clear(); menuPoint = point; refresh(); context(position,origin,edge); },
       navigationSettings:()=>openNavigation(),
       rotateCommit(nodes,frame){store.change(world=>{if(nodes.size){applyGroupTargets(world,new Map([...nodes].map(([id,n])=>[id,n.position])));for(const node of world.nodes){const next=nodes.get(key(node.origin));if(next)node.orientation={...next.orientation};}}if(frame){const found=world.axes?.find(f=>f.id===frame.id);if(!found&&frame.id==='@user'){const basis=view!.frameBasis();const created=setSpatialOrigin(world,undefined,frame.state.origin,basis.right,basis.up);Object.assign(created,frame.state,{directed:true});}else if(!found)throw Error('The frame was removed.');else Object.assign(found,frame.state,{directed:true});}});},
       transform(origins,rotation,pivot,layout){store.change(world=>transformNodes(world,origins,rotation,pivot,layout));},
-      groupMove(targets){store.change(world=>applyGroupTargets(world,targets));},
-      move(origins, delta) { store.change(world => translate(view!.operationWorld(world), origins, delta)); },
+      groupMove(targets){store.change(world=>applyGroupTargets(world,targets));followSelectionOrigin();},
+      move(origins, delta) { store.change(world => translate(view!.operationWorld(world), origins, delta));followSelectionOrigin(); },
       connectDrag(source,target,position){let child:Origin|undefined;store.change(world=>{child=connectNodes(world,source,target,position);});if(child)selection.set([child]);refresh();},
       adopt(origins, owner, delta) { store.change(world => adoptNodes(view!.operationWorld(world), origins, owner, delta)); },
-      park(origin, position,origins) { message = ''; store.change(world => {const node=locate(world,origin)!;translate(view!.operationWorld(world),origins,position.map((v,i)=>v-node.position[i]) as Vec3);}); return store.world; },
+      park(origin, position,origins) { message = ''; store.change(world => {const node=locate(world,origin)!;translate(view!.operationWorld(world),origins,position.map((v,i)=>v-node.position[i]) as Vec3);});followSelectionOrigin(); return store.world; },
       paint(positions,source,axis,parent){store.change(world=>paintNodes(world,positions,source,axis,parent));},
       selectionOrigin(ids,position){assignOrigin(ids[0],position);},
       nodeOrigin(origin){assignOrigin(origin,locate(store.world,origin)!.position);},
@@ -256,6 +257,7 @@ function reference(mode: Binding['mode']) {
   });
   message = 'Choose a component · Esc cancels'; refresh();
 }
+function followSelectionOrigin(){const group=selection.committed.filter(isNode);if(group.length>1)assignOrigin(group[0],selectionCenter(store.world,group));}
 function assignOrigin(anchor:Origin|undefined,position:Vec3){const basis=view!.frameBasis(),axes=[...activeWorldAxes(view!.reference)];store.change(world=>{const frame=setSpatialOrigin(world,anchor,position,basis.right,basis.up);frame.activeAxes=axes;});}
 function focusSelection(){view?.positionUser();}
 function relationFrame(origin?:Origin){
@@ -684,6 +686,7 @@ registerContextActions({label:'Omnium',owns:element=>!!element.closest('#world,h
  if(mode==='axis-first'||mode==='axis-second')return [{label:mode==='axis-first'?'Choose first axis node':'Choose second axis node',key:'Click'},{label:'Cancel axis picker',key:'Esc'}];
  if(mode==='create')return [{label:'Expand/collapse hierarchy',key:worldBinding('Q')},{label:'Pick up / place',key:'Click'},{label:'Rotate camera',key:'Shift + right drag'},{label:'Place nodes',key:'Click'},{label:'Paint nodes',key:'W, then Alt'},{label:'Toggle painting',key:'W, then Alt'},{label:'Exit creation',key:'W / Esc',run:()=>view?.toggleCreation()}];
  return [
+ {label:`Selection ${selectionLatch.active?'on':'off'} · depth ${selectionLatch.depth?'on':'off'}`,key:'Tap Ctrl / Shift'},
  ...worldShortcutActions(),
  {label:'Expand/collapse next level',key:worldBinding('Shift+Q')},{label:'Select in plane',key:'Ctrl + move'},{label:'Select along line',key:'Shift + move'},{label:'Select with depth',key:'Ctrl + Shift + move'},{label:'Expand/collapse hierarchy',key:worldBinding('Q')}, {label:'Pick up / place',key:'Click'},{label:'Rotate camera',key:'Shift + right drag'},{label:'Toggle painting',key:'W, then Alt'},{label:'Rotate node / orbit camera',key:'MB3, then move mouse'},{label:'Look / orbit empty space',key:'Right drag'},{label:'Undo',key:'Ctrl+Z',run:()=>travelHistory('undo')},{label:'Redo',key:'Ctrl+Y',run:()=>travelHistory('redo')},
  {label:'Cancel',key:'Esc'},{label:'Toggle actions',key:'.'}

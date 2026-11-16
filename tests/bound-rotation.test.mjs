@@ -48,7 +48,7 @@ test('rotation controls retain their click targets and halve/double without a nu
  }finally{h.restore();}
 });
 
-test('rotation operates on the selected group without a hovered target',()=>{const h=harness();try{h.select([h.a.origin,h.b.origin]);h.down(99,100,false,h.a.origin);assert.equal(h.controller.active,true);h.move(76);h.down(99);assert.equal(h.commits[0].nodes.size,2);assert.deepEqual(h.commits[0].nodes.get(address(h.a.origin)).position,h.a.position);const expected=new T.Vector3(...h.b.position).applyAxisAngle(new T.Vector3(0,1,0),Math.PI/2);assert.ok(new T.Vector3(...h.commits[0].nodes.get(address(h.b.origin)).position).distanceTo(expected)<1e-7);}finally{h.restore();}});
+test('rotation operates on the selected group without a hovered target',()=>{const h=harness();try{h.select([h.a.origin,h.b.origin]);h.down(99,100,false,h.a.origin);assert.equal(h.controller.active,true);h.move(76);h.down(99);assert.equal(h.commits[0].nodes.size,2);assert.ok(new T.Vector3(...h.commits[0].nodes.get(address(h.a.origin)).position).distanceTo(new T.Vector3(-1,0,1))<1e-7);const expected=new T.Vector3(1,0,1);assert.ok(new T.Vector3(...h.commits[0].nodes.get(address(h.b.origin)).position).distanceTo(expected)<1e-7);}finally{h.restore();}});
 
 test('right press arms rotation only after a drag, release latches it, and later motion continues the preview',()=>{
  const h=harness(),press={button:2,clientX:1,clientY:100,preventDefault(){},stopImmediatePropagation(){}};try{
@@ -62,13 +62,13 @@ test('putting the active origin on a node gives own-center spin without moving t
  const h=harness();try{h.frame.origin=[...h.b.position];h.down(2);h.move(76);h.down(99);const result=h.commits[0].nodes.get(address(h.b.origin));assert.deepEqual(result.position,h.b.position);const q=new T.Quaternion(result.orientation.x,result.orientation.y,result.orientation.z,result.orientation.w);assert.ok(q.angleTo(new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),Math.PI/2))<1e-7);}finally{h.restore();}
 });
 
-test('middle-click mouse mode keeps its hovered target after cursor leaves and commits only on confirmation',()=>{
+test('middle-click mouse mode keeps its selected group after cursor leaves and commits only on confirmation',()=>{
  const h=harness();try{
  h.select([h.a.origin,h.b.origin]);const press={clientX:1,clientY:100};assert.equal(h.controller.startWheel(press,h.a.origin),true);
  const wheel=deltaY=>h.controller.wheel({clientX:99,clientY:10,deltaY,deltaMode:0,preventDefault(){},stopImmediatePropagation(){}});
  assert.equal(wheel(-100),false);h.move(76);const visual=h.visuals.get(address(h.a.origin)).group,q=visual.quaternion.clone();assert.ok(q.angleTo(new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),Math.PI/2))<1e-7);
  h.move(100);assert.ok(visual.quaternion.angleTo(q)>1e-3);h.move(76);assert.equal(h.commits.length,0);assert.equal(h.controller.active,true);
- h.controller.confirm();assert.equal(h.commits.length,1);assert.equal(h.commits[0].nodes.size,1);assert.equal(h.controller.active,false);assert.equal(wheel(100),false);
+ h.controller.confirm();assert.equal(h.commits.length,1);assert.equal(h.commits[0].nodes.size,2);assert.equal(h.controller.active,false);assert.equal(wheel(100),false);
  }finally{h.restore();}
 });
 test('mouse rotation cancellation restores original transforms without committing and preserves snap controls',()=>{

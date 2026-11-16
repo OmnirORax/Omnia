@@ -1,0 +1,3 @@
+/** A modifier tap latches; a modifier used in a gesture remains momentary. */
+export function createSelectionLatch(){let active=false,depth=false;const pending=new Set<string>();return{get active(){return active;},get depth(){return depth;},press(key:string){if(key==='Control'||key==='Meta'||key==='Shift')pending.add(key);},use(){pending.clear();},release(key:string){if(!pending.delete(key))return;if(key==='Control'||key==='Meta'){active=!active;if(!active)depth=false;}else if(key==='Shift'){if(active)depth=!depth;else if(pending.has('Control')||pending.has('Meta')){active=depth=true;pending.clear();}}},clear(){pending.clear();active=depth=false;}};}
+export const selectionLatch=createSelectionLatch();

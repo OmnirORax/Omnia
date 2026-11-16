@@ -1,0 +1,3 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {createSelectionLatch} from '../src/ui/selectionLatch.ts';
+test('modifier taps latch selection/depth, while drag modifiers remain momentary',()=>{const s=createSelectionLatch();s.press('Control');s.release('Control');assert.equal(s.active,true);s.press('Shift');s.release('Shift');assert.equal(s.depth,true);s.press('Control');s.use();s.release('Control');assert.equal(s.active,true);s.press('Control');s.release('Control');assert.equal(s.active,false);assert.equal(s.depth,false);s.press('Shift');s.release('Shift');assert.equal(s.active,false);});
