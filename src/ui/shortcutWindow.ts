@@ -18,7 +18,7 @@ export function shortcutWindow(root:HTMLElement,read:()=>ShortcutDefinition[],re
     editor.append(value,warning,apply,clear,reset,back);row.append(editor);stopCapture=captureShortcut(chord=>{if(item.category!=='Document')chord=normalizeShortcut(chord.replace(/Cmd/g,'Ctrl'))!;if(chord==='Enter'&&pending!==undefined){commit();return;}pending=chord;update();},()=>render());
    };return row;}));
  }
- root.append(tabs,...(externalSearch?[]:[search]),notice,rows);if(!externalSearch)search.oninput=render;render();search.focus();
+ root.append(tabs,...(externalSearch?[]:[search]),notice,rows);if(!externalSearch)search.oninput=render;render();
  const unsubscribe=shortcuts.subscribe(()=>{if(root.isConnected)render();});
  return {filter(query:string){search.value=query;render();},refresh:render,dispose(){cancel();unsubscribe();}};
 }

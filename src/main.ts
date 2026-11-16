@@ -166,7 +166,7 @@ function open(title: string,scopeSearch?:(query:string)=>void) {
   find.oninput = filter;
   find.onkeydown = event => { if (event.key === 'Enter') { const match = Array.from(tools.children).find(item => item instanceof HTMLButtonElement && !item.hidden) as HTMLButtonElement | undefined; if (match) { event.preventDefault(); match.click(); } } };
   tools.append(find,globalResults);
-  requestAnimationFrame(() => { if (!find.isConnected) return; filter(); find.focus(); });
+  requestAnimationFrame(() => { if (!find.isConnected) return; filter(); });
   positionMenu();return find;
 }
 function positionMenu() {
