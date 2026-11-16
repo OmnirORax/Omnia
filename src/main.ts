@@ -616,7 +616,7 @@ window.addEventListener('keydown',event=>{
 },true);
 function worldShortcutActions(includeUnavailable=false){return [
  ...spaceActions().filter(action=>includeUnavailable||action.available!==false).map(action=>{const match=/^(.*?) \(([^)]+)\)$/.exec(action.label);return {label:match?.[1]??action.label,key:match?.[2],run:action.run};}),
- {id:worldShortcutId('O'),label:'Set origin',gesture:undefined,key:'O',run:()=>view?.pickOrigin()},
+ {id:worldShortcutId('O'),label:'Set origin',gesture:undefined,key:'X',run:()=>view?.pickOrigin()},
  {label:'Expand/collapse hierarchy',key:'Q',run:()=>view?.toggleHierarchy()},
  {label:'Expand/collapse next level',key:'Shift+Q',run:()=>view?.toggleHierarchy(true)},
  {label:'Toggle contents facing camera',key:'F',run:()=>view?.toggleContentsFacing()},
@@ -636,7 +636,7 @@ registerContextActions({label:'Omnium',owns:element=>!!element.closest('#world,h
  const mode=view?.inputContext;
  if(mode==='rotate')return [{label:'Confirm rotation',key:'MB3'},{label:'Aim at node',key:'MB3 on node'},{label:'Rotate preview',key:'Scroll'},{label:'Snap value',key:'0–9'},{label:'Cancel',key:'Esc'}];
  if(mode==='align')return [{label:'Rotate alignment axis',key:'Right drag'},{label:'Toggle axes',key:'Hold left + sweep'},{label:`Gap ${view?.alignmentGap??0} (0 = adjacent)`,key:'0–9'},{label:'Face origin toward node',key:'Alt + right click',run:aimOrigin},{label:'Apply alignment',key:'Enter'},{label:'Cancel',key:'Esc'}];
- if(mode==='origin')return [{label:'Choose origin slot',key:'Click'},{label:'Cancel origin picker',key:'O / Esc'}];
+ if(mode==='origin')return [{label:'Choose origin slot',key:'Click'},{label:'Cancel origin picker',key:'X / Esc'}];
  if(mode==='axis-first'||mode==='axis-second')return [{label:mode==='axis-first'?'Choose first axis node':'Choose second axis node',key:'Click'},{label:'Cancel axis picker',key:'Esc'}];
  if(mode==='create')return [{label:'Expand/collapse hierarchy',key:worldBinding('Q')},{label:'Pick up / place',key:'Click'},{label:'Connect',key:'Shift + drag'},{label:'Place nodes',key:'Click'},{label:'Paint nodes',key:'Drag'},{label:'Preview paint',key:'Hold Alt'},{label:'Exit creation',key:'N / Esc',run:()=>view?.toggleCreation()}];
  return [

@@ -162,3 +162,5 @@ export function insideActivePlane(world:World,frame:AxisFrame,position:Vec3){
  const active=activeWorldAxes(frame),coordinates=axisCoordinates(world,frame,position);
  return active.length>0&&coordinates.every((n,i)=>active.includes(i)||Math.abs(n)<=.5+1e-7);
 }
+
+export function projectionAxis(frame:AxisFrame,forward:Vec3){const inactive=[0,1,2].filter(i=>!activeWorldAxes(frame).includes(i)),basis=[frame.x,frame.y,frame.z];if(!inactive.length)throw Error('Choose at most two active axes.');return inactive.reduce((a,b)=>Math.abs(dot(basis[a],forward))>=Math.abs(dot(basis[b],forward))?a:b);}

@@ -15,7 +15,7 @@ import {createOccupancy} from './graph/occupancy.ts';
 import {axisPose} from './world/axisPose.ts';
 import {createPaintSession} from './core/painting.ts';
 import {createAxisView} from './world/axisView.ts';
-import {insideActivePlane,operationSlot,activeWorldAxes,nodeOriginView,axisCenter,axisPoint,axisAnchor,planAxis,planSlotNode,endpointView,dot,minus,type AxisFrame} from './core/axes.ts';
+import {projectionAxis,insideActivePlane,operationSlot,activeWorldAxes,nodeOriginView,axisCenter,axisPoint,axisAnchor,planAxis,planSlotNode,endpointView,dot,minus,type AxisFrame} from './core/axes.ts';
 import {startsConnector,connectorDragged} from './world/connectorGesture.ts';
 import {resolveNodeAppearance,nodePaint,connectorPaint} from './core/appearance.ts';
 import {brightHex} from './composer/runtime/appearance/resolve.ts';
@@ -239,8 +239,7 @@ export function createWorld(host: HTMLElement, input: Input) {
   }
   function locatePosition(origin:Origin){return world.nodes.find(node=>sameOrigin(node.origin,origin))?.position;}
   function axisPlanePoint(p:Point,frame:AxisFrame){
-    pointer(p);
-    const center=(pointOfView?new T.Vector3(...axisCenter(world,frame)).addScaledVector(new T.Vector3(...frame.z),-(nodeViewDepth??0)).multiplyScalar(scale):new T.Vector3(...axisCenter(world,frame)).multiplyScalar(scale));return ray.ray.intersectPlane(new T.Plane().setFromNormalAndCoplanarPoint(new T.Vector3(...frame.z),center),new T.Vector3())??center;
+    pointer(p);const index=projectionAxis(frame,xyz(camera.getWorldDirection(new T.Vector3()))),normal=new T.Vector3(...[frame.x,frame.y,frame.z][index]),center=new T.Vector3(...axisCenter(world,frame));if(pointOfView)center.addScaledVector(normal,-(nodeViewDepth??0));center.multiplyScalar(scale);return ray.ray.intersectPlane(new T.Plane().setFromNormalAndCoplanarPoint(normal,center),new T.Vector3())??center;
   }
   function nearAxis(_p:Point,position:Vec3){const frame=activeAxis();if(!frame||!activeWorldAxes(frame).length)return;return {frame,point:axisPoint(world,frame,operationSlot(world,frame,position))};}
 

@@ -181,3 +181,9 @@ test('a third-axis click replaces the pair and waits for a second selection; leg
  assert.deepEqual(activeWorldAxes(frame),[0,2]);toggleWorldAxis(w,frame.id,1);assert.deepEqual(activeWorldAxes(frame),[1]);toggleWorldAxis(w,frame.id,2);assert.deepEqual(activeWorldAxes(frame),[1,2]);
  frame.activeAxes=[0,1,2];validateWorld(w);assert.deepEqual(frame.activeAxes,[0,2]);
 });
+
+test('empty-space projection uses the active plane and a stable plane for a single axis',async()=>{
+ const {projectionAxis}=await import('../src/core/axes.ts');const frame={x:[1,0,0],y:[0,1,0],z:[0,0,1]};
+ for(const [active,expected]of [[[0,1],2],[[0,2],1],[[1,2],0]])assert.equal(projectionAxis({...frame,activeAxes:active},[0,-1,-1]),expected);
+ assert.equal(projectionAxis({...frame,activeAxes:[0]},[0,-1,0]),1);
+});
