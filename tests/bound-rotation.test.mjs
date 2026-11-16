@@ -29,3 +29,13 @@ test('Ctrl-right orbit changes position; spatial-frame rotation never authors ob
 test('the shared active plane determines the rotation axis',()=>{
  const h=harness();try{h.frame.activeAxes=[0,1];h.down(1);h.move(76);h.down(99);const q=h.commits[0].nodes.get(address(h.a.origin)).orientation,expected=new T.Quaternion().setFromAxisAngle(new T.Vector3(0,0,1),Math.PI/2);assert.ok(new T.Quaternion(q.x,q.y,q.z,q.w).angleTo(expected)<1e-7);}finally{h.restore();}
 });
+
+for(const axis of [0,1,2])test(`one active ${'XYZ'[axis]} axis supports rotation, orbit and frame previews`,()=>{
+ const h=harness();try{
+  h.frame.activeAxes=[axis];h.frame.origin=[3,4,5];const before=structuredClone(h.world),direction=new T.Vector3(...[h.frame.x,h.frame.y,h.frame.z][axis]),expected=new T.Quaternion().setFromAxisAngle(direction,Math.PI/2);
+  h.down(1);assert.equal(h.controller.active,true);h.move(76);assert.deepEqual(h.world,before);assert.ok(h.visuals.get(address(h.a.origin)).group.quaternion.angleTo(expected)<1e-7);h.down(99);
+  const own=h.commits[0].nodes.get(address(h.a.origin));assert.deepEqual(own.position,[0,0,0]);assert.ok(new T.Quaternion(own.orientation.x,own.orientation.y,own.orientation.z,own.orientation.w).angleTo(expected)<1e-7);
+  h.down(1,100,true);h.move(76);h.down(99);const orbit=h.commits[1].nodes.get(address(h.a.origin)),position=new T.Vector3(-3,-4,-5).applyQuaternion(expected).add(new T.Vector3(3,4,5));assert.ok(new T.Vector3(...orbit.position).distanceTo(position)<1e-7);assert.deepEqual(orbit.orientation,{x:0,y:0,z:0,w:1});
+  h.down(4);h.move(76);h.down(99);assert.equal(h.commits[2].nodes.size,0);assert.deepEqual(h.commits[2].f.state.origin,[3,4,5]);assert.ok(new T.Vector3(...h.commits[2].f.state.x).distanceTo(new T.Vector3(...h.frame.x).applyQuaternion(expected))<1e-7);
+ }finally{h.restore();}
+});
