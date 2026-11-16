@@ -61,3 +61,24 @@ test('right press arms rotation only after a drag, release latches it, and later
 test('putting the active origin on a node gives own-center spin without moving that node',()=>{
  const h=harness();try{h.frame.origin=[...h.b.position];h.down(2);h.move(76);h.down(99);const result=h.commits[0].nodes.get(address(h.b.origin));assert.deepEqual(result.position,h.b.position);const q=new T.Quaternion(result.orientation.x,result.orientation.y,result.orientation.z,result.orientation.w);assert.ok(q.angleTo(new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),Math.PI/2))<1e-7);}finally{h.restore();}
 });
+
+test('middle-click wheel mode keeps its hovered target after cursor leaves and commits only on confirmation',()=>{
+ const h=harness();try{
+ h.select([h.a.origin,h.b.origin]);const press={clientX:1,clientY:100};assert.equal(h.controller.startWheel(press,h.a.origin),true);
+ const wheel=deltaY=>h.controller.wheel({clientX:99,clientY:10,deltaY,deltaMode:0,preventDefault(){},stopImmediatePropagation(){}});
+ assert.equal(wheel(-100),true);const visual=h.visuals.get(address(h.a.origin)).group,q=visual.quaternion.clone();assert.ok(q.angleTo(new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),Math.PI/2))<1e-7);
+ h.move(900);assert.ok(visual.quaternion.angleTo(q)<1e-7);assert.equal(h.commits.length,0);assert.equal(h.controller.active,true);
+ h.controller.confirm();assert.equal(h.commits.length,1);assert.equal(h.commits[0].nodes.size,1);assert.equal(h.controller.active,false);assert.equal(wheel(100),false);
+ }finally{h.restore();}
+});
+test('wheel rotation cancellation restores original transforms without committing and preserves snap controls',()=>{
+ const h=harness();try{
+ h.controller.startWheel({clientX:2,clientY:100},h.b.origin);h.host.children[0].children[2].onclick();
+ h.controller.wheel({deltaY:-100,deltaMode:0,preventDefault(){},stopImmediatePropagation(){}});
+ assert.ok(h.visuals.get(address(h.b.origin)).group.quaternion.angleTo(new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),Math.PI/4))<1e-7);
+ h.controller.cancel();assert.equal(h.commits.length,0);assert.deepEqual(h.visuals.get(address(h.b.origin)).group.position.toArray(),h.b.position);assert.equal(h.controller.active,false);
+ }finally{h.restore();}
+});
+test('wheel rotation uses the selection when activated over empty space',()=>{
+ const h=harness();try{h.select([h.a.origin,h.b.origin]);assert.equal(h.controller.startWheel({clientX:99,clientY:100}),true);h.controller.wheel({deltaY:-100,deltaMode:0,preventDefault(){},stopImmediatePropagation(){}});h.controller.confirm();assert.equal(h.commits[0].nodes.size,2);}finally{h.restore();}
+});
