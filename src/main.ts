@@ -1,3 +1,4 @@
+import {WORLD_GESTURES,DOCUMENT_GESTURES} from './ui/gestureShortcuts';
 import {shortcuts,installShortcutCapture,normalizeShortcut,worldBinding,worldShortcutId,matchesShortcut,type ShortcutDefinition} from './ui/shortcuts';
 import {shortcutWindow} from './ui/shortcutWindow';
 import {applyGroupTargets} from './core/groupPlacement';
@@ -392,7 +393,7 @@ const openShortcuts=defineMenu('shortcuts',()=>{
  view?.cancel();open('Shortcuts');let defaults:ShortcutDefinition[]=[],omnicDefaults:()=>ShortcutDefinition[]=()=>[],ready=false;
  const read=()=>{const native=worldShortcutActions(true).flatMap(action=>(action.defaultKey||action.key===''||action.id===worldShortcutId('R')||action.id===worldShortcutId('W')||action.id===worldShortcutId('O'))?[{category:'Omnium' as const,id:action.id,label:action.label,defaultKey:action.defaultKey,gesture:'gesture' in action?action.gesture:undefined}]:[]);
  const global:ShortcutDefinition[]=[['V','Content view'],['F11','Fullscreen'],['Esc','Cancel'],['.','Toggle actions'],['Ctrl+Z','Undo'],['Ctrl+Y','Redo'],['Ctrl+Shift+Z','Redo (alternate)'],['Enter','Apply alignment'],['ArrowUp','Navigator up'],['ArrowDown','Navigator down'],['ArrowLeft','Navigator left'],['ArrowRight','Navigator right']].map(([key,label])=>({category:'Omnium',id:worldShortcutId(key),defaultKey:key,label,scope:key==='F11'?'application':key.includes('Ctrl')||key==='.'?'applicationExceptDocument':undefined}));
- return [...new Map([...native,...global,...defaults,...omnicDefaults()].map(item=>[`${item.category}/${item.id}`,item])).values()].sort((a,b)=>a.label.localeCompare(b.label));};
+ return [...new Map([...native,...global,...WORLD_GESTURES,...DOCUMENT_GESTURES,...defaults,...omnicDefaults()].map(item=>[`${item.category}/${item.id}`,item])).values()].sort((a,b)=>a.label.localeCompare(b.label));};
  const root=document.createElement('div');root.className='shortcut-window';tools.append(root);const window=shortcutWindow(root,read,()=>ready);disposeTools=window.dispose;
  void Promise.all([import('./text/editor'),import('./composer/runtime/featureActions'),import('./composer/runtime/workspaceActions')]).then(([doc,features,workspace])=>{
  defaults=doc.documentShortcutCatalog();omnicDefaults=()=>features.FEATURE_ACTIONS.filter(action=>!action.id.startsWith('document.')&&!action.id.startsWith('world.')).flatMap(action=>{const key=normalizeShortcut(workspace.shortcutBinding(action.id,{})),current=normalizeShortcut(workspace.shortcutBinding(action.id,shortcuts.getSnapshot().Omnic??{}));return key||current?[{category:'Omnic' as const,id:action.id,label:action.label,defaultKey:key??'',currentKey:current??'',scope:action.scope}]:[];});ready=true;

@@ -1,4 +1,4 @@
-import {SHORTCUT_CATEGORIES,shortcuts,captureShortcut,normalizeShortcut,type ShortcutCategory,type ShortcutDefinition} from './shortcuts.ts';
+import {matchesAssignedShortcut,SHORTCUT_CATEGORIES,shortcuts,captureShortcut,normalizeShortcut,type ShortcutCategory,type ShortcutDefinition} from './shortcuts.ts';
 /** Category-local rendering and capture; owners supply live command definitions. */
 export function shortcutWindow(root:HTMLElement,read:()=>ShortcutDefinition[],ready:()=>boolean=()=>true){
  const tabs=document.createElement('nav'),search=document.createElement('input'),rows=document.createElement('div'),notice=document.createElement('output');
@@ -6,9 +6,9 @@ export function shortcutWindow(root:HTMLElement,read:()=>ShortcutDefinition[],re
  let category:ShortcutCategory='Omnium',stopCapture:(()=>void)|undefined;
  const cancel=()=>{stopCapture?.();stopCapture=undefined;};
  function render(){
-  cancel();const query=search.value.trim().toLowerCase(),catalog=read(),items=catalog.filter(item=>item.category===category&&`${item.label} ${shortcuts.get(item)}`.toLowerCase().includes(query));
+  cancel();const query=search.value.trim().toLowerCase(),catalog=read(),items=catalog.filter(item=>item.category===category&&matchesAssignedShortcut(item,shortcuts.get(item),query));
   tabs.replaceChildren(...SHORTCUT_CATEGORIES.map(name=>{const button=document.createElement('button');button.textContent=name;button.setAttribute('aria-pressed',String(category===name));button.onclick=()=>{category=name;render();};return button;}));
-  rows.replaceChildren(...items.map(item=>{const row=document.createElement('div'),label=document.createElement('span'),key=document.createElement('button');row.className='context-action';label.textContent=item.label;key.className='shortcut-key';key.disabled=!ready();const binding=shortcuts.get(item);key.textContent=item.gesture?`${item.gesture}${binding?' / '+binding:''}`:binding||'—';key.setAttribute('aria-label',`Change ${item.label} keyboard shortcut`);row.append(label,key);
+  rows.replaceChildren(...items.map(item=>{const row=document.createElement('div'),label=document.createElement('span'),key=document.createElement('button');row.className='context-action';label.textContent=item.label;key.className='shortcut-key';key.disabled=!ready()||item.editable===false;const binding=shortcuts.get(item);key.textContent=item.gesture?`${item.gesture}${binding?' / '+binding:''}`:binding||'—';key.setAttribute('aria-label',item.editable===false?`${item.label}: ${item.gesture}`:`Change ${item.label} keyboard shortcut`);row.append(label,key);
    key.onclick=()=>{
     cancel();rows.querySelectorAll('.shortcut-capture').forEach(element=>element.remove());notice.textContent='';let pending:string|undefined;const editor=document.createElement('div'),value=document.createElement('kbd'),warning=document.createElement('span'),apply=document.createElement('button'),clear=document.createElement('button'),reset=document.createElement('button'),back=document.createElement('button');
     editor.className='shortcut-capture';editor.dataset.shortcutRunner='';value.textContent='Press shortcut';apply.textContent='Apply';apply.disabled=true;clear.textContent='Clear';reset.textContent='Default';back.textContent='Cancel';

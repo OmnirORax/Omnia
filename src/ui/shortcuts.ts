@@ -1,6 +1,6 @@
 export const SHORTCUT_CATEGORIES=['Omnium','Document','Omnic'] as const;
 export type ShortcutCategory=typeof SHORTCUT_CATEGORIES[number];
-export type ShortcutDefinition={category:ShortcutCategory;id:string;label:string;defaultKey:string;currentKey?:string;gesture?:string;scope?:string};
+export type ShortcutDefinition={category:ShortcutCategory;id:string;label:string;defaultKey:string;currentKey?:string;gesture?:string;keywords?:string;editable?:boolean;scope?:string};
 export type ShortcutOverrides=Partial<Record<ShortcutCategory,Record<string,string>>>;
 const macPlatform=()=>typeof navigator!=='undefined'&&/Mac|iPhone|iPad/.test(navigator.platform);
 /** Accept native/CodeMirror chord notation, but never treat gesture prose as a key. */
@@ -54,3 +54,5 @@ export function installShortcutCapture(){
  window.addEventListener('keyup',event=>{if(capture){event.preventDefault();event.stopImmediatePropagation();}},true);
  window.addEventListener('blur',()=>{const current=capture;capture=undefined;current?.cancel();});
 }
+
+export function matchesAssignedShortcut(item:ShortcutDefinition,binding:string,query:string){if(!binding&&!item.gesture)return false;const words=(text:string)=>text.toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();const haystack=words([item.label,binding,item.gesture??'',item.keywords??''].join(' '));return words(query).split(/\s+/).every(word=>haystack.includes(word));}
