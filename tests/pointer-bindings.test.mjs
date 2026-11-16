@@ -34,3 +34,11 @@ test('activation capture records held letters with mouse buttons without changin
  handlers.get('keydown')(event);handlers.get('pointerdown')({...event,target:new Element(),button:1});assert.deepEqual(captured,['X+MB3']);stop();
  }finally{Object.assign(globalThis,old);}
 });
+test('camera rotation activation is inherited by creation mode after rebinding',()=>{
+ shortcuts.initialize({getItem:()=>null,setItem(){}});
+ try{
+  const rotate=POINTER_BINDINGS.find(item=>item.id==='gesture:camera-rotate');
+  shortcuts.assign(rotate,'Alt+MB2',POINTER_BINDINGS);
+  for(const context of ['world','create'])assert.deepEqual(resolvePointerBinding('Alt+MB2',context),{id:rotate.id,combo:'Shift+MB2'});
+ }finally{shortcuts.initialize({getItem:()=>null,setItem(){}});}
+});
