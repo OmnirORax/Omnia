@@ -1,4 +1,5 @@
 import {ContextActionsBridge} from './ui/ContextActionsBridge';
+import {shortcuts} from '../../ui/shortcuts';
 import {UIHistoryScope} from '../../ui/useNavigationState.tsx';
 import {HoverPreviewScope} from './ui/HoverPreview';
 import {nativeLayout,nativeAppearance,updateNativeLayout,updateNativeAppearance} from './historyBridge.ts';
@@ -28,7 +29,8 @@ export function ComposerRuntime({children,functions=[],historyScope="native"}:{c
  const update=useCallback((change:(layout:UILayout)=>UILayout)=>updateNativeLayout(change),[]);
  const [stores]=useState<Pick<UIContextValue,'placementPreview'|'activeContext'|'defaults'|'frameActions'|'contextLayers'>>(()=>({placementPreview:createTransientStore<ReturnType<UIContextValue['placementPreview']['getSnapshot']>>(null),activeContext:createTransientStore<ReturnType<UIContextValue['activeContext']['getSnapshot']>>([]),defaults:new Map(),frameActions:new Map(),contextLayers:new Map()}));
  const defaults=useMemo(()=>defaultSettings(),[]),projection=useRef<((key:string,rect:{x:number;y:number;width:number;height:number})=>{x:number;y:number;width:number;height:number})|undefined>(undefined);
- const value=useMemo<UIContextValue>(()=>({...stores,layout,update,functions:[...functions,...Object.values(registered)],registerFunction,canMove:key=>key.startsWith('window:'),configure:unavailable,configureFrame:unavailable,configureControl:unavailable,createFrame:unavailable,library:unavailable,frameMenu:unavailable,selectionMenu:unavailable,renderResident:()=>null,selectedFunctions:new Set(),selectingUI:false,shortcutBindings:defaults.bindings}),[layout,update,functions,registered,registerFunction,stores,defaults]);
+ const bindings=useSyncExternalStore(shortcuts.subscribe,shortcuts.getSnapshot);
+ const value=useMemo<UIContextValue>(()=>({...stores,layout,update,functions:[...functions,...Object.values(registered)],registerFunction,canMove:key=>key.startsWith('window:'),configure:unavailable,configureFrame:unavailable,configureControl:unavailable,createFrame:unavailable,library:unavailable,frameMenu:unavailable,selectionMenu:unavailable,renderResident:()=>null,selectedFunctions:new Set(),selectingUI:false,shortcutBindings:{...defaults.bindings,...bindings.Omnic}}),[layout,update,functions,registered,registerFunction,stores,defaults,bindings]);
  const appearance=useMemo(()=>({base:{...defaults.appearance,...(controller?{controller}:{})},commit:updateNativeAppearance,preview:(_next:Controller|null)=>{},safe:false}),[defaults,controller]);
  return <UIHistoryScope.Provider value={historyScope}><HoverPreviewScope><UIProvider value={value}><DockWorkspace projection={projection}><AppearanceProvider bridge={appearance}><ActiveContextSystem/><ContextActionsBridge/><ValueFieldBehavior/><ToolCursorLayer/><ContextTargetController/>{children}</AppearanceProvider></DockWorkspace></UIProvider></HoverPreviewScope></UIHistoryScope.Provider>;
 }

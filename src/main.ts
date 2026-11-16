@@ -1,5 +1,7 @@
+import {shortcuts,installShortcutCapture,normalizeShortcut,worldBinding,worldShortcutId,matchesShortcut,type ShortcutDefinition} from './ui/shortcuts';
+import {shortcutWindow} from './ui/shortcutWindow';
 import {applyGroupTargets} from './core/groupPlacement';
-import {assignedShortcuts,installContextActions,registerContextActions,refreshContextActions} from './ui/contextActions';
+import {installContextActions,registerContextActions,refreshContextActions} from './ui/contextActions';
 import {aimFrame,activeWorldAxes,createAxis,toggleWorldAxis,shiftAxisOrigin,setSpatialOrigin,slotNode} from './core/axes.ts';
 import {parseBrush,brushShape,SINGLE_BRUSH,type Brush} from './core/brush.ts';
 import {handleContentViewShortcut} from './ui/contentViewShortcut.ts';
@@ -56,6 +58,8 @@ import { workspacePanel } from './ui/workspace.ts';
 import { field } from './ui/fields.ts';
 import { liveForm,flushLiveForms } from './ui/liveForm.ts';
 
+try{shortcuts.initialize(localStorage);}catch{/* Session-only bindings when storage is unavailable. */}
+installShortcutCapture();
 installPrimaryClickGate();
 installBrowserShortcutGuard();
 installValueDrag();
@@ -308,12 +312,12 @@ const immersive=createImmersiveMode({
  enter:()=>document.documentElement.requestFullscreen(),exit:()=>document.exitFullscreen(),
  changed:()=>{requestFormSync();for(const control of document.querySelectorAll<HTMLButtonElement>('[data-immersive-mode]')){control.textContent=immersiveLabel();control.disabled=immersive.phase==='entering'||immersive.phase==='leaving';}},
 });
-function immersiveLabel(){return immersive.phase==='active'?'Exit immersive mode · F11':immersive.phase==='entering'?'Starting immersive mode…':'Enter immersive mode · F11';}
+function immersiveLabel(){return immersive.phase==='entering'?'Starting immersive mode…':`${immersive.phase==='active'?'Exit':'Enter'} immersive mode · ${worldBinding('F11')||'—'}`;}
 function immersiveAction():SearchAction{return {label:immersiveLabel(),keywords:'world immersive fullscreen keyboard lock chrome ctrl f4 f11',available:immersive.supported,run:()=>{if(immersive.phase==='off')enableBrowserShortcuts(false);void (immersive.phase==='active'?immersive.leave():immersive.enter()).catch(error=>feedback(error.message));}};}
 document.addEventListener('fullscreenchange',()=>immersive.fullscreenChanged());
 window.addEventListener('pagehide',()=>{void immersive.leave().catch(()=>{});});
 // Capture F11 before local handlers; locked Escape keeps its normal app handlers.
-window.addEventListener('keydown',event=>{if(immersive.supported&&!browserShortcutsEnabled())handleImmersiveShortcut(event,()=>immersiveAction().run());},true);
+window.addEventListener('keydown',event=>{if(immersive.supported&&!browserShortcutsEnabled())handleImmersiveShortcut(event,()=>immersiveAction().run(),worldBinding('F11'));},true);
 window.addEventListener('keydown',event=>{if(immersive.phase==='active'&&event.code==='F4'&&(event.ctrlKey||event.metaKey)&&!browserShortcutsEnabled()){event.preventDefault();event.stopImmediatePropagation();}},true);
 const settingsCatalog=createSettingsCatalog<SearchSetting>();
 const animationSettings=settingsCatalog.define('animations',()=>ANIMATION_TARGETS.flatMap(target=>animationProperties(target.id).map(property=>({
@@ -329,8 +333,8 @@ const worldSettings=settingsCatalog.define('world',()=>[
 ]);
 
 window.addEventListener('keydown',event=>{
- const target=event.target,typing=target instanceof Element&&!!target.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"]),[role="textbox"],.cm-editor');
- handleContentViewShortcut(event,typing,()=>{const setting=worldSettings().find(item=>item.definition.key==='names')!;attempt(()=>store.change(world=>setting.write!(world,!setting.read())));});
+ const target=event.target,typing=target instanceof Element&&!!target.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"]),[role="textbox"],.cm-editor,[data-input-owner]');
+ handleContentViewShortcut(event,typing,()=>{const setting=worldSettings().find(item=>item.definition.key==='names')!;attempt(()=>store.change(world=>setting.write!(world,!setting.read())));},worldBinding('V'));
 },true);
 const historySettings=settingsCatalog.define('history',()=>[
     {label:'History · Scope',keywords:'history scope selective context categories recent all actions',definition:HISTORY_MODE,read:()=>universalHistory.options.mode,set:value=>universalHistory.configure({mode:value as typeof universalHistory.options.mode})},
@@ -375,8 +379,14 @@ function spaceActions():SearchAction[]{
  ];
 }
 const openShortcuts=defineMenu('shortcuts',()=>{
- open('Shortcuts');const input=document.createElement('input'),rows=document.createElement('div');input.type='search';input.placeholder='Search shortcuts';input.setAttribute('aria-label','Search shortcuts');let defaults:{context:string;label:string;key:string}[]=[];
- const render=()=>{const query=input.value.trim().toLowerCase(),seen=new Set<string>();const live=assignedShortcuts(),assigned=new Set(live.map(item=>item.context+' · '+item.label));const items=[...defaults.filter(item=>!assigned.has(item.context+' · '+item.label)),...live,...worldShortcutActions(true).filter(action=>action.key).map(action=>({context:'Omnium',label:action.label,key:action.key!}))];rows.replaceChildren(...items.filter(item=>{const id=[item.context,item.label,item.key].join(' · ');if(seen.has(id)||query&&!id.toLowerCase().includes(query))return false;seen.add(id);return true;}).sort((a,b)=>a.context.localeCompare(b.context)||a.label.localeCompare(b.label)).map(item=>{const row=document.createElement('div');row.className='context-action';const label=document.createElement('span'),key=document.createElement('kbd');label.textContent=`${item.context} · ${item.label}`;key.textContent=item.key;row.append(label,key);return row;}));};input.oninput=render;tools.append(input,rows);render();input.focus();void Promise.all([import('./text/editor'),import('./composer/runtime/featureActions'),import('./composer/runtime/workspaceActions')]).then(([doc,features,workspace])=>{defaults=[...doc.documentShortcutCatalog(),...features.FEATURE_ACTIONS.map(action=>({context:'Omnic',label:action.label,key:workspace.shortcutBinding(action.id,{})})).filter(item=>item.key)];if(input.isConnected)render();});
+ view?.cancel();open('Shortcuts');let defaults:ShortcutDefinition[]=[],omnicDefaults:()=>ShortcutDefinition[]=()=>[],ready=false;
+ const read=()=>{const native=worldShortcutActions(true).flatMap(action=>(action.defaultKey||action.key===''||action.id===worldShortcutId('R')||action.id===worldShortcutId('W')||action.id===worldShortcutId('O'))?[{category:'Omnium' as const,id:action.id,label:action.label,defaultKey:action.defaultKey,gesture:'gesture' in action?action.gesture:undefined}]:[]);
+ const global:ShortcutDefinition[]=[['V','Content view'],['F11','Fullscreen'],['Esc','Cancel'],['.','Toggle actions'],['Ctrl+Z','Undo'],['Ctrl+Y','Redo'],['Ctrl+Shift+Z','Redo (alternate)'],['Enter','Apply alignment'],['ArrowUp','Navigator up'],['ArrowDown','Navigator down'],['ArrowLeft','Navigator left'],['ArrowRight','Navigator right']].map(([key,label])=>({category:'Omnium',id:worldShortcutId(key),defaultKey:key,label,scope:key==='F11'?'application':key.includes('Ctrl')||key==='.'?'applicationExceptDocument':undefined}));
+ return [...new Map([...native,...global,...defaults,...omnicDefaults()].map(item=>[`${item.category}/${item.id}`,item])).values()].sort((a,b)=>a.label.localeCompare(b.label));};
+ const root=document.createElement('div');root.className='shortcut-window';tools.append(root);const window=shortcutWindow(root,read,()=>ready);disposeTools=window.dispose;
+ void Promise.all([import('./text/editor'),import('./composer/runtime/featureActions'),import('./composer/runtime/workspaceActions')]).then(([doc,features,workspace])=>{
+ defaults=doc.documentShortcutCatalog();omnicDefaults=()=>features.FEATURE_ACTIONS.filter(action=>!action.id.startsWith('document.')&&!action.id.startsWith('world.')).flatMap(action=>{const key=normalizeShortcut(workspace.shortcutBinding(action.id,{})),current=normalizeShortcut(workspace.shortcutBinding(action.id,shortcuts.getSnapshot().Omnic??{}));return key||current?[{category:'Omnic' as const,id:action.id,label:action.label,defaultKey:key??'',currentKey:current??'',scope:action.scope}]:[];});ready=true;
+ if(root.isConnected)window.refresh();}).catch(error=>feedback(String(error)));
 });
 function searchActions():SearchAction[]{return [
  {label:'Shortcuts',keywords:'keyboard shortcuts hotkeys keybindings controls bindings',run:openShortcuts},
@@ -582,7 +592,7 @@ search.oninput = () => { close(); refresh(); };
 search.onkeydown = event => { if (event.key === 'Enter' && shown && !selection.requesting) { selection.set(store.world.nodes.filter(node => shown!.has(key(node.origin))).map(node => node.origin)); search.blur(); refresh(); } };
 tools.addEventListener('contextmenu', event => { event.preventDefault(); event.stopPropagation(); });
 window.addEventListener('keydown',event=>{
-  if(event.key!=='Escape'||event.defaultPrevented)return;
+  if(!matchesShortcut(event,worldBinding('Esc'))||event.defaultPrevented)return;
   // The document owns its search panel and editor Escape hierarchy.
   if(event.target instanceof Element&&event.target.closest('.node-document-panel .document-content'))return;
   if(event.repeat){event.preventDefault();event.stopImmediatePropagation();return;}
@@ -596,28 +606,30 @@ window.addEventListener('keydown',event=>{
 },true);
 function worldShortcutActions(includeUnavailable=false){return [
  ...spaceActions().filter(action=>includeUnavailable||action.available!==false).map(action=>{const match=/^(.*?) \(([^)]+)\)$/.exec(action.label);return {label:match?.[1]??action.label,key:match?.[2],run:action.run};}),
- ...([{label:'Set origin',key:'O',run:()=>view?.pickOrigin()}]),
+ {id:worldShortcutId('O'),label:'Set origin',gesture:'MB3',key:'',run:()=>view?.pickOrigin()},
+ {label:'Expand/collapse hierarchy',key:'Q',run:()=>view?.toggleHierarchy()},
+ {label:'Expand/collapse next level',key:'Shift+Q',run:()=>view?.toggleHierarchy(true)},
  {label:'Toggle contents facing camera',key:'F',run:()=>view?.toggleContentsFacing()},
- {label:'Rotate selection / hovered',key:'R',run:()=>view?.rotateHovered()},
- {label:'Move selection / hovered',key:'W',run:()=>view?.moveHovered()},
+ {id:worldShortcutId('R'),label:'Rotate selection / hovered',gesture:'Right drag',key:'',run:()=>view?.rotateHovered()},
+ {id:worldShortcutId('W'),label:'Move selection / hovered',gesture:'Left click',key:'',run:()=>view?.moveHovered()},
  {label:'Mount hovered / dismount',key:'M',run:()=>view?.mountTarget()},
  {label:view?.userDetached?'Mount User':'Dismount User',key:'U',run:()=>view?.toggleUser()},
  {label:'Create nodes',key:'N',run:()=>view?.toggleCreation()},
  {label:'Search',key:'S',run:searchSettings},
  ...((includeUnavailable||selectedOrigins().length>1)?[{label:'Align selection',key:'I',run:()=>view?.alignSelection()}]:[]),
  ...((includeUnavailable||selectedOrigins().length)?[{label:'Document',key:'D',run:()=>openDocument()},{label:'Label',key:'L',run:()=>editCapability('label')},{label:'Remove',key:'Delete',run:remove}]:[]),
- ];}
+ ].map(action=>{const defaultKey=action.key&&normalizeShortcut(action.key),id=('id' in action?action.id:undefined)??worldShortcutId(defaultKey??action.key??action.label);return {...action,id,defaultKey:defaultKey??'',key:normalizeShortcut(action.key??'')||action.key===''?shortcuts.get({category:'Omnium',id,label:action.label,defaultKey:defaultKey??''}):action.key};});}
 installContextActions();
 registerContextActions({label:'Omnium',owns:element=>!!element.closest('#world,header'),read:()=>{
  const mode=view?.inputContext;
- if(mode==='rotate')return [{label:'Shared reference',key:'O'},{label:'Confirm rotation',key:'Right click empty'},{label:'Rotate preview',key:'Move up/down'},{label:'Snap value',key:'0–9'},{label:'Cancel',key:'Esc'}];
+ if(mode==='rotate')return [{label:'Shared reference',key:'MB3'},{label:'Confirm rotation',key:'Right click'},{label:'Rotate preview',key:'Move up/down'},{label:'Snap value',key:'0–9'},{label:'Cancel',key:'Esc'}];
  if(mode==='align')return [{label:'Rotate alignment axis',key:'Right drag'},{label:'Toggle axes',key:'Hold left + sweep'},{label:`Gap ${view?.alignmentGap??0} (0 = adjacent)`,key:'0–9'},{label:'Face origin toward node',key:'Alt + right click',run:aimOrigin},{label:'Apply alignment',key:'Enter'},{label:'Cancel',key:'Esc'}];
- if(mode==='origin')return [{label:'Choose origin slot',key:'Click'},{label:'Cancel origin picker',key:'O / Esc'}];
+ if(mode==='origin')return [{label:'Choose origin slot',key:'Click'},{label:'Cancel origin picker',key:'MB3 / Esc'}];
  if(mode==='axis-first'||mode==='axis-second')return [{label:mode==='axis-first'?'Choose first axis node':'Choose second axis node',key:'Click'},{label:'Cancel axis picker',key:'Esc'}];
- if(mode==='create')return [{label:'Expand/collapse hierarchy',key:'Click'},{label:'Pick up / place',key:'W / Click'},{label:'Connect',key:'Shift + drag'},{label:'Place nodes',key:'Click'},{label:'Paint nodes',key:'Drag'},{label:'Preview paint',key:'Hold Alt'},{label:'Exit creation',key:'N / Esc',run:()=>view?.toggleCreation()}];
+ if(mode==='create')return [{label:'Expand/collapse hierarchy',key:worldBinding('Q')},{label:'Pick up / place',key:'Click'},{label:'Connect',key:'Shift + drag'},{label:'Place nodes',key:'Click'},{label:'Paint nodes',key:'Drag'},{label:'Preview paint',key:'Hold Alt'},{label:'Exit creation',key:'N / Esc',run:()=>view?.toggleCreation()}];
  return [
  ...worldShortcutActions(),
- {label:'Expand/collapse next level',key:'Alt + click'},{label:'Select in plane',key:'Ctrl + drag'},{label:'Select with depth',key:'Ctrl + Shift + drag'},{label:'Expand/collapse hierarchy',key:'Click'}, {label:'Pick up / place',key:'W / Click'},{label:'Connect',key:'Shift + drag'},{label:'Preview paint',key:'Hold Alt'},{label:'Look / orbit',key:'Right drag'},{label:'Undo',key:'Ctrl+Z',run:()=>travelHistory('undo')},{label:'Redo',key:'Ctrl+Y',run:()=>travelHistory('redo')},
+ {label:'Expand/collapse next level',key:worldBinding('Shift+Q')},{label:'Select in plane',key:'Ctrl + drag'},{label:'Select with depth',key:'Ctrl + Shift + drag'},{label:'Expand/collapse hierarchy',key:worldBinding('Q')}, {label:'Pick up / place',key:'Click'},{label:'Connect',key:'Shift + drag'},{label:'Preview paint',key:'Hold Alt'},{label:'Rotate preview / confirm',key:'Right drag / right click'},{label:'Set origin',key:'MB3'},{label:'Look / orbit empty space',key:'Right drag'},{label:'Undo',key:'Ctrl+Z',run:()=>travelHistory('undo')},{label:'Redo',key:'Ctrl+Y',run:()=>travelHistory('redo')},
  {label:'Cancel',key:'Esc'},{label:'Toggle actions',key:'.'}
 ];}});
 document.addEventListener('keydown', event => {
@@ -625,14 +637,12 @@ document.addEventListener('keydown', event => {
   if (event.target instanceof Element && event.target.closest('[data-input-owner]')) return;
   if (editing || event.target instanceof HTMLElement && event.target.isContentEditable) return;
   if(!event.ctrlKey&&!event.metaKey&&!event.altKey&&view?.userPositionKey(event.key)){event.preventDefault();return;}
-  if(!event.ctrlKey&&!event.metaKey&&!event.altKey&&!event.shiftKey&&!event.repeat&&!selection.requesting){
-    const action=worldShortcutActions().find(action=>action.key?.toLowerCase()===event.key.toLowerCase());
+  if(!event.defaultPrevented&&!event.repeat&&!selection.requesting){
+    const action=worldShortcutActions().find(action=>action.key&&matchesShortcut(event,action.key));
     if(action){event.preventDefault();attempt(action.run);return;}
   }
-  if(event.key.toLowerCase()==='x'&&event.shiftKey&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&!event.repeat){event.preventDefault();openBrush();return;}
-  if(event.key.toLowerCase()==='s'&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&!event.repeat){event.preventDefault();searchSettings();return;}
 
-  if (event.key === 'Delete' && selection.values.length && !selection.requesting) { event.preventDefault(); attempt(remove); }
+
 });
 viewHistory.menuRenderer(spec=>{
  if(!spec){renderClose();return;}menuPoint={...(spec.point??cursorPosition())};
@@ -645,6 +655,7 @@ viewHistory.factory('scene',spec=>openScene((spec.args as SceneTab[])[0],spec));
 viewHistory.factory('document',spec=>openDocument((spec.args as Origin[])[0],spec));
 viewHistory.factory('composer',spec=>openComposer((spec.args as Origin[])[0],spec));
 installHistoryBindings({undo:()=>travelHistory('undo'),redo:()=>travelHistory('redo'),configure:openHistory,flush:flushLiveForms});
+shortcuts.subscribe(()=>{refreshContextActions();for(const control of document.querySelectorAll<HTMLButtonElement>('[data-immersive-mode]'))control.textContent=immersiveLabel();});
 refresh();
 
 // Builds share one draft; production retains its published starting state.

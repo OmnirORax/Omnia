@@ -19,8 +19,8 @@ test('own-origin rotation previews without authoring; right-empty confirms once 
  const h=harness();try{const before=structuredClone(h.world);h.down(1);assert.equal(h.enabled,false);h.move(76);assert.deepEqual(h.world,before);assert.notEqual(h.visuals.get(address(h.a.origin)).group.quaternion.y,0);h.down(99);assert.equal(h.commits.length,1);assert.deepEqual(h.commits[0].nodes.get(address(h.a.origin)).position,[0,0,0]);assert.equal(h.controller.active,false);assert.equal(h.enabled,true);
  h.down(1);h.move(52);h.controller.cancel();assert.equal(h.commits.length,1);assert.deepEqual(h.visuals.get(address(h.a.origin)).group.quaternion.toArray(),[0,0,0,1]);}finally{h.restore();}
 });
-test('rotation uses the shared frame and target clicks do not establish private references',()=>{
- const h=harness();try{h.down(1);h.down(2);h.down(3);h.move(76);h.down(99);const q=h.commits[0].nodes.get(address(h.a.origin)).orientation,expected=new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),Math.PI/2);assert.ok(new T.Quaternion(q.x,q.y,q.z,q.w).angleTo(expected)<1e-7);assert.deepEqual(h.frame.origin,undefined);}finally{h.restore();}
+test('the next right click confirms the shared-frame preview even over another node',()=>{
+ const h=harness();try{h.down(1);h.move(76);h.down(2);assert.equal(h.commits.length,1);assert.equal(h.controller.active,false);const q=h.commits[0].nodes.get(address(h.a.origin)).orientation,expected=new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),Math.PI/2);assert.ok(new T.Quaternion(q.x,q.y,q.z,q.w).angleTo(expected)<1e-7);assert.equal(h.commits[0].nodes.has(address(h.b.origin)),false);assert.deepEqual(h.frame.origin,undefined);}finally{h.restore();}
 });
 test('Ctrl-right orbit changes position; spatial-frame rotation never authors object transforms',()=>{
  const h=harness();try{h.frame.origin=[0,0,5];h.down(1,100,true);h.move(76);h.down(99);assert.notDeepEqual(h.commits[0].nodes.get(address(h.a.origin)).position,[0,0,0]);h.down(4);h.move(76);h.down(99);assert.equal(h.commits[1].nodes.size,0);assert.equal(h.commits[1].f.id,h.frame.id);assert.deepEqual(h.commits[1].f.state.origin,[0,0,5]);}finally{h.restore();}
@@ -49,3 +49,11 @@ test('rotation controls retain their click targets and halve/double without a nu
 });
 
 test('rotation operates on the selected group without a hovered target',()=>{const h=harness();try{h.select([h.a.origin,h.b.origin]);h.down(99,100,false,h.a.origin);assert.equal(h.controller.active,true);h.move(76);h.down(99);assert.equal(h.commits[0].nodes.size,2);assert.deepEqual(h.commits[0].nodes.get(address(h.a.origin)).position,h.a.position);assert.deepEqual(h.commits[0].nodes.get(address(h.b.origin)).position,h.b.position);}finally{h.restore();}});
+
+test('right press arms rotation only after a drag, release latches it, and later motion continues the preview',()=>{
+ const h=harness(),press={button:2,clientX:1,clientY:100,preventDefault(){},stopImmediatePropagation(){}};try{
+ assert.equal(h.controller.arm(press),true);assert.equal(h.controller.release(),false);assert.equal(h.controller.active,false);assert.equal(h.commits.length,0);
+ h.controller.arm(press);h.move(96);assert.equal(h.controller.release(),true);assert.equal(h.controller.active,true);h.move(76);assert.equal(h.commits.length,0);h.down(2);assert.equal(h.commits.length,1);assert.equal(h.controller.active,false);
+ h.controller.arm(press);h.controller.cancel();assert.equal(h.controller.active,false);assert.equal(h.enabled,true);
+ }finally{h.restore();}
+});

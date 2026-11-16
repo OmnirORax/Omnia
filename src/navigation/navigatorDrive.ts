@@ -30,11 +30,11 @@ export function createNavigatorDrive(env:{
    s.valid=!!resolved;if(!resolved)return false;s.last=resolved.get(s.id)!;s.lastWorlds=resolved;paint(resolved);return true;
   },
   cancel(){const s=session;session=undefined;if(s)paint(s.worlds);},
-  park(lastValid=false){const s=session;if(!s)return undefined;if(!s.valid&&!lastValid)return null;
+  park(lastValid=false,commit=env.commit){const s=session;if(!s)return undefined;if(!s.valid&&!lastValid)return null;
    // Release preview ownership before the synchronous owner/history write can
    // trigger a renderer refresh. Failed writes restore the same drive session.
    session=undefined;
-   try{const doc=env.commit(s.id,s.last);if(!doc){session=s;paint(s.lastWorlds);return null;}return doc;}
+   try{const doc=commit(s.id,s.last);if(!doc){session=s;paint(s.lastWorlds);return null;}return doc;}
    catch(error){session=s;paint(s.lastWorlds);throw error;}
   },
  };
