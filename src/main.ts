@@ -95,6 +95,7 @@ const view = (() => {
       clear() { if (selection.requesting) return; close(); selection.set([]); refresh(); },
       menu(origin, point, position, edge) { if (selection.requesting) return; message = ''; if(edge)selection.set([edge]);else if(origin)selection.set(selection.has(origin)?selectedOrigins():[origin]);else selection.set([]); menuPoint = point; refresh(); context(position,origin,edge); },
       navigationSettings:()=>openNavigation(),
+      rotateCommit(nodes,frame){store.change(world=>{if(nodes.size){applyGroupTargets(world,new Map([...nodes].map(([id,n])=>[id,n.position])));for(const node of world.nodes){const next=nodes.get(key(node.origin));if(next)node.orientation={...next.orientation};}}if(frame){const found=world.axes?.find(f=>f.id===frame.id);if(!found)throw Error('The frame was removed.');Object.assign(found,frame.state,{directed:true});}});},
       transform(origins,rotation,pivot,layout){store.change(world=>transformNodes(world,origins,rotation,pivot,layout));},
       groupMove(targets){store.change(world=>applyGroupTargets(world,targets));},
       move(origins, delta) { store.change(world => translate(world, origins, delta)); },
@@ -388,7 +389,6 @@ function searchActions():SearchAction[]{return [
  {label:'Scene',keywords:'scene wallpaper image audio normalization normalize waves pulse prompt',run:openScene},
  {label:'World',keywords:'world lattice names labels visibility',run:worldControls},
  {label:'Camera & rotation',keywords:'camera navigation 3d orbit look pan walk rotation sensitivity',run:openNavigation},
- {label:'Camera HUD',keywords:'camera compass coordinates xyz',run:openCameraHUD},
  {label:'History',keywords:'history undo redo scope steps',run:openHistory},
  {label:'Undo',keywords:'undo history mb4 ctrl z control z',run:()=>travelHistory('undo')},
  {label:'Redo',keywords:'redo history mb5 ctrl y control y',run:()=>travelHistory('redo')},
@@ -519,7 +519,6 @@ const visualTargets=defineMenu('visualTargets',()=>{
 const HISTORY_MODE:Property={key:'history.mode',label:'Scope',kind:'select',options:[{id:'recent',label:'All actions'},{id:'context',label:'Current context'},{id:'selective',label:'Selected categories'}]};
 const HISTORY_STEPS:Property={key:'history.steps',label:'Steps',kind:'number',min:1,max:10,step:1};
 const HISTORY_CATEGORIES=['omnium','ui','appearance','settings','camera']as const;
-function openCameraHUD(restore?:ViewSpec){if(!view)return;renderClose();viewHistory.adopt('cameraHUD',{kind:'cameraHUD'},view.showCamera(),restore);}
 const openHistory=defineMenu('history',()=>{
   open('History');for(const item of historySettings())appendSetting(tools,item);
   button('Undo',()=>store.undo());button('Redo',()=>store.redo());positionMenu();
@@ -534,7 +533,6 @@ const worldControls=defineMenu('world',()=>{
   const immersion=immersiveAction(),immersiveButton=button(immersion.label,immersion.run);immersiveButton.disabled=immersion.available===false;immersiveButton.dataset.immersiveMode='';
   button('History',openHistory);
   button('Camera & rotation',openNavigation);
-  button('Camera HUD',openCameraHUD);
   button('Show all nodes', () => { store.change(world => { for (const node of world.nodes) {node.hidden=false;node.collapsed=false;} });search.value='';close();refresh(); });
   button('Fit all', () => { view?.focus(store.world.nodes.map(node => node.origin),true);close(); });positionMenu();
 });
@@ -603,6 +601,7 @@ function worldShortcutActions(){return [
 installContextActions();
 registerContextActions({label:'Omnium',owns:element=>!!element.closest('#world,header'),read:()=>{
  const mode=view?.inputContext;
+ if(mode==='rotate')return [{label:'Bind reference',key:'Right click target'},{label:'Confirm rotation',key:'Right click empty'},{label:'Rotate preview',key:'Move up/down'},{label:'Snap value',key:'0–9'},{label:'Cancel',key:'Esc'}];
  if(mode==='align')return [{label:'Rotate alignment axis',key:'Right drag'},{label:'Toggle axes',key:'Hold left + sweep'},{label:`Gap ${view?.alignmentGap??0} (0 = adjacent)`,key:'0–9'},{label:'Face origin toward node',key:'Alt + right click',run:aimOrigin},{label:'Apply alignment',key:'Enter'},{label:'Cancel',key:'Esc'}];
  if(mode==='origin')return [{label:'Choose origin slot',key:'Click'},{label:'Cancel origin picker',key:'O / Esc'}];
  if(mode==='axis-first'||mode==='axis-second')return [{label:mode==='axis-first'?'Choose first axis node':'Choose second axis node',key:'Click'},{label:'Cancel axis picker',key:'Esc'}];
@@ -635,8 +634,6 @@ viewHistory.factory('library',spec=>openLibrary(spec));
 viewHistory.factory('scene',spec=>openScene((spec.args as SceneTab[])[0],spec));
 viewHistory.factory('document',spec=>openDocument((spec.args as Origin[])[0],spec));
 viewHistory.factory('composer',spec=>openComposer((spec.args as Origin[])[0],spec));
-viewHistory.factory('cameraHUD',spec=>openCameraHUD(spec));
-if(view)viewHistory.adopt('cameraHUD',{kind:'cameraHUD'},view.showCamera(),undefined,true);
 installHistoryBindings({undo:()=>travelHistory('undo'),redo:()=>travelHistory('redo'),configure:openHistory,flush:flushLiveForms});
 refresh();
 

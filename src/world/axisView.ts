@@ -11,6 +11,7 @@ export function createAxisView(scene:T.Scene,host:HTMLElement){
  let previous='';const picks:T.Line[]=[];
  function clear(){for(const child of [...group.children]){group.remove(child);if(child.userData.isLabel)disposeLabel(child as ReturnType<typeof label>);else {const line=child as T.Line;line.geometry.dispose();(line.material as T.Material).dispose();}}picks.length=0;}
  return {picks,
+  referenceVisible(id:string,visible:boolean){for(const child of group.children)if(child.userData.axis===id)child.visible=visible;},
   setCoordinatesVisible(visible:boolean){coordinatesVisible=visible;readout.hidden=!visible;if(!visible)hint.hidden=true;},
   brushCoordinates(world:World,frame:AxisFrame|undefined,points:Vec3[],scale:number,camera:T.PerspectiveCamera,visible:boolean){
    readout.hidden=!visible||!coordinatesVisible;if(readout.hidden)return;
@@ -29,7 +30,7 @@ export function createAxisView(scene:T.Scene,host:HTMLElement){
      line.userData.axis=frame.id;line.userData.axisIndex=index;line.userData.glowIntensity=selected?1:0;group.add(line);picks.push(line);
      if(active){const caption=label(['X','Y','Z'][index]);caption.scale.multiplyScalar(.5*scale);caption.position.copy(center).addScaledVector(direction,extent);caption.material.opacity=selected?1:.3;caption.userData.axis=frame.id;caption.userData.axisIndex=index;group.add(caption);picks.push(caption as unknown as T.Line);}
     }
-    const caption=label(frame.ends.length===1?'0':`${Math.round(length)} u`);caption.scale.multiplyScalar(.5*scale);caption.position.copy(center).addScaledVector(new T.Vector3(...frame.y),.3*scale);group.add(caption);
+    const caption=label(frame.ends.length===1?'0':`${Math.round(length)} u`);caption.userData.axis=frame.id;caption.scale.multiplyScalar(.5*scale);caption.position.copy(center).addScaledVector(new T.Vector3(...frame.y),.3*scale);group.add(caption);
    }
   },
   coordinates(world:World,frame:AxisFrame|undefined,p:Vec3|undefined,screen:{x:number;y:number}|undefined){
