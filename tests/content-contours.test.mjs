@@ -2,7 +2,7 @@ import {expansionState,nodeContentVisible,toggleContent} from '../src/graph/node
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as T from 'three';
-import {alphaHull,contentEnvelope,inkEnvelope} from '../src/world/contentEnvelope.ts';
+import {alphaBoundary,alphaHull,contentEnvelope,inkEnvelope} from '../src/world/contentEnvelope.ts';
 import {createContentContour,collectContentHull} from '../src/world/contentContour.ts';
 import {pushContours,contourClearance} from '../src/world/contourPush.ts';
 import {pointerPlane} from '../src/navigation/pointerPlane.ts';
@@ -82,4 +82,14 @@ test('ink envelope retains exact oblique support edges instead of quantizing the
 });
 test('ink envelope handles empty, point and collinear content with finite matched geometry',()=>{
  assert.deepEqual(inkEnvelope([],.1),[]);for(const points of [[{x:0,y:0}],[{x:-2,y:0},{x:0,y:0},{x:2,y:0}]]){const outer=inkEnvelope(points,.2),inner=inkEnvelope(points,.1);assert.equal(outer.length,inner.length);assert.ok(outer.length>=3);assert.ok(outer.every(p=>Number.isFinite(p.x)&&Number.isFinite(p.y)));}
+});
+
+test('word silhouette keeps outer indentations and bridges letter gaps without separate letter outlines',()=>{
+ const w=80,h=40,data=new Uint8ClampedArray(w*h*4);for(let x=5;x<75;x++)for(let y=(x<30?5:20);y<35;y++)if(x<40||x>44)data[(y*w+x)*4+3]=255;
+ const points=alphaBoundary(data,w,h);assert.ok(points.some(p=>p.x>0&&p.y===0));assert.ok(points.some(p=>p.x<-.2&&p.y===.375));
+ const contour=createContentContour();contour.update(points,1,true);contour.hit.updateMatrixWorld();const ray=new T.Raycaster(new T.Vector3(.3,.25,2),new T.Vector3(0,0,-1));assert.equal(ray.intersectObject(contour.hit).length,0,'concave empty region stays outside');ray.ray.origin.set(.03,-.2,2);assert.ok(ray.intersectObject(contour.hit).length,'gap belongs to combined content');contour.dispose();
+});
+test('silhouette stroke is centered on ink rather than separated by padding',()=>{
+ const points=[{x:-1,y:-.5},{x:1,y:-.5},{x:1,y:.5},{x:-1,y:.5}],contour=createContentContour();contour.update(points,1,true);const positions=contour.outline.geometry.attributes.position;
+ assert.ok(Math.abs((positions.getY(0)+positions.getY(1))/2+.5)<1e-7);contour.dispose();
 });

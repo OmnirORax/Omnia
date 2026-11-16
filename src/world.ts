@@ -160,8 +160,8 @@ export function createWorld(host: HTMLElement, input: Input) {
       if(!content){v.contour.outline.visible=v.contour.hit.visible=false;continue;}
       const signature=JSON.stringify([v.text.visible,v.text.material.map?.uuid,v.text.scale.toArray(),v.text.position.toArray(),v.object?.visible,v.object?.userData.glyphKey,v.object?.userData.contourVersion,v.object?.scale.toArray(),scale]);
       if(signature!==v.contourKey){
-        v.contourKey=signature;const points=convexHull([...(v.text.visible?collectContentHull(v.text):[]),...(v.object?.visible?collectContentHull(v.object):[])]);
-        const shapeKey=JSON.stringify([scale,points.map(p=>[Math.round(p.x*1e6),Math.round(p.y*1e6)])]);if(shapeKey!==v.contourShapeKey){v.contourShapeKey=shapeKey;v.contour.update(points,scale);pushDirty=true;}
+        v.contourKey=signature;const boundary=v.text.visible&&!v.object?.visible;const points=boundary?collectContentHull(v.text,true):convexHull([...(v.text.visible?collectContentHull(v.text):[]),...(v.object?.visible?collectContentHull(v.object):[])]);
+        const shapeKey=JSON.stringify([scale,points.map(p=>[Math.round(p.x*1e6),Math.round(p.y*1e6)])]);if(shapeKey!==v.contourShapeKey){v.contourShapeKey=shapeKey;v.contour.update(points,scale,boundary);pushDirty=true;}
       }
       v.contour.outline.visible=v.contour.hit.visible=v.contour.points.length>=3;
       v.ring.visible=!v.contour.outline.visible&&selectionMarked(key(v.node.origin));
@@ -174,7 +174,7 @@ export function createWorld(host: HTMLElement, input: Input) {
     const unit=(v:Visual)=>Math.max(.00001,-v.group.position.clone().applyMatrix4(camera.matrixWorldInverse).z)*2*Math.tan(T.MathUtils.degToRad(camera.fov/2))/height;
     const bodies:ContourBody[]=[],units=new Map<string,number>(),fixed=new Set([...selectedKeys,...(world.axes??[]).flatMap(frame=>frame.ends.map(key))]);
     for(const [id,v]of visuals){if(!v.group.visible)continue;const p=v.group.position.clone().project(camera);if(p.z< -1||p.z>1)continue;
-      const u=unit(v),points=v.contour.outline.visible?v.contour.points:contentEnvelope([{x:0,y:0}],scale*.5,32);
+      const u=unit(v),points=v.contour.outline.visible?convexHull(v.contour.points):contentEnvelope([{x:0,y:0}],scale*.5,32);
       bodies.push({id,fixed:fixed.has(id),passive:!v.contour.outline.visible,x:(p.x+1)*width/2,y:(1-p.y)*height/2,points:points.map(q=>({x:q.x/u,y:-q.y/u}))});units.set(id,u);
     }
     // Expansion is anchored to the selected node's canonical position. A
