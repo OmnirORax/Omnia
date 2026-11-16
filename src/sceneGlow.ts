@@ -1,3 +1,4 @@
+import {inheritedValue} from './graph/inheritedValue.ts';
 import {inheritMaterialCoverage} from './materialCoverage.ts';
 import { sceneEdgeAA } from "./sceneEdgeAA.ts";
 import { bloomSize } from "./renderBudget.ts";
@@ -53,9 +54,7 @@ export class SceneGlow extends Pass {
       this.scene.background = new THREE.Color(0);
       this.scene.traverse(object => {
         if (!(object instanceof THREE.Mesh || object instanceof THREE.Line || object instanceof THREE.Points || object instanceof THREE.Sprite)) return;
-        let owner: THREE.Object3D | null = object;
-        while (owner && owner.userData.glowIntensity === undefined) owner = owner.parent;
-        const intensity = owner?.userData.glowIntensity ?? 0;
+        const intensity = inheritedValue(object,'glowIntensity',0);
         saved.push({ object, material: object.material });
         const mask = (original: THREE.Material) => { used.add(original); return this.mask(original, intensity); };
         object.material = Array.isArray(object.material) ? object.material.map(mask) : mask(object.material);

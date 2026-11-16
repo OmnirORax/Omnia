@@ -9,3 +9,24 @@ test('another button or pointer cannot complete the selection gesture',()=>{cons
 test('hover replaces only the current target and preserves the last clicked group through committed-state filtering',()=>{const s=createSelection((a,b)=>a===b);s.set(['a','b']);s.hover('c');assert.deepEqual(s.values,['c']);assert.equal(s.has('a'),false);s.retain(Boolean);s.hover(undefined);assert.deepEqual(s.values,['a','b']);s.hover('b');assert.deepEqual(s.values,['b']);s.pick('c',true);s.hover(undefined);assert.deepEqual(s.values,['a','b','c']);});
 
 test('removing a hovered target restores valid clicked selections instead of leaving a stale current target',()=>{const s=createSelection((a,b)=>a===b);s.set(['a','b']);s.hover('c');s.retain(value=>value!=='c'&&value!=='b');assert.deepEqual(s.values,['a']);assert.deepEqual(s.committed,['a']);});
+
+test('selection activation releases picked-up nodes and previews before starting the box',async()=>{
+ const {beginRange}=await import('../src/world/rangeSelection.ts');
+ const selection=createSelection((a,b)=>a===b);selection.set(['a','b']);let driving=true,rotation=true,cancelled=0;
+ const stop=()=>{driving=false;rotation=false;cancelled++;};
+ assert.equal(beginRange({button:2,ctrlKey:true,metaKey:false},stop),false);assert.equal(driving,true);
+ assert.equal(beginRange({button:0,ctrlKey:true,metaKey:false},stop),true);assert.equal(driving,false);assert.equal(rotation,false);assert.equal(cancelled,1);assert.deepEqual(selection.committed,['a','b']);
+ const h=harness();releaseRange({mode:'range',pointer:1,button:0,dragged:true,volume:{}},h.event,h.actions);assert.deepEqual(h.selection.values,['a','b']);
+});
+
+test('plain rectangles include visible nodes away from the origin plane and remain independent of movement axes',async()=>{
+ const {PerspectiveCamera,Vector3}=await import('three');const {insideScreenSelection}=await import('../src/world/rangeSelection.ts');const {insideActivePlane}=await import('../src/core/axes.ts');const {emptyWorld}=await import('../src/core/model.ts');
+ const camera=new PerspectiveCamera(45,1,.1,100);camera.position.z=20;camera.lookAt(0,0,0);camera.updateMatrixWorld();
+ const rect={left:20,top:40,width:400,height:400},start={x:150,y:150},end={x:300,y:300},world=emptyWorld();
+ for(const activeAxes of [[],[0],[0,1],[0,2]]){const frame={id:'origin',ends:[],members:[],origin:[0,10,10],x:[1,0,0],y:[0,1,0],z:[0,0,1],activeAxes};const position=[0,0,3];assert.equal(insideActivePlane(world,frame,position),false);const projected=new Vector3(...position).project(camera);assert.equal(insideScreenSelection(projected,rect,start,end),true);assert.equal(insideScreenSelection(projected,rect,end,start),true);}
+ assert.equal(insideScreenSelection(new Vector3(0,0,2),rect,start,end),false);
+});
+
+test('explicit deselection clears both the clicked group and a stale hover target',()=>{
+ const selection=createSelection((a,b)=>a===b);selection.set(['a','b']);selection.hover('b');selection.clear();assert.deepEqual(selection.values,[]);assert.deepEqual(selection.committed,[]);selection.hover(undefined);assert.deepEqual(selection.values,[]);
+});
