@@ -1,3 +1,4 @@
+import {installPointerBindings,pointerActivation} from './ui/pointerBindings.ts';
 import {nativeLayout,nativeAppearance} from './composer/runtime/historyBridge.ts';
 import {navigationState} from './ui/navigationState.ts';
 import {releaseShortcuts,installReleaseShortcuts} from './ui/releaseShortcuts';
@@ -64,6 +65,7 @@ import { field } from './ui/fields.ts';
 import { liveForm,flushLiveForms } from './ui/liveForm.ts';
 
 try{shortcuts.initialize(localStorage);}catch{/* Session-only bindings when storage is unavailable. */}
+installPointerBindings(()=>view?.inputContext==='rotate'?'world':view?.inputContext??'world');
 installReleaseShortcuts(event=>{
  if(/^(Control|Shift|Alt|Meta|AltGraph)$/.test(event.key)||event.isComposing)return false;
  if(event.target instanceof Element&&event.target.closest('button,a[href]')&&(event.key==='Enter'||event.key===' '))return false;
@@ -117,7 +119,7 @@ const view = (() => {
     return createWorld(element('world'), {
       toggleAllContent(){store.change(world=>{world.settings??={latticeScale:1,names:'selection'};world.settings.names=world.settings.names==='all'?'selection':'all';});},
       cameraChanged:state=>store.setCamera(state),
-      originChord(){const binding=originShortcutBinding();if(!releaseShortcuts.held(binding))return false;releaseShortcuts.consume(binding);return true;},
+      originChord(){if(pointerActivation()==='gesture:origin-rotation'){releaseShortcuts.consume(originShortcutBinding());return true;}const binding=originShortcutBinding();if(!releaseShortcuts.held(binding))return false;releaseShortcuts.consume(binding);return true;},
       committedSelection:()=>selection.committed.filter(isNode),
       hover(origin,edge){selection.hover(edge??origin);return selectedOrigins();},
       pick, picking: () => selection.requesting,
@@ -421,7 +423,7 @@ const openShortcuts=defineMenu('shortcuts',()=>{
  view?.cancel();let shortcutView:ReturnType<typeof shortcutWindow>|undefined;const find=open('Shortcuts',query=>shortcutView?.filter(query));let defaults:ShortcutDefinition[]=[],omnicDefaults:()=>ShortcutDefinition[]=()=>[],ready=false;
  const read=()=>{const native=worldShortcutActions(true).flatMap(action=>(action.defaultKey||action.key===''||action.id===worldShortcutId('R')||action.id===worldShortcutId('W')||action.id===worldShortcutId('O'))?[{category:'Omnium' as const,id:action.id,label:action.label,defaultKey:action.defaultKey,gesture:'gesture' in action?action.gesture:undefined}]:[]);
  const global:ShortcutDefinition[]=[['V','Content view'],['F11','Fullscreen'],['Esc','Cancel'],['.','Toggle actions'],['Ctrl+Z','Undo'],['Ctrl+Y','Redo'],['Ctrl+Shift+Z','Redo (alternate)'],['Enter','Apply alignment'],['ArrowUp','Navigator up'],['ArrowDown','Navigator down'],['ArrowLeft','Navigator left'],['ArrowRight','Navigator right']].map(([key,label])=>({category:'Omnium',id:worldShortcutId(key),defaultKey:key,label,scope:key==='F11'?'application':key.includes('Ctrl')||key==='.'?'applicationExceptDocument':undefined}));
- return [...new Map([...native,...global,...WORLD_GESTURES.map(item=>item.id==='gesture:origin-rotation'?{...item,gesture:originShortcutBinding()?`Hold ${originShortcutBinding()} + MB3`:''}:item.id==='gesture:hierarchy-contents'?{...item,gesture:worldBinding('V')&&worldBinding('Q')?`Hold ${worldBinding('V')} + ${worldBinding('Q')}`:''}:item),...DOCUMENT_GESTURES,...defaults,...omnicDefaults()].map(item=>[`${item.category}/${item.id}`,item])).values()].sort((a,b)=>a.label.localeCompare(b.label));};
+ return [...new Map([...native,...global,...WORLD_GESTURES.map(item=>item.id==='gesture:hierarchy-contents'?{...item,gesture:worldBinding('V')&&worldBinding('Q')?`Hold ${worldBinding('V')} + ${worldBinding('Q')}`:''}:item),...DOCUMENT_GESTURES,...defaults,...omnicDefaults()].map(item=>[`${item.category}/${item.id}`,item])).values()].sort((a,b)=>a.label.localeCompare(b.label));};
  const root=document.createElement('div');root.className='shortcut-window';tools.append(root);const window=shortcutWindow(root,read,()=>ready,find);shortcutView=window;disposeTools=window.dispose;
  void Promise.all([import('./text/editor'),import('./composer/runtime/featureActions'),import('./composer/runtime/workspaceActions')]).then(([doc,features,workspace])=>{
  defaults=doc.documentShortcutCatalog();omnicDefaults=()=>features.FEATURE_ACTIONS.filter(action=>!action.id.startsWith('document.')&&!action.id.startsWith('world.')).flatMap(action=>{const key=normalizeShortcut(workspace.shortcutBinding(action.id,{})),current=normalizeShortcut(workspace.shortcutBinding(action.id,shortcuts.getSnapshot().Omnic??{}));return key||current?[{category:'Omnic' as const,id:action.id,label:action.label,defaultKey:key??'',currentKey:current??'',scope:action.scope}]:[];});ready=true;
