@@ -49,3 +49,14 @@ test('conflicts explain local edits, unknown ancestry and remote changes',async(
  const published=fixture({hasLocal:true,autoLoad:false});await published.sync.load();published.state.change(world=>{world.scene.vfx.pulseAmount=.8;});assert.match(published.state.error,/edited the published workspace/);published.sync.dispose();
  const legacy=fixture({save:async()=>{throw Error('Conflict');}});await legacy.sync.load();legacy.state.change(world=>{world.scene.vfx.pulseAmount=.7;});await legacy.sync.save();assert.equal(legacy.state.error,REVISION_CONFLICT);legacy.sync.dispose();
 });
+
+test('shared drafts preserve saved windows, layout, selection and panel values',async()=>{
+ const {emptyUILayout}=await import('../src/composer/runtime/ui/layout.ts');
+ const {checkedWorld}=await import('../src/core/transfer.ts');
+ const {state,sync}=fixture();await sync.load();
+ state.change(world=>{world.session={version:1,views:{state:{menu:null,windows:{doc:{kind:'document',instance:7,args:[{born:1,at:[0,0,0]}]},composer:{kind:'composer',instance:8,args:[{born:2,at:[1,0,0]}]}}},poses:{7:'left: 42px; top: 80px;'}},layout:emptyUILayout(),details:{'window:8/composer-panel':{kind:'presets'}},shortcuts:{Omnium:{'world:5':'5'}},selection:[]};});
+ await sync.save();assert.deepEqual(checkedWorld(JSON.parse(JSON.stringify(state.remote))).session,state.world.session);
+ const second=fixture({load:async()=>({world:structuredClone(state.remote),revision:state.marker.revision})});await second.sync.load();assert.deepEqual(second.state.world.session,state.world.session);
+ assert.throws(()=>checkedWorld({...state.world,session:{...state.world.session,views:{state:{windows:{bad:{kind:'document',instance:-1}}},poses:{}}}}),/Invalid workspace windows/);
+ sync.dispose();second.sync.dispose();
+});

@@ -1,3 +1,5 @@
+import {nativeLayout,nativeAppearance} from './composer/runtime/historyBridge.ts';
+import {navigationState} from './ui/navigationState.ts';
 import {releaseShortcuts,installReleaseShortcuts} from './ui/releaseShortcuts';
 import {reconnectBinder} from './core/connections';
 import {WORLD_GESTURES,DOCUMENT_GESTURES} from './ui/gestureShortcuts';
@@ -472,6 +474,7 @@ const searchSettings=defineMenu('search',()=>{
  const results=document.createElement('div');results.className='settings-search-results';const render=searchRenderer(results),input=open('Search',render,true);tools.append(results);if(input.value)render(input.value);input.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();results.querySelector<HTMLElement>('input,select,button:not(:disabled)')?.focus();}});positionMenu();input.focus();
 },true);
 let draftControl:HTMLButtonElement|undefined;
+let saveSharedDraft:(()=>Promise<void>)|undefined;
 let workspaceView: ReturnType<typeof workspacePanel> | undefined;
 function openWorkspace(restore?:ViewSpec) {
   if(!viewHistory.performing){viewHistory.perform(()=>openWorkspace(restore));return;}
@@ -656,7 +659,11 @@ function worldShortcutActions(includeUnavailable=false){return [
  {id:worldShortcutId('W'),label:'Move selection / hovered',gesture:'Left click',key:'',run:()=>view?.moveHovered()},
  {label:'Mount hovered / dismount',key:'M',run:()=>view?.mountTarget()},
  {label:view?.userDetached?'Mount User':'Dismount User',key:'U',run:()=>view?.toggleUser()},
- {label:'Save view',key:'5',run:()=>{view?.saveCamera();feedback('View saved.');}},
+ {label:'Save workspace state',key:'5',run:()=>{
+  flushLiveForms();view?.saveCamera();
+  const session={version:1 as const,views:viewHistory.snapshot(),layout:nativeLayout.getSnapshot(),appearance:nativeAppearance.getSnapshot(),details:navigationState.snapshot(),shortcuts:shortcuts.getSnapshot(),selection:[...selection.values]};
+  store.change(world=>{world.session=structuredClone(session);});void saveSharedDraft?.();feedback('Workspace state saved locally.');
+ }},
  {label:'Create nodes',key:'N',run:()=>view?.toggleCreation()},
  {label:'Search',key:'S',run:searchSettings},
  ...((includeUnavailable||selectedOrigins().length>1)?[{label:'Align selection',key:'I',run:()=>view?.alignSelection()}]:[]),
@@ -714,9 +721,10 @@ if(location.hostname==='omnium.nexus'||location.hostname==='omnia-web-bae.pages.
   load:()=>api.load(),save:(world,revision)=>api.save(world,revision),
   marker:()=>{try{const value=JSON.parse(localStorage.getItem('omnium.shared-draft.base.1')??'null');return value&&Number.isSafeInteger(value.revision)&&typeof value.signature==='string'?value as Marker:null;}catch{return null;}},
   remember:value=>{localStorage.setItem('omnium.shared-draft.base.1',JSON.stringify(value));},
-  replace:async world=>{const before=store.world;await api.restore(world);if(store.world!==before)throw Error('Workspace changed while loading.');for(const doc of documents.values())doc?.close();sceneView?.close();if(store.world!==before)throw Error('Finish local edits before loading the shared draft.');store.replace(world);selection.set([]);refresh();},
+  replace:async world=>{const before=store.world;await api.restore(world);if(store.world!==before)throw Error('Workspace changed while loading.');for(const doc of documents.values())doc?.close();sceneView?.close();if(store.world!==before)throw Error('Finish local edits before loading the shared draft.');selection.set([]);store.replace(world);refresh();},
   status:(phase,error)=>{indicator.textContent=`Draft · ${phase}`;issue=error??'';renderDraftDetails();},
  });
+ saveSharedDraft=sync.save;
  store.subscribe(sync.changed);store.subscribeCamera(sync.changed);
  function renderDraftDetails(){
   const view=draftView;if(!view?.root.isConnected)return;
@@ -729,5 +737,17 @@ if(location.hostname==='omnium.nexus'||location.hostname==='omnia-web-bae.pages.
  indicator.onclick=()=>{if(draftView?.root.isConnected){draftView.root.focus();return;}openDraft();};
  window.addEventListener('online',()=>{if(sync.phase==='Failed')void sync.load();});
  document.addEventListener('visibilitychange',()=>{if(document.hidden)void sync.save();});
- void sync.load();
+ void sync.load().finally(restoreWorkspaceSession);
 }
+
+// Restore data owners before reconstructing their windows, including lazy editors.
+let restoredWorkspaceSession:unknown;
+function restoreWorkspaceSession(){
+ const session=store.world.session;if(!session||session===restoredWorkspaceSession)return;
+ restoredWorkspaceSession=session;
+ nativeLayout.set(session.layout);nativeAppearance.set(session.appearance);
+ navigationState.restore(session.details);shortcuts.restore(session.shortcuts);
+ selection.set(session.selection as Target[]);viewHistory.restore(session.views);refresh();
+}
+store.subscribeReplace(restoreWorkspaceSession);
+if(!(location.hostname==='omnium.nexus'||location.hostname==='omnia-web-bae.pages.dev'||location.hostname.endsWith('.omnia-web-bae.pages.dev')))restoreWorkspaceSession();

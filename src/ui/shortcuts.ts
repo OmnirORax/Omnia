@@ -36,6 +36,7 @@ export function createShortcutStore(){
  }
  return {get,getSnapshot:()=>state,subscribe(fn:()=>void){listeners.add(fn);return()=>{listeners.delete(fn);};},
   initialize(source:Pick<Storage,'getItem'|'setItem'>){storage=source;try{const saved=JSON.parse(source.getItem('omnium.shortcuts.1')??'{}');const next:ShortcutOverrides={};for(const category of SHORTCUT_CATEGORIES){const values=saved?.[category];if(!values||typeof values!=='object'||Array.isArray(values))continue;next[category]={};for(const [id,value]of Object.entries(values).slice(0,5000))if(id.length<=200&&typeof value==='string'&&(value===''||normalizeShortcut(value)))next[category]![id]=value===''?'':normalizeShortcut(value)!;}state=next;}catch{state={};}},
+  restore(next:ShortcutOverrides){const checked=createShortcutStore();checked.initialize({getItem:()=>JSON.stringify(next),setItem:()=>{}});state=checked.getSnapshot();storage?.setItem('omnium.shortcuts.1',JSON.stringify(state));for(const fn of listeners)fn();},
   plan,
   assign(target:ShortcutDefinition,key:string,catalog:readonly ShortcutDefinition[]){const proposal=plan(target,key,catalog),next=structuredClone(state);next[target.category]??={};next[target.category]![target.id]=proposal.key;
    for(const conflict of proposal.conflicts){next[conflict.category]??={};next[conflict.category]![conflict.id]=proposal.old;}

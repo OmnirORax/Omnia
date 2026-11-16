@@ -19,6 +19,8 @@ export function createNavigationState(history:ActionHistory,activeScopes:()=>str
  };
  const requestPrune=()=>{if(!pruneQueued){pruneQueued=true;queueMicrotask(prune);}};
  return {
+  snapshot:()=>structuredClone(values),
+  restore(next:Record<string,unknown>){const before=values;values=structuredClone(next);for(const key of listeners.keys())if(!sameValue(before[key],values[key]))notify(key);},
   read<T>(key:string,initial:T):T{if(!Object.hasOwn(values,key))values={...values,[key]:initial};return values[key] as T;},
   set<T>(key:string,value:T,record=true){const before=values;if(sameValue(before[key],value))return;values={...values,[key]:value};if(record)history.record('ui.details',before,values,['ui'],['omnium',key.split('/')[0]]);notify(key);},
   subscribe(key:string,listener:()=>void){const set=listeners.get(key)??new Set();set.add(listener);listeners.set(key,set);requestPrune();return()=>{set.delete(listener);if(!set.size)listeners.delete(key);requestPrune();};},

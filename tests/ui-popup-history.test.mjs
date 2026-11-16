@@ -19,3 +19,16 @@ test('unmounted popup data survives while its window remains open or reopenable 
  const active=`window:${views.state.windows.base.instance}/details`;state.read(active,{stage:'modes'});const stopActive=state.subscribe(active,()=>{});stopActive();await Promise.resolve();assert.deepEqual(state.read(active,null),{stage:'modes'});
  const orphan='window:9999/orphan';state.read(orphan,{old:true});const stopOrphan=state.subscribe(orphan,()=>{});stopOrphan();await Promise.resolve();assert.equal(state.read(orphan,null),null);
 });
+
+test('a saved workspace reconstructs open windows and geometry in a fresh session',async()=>{
+ const first=createViewHistory(journal(),fn=>fn());
+ const root=new EventTarget();root.dataset={};root.style={cssText:'left: 120px; top: 80px;'};root.isConnected=true;
+ first.adopt('document:a',{kind:'document',args:[{born:1,at:[0,0,0]}]}, {root,close(){root.isConnected=false;}});
+ const saved=JSON.parse(JSON.stringify(first.snapshot()));
+ const second=createViewHistory(journal(),fn=>fn());let restored;
+ second.factory('document',spec=>{const next=new EventTarget();next.dataset={};next.style={cssText:''};next.isConnected=true;restored={spec,root:next};second.adopt('document:a',spec,{root:next,close(){next.isConnected=false;}},spec);});
+ second.restore(saved);await Promise.resolve();
+ assert.deepEqual(restored.spec.args,[{born:1,at:[0,0,0]}]);assert.equal(restored.root.style.cssText,root.style.cssText);
+ assert.deepEqual(second.snapshot(),saved);
+ assert.ok(second.reserve({kind:'composer'}).instance>restored.spec.instance);
+});
