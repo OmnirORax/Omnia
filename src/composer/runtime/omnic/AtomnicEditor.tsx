@@ -1,3 +1,4 @@
+import {ObjectDegreeMenu} from './ObjectDegreeMenu';
 import {useNavigationState} from '../../../ui/useNavigationState.tsx';
 import {useHoverPreview} from '../ui/HoverPreview';
 import {createReferenceField} from '../properties/referenceUse';
@@ -27,7 +28,7 @@ import {useWorkingSelection} from '../ui/RangeControl';
 import {useNumericEditor} from '../ui/NumericEditorScope';
 import {useOperationReferencePicker} from './OperationScope';
 import { createSecondaryRelease } from '../ui/secondaryRelease';
-import { DegreeSetter, DegreeValueEditor } from './DegreeSetter';
+import { DegreeValueEditor } from './DegreeSetter';
 import { contextTargets } from '../ui/contextTargets';
 import { useCallback, useId, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type Ref, type RefObject } from 'react';
 import type { Recipe, Component } from './model';
@@ -56,7 +57,6 @@ import { cursorPosition } from '../ui/cursorPosition';
 import { type DegreeEditValue, targetPlacementDegree, targetEditorDegrees, targetDegrees, targetDegreeValue, writeTargetDegree, targetParameter } from './targetDegrees';
 import { degreeEditorIdentity,type EditableDegree } from '../properties/editableDegrees';
 import { useToolCursorZone } from '../ui/toolCursorZone';
-import { nameSymbol } from '../ui/nameSymbols';
 
 type Props={recipe:Recipe;evaluation:Evaluation|null;commit:(recipe:Recipe,preview?:boolean)=>boolean;onBridge:(bridge:AtomnicInteraction|null)=>void;onSelect?:(ids:readonly string[])=>void;activateTarget?:()=>void;bindParameters?:boolean;documentEntries?:RadialEntry<ReactNode>[];modeControl?:ReactNode;radar?:boolean;extraPanel?:ReactNode;closePanel?:()=>void;dismissPanel?:()=>void;onEmptyContext?:(point:Point)=>void;confirmPanel?:()=>void;cancelPreview?:()=>void;panelRadial?:boolean;panelStage?:string;presentationBounds?:{x:number;y:number;width:number;height:number};normalSelection?:string[];onPickGeometry?:(point:Point,role?:string,replaceSelection?:boolean)=>readonly string[]|void;surfaceRef?:Ref<HTMLDivElement>;markupRef?:RefObject<string>};
 type Panel={kind:'functions'|'target'}|{kind:'degree';degree:EditableDegree;configure:boolean|DofSettingsKind;activation?:number;direct?:boolean}|{kind:'operation';action:AtomnicConfigAction;index:number;fromTarget?:boolean}|{kind:'pivotModes'}|{kind:'reference';index:number}|{kind:'axis';stage:'start'|'end'|'halving';start?:number;end?:number}|{kind:'position'};
@@ -325,6 +325,18 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
           prepareSelection();return;
         }
       }
+      if(event.button===0&&tool==='select'&&!extraPanel&&!menu){
+        const element=event.target instanceof Element?event.target:null;
+        const owner=role?selectionOwners.get(role):element?.tagName==='CANVAS'?selectionOwners.get(pickStructuralNode(evaluation?.nodes??[],point)?.id??''):undefined;
+        if(owner&&componentIndex(recipeRef.current).get(owner)?.component.generator!=='path-rule'){
+          const base=referencePicker?.snapshot?.recipe??recipeRef.current,ids=selectedRef.current.has(owner)?[...selectedRef.current]:[owner],degree=targetPlacementDegree(base,ids);
+          if(degree?.axes?.length===2){localSurface.current?.focus({preventScroll:true});activateTarget?.();dofHover?.cancel();cancelPreview?.();positionPreview.current={base,degree,ids,next:base,boundary:{...bounds},fields:positionFields(base,degree),pending:false,source:referencePicker};
+            dofHover?.enter(positionHoverOwner.current,{capturePress:false,start:()=>{},move:()=>{},commit:()=>{stopPositionRef.current(true);},cancel:()=>{stopPositionRef.current();}},event.clientX,event.clientY);
+            if(referencePicker?.chooseReference(degree,'@environment'))positionPreview.current.pending=true;
+            return;
+          }
+        }
+      }
       if(event.button===0&&(!target||!compatible)){
         const ids=onPickGeometry?.(point,role,true);
         if(Array.isArray(ids)&&ids.length){prepareSelection();return;}
@@ -372,13 +384,6 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
         const owner=role?selectionOwners.get(role):element?.tagName==='CANVAS'?selectionOwners.get(pickStructuralNode(evaluation?.nodes??[],point)?.id??''):undefined;
         if(!positionPreview.current){
           if(owner!==hoverTarget.current){hoverTarget.current=owner;setHovered(owner?[owner]:[]);}
-          if(owner&&!hoverSuppressed.current&&componentIndex(recipeRef.current).get(owner)?.component.generator!=='path-rule'){
-            const base=referencePicker?.snapshot?.recipe??recipeRef.current,ids=selectedRef.current.has(owner)?[...selectedRef.current]:[owner],degree=targetPlacementDegree(base,ids);
-            if(degree?.axes?.length===2){localSurface.current?.focus({preventScroll:true});activateTarget?.();dofHover?.cancel();cancelPreview?.();positionPreview.current={base,degree,ids,next:base,boundary:{...bounds},fields:positionFields(base,degree),pending:false,source:referencePicker};
-              dofHover?.enter(positionHoverOwner.current,{capturePress:false,start:()=>{},move:()=>{},commit:()=>{stopPositionRef.current(true);},cancel:()=>{stopPositionRef.current();}},event.clientX,event.clientY);
-              if(referencePicker?.chooseReference(degree,'@environment'))positionPreview.current.pending=true;
-            }
-          }
         }
         const activePosition=positionPreview.current;
         if(activePosition){
@@ -473,9 +478,7 @@ export function AtomnicEditor({recipe,evaluation,commit,onBridge,onSelect,activa
     {message&&<small className={radar?'omnic-radar-feedback':undefined} role="status">{message}</small>}
     <ContextualMasterController anchored={tool==='select'&&panel.kind==='degree'&&panel.configure===false&&!extraPanel} dismissOutside={tool!=='select'&&panel.kind==='degree'&&!!targetParameter(panel.degree).selection&&!extraPanel} onConfirm={extraPanel?confirmPanel:menu&&panel.kind==='degree'?finishDegreeEdit:undefined} onAdvance={extraPanel?confirmPanel:menu&&(panel.kind==='operation'||panel.kind==='reference')?nextConfiguration:menu&&panel.kind==='degree'?()=>{commit(recipeRef.current);setPanel({kind:'target'});}:menu&&panel.kind==='target'?()=>{targetNavigation.current?.forward();}:menu&&panel.kind==='functions'?()=>{radialNavigation.current?.forward();}:undefined} stage={extraPanel?panelStage:panel.kind==='operation'||panel.kind==='reference'?`${panel.kind}:${panel.index}`:panel.kind==='degree'?`${panel.kind}:${panel.degree.id}:${panel.configure}`:panel.kind==='axis'?`${panel.kind}:${panel.stage}`:panel.kind} onDismiss={()=>{dismissPanel?.();setMenu(null);setHovered([]);if(phase==='configure')setPhase('idle');}} title={extraPanel?'Omnic':panel.kind==='target'?'Target freedoms':panel.kind==='degree'?panel.degree.label:panel.kind==='functions'?'Atomnic':panel.kind==='operation'?operationLabel(panel.action):'Rotation pivot'} radial={extraPanel?panelRadial:panel.kind==='functions'||panel.kind==='target'||panel.kind==='degree'&&targetParameter(panel.degree).kind==='number'} position={extraPanel?extraPanelPoint:radar&&panel.kind==='functions'?null:menu} onClose={()=>{if(!extraPanel&&tool==='select'&&panel.kind==='degree'){baselineCancel();return;}cancelPreview?.();if(extraPanel){closePanel?.();return;}if(panel.kind==='functions'&&radialNavigation.current?.back())return;if(panel.kind==='target'&&targetNavigation.current?.back())return;if(['degree','operation','reference','axis','position','pivotModes'].includes(panel.kind)){backConfiguration();return;}setMenu(null);setHovered([]);if(phase==='configure')setPhase('idle');}}>
       {extraPanel??<>
-      {panel.kind==='target'&&<RadialMenu navigationRef={targetNavigation} items={radialTree([...detachable.map((attachment,index)=>({id:`detach:${attachment.id}`,label:attachment.id===pointedAttachment?'Detach this fill':detachable.length===1?'Detach fill':`Detach fill ${index+1}`,symbol:'⛓',content:<UIAction id={`omnic:detach:${attachment.id}`} label={attachment.id===pointedAttachment?'Detach this fill':detachable.length===1?'Detach fill':`Detach fill ${index+1}`} category="Omnic" symbol="⛓" onClick={()=>detach(attachment.id)}/>})),...degrees.map(degree=>({group:degree.group,id:degree.id,label:degree.label,symbol:degree.symbol??nameSymbol(degree.id,degree.label),setter:<DegreeSetter recipe={recipe} degree={degree} onPreview={value=>changeDegree(degree,value,true)} onCommit={value=>changeDegree(degree,value)} onOpen={()=>{if(degree.action)configureOperation(degree.action as AtomnicConfigAction,true);else activateDegreePanel(degree,false);}}/>,content:<><UIAction registerOnly id={`omnic:target-dof:${degree.id}`} label={degree.label} category="Omnic" tool={degree.action} onClick={()=>{
-        if(degree.action){commands.invoke(degree.action as Parameters<typeof commands.invoke>[0]);}else{setMenu(cursorPosition());activateDegreePanel(degree,false);}
-      }} onConfigure={()=>{if(degree.action)configureOperation(degree.action as AtomnicConfigAction,true);else{setMenu(cursorPosition());activateDegreePanel(degree,true);}}}/><FunctionControl id={`omnic:target-dof:${degree.id}`} mirror symbol={degree.symbol??nameSymbol(degree.id,degree.label)} symbolOpacity={degree.symbolOpacity} symbolFill={degree.symbolFill} tooltip={`${degree.label} · ${degree.action?operationLabel(degree.action):degree.axes?'Vector':String(targetDegreeValue(recipe,degree))} · Left-click adjusts; right-click configures`}/></>}))])} onClose={()=>setMenu(null)}/>}
+      {panel.kind==='target'&&<ObjectDegreeMenu recipe={recipe} degrees={degrees} scope="omnic:target-dof" navigationRef={targetNavigation} onPreview={(degree,value)=>changeDegree(degree,value,true)} onCommit={(degree,value)=>changeDegree(degree,value)} onOpen={degree=>{if(degree.action)configureOperation(degree.action as AtomnicConfigAction,true);else activateDegreePanel(degree,false);}} onConfigure={degree=>{if(degree.action)configureOperation(degree.action as AtomnicConfigAction,true);else activateDegreePanel(degree,true);}} onClose={()=>setMenu(null)} extra={detachable.map((attachment,index)=>({id:`detach:${attachment.id}`,label:attachment.id===pointedAttachment?'Detach this fill':detachable.length===1?'Detach fill':`Detach fill ${index+1}`,symbol:'⛓',content:<UIAction id={`omnic:detach:${attachment.id}`} label={attachment.id===pointedAttachment?'Detach this fill':detachable.length===1?'Detach fill':`Detach fill ${index+1}`} category="Omnic" symbol="⛓" onClick={()=>detach(attachment.id)}/>}))}/>}
       {panel.kind==='degree'&&<div className="progressive-configuration">
         <DegreeValueEditor key={degreeEditorIdentity(panel.degree,String(panel.configure),panel.activation)} recipe={recipe} degree={panel.degree} configure={panel.configure} pickReference={tool!=='select'&&!panel.direct} onDismiss={baselineCancel}
           onPreview={value=>changeDegree(panel.degree,value,true)} onCommit={value=>changeDegree(panel.degree,value)}/>

@@ -5,7 +5,7 @@ export type HistoryMode = "recent" | "context" | "selective";
 export type HistoryCategory = "omnium" | "ui" | "appearance" | "settings" | "camera";
 export type HistoryOptions = { mode: HistoryMode; categories: HistoryCategory[]; steps: number; limit: number; minimum: number };
 type Patch = { path: string[]; before: unknown; after: unknown };
-type Adapter = { read: () => unknown; write: (value: any) => void };
+type Adapter = { read: () => unknown; write: (value: any) => void; matches?:(path:readonly string[],actual:unknown,expected:unknown)=>boolean };
 type Entry = { id: number; owner: string; categories: HistoryCategory[]; contexts: string[]; patches: Patch[]; undone: boolean; group?: string; at: number; changes?:Entry[]; actionId?:string };
 const equal = (a: unknown, b: unknown) => sameValue(a, b);
 function diff(before: any, after: any, path: string[] = [], out: Patch[] = []): Patch[] {
@@ -97,7 +97,7 @@ export function createActionHistory(initial?: Partial<HistoryOptions>): ActionHi
         let blocked=false;
         for(const change of ordered){const adapter=adapters.get(change.owner);if(!adapter){api.message='This action owner is unavailable.';blocked=true;break;}
           let value=adapter.read();const before=value;
-          if(change.patches.some(patch=>!equal(atPath(value,patch.path),patch[expected]))){api.message='A later edit overlaps this action. Undo the newer overlapping action first.';blocked=true;break;}
+          if(change.patches.some(patch=>!(adapter.matches?.(patch.path,atPath(value,patch.path),patch[expected])??equal(atPath(value,patch.path),patch[expected])))){api.message=`A later edit overlaps this action (${change.owner}). Undo the newer overlapping action first.`;blocked=true;break;}
           for(const patch of change.patches)value=put(value,patch.path,patch[replacement]);prepared.push({adapter,before,after:value});
         }
         if(blocked)break;

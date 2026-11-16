@@ -220,7 +220,7 @@ export function FloatingWindow({
         }}
         onDragStart={()=>{dragged.current=false;}}
         onDrag={(_,data)=>{if(Math.hypot(data.x-visible.x,data.y-visible.y)>=3)dragged.current=true;}}
-        onDragStop={(_, data) => { set({ x: data.x, y: data.y }); }}
+        onDragStop={(_, data) => { set({ x: data.x-(shape==='circle'&&state.collapsed?bounds.x:0), y: data.y-(shape==='circle'&&state.collapsed?bounds.y:0) }); }}
         onResizeStop={(_, __, ref, ___, position) =>
           set({ width: ref.offsetWidth, height: ref.offsetHeight, ...(owner ? {} : position) })
         }
@@ -249,6 +249,7 @@ export function FloatingWindow({
                   position: "relative",
                   left: stacked ? 0 : -bounds.x,
                   top: stacked ? 0 : -bounds.y,
+                  ...(shape==='circle'?{'--circle-handle-y':`${circleSize/2-20}px`}:{}),
                 }
               : undefined
           }

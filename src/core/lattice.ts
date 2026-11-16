@@ -1,5 +1,5 @@
+import {activeWorldAxes,axisPoint,operationSlot} from './axes.ts';
 import {createOccupancy} from '../graph/occupancy.ts';
-import {axisComponent} from './axes.ts';
 import {definitionRecipe} from '../omnic/definition.ts';
 import { nearestCell, prepareLattice, type Cell } from '../graph/lattice.ts';
 import type { Document, XYZ } from '../graph/geometryTypes.ts';
@@ -37,18 +37,22 @@ export function moveBranch(world: World, origin: Origin, desired: Vec3) {
   if(!targets)throw Error('That position is occupied or conflicts with an axis.');
   for(const node of world.nodes){const target=targets.get(address(node.origin));if(target)node.position=target;}
 }
-export function prepareTranslation(world: World, origins: readonly Origin[]) {
+export function prepareTranslation(world: World, origins: readonly Origin[],constrainActive=true) {
   const index = lattice(world), moving = new Set(origins.map(address));
-  axisComponent(world,moving);
   const carried=new Set<string>();
   let changed=true;
-  while(changed){const count=moving.size;axisComponent(world,moving);
+  while(changed){const count=moving.size;
     for(const node of world.nodes)if(moving.has(address(node.origin))&&node.collapsed)carried.add(address(node.origin));
     for(const node of world.nodes)if(node.parent&&(carried.has(address(node.parent))||node.hidden&&moving.has(address(node.parent)))){carried.add(address(node.origin));moving.add(address(node.origin));}
     changed=count!==moving.size;
   }
   const occupied=createOccupancy(world.nodes.filter(node=>!moving.has(address(node.origin))).map(node=>[address(node.origin),point(node.position)] as const));
   return (delta: Vec3): Map<string, Vec3> | undefined => {
+    const frame=constrainActive?world.axes?.find(frame=>frame.id===world.activeAxis):undefined,root=world.nodes.find(node=>address(node.origin)===address(origins[0]));
+    if(frame&&root&&delta.some(n=>n!==0)){
+      if(!activeWorldAxes(frame).length)return;
+      const desired=root.position.map((n,i)=>n+delta[i]) as Vec3,target=axisPoint(world,frame,operationSlot(world,frame,desired));delta=target.map((n,i)=>n-root.position[i]) as Vec3;
+    }
     const result = new Map<string, Vec3>();
     for (const id of moving) {
       const from = index.cells.get(id); if (!from) continue;

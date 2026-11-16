@@ -82,11 +82,28 @@ export function connectNodes(world:World,source:Origin,target:Origin|undefined,p
  const child=childNode(world,source,false,position);owner.collapsed=false;return child.origin;
 }
 
-export function paintNodes(world:World,positions:Vec3[],source?:Origin,axis?:string){
+export function paintNodes(world:World,positions:Vec3[],source?:Origin,axis?:string,parent?:Origin){
+ const owner=parent&&locate(world,parent);if(parent&&!owner)throw Error('The parent is no longer available.');
  if(positions.length+world.nodes.length>4000)throw Error('This workbench supports 4,000 nodes.');
  const occupied=createOccupancy(world.nodes.map(node=>[address(node.origin),{x:node.position[0],y:node.position[1],z:node.position[2]}] as const));
  const check=createOccupancy(world.nodes.map(node=>[address(node.origin),{x:node.position[0],y:node.position[1],z:node.position[2]}] as const));
  for(const [i,p]of positions.entries()){const point={x:p[0],y:p[1],z:p[2]};if(!check.free(point))throw Error('The brush overlaps an occupied position.');check.add(String(i),point);}
  const node=source&&locate(world,source),frame=world.axes?.find(frame=>frame.id===axis);
- for(const position of positions){const created=node?copyNode(world,node,position,occupied):addStructure(world,position,Date.now(),occupied);created.parts=[];if(frame)frame.members.push(structuredClone(created.origin));}
+ for(const position of positions){const created=node?copyNode(world,node,position,occupied):addStructure(world,position,Date.now(),occupied);created.parts=[];if(owner){created.parent=structuredClone(owner.origin);owner.parts.push(bind(created,'follow',world));owner.collapsed=false;}if(frame)frame.members.push(structuredClone(created.origin));}
 }
+
+export function toggleChildLevel(world:World,origin:Origin){
+ const root=locate(world,origin);if(!root)return;
+ const children=world.nodes.filter(node=>node.parent&&sameOrigin(node.parent,origin)&&!node.hidden&&!node.variantOf);
+ if(!children.length)return;
+ if(!root.collapsed){root.collapsed=true;return;}
+ root.collapsed=false;for(const child of children)child.collapsed=true;
+}
+
+export function hierarchyScope(world:World,roots:readonly Origin[],nextOnly=false){
+ const eligible=world.nodes.filter(n=>!n.hidden&&!n.variantOf),byId=new Map(eligible.map(n=>[address(n.origin),n])),start=roots.length?roots.map(id=>byId.get(address(id))).filter((n):n is Structure=>!!n):eligible.filter(n=>!n.parent||!byId.has(address(n.parent)));
+ const children=new Map<string,Structure[]>();for(const n of eligible)if(n.parent){const id=address(n.parent),list=children.get(id)??[];list.push(n);children.set(id,list);}const result=[...start],seen=new Set(start.map(n=>address(n.origin)));for(let i=0;i<result.length;i++){if(nextOnly&&i>=start.length)break;for(const child of children.get(address(result[i].origin))??[])if(!seen.has(address(child.origin))){seen.add(address(child.origin));result.push(child);}}return {roots:start,nodes:result,children};
+}
+export function toggleHierarchies(world:World,roots:readonly Origin[],nextOnly=false){const scope=hierarchyScope(world,roots,nextOnly),parents=(nextOnly?scope.roots:scope.nodes).filter(n=>scope.children.has(address(n.origin))),collapse=parents.length>0&&parents.every(n=>!n.collapsed);for(const n of parents)n.collapsed=collapse;if(nextOnly&&!collapse)for(const root of scope.roots)for(const child of scope.children.get(address(root.origin))??[])child.collapsed=true;return scope.nodes.map(n=>n.origin);}
+
+export function hierarchyAction(world:World,roots:readonly Origin[],nextOnly=false,contentOnly=false){return contentOnly?hierarchyScope(world,roots,nextOnly).nodes.map(node=>node.origin):toggleHierarchies(world,roots,nextOnly);}

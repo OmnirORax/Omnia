@@ -1,9 +1,13 @@
 export function createSelection<T>(equal: (a: T, b: T) => boolean) {
   let values: T[] = [];
+  let hovered:T[]|undefined;
   let request: { accept: (target: T) => boolean; restore: T[] } | undefined;
   return {
-    get values(): readonly T[] { return values; },
-    has: (value: T) => values.some(item => equal(item, value)),
+    get values(): readonly T[] { return hovered??values; },
+    get committed():readonly T[]{return values;},
+    hover(value:T|undefined){hovered=!request&&value!==undefined?[value]:undefined;},
+    has: (value: T) => (hovered??values).some(item => equal(item, value)),
+    retain(keep:(value:T)=>boolean){values=values.filter(keep);if(hovered&&!hovered.every(keep))hovered=undefined;},
     set(next: readonly T[]) { values = next.filter((v, i) => next.findIndex(other => equal(v, other)) === i); },
     pick(value: T, extend = false, toggle = false) {
       if (request) {
@@ -15,6 +19,7 @@ export function createSelection<T>(equal: (a: T, b: T) => boolean) {
       else values = extend || toggle ? [...values.filter(item => !equal(item, value)), value] : [value];
     },
     request(accept: (target: T) => boolean) {
+      hovered=undefined;
       if (request) values = request.restore;
       request = { accept, restore: [...values] };
     },
@@ -22,3 +27,6 @@ export function createSelection<T>(equal: (a: T, b: T) => boolean) {
     cancel() { if (request) { values = request.restore; request = undefined; return true; } return false; },
   };
 }
+
+/** A hover target must not narrow a committed group when its member is picked up. */
+export function pickupSelection<T>(committed:readonly T[],target:T,equal:(a:T,b:T)=>boolean):readonly T[]{return committed.some(item=>equal(item,target))?[...committed]:[target];}

@@ -1,3 +1,4 @@
+import {matchesShortcut} from './shortcuts.ts';
 export type KeyboardLock={lock:(keys:string[])=>Promise<void>;unlock:()=>void};
 type Host={keyboard?:KeyboardLock;fullscreen:()=>boolean;enter:()=>Promise<void>;exit:()=>Promise<void>;changed:()=>void};
 /** Explicit fullscreen session; never reacquire keyboard permission on exit. */
@@ -39,8 +40,8 @@ export function createImmersiveMode(host:Host){
 }
 
 /** Called during window capture so editor-local key handlers cannot swallow F11. */
-export function handleImmersiveShortcut(event:KeyboardEvent,toggle:()=>void){
- if(event.key!=='F11'||event.ctrlKey||event.metaKey||event.altKey||event.shiftKey)return false;
+export function handleImmersiveShortcut(event:KeyboardEvent,toggle:()=>void,binding='F11'){
+ if(!matchesShortcut(event,binding))return false;
  event.preventDefault();event.stopImmediatePropagation();
  if(!event.repeat)toggle();
  return true;

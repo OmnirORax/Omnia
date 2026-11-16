@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import * as T from 'three';
 import {emptyWorld,addStructure,validateWorld,locate} from '../src/core/model.ts';
 import {creationCell,prepareTranslation,lattice,geometry,address} from '../src/core/lattice.ts';
-import {createAxis,planAxis,axisCenter,axisCoordinates,axisPoint,slotNode,focusNodeFrame,endpointView} from '../src/core/axes.ts';
+import {createAxis,planAxis,axisCenter,axisCoordinates,axisPoint,slotNode,activeWorldAxes,toggleWorldAxis,shiftAxisOrigin,insideActivePlane,operationSlot,originSlots,setAxisOrigin,focusNodeFrame,endpointView} from '../src/core/axes.ts';
 import {translate} from '../src/core/capabilities.ts';
 import {removeNodes,paintNodes} from '../src/core/nodeOperations.ts';
 import {createStore} from '../src/core/store.ts';
@@ -41,46 +41,38 @@ test('hidden physical occupancy blocks in-between placement, without reserving a
 test('axis preview is pure; commit rounds 5.3 to 5 and fixes the first endpoint',()=>{
  const {world,a,b}=pair(),before=structuredClone(world),plan=planAxis(world,a.origin,b.origin,[0,1,0]);
  assert.deepEqual(world,before);assert.equal(plan.length,5);close(plan.targets.get(address(b.origin)),[5,0,0]);
- const frame=createAxis(world,a.origin,b.origin,[0,1,0]);close(a.position,[0,0,0]);close(b.position,[5,0,0]);close(axisCenter(world,frame),[2.5,0,0]);
- close(axisCoordinates(world,frame,a.position),[-2.5,0,0]);close(axisCoordinates(world,frame,b.position),[2.5,0,0]);validateWorld(world);
+ const frame=createAxis(world,a.origin,b.origin,[0,1,0]);close(a.position,[0,0,0]);close(b.position,[5,0,0]);close(axisCenter(world,frame),[5,0,0]);
+ close(axisCoordinates(world,frame,a.position),[0,0,-5]);close(axisCoordinates(world,frame,b.position),[0,0,0]);validateWorld(world);
 });
 test('axis snaps in its actual diagonal direction rather than projecting to world integers',()=>{
  const {world,a,b}=pair([3.18,4.24,0]),frame=createAxis(world,a.origin,b.origin,[0,0,1]);
- close(b.position,[3,4,0]);close(axisPoint(world,frame,[2,0,0]),[1.2,1.6,0]);validateWorld(world);
+ close(b.position,[3,4,0]);close(axisPoint(world,frame,[0,0,-3]),[1.2,1.6,0]);validateWorld(world);
 });
 test('occupied rounded endpoint chooses the nearest valid integer separation',()=>{
  const {world,a,b}=pair();addStructure(world,[4.3,0,0],3); // Existing nodes touch at distance 1, but rounding to 5 would overlap.
  const plan=planAxis(world,a.origin,b.origin,[0,1,0]);assert.equal(plan.length,6);
  createAxis(world,a.origin,b.origin,[0,1,0]);close(b.position,[6,0,0]);validateWorld(world);
 });
-test('existing connected arrangements move together; incompatible new axes fail atomically',()=>{
- const {world,a,b}=pair([5.3,0,0]),c=addStructure(world,[5.3,3,0],3);createAxis(world,b.origin,c.origin,[1,0,0]);
- createAxis(world,a.origin,b.origin,[0,1,0]);close(c.position,[5,3,0]);validateWorld(world);
- const before=structuredClone(world);assert.throws(()=>planAxis(world,a.origin,c.origin,[0,1,0]),/conflicts/);assert.deepEqual(world,before);
- const moved=prepareTranslation(world,[a.origin])([.2,.3,.4]);assert.equal(moved.size,3);
- translate(world,[a.origin],[.2,.3,.4]);close(c.position,[5.2,3.3,.4]);validateWorld(world);
+test('sharing frames does not couple movement',()=>{
+ const {world,a,b}=pair(),c=addStructure(world,[5.3,3,0],3);createAxis(world,b.origin,c.origin,[1,0,0]);createAxis(world,a.origin,b.origin,[0,1,0]);
+ close(c.position,[5.3,3,0]);const targets=prepareTranslation(world,[a.origin])([0,0,2]);assert.equal(targets.size,1);translate(world,[a.origin],[0,0,2]);close(b.position,[5,0,0]);validateWorld(world);
 });
 test('drag slotting moves to a free axis slot and joins the existing constraint component',()=>{
  const {world,a,b}=pair([4,0,0]),frame=createAxis(world,a.origin,b.origin,[0,1,0]),node=addStructure(world,[2,3,0],3);
  slotNode(world,node.origin,frame.id,[2.15,.05,0]);close(node.position,[2,0,0]);
- const targets=prepareTranslation(world,[a.origin])([0,0,2]);assert.equal(targets.size,3);validateWorld(world);
+ const targets=prepareTranslation(world,[a.origin])([0,0,2]);assert.equal(targets.size,1);validateWorld(world);
 });
-test('layout rotation preserves a complete frame and rejects partial constraint edits without mutation',()=>{
- const {world,a,b}=pair([4,0,0]),frame=createAxis(world,a.origin,b.origin,[0,1,0]),before=structuredClone(world),rotation={x:0,y:0,z:Math.SQRT1_2,w:Math.SQRT1_2};
- assert.throws(()=>transformNodes(world,[a.origin],rotation,{x:0,y:0,z:0},true),/whole constrained/);assert.deepEqual(world,before);
- transformNodes(world,[a.origin,b.origin],rotation,{x:0,y:0,z:0},true);close(b.position,[0,4,0]);close(frame.x,[0,1,0]);close(axisCenter(world,frame),[0,2,0]);validateWorld(world);
+test('partial layout rotation keeps the shared frame orientation fixed',()=>{
+ const {world,a,b}=pair([4,0,0]),frame=createAxis(world,a.origin,b.origin,[0,1,0]),before=structuredClone(frame),rotation={x:0,y:0,z:Math.SQRT1_2,w:Math.SQRT1_2};
+ transformNodes(world,[b.origin],rotation,{x:0,y:0,z:0},true);close(b.position,[0,4,0]);assert.deepEqual(frame,before);validateWorld(world);
 });
 test('object focus establishes its actual position as origin without moving any node',()=>{
  const {world,a}=pair([3.4,2.7,0]);a.position=[.25,-.75,2.5];const before=structuredClone(world.nodes);
  const frame=focusNodeFrame(world,a.origin,[1,0,0],[0,1,0]);close(axisCenter(world,frame),a.position);close(axisCoordinates(world,frame,a.position),[0,0,0]);
  assert.deepEqual(world.nodes,before);assert.equal(focusNodeFrame(world,a.origin,[1,0,0],[0,1,0]).id,frame.id);validateWorld(world);
 });
-test('F alignment centers the midpoint with X horizontal and Y upward',()=>{
- const {world,a,b}=pair([3.18,4.24,0]),frame=createAxis(world,a.origin,b.origin,[0,0,1]),camera=new T.PerspectiveCamera(50,1.6,.01,10000);
- for(const scale of [.2,1,4]){const pose=axisPose(world,frame,scale,camera,{min:.01,max:10000});camera.position.copy(pose.position);camera.up.copy(pose.up);camera.lookAt(pose.target);camera.updateMatrixWorld();
-  const left=new T.Vector3(...a.position).multiplyScalar(scale).project(camera),right=new T.Vector3(...b.position).multiplyScalar(scale).project(camera),center=new T.Vector3(...axisCenter(world,frame)).multiplyScalar(scale),origin=center.clone().project(camera),up=center.clone().addScaledVector(new T.Vector3(...frame.y),scale).project(camera);
-  assert.ok(left.x<right.x);assert.ok(Math.abs(left.y-right.y)<1e-7);assert.ok(Math.abs(origin.x)+Math.abs(origin.y)<1e-7);assert.ok(up.y>origin.y);
- }
+test('F alignment targets the chosen origin with directed Z depth',()=>{
+ const {world,a,b}=pair([3,4,0]),frame=createAxis(world,a.origin,b.origin,[0,0,1]),camera=new T.PerspectiveCamera(50,1.6,.01,10000),pose=axisPose(world,frame,1,camera,{min:.01,max:10000});close(pose.target.toArray(),b.position);
 });
 test('frames survive save/reload and undo; deleting an endpoint releases only its frames',()=>{
  const values=new Map(),store=createStore({getItem:key=>values.get(key)??null,setItem:(key,value)=>values.set(key,value)});let first,second;
@@ -101,9 +93,9 @@ test('axis painting is discrete, plane painting follows origin depth, and stamps
  const {world,a,b}=pair([4,0,0]),frame=createAxis(world,a.origin,b.origin,[0,1,0]);
  const axis=createPaintSession(world,[0,0,0],[frame.x,frame.y,frame.z],frame,2,false);
  assert.ok(axis.add([2,.1,0]));close(axis.points[0],[2,0,0]);assert.ok(axis.add([2.1,0,0]));assert.equal(axis.points.length,1);
- const plane=createPaintSession(world,[0,0,0],[frame.x,frame.y,frame.z],frame,2,true),candidate=plane.candidate([2,2,9]);assert.ok(candidate.valid);close(candidate.anchor,[2,2,0]);
+ const plane=createPaintSession(world,[0,0,0],[frame.x,frame.y,frame.z],frame,2,true),candidate=plane.candidate([2,2,9]);assert.ok(candidate.valid);close(candidate.anchor,[2,0,9]);
  plane.add([2,2,9]);paintNodes(world,plane.points,undefined,frame.id);close(world.nodes.at(-1).position,candidate.stamp[0]);validateWorld(world);
- const focused=focusNodeFrame(world,b.origin,[1,0,0],[0,1,0]);const brush=createPaintSession(world,b.position,basis,focused,2,true);close(brush.candidate([7,3,8]).anchor,[7,3,0]);
+ const focused=focusNodeFrame(world,b.origin,[1,0,0],[0,1,0]);const brush=createPaintSession(world,b.position,basis,focused,2,true);close(brush.candidate([7,3,8]).anchor,[7,0,8]);
 });
 test('a blocked stamp rejects the whole geometry, including when only one member collides',()=>{
  const world=emptyWorld();world.brush=parseBrush('2');addStructure(world,[0,0,0],1);
@@ -113,7 +105,7 @@ test('a blocked stamp rejects the whole geometry, including when only one member
 });
 test('invalid or broken frame definitions cannot enter persistence',()=>{
  const {world,a,b}=pair([4,0,0]);createAxis(world,a.origin,b.origin,[0,1,0]);
- for(const change of [w=>w.axes[0].x=[2,0,0],w=>w.axes[0].members=[],w=>w.axes[0].members.push(w.axes[0].members[0]),w=>w.nodes[1].position=[4.3,0,0],w=>w.activeAxis='missing']){const next=structuredClone(world);change(next);assert.throws(()=>validateWorld(next));}
+ for(const change of [w=>w.axes[0].x=[2,0,0],w=>w.axes[0].members=[],w=>w.axes[0].members.push(w.axes[0].members[0]),w=>w.axes[0].origin=[NaN,0,0],w=>w.activeAxis='missing']){const next=structuredClone(world);change(next);assert.throws(()=>validateWorld(next));}
 });
 
 test('either endpoint can own the camera, with the other endpoint straight ahead in depth',()=>{
@@ -132,7 +124,7 @@ test('either endpoint can own the camera, with the other endpoint straight ahead
 
 test('changing node perspective does not rotate an already painted constrained arrangement',()=>{
  const {world,a,b}=pair([4,0,0]);const relation=createAxis(world,a.origin,b.origin,[0,1,0]),frame=focusNodeFrame(world,a.origin,[1,0,0],[0,1,0]);
- const session=createPaintSession(world,a.position,basis,frame,2,true);session.add([0,2,0]);paintNodes(world,session.points,undefined,frame.id);
+ const session=createPaintSession(world,a.position,basis,frame,2,true);session.add([0,0,2]);paintNodes(world,session.points,undefined,frame.id);
  const before=structuredClone(world.nodes),view=endpointView(world,relation,a.origin),next=focusNodeFrame(world,a.origin,view.right,view.up,true);
  assert.notEqual(next.id,frame.id);assert.deepEqual(world.nodes,before);validateWorld(world);
 });
@@ -140,7 +132,58 @@ test('changing node perspective does not rotate an already painted constrained a
 test('coordinate preview uses focused depth, whole brush spacing and the exact committed points',()=>{
  const world=emptyWorld(),node=addStructure(world,[.25,-.75,2.5],1),frame=focusNodeFrame(world,node.origin,[1,0,0],[0,1,0]);world.brush=parseBrush('2x2x2');
  const session=createPaintSession(world,node.position,basis,frame,2,true),candidate=session.candidate([6.42,3.02,99]);
- assert.ok(candidate.valid);close(axisCoordinates(world,frame,candidate.anchor),[6,4,0]);
+ assert.ok(candidate.valid);close(axisCoordinates(world,frame,candidate.anchor),[6,0,96]);
  paintNodes(world,candidate.stamp,undefined,frame.id);
  assert.deepEqual(world.nodes.slice(1).map(node=>node.position),candidate.stamp);validateWorld(world);
+});
+
+test('O origin slots include both nodes and empty units, persist and leave nodes unchanged',()=>{
+ const {world,a,b}=pair([5,0,0]),frame=createAxis(world,a.origin,b.origin,[0,1,0]),before=structuredClone(world.nodes),slots=originSlots(world,frame);assert.equal(slots.length,6);close(slots[0],a.position);close(slots[5],b.position);
+ setAxisOrigin(world,frame.id,slots[2]);close(axisCoordinates(world,frame,slots[2]),[0,0,0]);assert.deepEqual(world.nodes,before);validateWorld(JSON.parse(JSON.stringify(world)));assert.throws(()=>setAxisOrigin(world,frame.id,[2.5,0,0]),/discrete/);
+});
+test('hover-mounted camera uses the node position and chosen origin with a stable up direction',async()=>{
+ const {nodeOriginView}=await import('../src/core/axes.ts');
+ for(const [eye,target]of [[[2,3,4],[0,0,0]],[[0,5,0],[0,0,0]]]){
+  const pose=nodeOriginView(eye,target,[0,1,0]),camera=new T.PerspectiveCamera();camera.position.set(...pose.position);camera.up.set(...pose.up);camera.lookAt(new T.Vector3(...pose.target));camera.updateMatrixWorld();
+  close(pose.position,eye);close(pose.target,target);close(camera.getWorldDirection(new T.Vector3()).toArray(),new T.Vector3(...target).sub(new T.Vector3(...eye)).normalize().toArray());assert.ok(pose.up.every(Number.isFinite));
+ }
+ assert.throws(()=>nodeOriginView([0,0,0],[0,0,0],[0,1,0]),/already/);
+});
+
+test('active world axes constrain painting, whole-unit relocation and origin-relative elevation',()=>{
+ const world=emptyWorld(),origin=addStructure(world,[0,0,0],1),node=addStructure(world,[4,4,4],2),frame=focusNodeFrame(world,origin.origin,[1,0,0],[0,1,0]);
+ assert.deepEqual(activeWorldAxes(frame),[0,2]);close(operationSlot(world,frame,[3.2,7.7,5.8]),[3,0,6]);
+ let session=createPaintSession(world,[0,0,0],basis,frame);close(session.candidate([3.2,7.7,5.8]).anchor,[3,0,6]);
+ const targets=prepareTranslation(world,[node.origin])([-.8,3.7,1.8]);close(targets.get(address(node.origin)),[3,0,6]);assert.equal(targets.size,1);
+ shiftAxisOrigin(world,frame.id,[0,3,0]);session=createPaintSession(world,[0,0,0],basis,frame);close(session.candidate([3.2,7.7,5.8]).anchor,[3,3,6]);close(prepareTranslation(world,[node.origin])([-.8,3.7,1.8]).get(address(node.origin)),[3,3,6]);
+ toggleWorldAxis(world,frame.id,2);toggleWorldAxis(world,frame.id,1);assert.deepEqual(activeWorldAxes(frame),[0,1]);session=createPaintSession(world,[0,0,0],basis,frame);close(session.candidate([3.2,7.7,5.8]).anchor,[3,8,0]);
+ toggleWorldAxis(world,frame.id,0);session=createPaintSession(world,[0,0,0],basis,frame);close(session.candidate([3.2,7.7,5.8]).anchor,[0,8,0]);
+ toggleWorldAxis(world,frame.id,1);assert.equal(createPaintSession(world,[0,0,0],basis,frame).candidate([3,8,6]).valid,false);assert.equal(prepareTranslation(world,[node.origin])([1,1,1]),undefined);
+ for(const axis of [0,1,2])toggleWorldAxis(world,frame.id,axis);assert.deepEqual(activeWorldAxes(frame),[2]);close(createPaintSession(world,[0,0,0],basis,frame).candidate([3.2,7.7,5.8]).anchor,[0,3,6]);toggleWorldAxis(world,frame.id,0);assert.deepEqual(activeWorldAxes(frame),[0,2]);assert.equal(insideActivePlane(world,frame,[3,3,6]),true);assert.equal(insideActivePlane(world,frame,[3,5,6]),false);
+ validateWorld(JSON.parse(JSON.stringify(world)));assert.throws(()=>shiftAxisOrigin(world,frame.id,[0,.5,0]),/whole/);
+});
+test('aiming the origin changes only its frame direction and preserves roll stability',async()=>{
+ const {aimFrame}=await import('../src/core/axes.ts');const w=emptyWorld(),a=addStructure(w,[2,3,4],1),b=addStructure(w,[2,8,4],2),frame=focusNodeFrame(w,a.origin,[1,0,0],[0,1,0]),before=structuredClone(w.nodes);
+ aimFrame(w,frame.id,b.origin);close(axisCenter(w,frame),a.position);close(frame.z,[0,1,0]);assert.deepEqual(w.nodes,before);validateWorld(w);
+ const saved=structuredClone(frame);assert.throws(()=>aimFrame(w,frame.id,a.origin),/away/);assert.deepEqual(frame,saved);validateWorld(JSON.parse(JSON.stringify(w)));
+});
+
+test('the shared origin setter uses camera orientation for every unbound origin and retains explicit facing',async()=>{
+ const {setSpatialOrigin,aimFrame}=await import('../src/core/axes.ts');const w=emptyWorld(),a=addStructure(w,[0,0,0],1),b=addStructure(w,[8,0,0],2),before=structuredClone(w.nodes);
+ let frame=setSpatialOrigin(w,a.origin,a.position,[1,0,0],[0,1,0]);close(frame.z,[0,0,1]);
+ frame=setSpatialOrigin(w,a.origin,[4,0,0],[0,0,-1],[0,1,0]);close(frame.z,[1,0,0]);close(axisCenter(w,frame),[4,0,0]);
+ frame=setSpatialOrigin(w,a.origin,[5,0,0],[1,0,0],[0,0,1]);close(frame.z,[0,-1,0]);
+ aimFrame(w,frame.id,b.origin);const basis=[...frame.z];setSpatialOrigin(w,b.origin,[3,1,0],[1,0,0],[0,0,1]);close(frame.z,basis);assert.deepEqual(w.nodes,before);validateWorld(w);
+});
+
+test('a third-axis click replaces the pair and waits for a second selection; legacy volume states normalize',()=>{
+ const w=emptyWorld(),a=addStructure(w,[0,0,0],1),frame=focusNodeFrame(w,a.origin,[1,0,0],[0,1,0]);
+ assert.deepEqual(activeWorldAxes(frame),[0,2]);toggleWorldAxis(w,frame.id,1);assert.deepEqual(activeWorldAxes(frame),[1]);toggleWorldAxis(w,frame.id,2);assert.deepEqual(activeWorldAxes(frame),[1,2]);
+ frame.activeAxes=[0,1,2];validateWorld(w);assert.deepEqual(frame.activeAxes,[0,2]);
+});
+
+test('empty-space projection uses the active plane and a stable plane for a single axis',async()=>{
+ const {projectionAxis}=await import('../src/core/axes.ts');const frame={x:[1,0,0],y:[0,1,0],z:[0,0,1]};
+ for(const [active,expected]of [[[0,1],2],[[0,2],1],[[1,2],0]])assert.equal(projectionAxis({...frame,activeAxes:active},[0,-1,-1]),expected);
+ assert.equal(projectionAxis({...frame,activeAxes:[0]},[0,-1,0]),1);
 });

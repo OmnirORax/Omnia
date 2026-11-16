@@ -1,4 +1,4 @@
-export type RadialGroup={id:string;label:string;symbol:string;symbolMask?:string;hidden?:boolean;flatten?:boolean};
+export type RadialGroup={id:string;label:string;symbol:string;symbolMask?:string;hidden?:boolean;flatten?:boolean;row?:{id:string;axis:{x:number;y:number}};axis?:{x:number;y:number}};
 export type RadialEntry<T>={id:string;label:string;symbol:string;group?:readonly RadialGroup[];content:T;setter?:T};
 export type RadialNode<T>=RadialGroup & {children?:RadialNode<T>[];content?:T;setter?:T};
 /** Shared presentation grouping; commands/values remain with their existing owner. */
@@ -21,11 +21,25 @@ export function radialTree<T>(entries:readonly RadialEntry<T>[]):RadialNode<T>[]
 export const RADIAL_GEOMETRY={size:32,minimumSize:24,depthStep:4,setterGap:2,opacity:1} as const;
 /** A single snapshot supplies both container and slot geometry. Setters consume
  * outer extent only; they never push the buttons away from the centre. */
-export function radialLayout<T>(nodes:readonly RadialNode<T>[],depth=0){
+export function radialLayout<T>(nodes:readonly RadialNode<T>[],depth=0):{size:number;radius:number;extent:number;slots:{x:number;y:number;size:number;setterX:number;setterY:number;setterAngle:number}[]}{
+  if(nodes.some(node=>node.row)){
+    const groups=new Map<string,RadialNode<T>[]>();
+    for(const node of nodes)if(node.row){const peers=groups.get(node.row.id)??[];peers.push(node);groups.set(node.row.id,peers);}
+    const rows=new Map([...groups].map(([id,peers])=>[id,radialRowLayout(peers,peers[0].row!.axis)]));
+    const size=RADIAL_GEOMETRY.minimumSize,radius=size+RADIAL_GEOMETRY.setterGap;
+    const extent=2*(radius+Math.max(0,...[...rows.values()].map(row=>row.length-size))+size/2+size+RADIAL_GEOMETRY.setterGap+1);
+    const ordinary=radialLayout(nodes.filter(node=>!node.row),depth);let ordinaryIndex=0;
+    return {size,radius,extent,slots:nodes.map(node=>{
+      if(!node.row){const slot=ordinary.slots[ordinaryIndex++];return {...slot,x:50+(slot.x-50)*ordinary.extent/extent,y:50+(slot.y-50)*ordinary.extent/extent};}
+      const row=rows.get(node.row.id)!,index=groups.get(node.row.id)!.indexOf(node),slot=row.slots[index];
+      const offset=radius+row.length/2-size/2;
+      return {...slot,x:50+((slot.x-50)*row.extent/100+row.axis.x*offset)/extent*100,y:50+((slot.y-50)*row.extent/100+row.axis.y*offset)/extent*100};
+    })};
+  }
   const setterHeight=nodes.some(node=>node.setter)?radialDimensions(depth,nodes.length).size+RADIAL_GEOMETRY.setterGap:0;
   const dimensions=radialDimensions(depth,nodes.length,setterHeight);
   return {...dimensions,slots:nodes.map((_,index)=>{
-    const slot=radialSlot(index,nodes.length,depth,setterHeight),angle=index/nodes.length*Math.PI*2;
+    const base=radialSlot(index,nodes.length,depth,setterHeight),axis=nodes[index].axis,length=axis?Math.hypot(axis.x,axis.y)||1:1,angle=axis?Math.atan2(axis.x,-axis.y):index/nodes.length*Math.PI*2,slot=axis?{...base,x:50+axis.x/length*dimensions.radius/dimensions.extent*100,y:50+axis.y/length*dimensions.radius/dimensions.extent*100}:base;
     return {...slot,setterX:slot.size/2+Math.sin(angle)*(slot.size+RADIAL_GEOMETRY.setterGap),setterY:slot.size/2-Math.cos(angle)*(slot.size+RADIAL_GEOMETRY.setterGap),setterAngle:index/nodes.length*360-90};
   })};
 }

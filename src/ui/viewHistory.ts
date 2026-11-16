@@ -3,16 +3,16 @@ import type {ActionHistory} from '../composer/runtime/ui/actionHistory.ts';
 import {sameValue} from '../core/equality.ts';
 export const VIEW_CLOSE='omnium:window-close',VIEW_GEOMETRY='omnium:window-geometry',VIEW_ROUTE='omnium:window-route';
 export type ViewSpec={kind:string;args?:unknown;point?:{x:number;y:number};selection?:unknown[];query?:string;instance?:number};
-type State={menu:ViewSpec|null;windows:Record<string,ViewSpec>};
+export type ViewState={menu:ViewSpec|null;windows:Record<string,ViewSpec>};
 type Handle={root:HTMLElement;close:()=>unknown;ready?:Promise<void>};
 /** Pure view descriptors; disposed views are reconstructed by registered factories. */
 export function createViewHistory(history:ActionHistory,schedule:(fn:()=>void)=>void=fn=>requestAnimationFrame(fn)){
- let state:State={menu:null,windows:{}},poses:Record<string,string>={},sequence=0,depth=0,writing=false,applying=false;
+ let state:ViewState={menu:null,windows:{}},poses:Record<string,string>={},sequence=0,depth=0,writing=false,applying=false;
  let renderMenu:(spec:ViewSpec|null)=>void=()=>{};
  const factories=new Map<string,(spec:ViewSpec)=>void>(),pending=new Map<string,ViewSpec>(),initializing=new Set<number>();
  const live=new Map<string,{spec:ViewSpec;handle:Handle;stop:()=>void}>();let queued=false;
- const record=(before:State,group?:string)=>history.record('ui.views',before,state,['ui'],['omnium'],group);
- const change=(next:State,group?:string)=>{const before=state;state=next;if(!writing)record(before,group);};
+ const record=(before:ViewState,group?:string)=>history.record('ui.views',before,state,['ui'],['omnium'],group);
+ const change=(next:ViewState,group?:string)=>{const before=state;state=next;if(!writing)record(before,group);};
  const pose=(slot:{spec:ViewSpec;handle:Handle})=>{poses={...poses,[slot.spec.instance!]:slot.handle.root.style.cssText};};
  function closeSlot(key:string){const slot=live.get(key);if(!slot)return;pose(slot);slot.handle.close();if(slot.handle.root.isConnected)throw Error('The window is busy and could not close.');slot.stop();live.delete(key);initializing.delete(slot.spec.instance!);}
  function apply(){
@@ -26,7 +26,7 @@ export function createViewHistory(history:ActionHistory,schedule:(fn:()=>void)=>
   }catch(error){history.message=String(error);}finally{writing=false;applying=false;}
  }
  const requestApply=()=>{if(!queued){queued=true;queueMicrotask(apply);}};
- history.register('ui.views',{read:()=>state,write:(next:State)=>{
+ history.register('ui.views',{read:()=>state,write:(next:ViewState)=>{
   const before=state;state=next;writing=true;
   try{for(const [key,slot]of [...live])if(!sameValue(state.windows[key],slot.spec))closeSlot(key);}
   catch(error){state=before;requestApply();throw error;}
@@ -36,6 +36,12 @@ export function createViewHistory(history:ActionHistory,schedule:(fn:()=>void)=>
  }});
  history.register('ui.geometry',{read:()=>poses,write:(next:Record<string,string>)=>{poses=next;for(const slot of live.values()){const css=poses[slot.spec.instance!];if(css!==undefined)slot.handle.root.style.cssText=css;}}});
  const api={
+  snapshot(){for(const slot of live.values())pose(slot);return structuredClone({state,poses});},
+  restore(snapshot:{state:ViewState;poses:Record<string,string>}){
+   writing=true;try{for(const key of [...live.keys()])closeSlot(key);}finally{writing=false;}
+   pending.clear();initializing.clear();state=structuredClone(snapshot.state);poses={...snapshot.poses};
+   sequence=Math.max(sequence,...Object.values(state.windows).map(spec=>spec.instance??0),state.menu?.instance??0);requestApply();
+  },
   defineWindow<Args extends unknown[]>(kind:string,create:(...args:Args)=>Handle){
    const construct=(spec:ViewSpec,restore?:ViewSpec)=>{const handle=create(...spec.args as Args);api.adopt(kind,spec,handle,restore);};
    factories.set(kind,spec=>construct(spec,spec));
