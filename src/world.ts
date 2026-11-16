@@ -3,7 +3,7 @@ import {originPlacement} from './world/originPlacement.ts';
 import {pickAxisSegment} from './world/axisHit.ts';
 import {pickupSelection} from './core/selection';
 import {cameraHistoryMatches} from './world/cameraHistory.ts';
-import {releaseRange} from './world/rangeSelection.ts';
+import {beginRange,releaseRange,insideScreenSelection} from './world/rangeSelection.ts';
 import {sameValue} from './core/equality.ts';
 import type {CameraState} from './core/cameraState.ts';
 import {worldConnections,type Edge} from './core/connections.ts';
@@ -19,7 +19,7 @@ import {createOccupancy} from './graph/occupancy.ts';
 import {axisPose} from './world/axisPose.ts';
 import {createPaintSession} from './core/painting.ts';
 import {createAxisView} from './world/axisView.ts';
-import {projectionAxis,insideActivePlane,operationSlot,activeWorldAxes,nodeOriginView,axisCenter,axisPoint,axisAnchor,planAxis,planSlotNode,endpointView,dot,minus,type AxisFrame} from './core/axes.ts';
+import {projectionAxis,operationSlot,activeWorldAxes,nodeOriginView,axisCenter,axisPoint,axisAnchor,planAxis,planSlotNode,endpointView,dot,minus,type AxisFrame} from './core/axes.ts';
 import {startsConnector,connectorDragged} from './world/connectorGesture.ts';
 import {resolveNodeAppearance,nodePaint,connectorPaint} from './core/appearance.ts';
 import {brightHex} from './composer/runtime/appearance/resolve.ts';
@@ -388,7 +388,7 @@ export function createWorld(host: HTMLElement, input: Input) {
   function rangeCandidates(g:Gesture){
     const result:Origin[]=[];
     if(g.volume){const v=g.volume;if(g.project){const d=minus(xyz(g.project(g.end).divideScalar(scale)),v.center);v.b=[dot(d,v.right),dot(d,v.up),0];}for(const node of world.nodes)if(insideSelectionBox(node.position,v.center,v.right,v.up,v.forward,v.a,v.b,selectionDepth))result.push(node.origin);return result;}
-    const rect=canvas.getBoundingClientRect(),frame=activeAxis();for(const visual of visuals.values()){if(!visual.group.visible||!insideActivePlane(world,frame,visual.node.position))continue;const p=displayed(visual).project(camera),x=rect.left+(p.x+1)/2*rect.width,y=rect.top+(1-p.y)/2*rect.height;if(p.z>=-1&&p.z<=1&&x>=Math.min(g.start.x,g.end.x)&&x<=Math.max(g.start.x,g.end.x)&&y>=Math.min(g.start.y,g.end.y)&&y<=Math.max(g.start.y,g.end.y))result.push(visual.node.origin);}return result;
+    const rect=canvas.getBoundingClientRect();for(const visual of visuals.values()){if(!visual.group.visible)continue;if(insideScreenSelection(displayed(visual).project(camera),rect,g.start,g.end))result.push(visual.node.origin);}return result;
   }
   function previewRange(g?:Gesture){rangePreview=g?new Set([...(g.volume?[]:selected.map(key)),...rangeCandidates(g).map(key)]):undefined;request();}
   let gesture:Gesture|undefined;
@@ -437,7 +437,7 @@ export function createWorld(host: HTMLElement, input: Input) {
   function confirmMiddle(event:PointerEvent,originFrame?:string){event.preventDefault();event.stopImmediatePropagation();navigation.finish(true);finishAlignment();lastPoint={x:event.clientX,y:event.clientY};pointerInside=true;if(originFrame&&boundRotation.active){if(boundRotation.frameId===originFrame){boundRotation.confirm();return;}boundRotation.cancel();}if(boundRotation.active){const target=pointed(lastPoint).origin;if(!target||!boundRotation.aimAt(target))boundRotation.confirm();secondary.cancel();}else{cancelDrive();originPick=undefined;axisPicking=undefined;axisView.preview();exitCreation();restore();if(originFrame){wheelOrbitBefore=undefined;boundRotation.startFrameWheel(event,originFrame);}else{const hit=pointed(lastPoint),cameraOrbit=!hit.origin&&!hit.axis;wheelOrbitBefore=cameraOrbit?pose():undefined;boundRotation.startWheel(event,hit.origin,cameraOrbit);}}}
   canvas.addEventListener('pointerdown',event=>{
     if(event.button===1){event.preventDefault();event.stopImmediatePropagation();middlePress={pointer:event.pointerId,origin:input.originChord()?activeAxis().id:undefined};canvas.setPointerCapture(event.pointerId);return;}
-    if(event.button!==0&&event.button!==2)return;nativeWheel=false;if(event.button===0&&(event.ctrlKey||event.metaKey)){hover=undefined;selected=input.hover();selectedKeys=new Set(selected.map(key));}
+    if(event.button!==0&&event.button!==2)return;nativeWheel=false;beginRange(event,()=>{boundRotation.cancel();finishAlignment();navigation.finish(true);if(drive.active)cancelDrive();if(gesture||axisStroke||connectorDrag)restore();ghost.visible=false;originPick=undefined;axisPicking=undefined;axisView.preview();if(altPreview){finishPaint(true);altPreview=false;}hover=undefined;selected=input.hover();selectedKeys=new Set(selected.map(key));});
     if(event.button===2&&creating&&!event.altKey&&!event.shiftKey&&!event.ctrlKey&&!event.metaKey&&!boundRotation.active){event.preventDefault();event.stopImmediatePropagation();creationRightPointer=event.pointerId;secondary.cancel();const context=paintContext({x:event.clientX,y:event.clientY},false),candidate=context.session.candidate(context.project({x:event.clientX,y:event.clientY}));try{if(!candidate.valid)throw Error('Choose a free creation position.');input.paint(candidate.stamp,undefined,context.frame,creationParent);exitCreation();}catch(error){input.feedback(error instanceof Error?error.message:String(error));}return;}
     if(boundRotation.active){event.preventDefault();event.stopImmediatePropagation();secondary.cancel();navigation.finish(true);finishAlignment();controls.enabled=!boundRotation.active&&!drive.active;return;}
     if(event.button===2&&event.altKey&&!event.ctrlKey&&!event.metaKey&&!event.shiftKey){event.preventDefault();event.stopImmediatePropagation();finishAlignment();originPick=undefined;axisPicking=undefined;axisView.preview();secondary.cancel();navigation.finish(true);cancelDrive();ghost.visible=false;input.aimOrigin();return;}
@@ -453,7 +453,7 @@ export function createWorld(host: HTMLElement, input: Input) {
     if(omnicGesture&&omnicGesture.id===event.pointerId){const point=editPoint(event,omnicGesture.surface);if(point)omnicGesture.surface.down(point,event);event.preventDefault();event.stopImmediatePropagation();return;}
     if(!creating&&omnic?.origin&&omnic.worldInput!==false&&!drive.active&&!input.picking()){const hit=pointed({x:event.clientX,y:event.clientY}),point=hit.origin&&sameOrigin(hit.origin,omnic.origin)?editPoint(event,omnic,true):undefined;if(point){omnicGesture={surface:omnic,id:event.pointerId,bounds:{...omnic.bounds}};if(event.button===2)secondarySurface={surface:omnic,released:false,context:false};controls.enabled=false;event.preventDefault();event.stopImmediatePropagation();canvas.setPointerCapture(event.pointerId);omnic.down(point,event);return;}}
     const p={x:event.clientX,y:event.clientY},hit=pointed(p),range=event.button===0&&(event.ctrlKey||event.metaKey),moving=false;
-    let mode:Gesture['mode']=drive.active&&event.button===0?'drive':range?'range':event.button===0&&hit.origin&&!creating&&!input.picking()&&!event.altKey&&!event.shiftKey?'pickup':moving?'move':'view';
+    let mode:Gesture['mode']=range?'range':drive.active&&event.button===0?'drive':event.button===0&&hit.origin&&!creating&&!input.picking()&&!event.altKey&&!event.shiftKey?'pickup':moving?'move':'view';
     if(event.button===0&&creating&&!range&&!input.picking()){
       cancelDrive();mode='paint';const paint=nodePaint(world);
       const preview=new T.InstancedMesh(sphere,atomicCarrierMaterial(brightHex(paint.color!,paint.brightness!),paint.opacity!*.7,paint.translucency,paint.glow,paint.translucencyRadius),4000);preview.count=0;preview.frustumCulled=false;scene.add(preview);

@@ -13,7 +13,7 @@ export const POINTER_BINDINGS=[
  make('cursor','Add cursor / word / text selection','Alt+MB1','document','Document'),
 ];
 export function resolvePointerBinding(combo:string,context:string,read=(definition:ShortcutDefinition)=>shortcuts.get(definition)){
- const candidates=POINTER_BINDINGS.filter(item=>item.context===context||context==='create'&&item.context==='world'&&['gesture:paint-confirm','gesture:rotate','gesture:origin-rotation','gesture:zoom'].includes(item.id));
+ const candidates=POINTER_BINDINGS.filter(item=>item.context===context||context==='create'&&item.context==='world'&&['gesture:multi-plane','gesture:multi-depth','gesture:paint-confirm','gesture:rotate','gesture:origin-rotation','gesture:zoom'].includes(item.id));
  const action=candidates.find(item=>read(item)===combo);return action?{id:action.id,combo:action.defaultKey}:undefined;
 }
 let activeAction:string|undefined;
