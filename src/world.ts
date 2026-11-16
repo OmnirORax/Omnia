@@ -1,3 +1,4 @@
+import {createUserReference} from './world/userReference';
 import {createSharedReference,USER_REFERENCE} from './core/sharedReference';
 import {orientNodeContent} from './world/nodeOrientation';
 import {createBoundRotation,type NodeRotationState} from './world/boundRotation';
@@ -98,7 +99,8 @@ export function createWorld(host: HTMLElement, input: Input) {
   let pointOfView:Origin|undefined,userView:{position:number[];target:number[];up:number[];pov?:Origin;depth?:number;returnView?:{position:number[];target:number[];up:number[]}}|undefined;
   let axisPlanCache:{world:World;first:string;second:string;plan:ReturnType<typeof planAxis>}|undefined;
   let axisPicking:{first?:Origin;up:Vec3;pointer?:number}|undefined;
-  const sharedReference=createSharedReference(()=>world,()=>{const pose=userView??{position:camera.position.toArray(),target:controls.target.toArray(),up:camera.up.toArray()},matrix=new T.Matrix4().lookAt(new T.Vector3(...pose.position),new T.Vector3(...pose.target),new T.Vector3(...pose.up));return {origin:xyz(new T.Vector3(...pose.target).divideScalar(scale)),x:xyz(new T.Vector3(1,0,0).transformDirection(matrix)),y:xyz(new T.Vector3(0,1,0).transformDirection(matrix)),z:xyz(new T.Vector3(0,0,1).transformDirection(matrix))};});
+  const userReference=createUserReference(()=>userView??{position:camera.position.toArray(),target:controls.target.toArray(),up:camera.up.toArray()});
+  const sharedReference=createSharedReference(()=>world,()=>{const pose=userReference.read(),matrix=new T.Matrix4().lookAt(new T.Vector3(...pose.position),new T.Vector3(...pose.target),new T.Vector3(...pose.up));return {origin:xyz(new T.Vector3(...pose.target).divideScalar(scale)),x:xyz(new T.Vector3(1,0,0).transformDirection(matrix)),y:xyz(new T.Vector3(0,1,0).transformDirection(matrix)),z:xyz(new T.Vector3(0,0,1).transformDirection(matrix))};});
   const activeAxis=()=>sharedReference.read();
   const operationWorld=(value=world)=>sharedReference.world(value,activeAxis());
   const retained = expansionState(), variants = new Set<string>(), navigator = createWorldNavigator();
@@ -558,7 +560,7 @@ export function createWorld(host: HTMLElement, input: Input) {
     camera.lookAt(controls.target);rebind();recordCamera(before);request();
   }
   function applyNodeView(origin:Origin,next:{position:Vec3;target:Vec3;up:Vec3},useOriginPlane=false){const before=pose();if(!pointOfView)userView=before;remember();pointOfView=origin;nodeViewDepth=useOriginPlane?0:new T.Vector3(...next.position).distanceTo(new T.Vector3(...next.target));camera.position.set(...next.position).multiplyScalar(scale);controls.target.set(...next.target).multiplyScalar(scale);camera.up.set(...next.up);camera.lookAt(controls.target);ghost.visible=false;axisView.setCoordinatesVisible(false);rebind();update(world,selected,filter,selectedEdges);recordCamera(before);canvas.focus();request();}
-  const boundRotation=createBoundRotation({scene,camera,canvas,host,read:()=>world,scale:()=>scale,hit:pointed,selected:()=>selected,reference:()=>activeAxis(),user:()=>userView??{position:camera.position.toArray(),target:controls.target.toArray(),up:camera.up.toArray()},visual:id=>visuals.get(id),commit:input.rotateCommit,frameVisibility:(id,visible)=>axisView.referenceVisible(id,visible),enabled:value=>{controls.enabled=value&&!drive.active;},request,feedback:input.feedback});
+  const boundRotation=createBoundRotation({scene,camera,canvas,host,read:()=>world,scale:()=>scale,hit:pointed,selected:()=>selected,reference:()=>activeAxis(),user:()=>userReference.read(),visual:id=>visuals.get(id),commit:input.rotateCommit,frameVisibility:(id,visible)=>axisView.referenceVisible(id,visible),enabled:value=>{controls.enabled=value&&!drive.active;},request,feedback:input.feedback});
   guardCameraPointer(canvas,active=>{controls.enabled=!active&&!navigation.active&&!drive.active;},()=>{navigation.finish(true);restoreNative();restore();cancelDrive();rebind();});
   const held=new Set<NudgeActionId>();let nudgeDepth=false;
   const nudging=createNudgeGesture({schedule:requestAnimationFrame,cancel:cancelAnimationFrame,now:()=>performance.now(),snapshot:()=>{
@@ -594,6 +596,8 @@ export function createWorld(host: HTMLElement, input: Input) {
     toggleCoordinates(){coordinatesVisible=!coordinatesVisible;axisView.setCoordinatesVisible(coordinatesVisible);if(lastPoint)processPointer();request();},
     stamp(){if(hoverCandidate?.valid)input.paint(hoverCandidate.stamp,undefined,activeAxis()?.id);else input.feedback('Choose a free brush placement.');},
     mountHovered(){const origin=pointerInside&&lastPoint?pointed(lastPoint).origin:undefined;if(!origin)return false;const frame=activeAxis(),target=frame?axisCenter(world,frame):selected[0]&&locatePosition(selected[0]);if(!target){input.feedback('Select an origin first.');return true;}try{applyNodeView(origin,nodeOriginView(locatePosition(origin)!,target,xyz(camera.up)),true);}catch(error){input.feedback(error instanceof Error?error.message:String(error));}return true;},
+    get userDetached(){return userReference.detached;},
+    toggleUser(){cancelDrive();boundRotation.cancel();navigation.finish(true);const before=pose();if(!userReference.detached){userReference.dismount();}else{const next=userReference.mount()!;pointOfView=undefined;nodeViewDepth=undefined;userView=undefined;camera.position.fromArray(next.position);camera.up.fromArray(next.up);controls.target.fromArray(next.target);camera.lookAt(controls.target);}rebind();update(world,selected,filter,selectedEdges);recordCamera(before);canvas.focus();request();},
     get inNodeView(){return !!pointOfView;},
     enterNode(origin:Origin,id:string){const relation=world.axes?.find(frame=>frame.id===id);if(relation)applyNodeView(origin,endpointView(world,relation,origin));},
     leaveNode(){if(!userView)return;const before=pose(),next=userView;remember();pointOfView=undefined;nodeViewDepth=undefined;userView=undefined;camera.position.fromArray(next.position);camera.up.fromArray(next.up);controls.target.fromArray(next.target);camera.lookAt(controls.target);rebind();update(world,selected,filter,selectedEdges);recordCamera(before);canvas.focus();request();},

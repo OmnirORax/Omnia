@@ -592,6 +592,7 @@ window.addEventListener('keydown',event=>{
 function worldShortcutActions(){return [
  ...spaceActions().filter(action=>action.available!==false).map(action=>{const match=/^(.*?) \(([^)]+)\)$/.exec(action.label);return {label:match?.[1]??action.label,key:match?.[2],run:action.run};}),
  ...([{label:'Set origin',key:'O',run:()=>view?.pickOrigin()}]),
+ {label:view?.userDetached?'Mount User':'Dismount User',key:'U',run:()=>view?.toggleUser()},
  {label:'Create nodes',key:'N',run:()=>view?.toggleCreation()},
  {label:'Search',key:'S',run:searchSettings},
  ...(selectedOrigins().length>1?[{label:'Align selection',key:'I',run:()=>view?.alignSelection()}]:[]),
