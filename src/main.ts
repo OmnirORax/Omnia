@@ -1,6 +1,6 @@
 import {applyGroupTargets} from './core/groupPlacement';
 import {installContextActions,registerContextActions,refreshContextActions} from './ui/contextActions';
-import {aimFrame,activeWorldAxes,createAxis,toggleWorldAxis,shiftAxisOrigin,setAxisOrigin,slotNode,focusNodeFrame,endpointView} from './core/axes.ts';
+import {aimFrame,activeWorldAxes,createAxis,toggleWorldAxis,shiftAxisOrigin,setSpatialOrigin,slotNode,focusNodeFrame,endpointView} from './core/axes.ts';
 import {parseBrush,brushShape,SINGLE_BRUSH,type Brush} from './core/brush.ts';
 import {handleContentViewShortcut} from './ui/contentViewShortcut.ts';
 import {ANIMATION_TARGETS,animationProperties} from './properties/animations.ts';
@@ -102,9 +102,9 @@ const view = (() => {
       adopt(origins, owner, delta) { store.change(world => adoptNodes(world, origins, owner, delta)); },
       park(origin, position) { message = ''; store.change(world => {const node=locate(world,origin)!;translate(world,[origin],position.map((v,i)=>v-node.position[i]) as Vec3);}); return store.world; },
       paint(positions,source,axis){store.change(world=>paintNodes(world,positions,source,axis));},
-      selectionOrigin(ids,position){store.change(world=>{let frame=world.axes?.find(frame=>frame.id===world.activeAxis);if(!frame){const basis=view!.frameBasis();frame=focusNodeFrame(world,ids[0],basis.right,basis.up);}frame.origin=[...position];});},
-      nodeOrigin(origin){store.change(world=>{const frame=world.axes?.find(frame=>frame.id===world.activeAxis);if(frame&&(frame.ends.length===2||frame.directed))frame.origin=[...locate(world,origin)!.position];else {const basis=view!.frameBasis();focusNodeFrame(world,origin,basis.right,basis.up,true);}});},
-      origin(id,position){store.change(world=>setAxisOrigin(world,id,position));},
+      selectionOrigin(ids,position){assignOrigin(ids[0],position);},
+      nodeOrigin(origin){assignOrigin(origin,locate(store.world,origin)!.position);},
+      origin(id,position){const frame=store.world.axes?.find(frame=>frame.id===id);if(frame)assignOrigin(frame.ends[0],position);},
       aimOrigin(){aimOrigin();},
       axis(first,second,up){store.change(world=>{createAxis(world,first,second,up);});selection.set([]);refresh();},
       slot(origins,axis,point){store.change(world=>slotNode(world,origins[0],axis,point,origins));},
@@ -210,6 +210,7 @@ function reference(mode: Binding['mode']) {
   });
   message = 'Choose a component · Esc cancels'; refresh();
 }
+function assignOrigin(anchor:Origin,position:Vec3){const basis=view!.frameBasis();store.change(world=>setSpatialOrigin(world,anchor,position,basis.right,basis.up));}
 function focusSelection(){if(view?.mountHovered())return;const origins=selectedOrigins();if(view&&origins.length){const basis=view.frameBasis();store.change(world=>focusNodeFrame(world,origins[0],basis.right,basis.up,true));view.focus(origins,true);}else view?.focusAxis();}
 function relationFrame(origin?:Origin){
  const world=store.world,active=world.axes?.find(frame=>frame.id===world.activeAxis),anchor=origin??active?.ends[0];

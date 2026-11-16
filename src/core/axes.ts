@@ -145,3 +145,11 @@ export function aimFrame(world:World,id:string,target:Origin){
  const y=unit(norm(projected)>1e-7?projected:minus(fallback,times(z,dot(fallback,z)))),x=unit(cross(y,z));
  frame.origin=[...origin];frame.x=x;frame.y=unit(cross(z,x));frame.z=z;frame.directed=true;
 }
+
+/** All origin assignments share one orientation rule, independent of selection shape. */
+export function setSpatialOrigin(world:World,anchor:Origin,position:Vec3,right:Vec3,up:Vec3){
+ const current=world.axes?.find(frame=>frame.id===world.activeAxis),explicit=current&&(current.ends.length===2||current.directed);
+ const frame=explicit?current:focusNodeFrame(world,anchor,right,up,true);
+ if(!explicit){delete frame.directed;if(current&&current!==frame)frame.activeAxes=[...activeWorldAxes(current)];}
+ frame.origin=[...position];return frame;
+}

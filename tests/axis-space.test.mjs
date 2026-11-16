@@ -167,3 +167,11 @@ test('aiming the origin changes only its frame direction and preserves roll stab
  aimFrame(w,frame.id,b.origin);close(axisCenter(w,frame),a.position);close(frame.z,[0,1,0]);assert.deepEqual(w.nodes,before);validateWorld(w);
  const saved=structuredClone(frame);assert.throws(()=>aimFrame(w,frame.id,a.origin),/away/);assert.deepEqual(frame,saved);validateWorld(JSON.parse(JSON.stringify(w)));
 });
+
+test('the shared origin setter uses camera orientation for every unbound origin and retains explicit facing',async()=>{
+ const {setSpatialOrigin,aimFrame}=await import('../src/core/axes.ts');const w=emptyWorld(),a=addStructure(w,[0,0,0],1),b=addStructure(w,[8,0,0],2),before=structuredClone(w.nodes);
+ let frame=setSpatialOrigin(w,a.origin,a.position,[1,0,0],[0,1,0]);close(frame.z,[0,0,1]);
+ frame=setSpatialOrigin(w,a.origin,[4,0,0],[0,0,-1],[0,1,0]);close(frame.z,[1,0,0]);close(axisCenter(w,frame),[4,0,0]);
+ frame=setSpatialOrigin(w,a.origin,[5,0,0],[1,0,0],[0,0,1]);close(frame.z,[0,-1,0]);
+ aimFrame(w,frame.id,b.origin);const basis=[...frame.z];setSpatialOrigin(w,b.origin,[3,1,0],[1,0,0],[0,0,1]);close(frame.z,basis);assert.deepEqual(w.nodes,before);validateWorld(w);
+});
