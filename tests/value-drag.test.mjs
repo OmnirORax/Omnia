@@ -49,3 +49,9 @@ test('slider readout grabs preserve the initial value and use a fixed left/right
  const scrub=createValueScrub({origin:{x:100,y:100},width:200,value:50,min:0,max:100,step:1,horizontal:true});
  assert.equal(scrub.sample({x:100,y:100}),50);assert.equal(scrub.sample({x:80,y:150}),40);assert.equal(scrub.sample({x:120,y:50}),60);
 });
+
+test('diagonal size handles inherit scalar dragging while preserving horizontal defaults',async()=>{
+ const {valueDragDistance}=await import('../src/ui/valueDrag.ts');
+ assert.equal(valueDragDistance({value:1},10,30),10);assert.ok(Math.abs(valueDragDistance({value:1,axis:{x:1,y:1}},10,10)-Math.sqrt(200))<1e-9);
+ assert.ok(valueDragDistance({value:1,axis:{x:1,y:1}},-10,-10)<0);assert.equal(valueDragDistance({value:1,axis:{x:1,y:1}},10,-10),0);
+});

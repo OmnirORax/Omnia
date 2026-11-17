@@ -1,7 +1,7 @@
 import {createRelativePointer} from './relativePointer.ts';
 import {claimUIPress} from '../composer/runtime/ui/pointerOwnership.ts';
 import {PAGE_INPUT_SUSPEND} from '../composer/runtime/ui/pageInputBoundary.ts';
-export type NumberDrag = {value:number;min?:number;max?:number;step?:number;pixelsPerStep?:number};
+export type NumberDrag = {value:number;min?:number;max?:number;step?:number;pixelsPerStep?:number;axis?:{x:number;y:number}};
 /** Horizontal relative movement; bounds and declared increments remain authoritative. */
 export function horizontalValue(config:NumberDrag,delta:number){
   const {value,min,max,step}=config;
@@ -13,6 +13,7 @@ export function horizontalValue(config:NumberDrag,delta:number){
   if(min!==undefined)next=Math.max(min,next);if(max!==undefined)next=Math.min(max,next);
   return Number.isFinite(next)?Number(next.toPrecision(12)):value;
 }
+export function valueDragDistance(config:NumberDrag,dx:number,dy:number){const axis=config.axis;if(!axis)return dx;const length=Math.hypot(axis.x,axis.y);return length>0?(dx*axis.x+(Number.isFinite(dy)?dy:0)*axis.y)/length:dx;}
 type Adapter={read:()=>NumberDrag|undefined;input:(value:number)=>void;commit:(value:number)=>void;cancel:(value:number)=>void};
 const adapters=new WeakMap<HTMLElement,Adapter>();
 export function registerValueDrag(root:HTMLElement,adapter:Adapter){
@@ -36,7 +37,7 @@ function inputAdapter(field:HTMLInputElement):Adapter{
   },input:write,commit:()=>{field.dispatchEvent(new Event('change',{bubbles:true}));field.blur();},cancel:value=>{write(value);field.dispatchEvent(new Event('change',{bubbles:true}));}};
 }
 export function installValueDrag(){
-  let drag:{id:number;root:HTMLElement;adapter:Adapter;config:NumberDrag;x:number;active:boolean;next:number}|undefined,suppressClick=false;
+  let drag:{id:number;root:HTMLElement;adapter:Adapter;config:NumberDrag;x:number;y:number;active:boolean;next:number}|undefined,suppressClick=false;
   const relative=createRelativePointer(()=>finish(true));
   const stop=(event:Event)=>{event.preventDefault();event.stopImmediatePropagation();};
   const finish=(cancel=false)=>{
@@ -50,13 +51,13 @@ export function installValueDrag(){
     finish(true);suppressClick=false;
     const field=numericInput(event.target),root=field??(event.target instanceof Element?event.target.closest<HTMLElement>('[data-value-drag]'):null);
     if(!root)return;const adapter=field?inputAdapter(field):adapters.get(root),config=adapter?.read();if(!adapter||!config)return;
-    drag={id:event.pointerId,root,adapter,config,x:event.clientX,active:false,next:config.value};
+    drag={id:event.pointerId,root,adapter,config,x:event.clientX,y:event.clientY,active:false,next:config.value};
   },true);
   const move=(event:PointerEvent)=>{
     const current=drag;if(!current||current.id!==event.pointerId)return;
     if(!current.root.isConnected){finish(true);return;}
-    if(!current.active){if(Math.abs(event.clientX-current.x)<(current.config.pixelsPerStep?1:4))return;current.active=true;claimUIPress(event.pointerId,event.pointerType,event.buttons);current.root.setPointerCapture(event.pointerId);document.documentElement.classList.add('value-dragging');relative.start(current.root,{x:event.clientX,y:event.clientY});}
-    stop(event);const next=horizontalValue(current.config,relative.sample(event).x-current.x);
+    if(!current.active){if(Math.abs(valueDragDistance(current.config,event.clientX-current.x,event.clientY-current.y))<(current.config.pixelsPerStep?1:4))return;current.active=true;claimUIPress(event.pointerId,event.pointerType,event.buttons);current.root.setPointerCapture(event.pointerId);document.documentElement.classList.add('value-dragging');relative.start(current.root,{x:event.clientX,y:event.clientY});}
+    stop(event);const point=relative.sample(event),next=horizontalValue(current.config,valueDragDistance(current.config,point.x-current.x,point.y-current.y));
     if(next!==current.next){current.next=next;current.adapter.input(next);}
   };
   window.addEventListener('pointermove',event=>{if(drag&&!(event.buttons&1)){finish();return;}move(event);},true);

@@ -1,3 +1,4 @@
+import {mathematicalDialScale} from './radialMenuState';
 import {showMathCursorReadout,clearMathCursorReadout} from '../../../ui/mathCursorReadout.ts';
 import type {ConfirmedMathValue} from '../../../ui/operationNumber.ts';
 import {reportSystemMessage} from '../../../ui/systemMessage.ts';
@@ -6,7 +7,7 @@ import {useNavigationState} from '../../../ui/useNavigationState.tsx';
 import {useHoverPreview} from './HoverPreview';
 import {useValueDrag} from './useValueDrag.ts';
 import {useValueConfirmation} from './useValueConfirmation';
-import {type ReactNode,useId,useLayoutEffect,useEffect,useMemo,useRef,useState} from 'react';
+import {type ReactNode,useSyncExternalStore,useId,useLayoutEffect,useEffect,useMemo,useRef,useState} from 'react';
 import {radialDimensions,RADIAL_GEOMETRY} from './radialMenuModel';
 import {mathematicalSlotScrub,mathematicalEmptyValue,mathematicalSlotValue,mathematicalNumberValue,mathematicalEditValue,mathematicalValueAllowed,mathematicalValueSession,radialSlotCapacity,mathematicalLimitsRejection,mathematicalScaleValue,mathematicalScaleMaximum,mathematicalScaleRejection,mathematicalValueRejection,mathematicalRingOrders,type MathematicalScaleMode,fillMathematicalSlots,paintMathematicalSlots,type MathematicalMarks,type MathematicalStrokeSlot,type MathematicalSlotMode} from '../properties/mathematicalDial.ts';
 import './mathematicalDial.css';
@@ -31,6 +32,7 @@ export function MathematicalDial({value,min,max,integer=false,label='Value',disa
  limits?:{label:string;min:number;max:number;hardMin:number;hardMax:number;integer?:boolean;change:(which:'min'|'max',value:number)=>void|boolean};readoutOwner?:string;keyboardInput?:boolean;onConfigurationCommit?:(config:ConfirmedMathValue)=>void;onReject?:(message:string)=>void;onPreview?:(value:number)=>void;onCommit:(value:number)=>void;onCancelPreview?:()=>void;
 }){
 
+ const displayScale=useSyncExternalStore(mathematicalDialScale.subscribe,mathematicalDialScale.getSnapshot),scaleDrag=useValueDrag({value:displayScale,min:.1,step:.01,pixelsPerStep:2,axis:{x:1,y:1}},()=>{},mathematicalDialScale.set);
  const localReadout=useId(),typedExact=useRef(false),[exactKind,setExactKind]=useState<'value'|'min'|'max'>('value');
  const [base,setBase]=useState<1|2>(2),[scaling,setScaling]=useState<MathematicalScaleMode>('value'),[scaleCount,setScaleCount]=useState(0),scaleAnchor=useRef(value),valueBase=useRef<1|2>(2);
  const readoutDrag=useValueDrag({value,min,max,step:integer?1:undefined,disabled:disabled||scaling!=='value'},n=>previewValue(n),n=>commit(emptyMarks(),n,0),()=>restore());
@@ -158,7 +160,7 @@ export function MathematicalDial({value,min,max,integer=false,label='Value',disa
   restore();horizontal?.release(horizontalOwner.current);drag.current=null;setPainting(false);setMarks(emptyMarks());setScaleCount(0);
   if(next==='value'){setBase(valueBase.current);}else{if(scaling==='value')valueBase.current=base;scaleAnchor.current=session.restore();setBase(1);setSign(1);}setScaling(next);
  };
- return <div data-ui-popup-interior className="mathematical-dial" style={{width:extent,height:extent}} title={`${label}: ${value} (${min}–${max})`} role="group" aria-label={`⠒❉ · ${label}`} aria-disabled={disabled} onMouseLeave={()=>{if(!horizontal?.owns(horizontalOwner.current))restore();}}
+ return <div data-ui-popup-interior className="mathematical-dial" style={{width:extent,height:extent,zoom:scaleDrag.value}} title={`${label}: ${value} (${min}–${max})`} role="group" aria-label={`⠒❉ · ${label}`} aria-disabled={disabled} onMouseLeave={()=>{if(!horizontal?.owns(horizontalOwner.current))restore();}}
   onPointerDownCapture={event=>{
    if(!owns(event.target,event.currentTarget))return;
    suppressClick.current=false;
@@ -182,7 +184,7 @@ export function MathematicalDial({value,min,max,integer=false,label='Value',disa
   }}
   onPointerCancel={cancel} onLostPointerCapture={()=>{if(drag.current)cancel();}}
   onClickCapture={event=>{if(!owns(event.target,event.currentTarget))return;if(suppressClick.current&&event.detail>0){suppressClick.current=false;event.preventDefault();event.stopPropagation();}}}>
-  <div ref={ringRef} className="mathematical-dial-ring" style={{width:extent,height:extent}} onContextMenu={event=>{
+  <div ref={ringRef} className="mathematical-dial-ring" style={{width:extent,height:extent,zoom:scaleDrag.value}} onContextMenu={event=>{
    event.preventDefault();event.stopPropagation();if(disabled||drag.current)return;
    const slot=event.target instanceof Element?event.target.closest<HTMLElement>('[data-math-slot]'):null;
    if(slot&&ringRef.current?.contains(slot)){const key=slot.dataset.mathSlot!,erase=marks.selected.includes(key)&&modeAt(marks,key)==='recursion';const next=paintMathematicalSlots(marks,[key],'recursion',erase);commit(next);}
@@ -216,6 +218,7 @@ export function MathematicalDial({value,min,max,integer=false,label='Value',disa
    </div>
    </div>
   </div>
+  <button ref={scaleDrag.ref} type="button" className="mathematical-dial-size" aria-label="Scale math dial" data-ui-popup-interior>◢</button>
   {rulePopup&&editing&&<ContextualMasterController radial title={`${label} rule`} stage={rulePopup.stage} position={rulePopup.point} onClose={()=>{if(rulePopup.stage==='amount'){setAmountSample(null);setRulePopup({...rulePopup,stage:'modes'});}else setRulePopup(null);}} onDismiss={()=>{setAmountSample(null);setRulePopup(null);}} onConfirm={()=>{
    const focused=document.activeElement;
    if(focused instanceof HTMLButtonElement&&ruleChoices.current?.contains(focused)&&!focused.disabled){focused.click();return;}
