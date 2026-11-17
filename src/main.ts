@@ -1,3 +1,4 @@
+import {SYSTEM_MESSAGE} from './ui/systemMessage.ts';
 import {DEFAULT_ORIGIN_DIRECTIONS,type OriginDirections} from './core/originDirections.ts';
 import {ARROW_NUDGES} from './world/axisNudge.ts';
 import {selectionLatch} from './ui/selectionLatch.ts';
@@ -109,6 +110,7 @@ reloadModuleButton.onclick=()=>{flushLiveForms();location.reload();};status.repl
 const loadEditor=<T,>(load:()=>Promise<T>)=>loadEditorModule(load,()=>{reloadForModule=true;});
 const key = (origin: Origin) => JSON.stringify(origin);
 function feedback(text: string) { message = text; refresh(); }
+window.addEventListener(SYSTEM_MESSAGE,event=>feedback((event as CustomEvent<string>).detail));
 function attempt(action: () => void) { try { universalHistory.transaction(()=>{view?.commitSelection();action();}); } catch (error) { feedback(error instanceof Error ? error.message : String(error)); } }
 function renderClose() { disposeTools?.();disposeTools=undefined;tools.hidden = true; view?.update(store.world, selectedOrigins(), shown, selection.targets.filter((target): target is Edge => !isNode(target))); }
 function close(){if(viewHistory.rendering){renderClose();return;}viewHistory.hideMenu();}
