@@ -115,7 +115,7 @@ export function createWorld(host: HTMLElement, input: Input) {
   let axisPicking:{first?:Origin;up:Vec3;pointer?:number}|undefined;
   const userReference=createUserReference(()=>userView??{position:camera.position.toArray(),target:controls.target.toArray(),up:camera.up.toArray()});
   const sharedReference=createSharedReference(()=>world,()=>{const pose=userReference.read(),matrix=new T.Matrix4().lookAt(new T.Vector3(...pose.position),new T.Vector3(...pose.target),new T.Vector3(...pose.up));return {origin:xyz(new T.Vector3(...pose.target).divideScalar(scale)),x:xyz(new T.Vector3(1,0,0).transformDirection(matrix)),y:xyz(new T.Vector3(0,1,0).transformDirection(matrix)),z:xyz(new T.Vector3(0,0,1).transformDirection(matrix))};});
-  const activeAxis=()=>{const frame=sharedReference.read();return frame.packing==='hex'?frame:{...frame,packing:'hex' as const};};
+  const activeAxis=()=>sharedReference.read();
   const operationWorld=(value=world)=>sharedReference.world(value,activeAxis());
   let contentViewChanging=false;
   const retained = expansionState(), variants = new Set<string>(), navigator = createWorldNavigator();

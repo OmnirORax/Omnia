@@ -1,10 +1,10 @@
 import {spatialDirectionSlots,type OriginDirections} from '../core/originDirections.ts';
 import * as T from 'three';
 import {AXIS_COLORS} from './axisReadout.ts';
-import {ORIGIN_RADIUS,createOriginSphere} from './originMarker.ts';
+import {ORIGIN_RADIUS} from './originMarker.ts';
 /** Shared origin shape for saved references, rotation previews and bindings. */
 export function createOriginGizmo(scale=1,active=true,enabled:readonly number[]=[0,1],directions?:OriginDirections){
- const group=new T.Group();group.scale.setScalar(scale);group.add(createOriginSphere(1,active));
+ const group=new T.Group();group.scale.setScalar(scale);
  for(let i=0;i<3;i++){
   const selected=active&&enabled.includes(i),color=new T.Color(active?AXIS_COLORS[i]:'#888888').multiplyScalar(selected?1:.65),material=new T.MeshBasicMaterial({color,transparent:true,opacity:selected?1:.6,depthTest:false,depthWrite:false}),direction=new T.Vector3().setComponent(i,1);
   const shaft=new T.Mesh(new T.CylinderGeometry(1,1,1,8),material);shaft.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),direction);shaft.userData={axisIndex:i,axisSegment:[[0,-.5,0],[0,.5,0]],originShaft:true};shaft.scale.set(.002,ORIGIN_RADIUS*2,.002);shaft.visible=active||i===0;shaft.renderOrder=45;group.add(shaft);
