@@ -82,8 +82,8 @@ export function AppearanceStyles() {
         declarations.push("-webkit-text-fill-color:currentColor !important", "-webkit-text-stroke:0 !important", "text-shadow:none !important", "font-family:system-ui !important", "letter-spacing:normal !important",
           `filter:saturate(${Number(get("saturation"))})${glow > 0 ? ` drop-shadow(0 0 ${glow * 8}px ${glowColor})` : ""} !important`);
       } else if (binding.text) {
-        if (["glow", "glowColor", "color", "brightness", "opacity", "translucency"].some(custom) || legacyText)
-          declarations.push(`text-shadow:${textGlowShadow(glow,glowColor)} !important`);
+        if (["glow", "glowSpread", "glowColor", "color", "brightness", "opacity", "translucency"].some(custom) || legacyText)
+          declarations.push(`text-shadow:${textGlowShadow(glow,glowColor,Number(read(target,"glowSpread")))} !important`);
         if (custom("font"))
           declarations.push(
             `font-family:${fontFamily(read(target, "font"))} !important`,

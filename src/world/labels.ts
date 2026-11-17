@@ -15,7 +15,7 @@ function sharpTextContext(width:number,height:number){
  const canvas=sharpTextCanvas??=document.createElement('canvas');canvas.width=width;canvas.height=height;
  return canvas.getContext('2d',{willReadFrequently:true})!;
 }
-export function textSprite(value: string, color: string, selected = false, node = false, neon = false, font: FontId = "system", textGlow = 0, textColor = color, surface: SurfaceStyle = {}, contentOnly = false, columns = 32) {
+export function textSprite(value: string, color: string, selected = false, node = false, neon = false, font: FontId = "system", textGlow = 0, textColor = color, surface: SurfaceStyle = {}, contentOnly = false, columns = 32, textGlowSpread:number=TEXT_DEFAULTS.glowSpread) {
   const lines = labelLines(value,columns),
     canvas = document.createElement("canvas");
   const measure = canvas.getContext("2d",{willReadFrequently:contentOnly})!;
@@ -25,12 +25,12 @@ export function textSprite(value: string, color: string, selected = false, node 
   );
   canvas.height = lines.length * 48 + 20;
   const ctx = canvas.getContext("2d",{willReadFrequently:contentOnly})!;
-  const drawInk=(context:CanvasRenderingContext2D,ink:string,glow:number)=>{
+  const drawInk=(context:CanvasRenderingContext2D,ink:string,glow:number,spread:number)=>{
     context.font=canvasFont(font);context.textAlign='center';context.textBaseline='middle';context.fillStyle=ink;
-    context.shadowColor=ink;context.shadowBlur=textGlowBlur(glow);
+    context.shadowColor=ink;context.shadowBlur=textGlowBlur(glow,spread);
     lines.forEach((line,i)=>context.fillText(line,canvas.width/2,10+24+i*48));
   };
-  const paint = (border: string, ink: string, glow: number) => {
+  const paint = (border: string, ink: string, glow: number, spread:number=TEXT_DEFAULTS.glowSpread) => {
     ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.shadowBlur = 0;
     if (!contentOnly && node) {
       ctx.fillStyle = surface.background ?? (neon ? selected ? "#063c50ed" : "#041923cc" : selected ? "#203b59" : "#101e2deb");
@@ -51,15 +51,15 @@ export function textSprite(value: string, color: string, selected = false, node 
       ctx.globalAlpha = surface.opacity ?? 1;
       ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.globalAlpha = 1;
     }
-    drawInk(ctx,contentOnly?"#ffffff":ink,glow);
+    drawInk(ctx,contentOnly?"#ffffff":ink,glow,spread);
     if(contentOnly){
       const combined=ctx.getImageData(0,0,canvas.width,canvas.height);
-      if(glow>0){const clean=sharpTextContext(canvas.width,canvas.height);drawInk(clean,"#ffffff",0);packGlowCoverage(clean.getImageData(0,0,canvas.width,canvas.height).data,combined.data);}
+      if(glow>0){const clean=sharpTextContext(canvas.width,canvas.height);drawInk(clean,"#ffffff",0,spread);packGlowCoverage(clean.getImageData(0,0,canvas.width,canvas.height).data,combined.data);}
       else packGlowCoverage(combined.data,combined.data);
       ctx.putImageData(combined,0,0);
     }
   };
-  paint(color, textColor, textGlow);
+  paint(color, textColor, textGlow,textGlowSpread);
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = contentOnly?THREE.NoColorSpace:THREE.SRGBColorSpace;
   // Minification must integrate the texels covered by each screen pixel.
@@ -89,7 +89,7 @@ export function textSprite(value: string, color: string, selected = false, node 
   };
   let hull:ReturnType<typeof imageHull>|undefined;
   sprite.userData.contentHull=()=>hull??=imageHull(sprite.userData.lightningMask());
-  let currentStyle: [string, string, number] = [color, textColor, textGlow];
+  let currentStyle: [string, string, number,number] = [color, textColor, textGlow,textGlowSpread];
   let surfaceKey = JSON.stringify(surface);
   sprite.userData.setSurfaceStyle = (next: typeof surface) => {
     const key = JSON.stringify(next); if (key === surfaceKey) return;
@@ -99,15 +99,15 @@ export function textSprite(value: string, color: string, selected = false, node 
     if (value === selected) return;
     selected = value; if(!contentOnly){paint(...currentStyle); texture.needsUpdate = true;}
   };
-  let paintKey = JSON.stringify([color, textColor, textGlow]);
-  sprite.userData.setTextStyle = (border: string, ink: string, glow: number) => {
-    const next = JSON.stringify([border, ink, glow]);
+  let paintKey = JSON.stringify([color, textColor, textGlow,textGlowSpread]);
+  sprite.userData.setTextStyle = (border: string, ink: string, glow: number, spread:number=TEXT_DEFAULTS.glowSpread) => {
+    const next = JSON.stringify([border, ink, glow,spread]);
     if (next === paintKey) return;
     paintKey = next;
-    const rasterChanged=!contentOnly||glow!==currentStyle[2];
-    currentStyle = [border, ink, glow];
+    const rasterChanged=!contentOnly||glow!==currentStyle[2]||spread!==currentStyle[3];
+    currentStyle = [border, ink, glow,spread];
     if(contentOnly){sprite.material.color.set(ink);updateTextureGlowColor(sprite.material,sprite.userData.glowColor??ink);}
-    if(rasterChanged){paint(border,ink,glow);texture.needsUpdate=true;}
+    if(rasterChanged){paint(border,ink,glow,spread);texture.needsUpdate=true;}
     sprite.userData.textColor = ink;
   };
   sprite.userData.label = value;
@@ -123,19 +123,19 @@ export function textSprite(value: string, color: string, selected = false, node 
 export const labelGeometryKey=(paint:Paint={},revision=0)=>JSON.stringify([paint.font??TEXT_DEFAULTS.font,revision]);
 export function updateLabelPaint(mesh:ReturnType<typeof textSprite>,paint:Paint={}){
  const style={...TEXT_DEFAULTS,...paint},rendered=renderedTextPaint(style);
- mesh.userData.setTextStyle(rendered.color,rendered.color,style.glow);
+ mesh.userData.setTextStyle(rendered.color,rendered.color,style.glow,style.glowSpread);
  updateTextureGlowColor(mesh.material,rendered.glowColor);mesh.userData.glowColor=style.glowColor===undefined?undefined:rendered.glowColor;
  mesh.material.opacity=translucentOpacity(style.opacity,style.translucency);
  mesh.userData.labelPaint=style;mesh.userData.textColor=rendered.color;
 }
 export function label(caption:string,paint?:Paint){
  const style={...TEXT_DEFAULTS,...paint};
- const mesh=textSprite(caption,style.color,false,false,false,style.font,style.glow,style.color,{},true);
+ const mesh=textSprite(caption,style.color,false,false,false,style.font,style.glow,style.color,{},true,32,style.glowSpread);
  updateLabelPaint(mesh,style);mesh.userData.isLabel=true;
  if(style.font==='electric'||isImportedFont(style.font))void document.fonts.load(canvasFont(style.font)).then(()=>{
    if(mesh.userData.disposed)return;
    const current=mesh.userData.labelPaint as typeof style;
-   const fresh=textSprite(caption,current.color,false,false,false,current.font,current.glow,current.color,{},true);
+   const fresh=textSprite(caption,current.color,false,false,false,current.font,current.glow,current.color,{},true,32,current.glowSpread);
    mesh.material.map?.dispose();mesh.material.dispose();mesh.material=fresh.material;
    for(const name of ['setTextStyle','setSurfaceStyle','setSelected','lightningMask','contentHull'])mesh.userData[name]=fresh.userData[name];
    updateLabelPaint(mesh,current);fresh.geometry.dispose();mesh.userData.requestRender?.();

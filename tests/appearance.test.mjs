@@ -28,7 +28,7 @@ test('connectors share source node defaults, overrides and inherited visual chan
 
 test('targets share paint definitions and expose font only for text',()=>{
   const text=visualProperties(true),surface=visualProperties(false);
-  for(const shared of surface)assert.equal(text.find(p=>p.key===shared.key),shared);assert.ok(text.some(p=>p.key==='brightness'&&p.min===0&&p.max===1));
+  for(const shared of surface){const definition=text.find(p=>p.key===shared.key);if(shared.key==='glow')assert.deepEqual(definition,{...shared,max:2});else assert.equal(definition,shared);}assert.ok(text.some(p=>p.key==='brightness'&&p.min===0&&p.max===1));
   assert.equal(text.at(-1).key,'font');assert.ok(text.some(p=>p.key==='embolden'&&p.presentation==='slider'));assert.ok(!surface.some(p=>p.key==='font'||p.key==='embolden'||p.key==='texture'));
   const world=emptyWorld(),node=addStructure(world,[0,0,0],1);
   for(const target of ['nodes','background'])assert.throws(()=>writePaint(world,target,[node.origin],{font:'serif'}),/Invalid/);
@@ -63,7 +63,7 @@ test('variant text paint inherits, overrides, resets, copies and materializes on
 test('appearance survives save, export, reload and undo without damaging other settings',()=>{
   let saved=null;const store=createStore({getItem:()=>saved,setItem:(_key,value)=>saved=value});let origin;
   store.change(world=>{origin=addStructure(world,[0,0,0],1).origin;});
-  store.change(world=>{writePaint(world,'nodeText',[origin],{color:'#123456',translucency:.4,font:'electric'});writePaint(world,'background',[],{glow:1});});
+  store.change(world=>{writePaint(world,'nodeText',[origin],{color:'#123456',translucency:.4,glow:2,glowSpread:10,font:'electric'});writePaint(world,'background',[],{glow:1});});
   const restored=createStore({getItem:()=>saved,setItem:()=>{}}).world;
   const exported=parseWorkspaceFile(JSON.stringify({format:'omnium-v2-workspace',version:1,world:{...restored,scene:{...restored.scene,image:null}},scenes:[]}));
   assert.deepEqual(exported.world.appearance,store.world.appearance);assert.deepEqual(locate(exported.world,origin).textAppearance,locate(store.world,origin).textAppearance);
@@ -72,10 +72,10 @@ test('appearance survives save, export, reload and undo without damaging other s
 });
 
 test('invalid paint values cannot be committed or imported',()=>{
-  for(const patch of [{color:'red'},{translucency:-1},{glow:2},{font:'url(bad)'},{glow:Infinity},{embolden:-1},{embolden:11},{embolden:'huge'}]){
+  for(const patch of [{color:'red'},{translucency:-1},{glow:2.1},{glowSpread:21},{font:'url(bad)'},{glow:Infinity},{embolden:-1},{embolden:11},{embolden:'huge'}]){
     const world=emptyWorld();world.appearance={text:patch};assert.throws(()=>validateWorld(world),/Invalid/);
   }
-  const world=emptyWorld();world.appearance={background:{font:'serif'}};assert.throws(()=>validateWorld(world),/Invalid/);
+  const world=emptyWorld();world.appearance={background:{glow:2}};assert.throws(()=>validateWorld(world),/Invalid/);world.appearance={background:{font:'serif'}};assert.throws(()=>validateWorld(world),/Invalid/);
   world.appearance={background:{embolden:2}};assert.throws(()=>validateWorld(world),/Invalid/);
   const node=addStructure(emptyWorld(),[0,0,0],1);node.textAppearance={translucency:NaN};
   const next=emptyWorld();next.nodes=[node];assert.throws(()=>validateWorld(next),/Invalid/);

@@ -41,7 +41,7 @@ export const SELECTOR_FEEDBACK = {
 /** Inline artwork has its own ink; it never inherits a text target's color. */
 export const UI_INLINE_ICON_SELECTOR = 'button svg:not([data-range-glyph]):not([data-omnic-structure]),[role="button"] svg:not([data-range-glyph]):not([data-omnic-structure]),button[data-ui-visual-kind="icon"]:not(.function-icon):not([data-ui-native-icon]):not(:has(svg,img,.appearance-icon-mask))';
 const surface = ["color", "brightness", "opacity", "translucency", "glow", "glowColor"],
-  text = [...surface, "font"];
+  text = [...surface, "glowSpread", "font"];
 const entries: RegisteredTarget[] = [];
 const branch = (id: string, parent: string | undefined, label: string, self = false) =>
   entries.push({ id, parent, label, ...(self ? { self } : {}) });
@@ -98,7 +98,7 @@ const part = (
       "shadowY",
     ];
   if (binding.selector && binding.text)
-    properties = [...properties, "textSize", "textWeight", "textSpacing"];
+    properties = [...properties, "glowSpread", "textSize", "textWeight", "textSpacing"];
   if (id === "symbols.ui") properties = [...properties, "saturation"];
   if (id === "omnium.binders.path") properties = [...properties, "contourWidth"];
   if(binding.selector&&!binding.selector.includes('::')&&(binding.text||binding.css==='background-color'||binding.css==='border-color')){

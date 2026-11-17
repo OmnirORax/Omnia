@@ -30,7 +30,7 @@ export function ScopedTextAppearance() {
         const get = (property: string) => appearance.read(target, property);
         const color = String(get("color")), brightness = Number(get("brightness")), opacity = translucentOpacity(Number(get("opacity")),Number(get("translucency"))), glow = Number(get("glow"));
         const ink = tint(textBrightness(color,brightness),1,opacity),halo=tint(textBrightness(String(get("glowColor")),brightness),1,opacity);
-        return `::highlight(omnium-part-${stableUIHash(target.id)}){color:${ink};text-shadow:${textGlowShadow(glow,halo)}}`;
+        return `::highlight(omnium-part-${stableUIHash(target.id)}){color:${ink};text-shadow:${textGlowShadow(glow,halo,Number(get("glowSpread")))}}`;
       });
       const css = rules.join("\n");
       if (style.textContent !== css) style.textContent = css;

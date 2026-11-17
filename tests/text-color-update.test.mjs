@@ -5,6 +5,7 @@ import {label,textSprite,updateLabelPaint,labelGeometryKey,disposeLabel} from '.
 
 // Instrument canvas work directly: appearance scrubs must never rasterize/upload.
 const work={draw:0,read:0,write:0,canvas:0};
+const blurSamples=[];
 let finishFont;
 globalThis.document={
  fonts:{load:()=>new Promise(resolve=>{finishFont=resolve;})},
@@ -13,7 +14,7 @@ globalThis.document={
   const canvas={width:0,height:0};
   const context={
    measureText:text=>({width:text.length*20}),clearRect(){},
-   fillText(){work.draw++;},
+   fillText(){work.draw++;blurSamples.push(this.shadowBlur);},
    getImageData(){work.read++;return {data:new Uint8ClampedArray(canvas.width*canvas.height*4)};},
    putImageData(){work.write++;},beginPath(){},roundRect(){},fill(){},stroke(){},fillRect(){},
   };
@@ -97,4 +98,12 @@ test('text opacity combines with translucency in material state without redrawin
  const mesh=label('Opacity',{color:'#ff0000',glow:1}),before=snapshot();
  updateLabelPaint(mesh,{color:'#ff0000',glow:1,opacity:.4,translucency:.25});assert.ok(Math.abs(mesh.material.opacity-.3)<1e-12);assert.deepEqual(snapshot(),before);
  updateLabelPaint(mesh,{color:'#ff0000',glow:1,opacity:0});assert.equal(mesh.material.opacity,0);assert.deepEqual(snapshot(),before);disposeLabel(mesh);
+});
+
+test('text glow spread updates cached coverage while preserving geometry and color-only fast updates',()=>{
+ const mesh=label('Spread',{glow:2,glowSpread:6}),geometry=mesh.geometry,material=mesh.material,texture=material.map;
+ assert.ok(blurSamples.includes(12));blurSamples.length=0;const before=texture.version;
+ updateLabelPaint(mesh,{glow:2,glowSpread:10});assert.ok(blurSamples.includes(20));assert.ok(texture.version>before);
+ assert.equal(mesh.geometry,geometry);assert.equal(mesh.material,material);assert.equal(mesh.material.map,texture);
+ const after=snapshot();updateLabelPaint(mesh,{glow:2,glowSpread:10,color:'#123456'});assert.deepEqual(snapshot(),after);disposeLabel(mesh);
 });

@@ -1,3 +1,4 @@
+import {TEXT_GLOW_MAX,TEXT_GLOW_SPREAD} from '../../../properties/textGlow.ts';
 import {SPHERE_VISUAL_DEFAULTS} from './sphereVisualDefaults.ts';
 import {SPHERE_BLEND_MODES} from './sphereBlendModes.ts';
 import { FONT_OPTIONS, normalizeFont } from "../fonts.ts";
@@ -16,6 +17,7 @@ const builtins: Property[] = [
   {id:"patternUse",label:"Pattern paint",kind:"select",initial:"inherit",neutral:"off",options:[{id:"inherit",label:"Inherit global"},{id:"on",label:"Use shared pattern"},{id:"off",label:"Solid / manual"}]},
   {id:"translucencyRadius",label:"Translucency radius",kind:"number",min:0,max:1,step:.01,initial:SPHERE_VISUAL_DEFAULTS.translucencyRadius,neutral:1},
   {id:"translucency",label:"Translucency",kind:"number",min:0,max:1,step:.01,initial:0,neutral:0},
+  {id:"glowSpread",label:"Glow spread",kind:"number",...TEXT_GLOW_SPREAD,neutral:TEXT_GLOW_SPREAD.initial},
   {id:"glowColor",label:"Glow color",kind:"color",initial:"#60ddec"},
   { id: "color", label: "Color", kind: "color", initial: "#60ddec" },
   {
@@ -38,7 +40,7 @@ const builtins: Property[] = [
     initial: 1,
     neutral: 1,
   },
-  { id: "glow", label: "Glow", kind: "number", min: 0, max: 2, step: 0.05, initial: 0, neutral: 0 },
+  { id: "glow", label: "Glow", kind: "number", min: 0, max: TEXT_GLOW_MAX, step: 0.05, initial: 0, neutral: 0 },
   {id:'speed',label:'Speed',kind:'number',min:0,max:1,step:.05,initial:.25,neutral:0},
   {id:'intensity',label:'Intensity',kind:'number',min:0,max:1,step:.05,initial:.35,neutral:0},
   { id: "blur", label: "Blur", kind: "number", min: 0, max: 20, step: 1, initial: 10, neutral: 0 },
