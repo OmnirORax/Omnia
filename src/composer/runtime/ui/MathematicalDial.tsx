@@ -1,3 +1,5 @@
+import {showMathCursorReadout,clearMathCursorReadout} from '../../../ui/mathCursorReadout.ts';
+import type {ConfirmedMathValue} from '../../../ui/operationNumber.ts';
 import {reportSystemMessage} from '../../../ui/systemMessage.ts';
 import {DialSlot,dialRingSlots} from './DialSlots.tsx';
 import {useNavigationState} from '../../../ui/useNavigationState.tsx';
@@ -22,15 +24,16 @@ type Point={x:number;y:number};
 type Stroke={erase:boolean;id:number;last:Point;slots:MathematicalStrokeSlot[];visited:readonly string[];before:MathematicalMarks;next:MathematicalMarks;brush:MathematicalSlotMode;accepted?:boolean};
 /** Shared raw-number surface. The consumer supplies its domain and real setters.
  * Left-click paints normal values; right-click applies recursion directly. */
-export function MathematicalDial({value,min,max,integer=false,label='Value',disabled=false,configure=false,editing,rule,onPreview=()=>{},onCommit,onCancelPreview,onReject=reportSystemMessage}:{
+export function MathematicalDial({value,min,max,integer=false,label='Value',disabled=false,configure=false,editing,rule,onPreview=()=>{},onCommit,onCancelPreview,onReject=reportSystemMessage,onConfigurationCommit,readoutOwner,keyboardInput=false}:{
  value:number;min:number;max:number;integer?:boolean;label?:string;disabled?:boolean;configure?:boolean;
  rule?:{value:string;choices:readonly {id:string;label:string;icon:string}[];onChange:(id:string)=>void};
  editing?:{kind:'value'|'increment';amount:number;minimum:number;maximum:number;onKindChange:(kind:'value'|'increment')=>void;onAmountChange:(amount:number)=>void};
- onReject?:(message:string)=>void;onPreview?:(value:number)=>void;onCommit:(value:number)=>void;onCancelPreview?:()=>void;
+ readoutOwner?:string;keyboardInput?:boolean;onConfigurationCommit?:(config:ConfirmedMathValue)=>void;onReject?:(message:string)=>void;onPreview?:(value:number)=>void;onCommit:(value:number)=>void;onCancelPreview?:()=>void;
 }){
 
+ const localReadout=useId(),typedExact=useRef(false);
  const [base,setBase]=useState<1|2>(2),[scaling,setScaling]=useState<MathematicalScaleMode>('value'),[scaleCount,setScaleCount]=useState(0),scaleAnchor=useRef(value),valueBase=useRef<1|2>(2);
- const readoutDrag=useValueDrag({value,min,max,step:integer?1:undefined,disabled:disabled||scaling!=='value'},onPreview,onCommit,onCancelPreview);
+ const readoutDrag=useValueDrag({value,min,max,step:integer?1:undefined,disabled:disabled||scaling!=='value'},n=>previewValue(n),n=>commit(emptyMarks(),n,0),()=>restore());
  const clockwise=true;
  const brush:MathematicalSlotMode='normal';
  const [sign,setSign]=useState<1|-1>(()=>editing?.kind==='increment'?1:value<0?-1:1),[painting,setPainting]=useState(false);
@@ -41,7 +44,7 @@ export function MathematicalDial({value,min,max,integer=false,label='Value',disa
  const [exactPoint,setExactPoint]=useNavigationState<Point|null>(`${label}:dial-exact`,null),[exactText,setExactText]=useState(''),textInput=useRef<HTMLInputElement>(null),textFinished=useRef(false);
  const exact=exactPoint?{point:exactPoint,text:exactText}:null;
  const setExact=(next:{point:Point;text:string}|null)=>{setExactPoint(next?.point??null);if(next)setExactText(next.text);};
- useLayoutEffect(()=>{if(exactPoint){textFinished.current=false;setExactText(String(scaling==='value'?value:scaleCount));}},[exactPoint,value]);
+
  const ruleChoices=useRef<HTMLDivElement>(null);
  const ringRef=useRef<HTMLDivElement>(null),zone=useId(),drag=useRef<Stroke|null>(null),suppressClick=useRef(false);
  const hover=useRef<{key:string;brush:MathematicalSlotMode;marks:MathematicalMarks}|null>(null);
@@ -91,7 +94,7 @@ export function MathematicalDial({value,min,max,integer=false,label='Value',disa
   if(disabled)return;
   if(!next.selected.length&&!valid(n)){restore();anchor.current=session.restore();setMarks(next);return;}
   if(!valid(n)||scaling!=='value'&&count>(scaleMaximum??0)){reject(n,scaling==='value'?undefined:count);return;}
-  hover.current=null;setSample(null);setMarks(next);if(scaling!=='value')setScaleCount(count);onCommit(session.commit(n));
+  hover.current=null;setSample(null);setMarks(next);if(scaling!=='value')setScaleCount(count);const configuration={mode:scaling,anchor:scaling==='value'?n:scaleAnchor.current,count:scaling==='value'?0:count,value:n};showMathCursorReadout(readoutOwner??localReadout,label,configuration);onConfigurationCommit?.(configuration);onCommit(session.commit(n));
  };
  const confirm=useValueConfirmation({owner:ringRef,candidate:()=>sample??undefined,onCommit:next=>{drag.current=null;setPainting(false);commit(next);},disabled,keyboard:!!sample});
  const cancel=()=>{setPainting(false);drag.current=null;restore();};
@@ -146,7 +149,9 @@ export function MathematicalDial({value,min,max,integer=false,label='Value',disa
   textFinished.current=true;setExact(null);if(scaling==='value')anchor.current=parsed;else setScaleCount(parsed);setSign(editing?.kind==='increment'?1:result<0?-1:1);commit(emptyMarks(),result,scaling==='value'?0:parsed);
  };
  useCancelValueEdit(textInput,closeExact,!!exact);
- const openExact=()=>{restore();textFinished.current=false;setExact({point:cursorPosition(),text:String(scaling==='value'?session.restore():scaleCount)});};
+ const openExact=()=>{typedExact.current=false;restore();textFinished.current=false;setExact({point:cursorPosition(),text:String(scaling==='value'?session.restore():scaleCount)});};
+ useEffect(()=>()=>{if(!readoutOwner)clearMathCursorReadout(localReadout);},[readoutOwner,localReadout]);
+ useEffect(()=>{if(!keyboardInput)return;const key=(event:KeyboardEvent)=>{if(disabled||!/^\d$/.test(event.key)||event.ctrlKey||event.metaKey||event.altKey||event.target instanceof Element&&event.target.closest('input,textarea,select,[contenteditable]'))return;event.preventDefault();event.stopImmediatePropagation();restore();typedExact.current=true;textFinished.current=false;setExact({point:cursorPosition(),text:event.key});};window.addEventListener('keydown',key,true);return()=>window.removeEventListener('keydown',key,true);},[keyboardInput,disabled]);
  const changeScaling=(next:MathematicalScaleMode)=>{
   restore();horizontal?.release(horizontalOwner.current);drag.current=null;setPainting(false);setMarks(emptyMarks());setScaleCount(0);
   if(next==='value'){setBase(valueBase.current);}else{if(scaling==='value')valueBase.current=base;scaleAnchor.current=session.restore();setBase(1);setSign(1);}setScaling(next);
@@ -217,7 +222,7 @@ export function MathematicalDial({value,min,max,integer=false,label='Value',disa
   </ContextualMasterController>}
   {exact&&<ContextualMasterController title={`${label} value`} position={exact.point} onClose={closeExact} onConfirm={finishExact} onAdvance={finishExact}>
    <input ref={textInput} type="number" autoFocus className="mathematical-dial-exact" aria-label={`${label} exact value`} aria-invalid={exact.text.trim()===''||(scaling==='value'?!valid(Number(exact.text)):!Number.isSafeInteger(Number(exact.text))||Number(exact.text)<0||Number(exact.text)>(scaleMaximum??0))} value={exact.text} min={scaling==='value'?min:0} max={scaling==='value'?max:scaleMaximum} step={scaling==='value'&&!integer?'any':1}
-    onFocus={event=>event.currentTarget.select()} onChange={event=>setExact({...exact,text:event.currentTarget.value})} onBlur={finishExact}
+    onFocus={event=>{if(!typedExact.current)event.currentTarget.select();}} onChange={event=>setExact({...exact,text:event.currentTarget.value})} onBlur={finishExact}
     onKeyDown={event=>{if(event.key==='Enter'){event.preventDefault();event.stopPropagation();finishExact();}if(event.key==='Escape'){event.preventDefault();event.stopPropagation();closeExact();}}}/>
   </ContextualMasterController>}
  </div>;

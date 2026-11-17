@@ -1,3 +1,4 @@
+import {positionCursorReadout} from '../ui/cursorReadout.ts';
 import {createOriginGizmo,orientOriginGizmo,disposeOriginGizmo} from './originGizmo.ts';
 import {AXIS_COLORS,axisReadoutAngles} from './axisReadout.ts';
 import * as T from 'three';
@@ -40,7 +41,7 @@ export function createAxisView(scene:T.Scene,host:HTMLElement,camera:T.Perspecti
    const coords=axisCoordinates(world,frame,p),angles=axisReadoutAngles(frame,camera,axisCenter(world,frame),unitScale);
    for(let i=0;i<3;i++){const value=String(Math.round(coords[i])),transform=`rotate(${angles[i]}rad)`;if(readoutParts[i].value.nodeValue!==value)readoutParts[i].value.nodeValue=value;if(!Number.isFinite(readoutParts[i].angle)||Math.abs(readoutParts[i].angle-angles[i])>1e-6){readoutParts[i].bar.style.transform=transform;readoutParts[i].angle=angles[i];}}
    hint.setAttribute('aria-label',coords.map((n,i)=>`${'XYZ'[i]} ${Math.round(n)}`).join(', '));
-   hint.hidden=false;hint.style.left=`${Math.max(4,Math.min(screen.x+14,innerWidth-hint.offsetWidth-8))}px`;hint.style.top=`${Math.max(4,Math.min(screen.y+14,innerHeight-hint.offsetHeight-8))}px`;
+   hint.hidden=false;positionCursorReadout(hint,screen);
   },
   preview(a?:Vec3,b?:Vec3,scale=1,valid=true){preview.visible=!!a&&!!b;if(a&&b){const positions=preview.geometry.getAttribute('position') as T.BufferAttribute;positions.setXYZ(0,...a.map(n=>n*scale) as Vec3);positions.setXYZ(1,...b.map(n=>n*scale) as Vec3);positions.needsUpdate=true;preview.material.color.set(valid?'#ffffff':'#ff3344');preview.geometry.computeBoundingSphere();}},
   dispose(){clear();group.removeFromParent();preview.removeFromParent();preview.geometry.dispose();preview.material.dispose();hint.remove();readout.remove();}

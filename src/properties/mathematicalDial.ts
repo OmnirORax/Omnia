@@ -64,6 +64,7 @@ export function mathematicalValueSession<T>(value:T,equal:(a:T,b:T)=>boolean=(a,
   preview(next:T){expected=next;sampling=true;return next;},
   commit(next:T){committed=expected=received=next;sampling=false;return next;},
   restore(){expected=committed;sampling=false;return committed;},
+  get committed(){return committed;},
   get sampling(){return sampling;},
   get expected(){return expected;},
  };

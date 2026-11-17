@@ -9,7 +9,7 @@ const observers=new Set<(point:{x:number;y:number;target:EventTarget|null})=>voi
 export const cursorSample=()=>({...cursorPosition(),target});
 export function observeCursor(listener:(point:{x:number;y:number;target:EventTarget|null})=>void){observers.add(listener);listener(cursorSample());return()=>{observers.delete(listener);};}
 const notify=()=>{if(!observers.size)return;const point=cursorSample();observers.forEach(listener=>listener(point));};
-export const cursorPosition = () => cursor ?? { x: innerWidth / 2, y: innerHeight / 3 };
+export const cursorPosition = () => cursor ?? { x: (globalThis.innerWidth??1024) / 2, y: (globalThis.innerHeight??768) / 3 };
 
 /** Track without React state so pointer motion never rerenders the workspace. */
 let users=0;
