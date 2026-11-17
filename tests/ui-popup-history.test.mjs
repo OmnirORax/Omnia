@@ -32,3 +32,5 @@ test('a saved workspace reconstructs open windows and geometry in a fresh sessio
  assert.deepEqual(second.snapshot(),saved);
  assert.ok(second.reserve({kind:'composer'}).instance>restored.spec.instance);
 });
+
+test('persistent menu ignores outside dismissal while explicit close and ordinary menus still close',()=>{const views=createViewHistory(journal(),()=>{});let rendered;views.menuRenderer(spec=>rendered=spec);views.menu({kind:'origin-directions',dismissOnOutside:false});const before=views.snapshot();views.hideMenu(true);assert.equal(views.state.menu.kind,'origin-directions');assert.equal(rendered.kind,'origin-directions');assert.deepEqual(views.snapshot(),before);views.hideMenu();assert.equal(views.state.menu,null);assert.equal(rendered,null);views.menu({kind:'ordinary'});views.hideMenu(true);assert.equal(views.state.menu,null);});
