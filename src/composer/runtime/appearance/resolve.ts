@@ -20,7 +20,7 @@ export function legacyValue(base: Appearance, target: RegisteredTarget, property
   if (property === "translucency") return (target.instance?.base??target.id)==="omnium.nodes.body"?SPHERE_VISUAL_DEFAULTS.translucency:0;
   if(property==="glowColor")return legacyValue(base,target,"color");
   if (property === "font") return base.font;
-  if (property === "brightness") return 1;
+  if (property === "brightness") return (target.binding?.text||target.id.startsWith("text."))?.5:1;
   if (property === "blur") return base.blur;
   if (property === "opacity")
     return target.id.startsWith("symbols.")

@@ -10,11 +10,9 @@ export function HoverPreviewScope({children}:{children:ReactNode}){
   const relative=createRelativePointer(()=>session.cancel());
   let frame=0,x=0,y=0,tail=false;
   const flush=()=>{cancelAnimationFrame(frame);frame=0;session.move(x,y);};
-  const move=(e:MouseEvent|PointerEvent)=>{if(!session.active()||e.buttons)return;if(e.target instanceof Element&&e.target.closest('[data-hover-preview-disabled]')){session.cancel();return;}const point=relative.sample(e);x=point.x;y=point.y;if(!frame)frame=requestAnimationFrame(flush);};
+  const move=(e:MouseEvent|PointerEvent)=>{if(!session.active()||e.buttons&&!session.relativeInput())return;if(!session.relativeInput()&&e.target instanceof Element&&e.target.closest('[data-hover-preview-disabled]')){session.cancel();return;}const point=relative.sample(e);x=point.x;y=point.y;if(!frame)frame=requestAnimationFrame(flush);};
   const consume=(e:Event)=>{e.preventDefault();e.stopImmediatePropagation();};
   const down=(e:PointerEvent)=>{tail=false;if(!session.active())return;if(e.button!==0){session.cancel();return;}if(!session.capturesPress())return;
-   // A real slider press starts its captured drag; a hover sample must not eat it.
-   if(e.target instanceof Element&&e.target.closest('[data-range-control],input,select,textarea')){cancelAnimationFrame(frame);frame=0;flushSync(()=>session.cancel());return;}
    const point=relative.sample(e);x=point.x;y=point.y;flush();if(session.commit()){tail=true;consume(e);}};
   const after=(e:Event)=>{if(!tail)return;consume(e);if(e.type==='click')tail=false;};
   const stop=session.subscribe(()=>{cancelAnimationFrame(frame);frame=0;relative.stop();const input=session.relativeInput();if(input)relative.start(input.surface??document.body,input.origin);});

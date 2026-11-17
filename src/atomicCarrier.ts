@@ -1,4 +1,4 @@
-import {glowScaleGLSL,glowDetailProtection} from './glowScale.ts';
+import {glowScaleGLSL} from './glowScale.ts';
 import {SPHERE_VISUAL_DEFAULTS} from './properties/sphereVisualDefaults.ts';
 import {attachMaterialCoverage,declareGlowDetail} from './materialCoverage.ts';
 import {translucentOpacity} from './properties/translucency.ts';
@@ -17,7 +17,7 @@ export function atomicCarrierMaterial(color:THREE.ColorRepresentation,opacity=1,
  material.userData.translucencyRadius={value:translucencyRadius};
  attachMaterialCoverage(material,target=>{
   target.onBeforeCompile=shader=>{
-   shader.uniforms.glowDetailProtection=glowDetailProtection;shader.uniforms.carrierTranslucency=material.userData.translucency;shader.uniforms.carrierGlow=material.userData.edgeGlow;
+   shader.uniforms.carrierTranslucency=material.userData.translucency;shader.uniforms.carrierGlow=material.userData.edgeGlow;
    shader.uniforms.carrierAuthoredOpacity=material.userData.authoredOpacity;shader.uniforms.carrierTranslucencyRadius=material.userData.translucencyRadius;
    shader.vertexShader='varying vec3 carrierViewNormal; varying vec3 carrierViewPosition;\n'+shader.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
 vec3 carrierNormal = normal;

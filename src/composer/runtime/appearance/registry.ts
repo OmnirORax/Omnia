@@ -45,7 +45,7 @@ export const SELECTOR_FEEDBACK = {
 /** Inline artwork has its own ink; it never inherits a text target's color. */
 export const UI_INLINE_ICON_SELECTOR = 'button svg:not([data-range-glyph]):not([data-omnic-structure]),[role="button"] svg:not([data-range-glyph]):not([data-omnic-structure]),button[data-ui-visual-kind="icon"]:not(.function-icon):not([data-ui-native-icon]):not(:has(svg,img,.appearance-icon-mask))';
 const surface = ["color", "brightness", "opacity", "translucency", "glow", "glowColor"],
-  text = [...surface, "glowSpread", "font"];
+  text = [...surface, "brightnessEnabled", "glowSpread", "font"];
 const entries: RegisteredTarget[] = [];
 const branch = (id: string, parent: string | undefined, label: string, self = false) =>
   entries.push({ id, parent, label, ...(self ? { self } : {}) });
@@ -102,7 +102,7 @@ const part = (
       "shadowY",
     ];
   if (binding.selector && binding.text)
-    properties = [...properties, "glowSpread", "textSize", "textWeight", "textSpacing"];
+    properties = [...properties, "brightnessEnabled", "glowSpread", "textSize", "textWeight", "textSpacing"];
   if (id === "symbols.ui") properties = [...properties, "saturation"];
   if (id === "omnium.binders.path") properties = [...properties, "contourWidth"];
   if(binding.selector&&!binding.selector.includes('::')&&(binding.text||binding.css==='background-color'||binding.css==='border-color')){
@@ -439,7 +439,7 @@ for (const consumer of PROPERTY_REGISTRY.consumers.filter(item => item.owner ===
 }
 for(const target of entries)if(target.properties){
  if(target.binding?.text||target.id.startsWith('text.'))target.properties=target.properties.filter(key=>!RETIRED_TEXT_CHANNELS.some(channel=>channel===key));
- if(sharedUIDecoration(target.binding))target.properties=target.properties.filter(key=>!['glow','glowColor','glowSpread',...(target.binding?.css==='border-color'?['color',...RETIRED_TEXT_CHANNELS]:[])].includes(key));
+ if(sharedUIDecoration(target.binding))target.properties=target.properties.filter(key=>!['glow','glowColor','glowSpread',...(target.binding?.css==='border-color'?['color','brightness',...RETIRED_TEXT_CHANNELS]:[])].includes(key));
 }
 for (const target of entries) if (target.properties) target.numberRanges = Object.fromEntries(target.properties.flatMap(id => {
   const spec = propertyFor(id);

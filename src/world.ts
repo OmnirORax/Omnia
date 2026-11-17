@@ -1,4 +1,3 @@
-import {setGlowDetailProtection} from './glowScale.ts';
 import {createRenderScheduler} from './world/renderScheduler.ts';
 import {hasOriginDirections} from './core/originDirections.ts';
 import {ARROW_NUDGES,axisNudgeDirection} from './world/axisNudge.ts';
@@ -320,7 +319,7 @@ export function createWorld(host: HTMLElement, input: Input) {
   }
   function styleVisual(visual:Visual,actual:Structure,textPaint:Paint){
     visual.actual=actual;updateLabelPaint(visual.text,textPaint);
-    if(actual.visual?.character)visual.object?.userData.setAppearance?.({textColor:textPaint.color,textGlow:textPaint.glow,glowSpread:textPaint.glowSpread,glowColor:textPaint.glowColor,opacity:1});
+    if(actual.visual?.character)visual.object?.userData.setAppearance?.({textPaint,opacity:1});
     visual.body.material.color.set(actual.color);visual.contour.outline.material.color.set(actual.color);
     updateAtomicCarrier(visual.body.material,actual.opacity??defaults.opacity,actual.translucency??defaults.translucency,actual.glow??defaults.glow,actual.translucencyRadius??defaults.translucencyRadius);
     visual.group.userData.glowIntensity=actual.glow??defaults.glow;visual.group.userData.glowColor=actual.glowColor;
@@ -337,7 +336,6 @@ export function createWorld(host: HTMLElement, input: Input) {
     for(const connector of connectors){const node=nodes.get(key(connector.source));if(!node)continue;const paint=connectorPaint(candidate,node);for(const mesh of [connector.line,connector.arrow]){mesh.userData.glowColor=paint.glowColor;mesh.userData.glowIntensity=paint.glow;mesh.material.color.set(connector.line.userData.highlighted?'#ffb000':paint.color);} }
   }
   function update(next: World, selection: readonly Origin[], visible?: ReadonlySet<string>, edgeSelection: readonly Edge[] = []) {
-    setGlowDetailProtection(next.settings?.glowDetailProtection??true);
     if(world&&next!==world&&boundRotation.active)boundRotation.cancel();
     if(pointOfView&&world){const old=world.nodes.find(node=>sameOrigin(node.origin,pointOfView!)),current=next.nodes.find(node=>sameOrigin(node.origin,pointOfView!));if(!current){pointOfView=undefined;nodeViewDepth=undefined;if(userView){camera.position.fromArray(userView.position);camera.up.fromArray(userView.up);controls.target.fromArray(userView.target);camera.lookAt(controls.target);userView=undefined;rebind();}}else if(old){const delta=new T.Vector3(...current.position.map((n,i)=>n-old.position[i])).multiplyScalar(scale);camera.position.add(delta);controls.target.add(delta);}}
     if(world&&next!==world){navigation.finish(true);nudging.finish(true);if(gesture&&!contentViewChanging)restore();}

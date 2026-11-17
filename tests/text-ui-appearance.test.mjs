@@ -12,17 +12,17 @@ test('old text channels and background glow retire on import without changing no
  node.textAppearance={color:'#102030',brightness:3,opacity:0,translucency:1};
  world.appearance.background={color:'#112233',translucency:.6,glow:1,glowColor:'#abcdef'};
  validateWorld(world);
- for(const paint of [world.appearance.text,node.textAppearance])for(const key of ['brightness','opacity','translucency'])assert.equal(paint[key],undefined);
+ for(const paint of [world.appearance.text,node.textAppearance])for(const key of ['opacity','translucency'])assert.equal(paint[key],undefined);
  assert.deepEqual(world.appearance.background,{color:'#112233',translucency:.6});assert.equal(node.opacity,.4);assert.equal(node.brightness,2);
  assert.equal(readPaint(world,'nodeText',node.origin).color,'#102030');
  validateWorld(JSON.parse(JSON.stringify(world)));
- for(const patch of [{brightness:.5},{opacity:1},{translucency:0}])assert.throws(()=>writePaint(world,'text',[],patch),/Invalid/);
+ for(const patch of [{opacity:1},{translucency:0}])assert.throws(()=>writePaint(world,'text',[],patch),/Invalid/);
 });
 test('text controls own UI decoration capabilities while fills and body channels remain independent',()=>{
- assert.ok(!visualProperties(true).some(p=>['brightness','opacity','translucency'].includes(p.key)));
+ assert.ok(!visualProperties(true).some(p=>['opacity','translucency'].includes(p.key)));
  assert.ok(!visualProperties(false).some(p=>['glow','glowColor'].includes(p.key)));
  for(const target of TARGETS){
-  if(target.binding?.text)assert.ok(!target.properties.some(key=>['brightness','opacity','translucency'].includes(key)),target.id);
+  if(target.binding?.text)assert.ok(!target.properties.some(key=>['opacity','translucency'].includes(key)),target.id);
   if(sharedUIDecoration(target.binding))assert.ok(!target.properties.some(key=>['glow','glowColor'].includes(key)),target.id);
  }
  const world=emptyWorld(),node=addStructure(world,[0,0,0],1),before=JSON.stringify(world);

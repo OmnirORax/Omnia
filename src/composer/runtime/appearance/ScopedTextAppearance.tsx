@@ -1,3 +1,4 @@
+import {textBrightness} from '../../../properties/textBrightness.ts';
 import {textGlowShadow} from '../../../properties/textGlow.ts';
 import { useEffect, useMemo, useRef } from "react";
 import { stableUIHash } from "../ui/identity";
@@ -26,7 +27,7 @@ export function ScopedTextAppearance() {
       const rules = targets.map(target => {
         const get = (property: string) => appearance.read(target, property);
         const color = String(get("color")), glow = Number(get("glow"));
-        const ink=color,halo=String(get("glowColor"));
+        const brightness=get("brightnessEnabled")?Number(get("brightness")):.5,ink=textBrightness(color,brightness),halo=textBrightness(String(get("glowColor")),brightness);
         return `::highlight(omnium-part-${stableUIHash(target.id)}){color:${ink};text-shadow:${textGlowShadow(glow,halo,Number(get("glowSpread")))}}`;
       });
       const css = rules.join("\n");

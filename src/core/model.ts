@@ -35,7 +35,7 @@ export type Structure = { origin: Origin; label: string; position: Vec3; color: 
 };
 export type Relationship = { from: Binding; to: Binding; label: string; kind: string };
 export type World = { userDirections?:OriginDirections; session?:WorkspaceSession; format: 'omnium-world'; version: 1 | 2 | 3; atlases?:AtlasView[];activeAtlas?:number; axes?:AxisFrame[];activeAxis?:string;brush?:Brush;camera?:CameraState; nodes: Structure[]; assets?: VisualAsset[]; relationships?: Relationship[]; scene?: SceneSettings; appearance?: Appearance;
-  settings?: { latticeScale: number; names: 'all' | 'expanded' | 'selection'; glowDetailProtection?: boolean; navigation?: NavigationOptions } };
+  settings?: { latticeScale: number; names: 'all' | 'expanded' | 'selection'; navigation?: NavigationOptions } };
 export const emptyWorld = (): World => ({ format: 'omnium-world', version: 2, nodes: [], assets: [], relationships: [], appearance:{background:{translucency:1},text:{font:DEFAULT_TEXT_FONT,color:'#ff000d',glow:1}}, scene: defaultScene(), settings: { latticeScale: 1, names: 'expanded' } });
 export const samePoint = (a: Vec3, b: Vec3) => a.every((n, i) => n === b[i]);
 export const sameOrigin = (a: Origin, b: Origin) => a.born === b.born && samePoint(a.at, b.at);
@@ -176,7 +176,7 @@ export function validateWorld(value: unknown): World {
       if (!current) throw Error('Missing node parent or variant source.');
     }
   }
-  if(w.settings?.glowDetailProtection!==undefined&&typeof w.settings.glowDetailProtection!=='boolean')throw Error('Invalid glow detail protection.');
+  if(w.settings)delete (w.settings as World['settings']&{glowDetailProtection?:unknown}).glowDetailProtection;
   if (w.settings && (!Number.isFinite(w.settings.latticeScale) || w.settings.latticeScale <= 0 || !['all','expanded','selection'].includes(w.settings.names))) throw Error('Invalid world settings.');
   if (w.scene && (!w.scene.vfx || !w.scene.normalization || typeof w.scene.prompt !== 'string' || w.scene.prompt.length > 4000 || !['label','notes','label-and-notes'].includes(w.scene.source))) throw Error('Invalid scene settings.');
   if (w.scene?.vfx?.audioResponse !== undefined) validateAudioResponse(w.scene.vfx.audioResponse);

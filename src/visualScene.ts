@@ -1,3 +1,4 @@
+import type {Paint} from './properties/visual.ts';
 import {updateLabelPaint,type textSprite} from './world/labels.ts';
 import {imageHull} from './world/contentEnvelope.ts';
 import {declareGlowDetail} from './materialCoverage.ts';
@@ -13,7 +14,7 @@ export function visualObject(
   assets: VisualAsset[],
   makeText: (text: string) => THREE.Object3D,
   requestRender: () => void,
-  appearance: { color?: string; opacity?: number; brightness?: number; textureOnly?:boolean; textColor?: string; textGlow?: number;glowSpread?:number;glowColor?:string } = {},
+  appearance: { textPaint?:Paint; color?: string; opacity?: number; brightness?: number; textureOnly?:boolean; textColor?: string; textGlow?: number;glowSpread?:number;glowColor?:string } = {},
   imageResolution = 512,
   _rasterFallback=false,
 ) {
@@ -26,12 +27,12 @@ export function visualObject(
   const styleText = (label: THREE.Object3D) => {
     const update = () => {
       const ink=appearance.textColor??appearance.color??"#ffffff",glow=appearance.textGlow??0;
-      if(label instanceof THREE.Mesh&&label.userData.isLabel)updateLabelPaint(label as ReturnType<typeof textSprite>,{...label.userData.labelPaint,color:ink,glow,glowSpread:appearance.glowSpread??label.userData.labelPaint?.glowSpread,glowColor:appearance.glowColor});
+      if(label instanceof THREE.Mesh&&label.userData.isLabel)updateLabelPaint(label as ReturnType<typeof textSprite>,{...label.userData.labelPaint,color:ink,glow,glowSpread:appearance.glowSpread??label.userData.labelPaint?.glowSpread,glowColor:appearance.glowColor,...appearance.textPaint});
       else label.userData.setTextStyle?.(appearance.color??ink,ink,glow,appearance.glowSpread);
       if (label instanceof THREE.Mesh) label.material.opacity = appearance.opacity ?? 1;
     };
     restyle.push(update);
-    if (appearance.textColor !== undefined) update();
+    if (appearance.textColor !== undefined||appearance.textPaint) update();
   };
   const asset = assets.find((a) => a.id === visual.assetId);
   const plan=asset&&vectorAsset(asset);

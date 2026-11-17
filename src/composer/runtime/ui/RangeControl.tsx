@@ -135,16 +135,18 @@ export function RangeControl({ value: storedValue, min, max, onValueChange, onMi
   const pointerPreview=useHoverPreview(),pointerOwner=useRef({});
   const pointerActions=useRef({startDrag,moveDrag,confirmDrag,cancelDrag});
   pointerActions.current={startDrag,moveDrag,confirmDrag,cancelDrag};
+  const activatePointer=(x:number,y:number)=>{
+    if(!pointerPreview)return false;
+    pointerPreview.enter(pointerOwner.current,{relative:true,surface:track.current??undefined,
+      start:(sx,sy=0)=>{pointerActions.current.startDrag(-1,sx,sy,true,false,false);},
+      move:(sx,sy=0)=>pointerActions.current.moveDrag(sx,sy),
+      commit:()=>pointerActions.current.confirmDrag(),cancel:()=>pointerActions.current.cancelDrag(),
+    },x,y);return true;
+  };
   const pointerEnabled=autoAdjust&&!valueDisabled&&!editing;
   useLayoutEffect(()=>{
     if(!pointerEnabled||!pointerPreview)return;
-    const owner=pointerOwner.current,point=cursorPosition();
-    pointerPreview.enter(owner,{relative:true,surface:track.current??undefined,
-      start:(x,y=0)=>{pointerActions.current.startDrag(-1,x,y,true,false,false);},
-      move:(x,y=0)=>pointerActions.current.moveDrag(x,y),
-      commit:()=>pointerActions.current.confirmDrag(),
-      cancel:()=>pointerActions.current.cancelDrag(),
-    },point.x,point.y);
+    const owner=pointerOwner.current,point=cursorPosition();activatePointer(point.x,point.y);
     return()=>pointerPreview.release(owner);
   },[pointerEnabled,pointerPreview]);
   const label = inputProps["aria-label"] ?? "Value";
@@ -191,6 +193,7 @@ export function RangeControl({ value: storedValue, min, max, onValueChange, onMi
           event.preventDefault(); event.stopPropagation();
           claimUIPress(event.pointerId, event.pointerType, event.buttons);
           input.current?.focus({ preventScroll: true });
+          if(activatePointer(event.clientX,event.clientY))return;
           const readout=event.target instanceof Element&&!!event.target.closest('.range-current');
           startDrag(event.pointerId,event.clientX,event.clientY,readout,readout);
           event.currentTarget.setPointerCapture(event.pointerId);
@@ -206,7 +209,7 @@ export function RangeControl({ value: storedValue, min, max, onValueChange, onMi
           confirmDrag();
           if(event.currentTarget.hasPointerCapture(event.pointerId))event.currentTarget.releasePointerCapture(event.pointerId);
         }}
-        onPointerCancel={cancelDrag} onLostPointerCapture={()=>{if(!relative.active)cancelDrag();}}
+        onPointerCancel={()=>{if(!relative.active&&!pointerPreview?.owns(pointerOwner.current))cancelDrag();}} onLostPointerCapture={()=>{if(!relative.active&&!pointerPreview?.owns(pointerOwner.current))cancelDrag();}}
         onClick={event => { event.preventDefault(); event.stopPropagation(); }}>
 
         <span className="range-current" aria-hidden><i /><span title={String(value)}>{rangeLabel(value)}</span></span>

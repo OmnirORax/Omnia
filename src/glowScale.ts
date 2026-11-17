@@ -1,12 +1,8 @@
 /** Shared legibility policy. Resolve detail in output pixels, independently of
  * node count, camera location and the much smaller bloom-mask resolution. */
 export const GLOW_DETAIL_PIXELS={off:1.5,full:4} as const;
-/** One live policy drives CPU bloom and all material halo shaders. */
-export const glowDetailProtection={value:true};
-export function setGlowDetailProtection(enabled=true){glowDetailProtection.value=enabled;}
-export function glowScale(pixels:number){if(!glowDetailProtection.value)return 1;return Number.isNaN(pixels)?0:Math.max(0,Math.min(1,(pixels-GLOW_DETAIL_PIXELS.off)/(GLOW_DETAIL_PIXELS.full-GLOW_DETAIL_PIXELS.off)));}
-export const glowScaleGLSL=`uniform bool glowDetailProtection;
-float zoomGlowScale(float pixels){if(!glowDetailProtection)return 1.;return clamp((pixels-${GLOW_DETAIL_PIXELS.off.toFixed(1)})/${(GLOW_DETAIL_PIXELS.full-GLOW_DETAIL_PIXELS.off).toFixed(1)},0.,1.);}`;
+export function glowScale(pixels:number){return Number.isNaN(pixels)?0:Math.max(0,Math.min(1,(pixels-GLOW_DETAIL_PIXELS.off)/(GLOW_DETAIL_PIXELS.full-GLOW_DETAIL_PIXELS.off)));}
+export const glowScaleGLSL=`float zoomGlowScale(float pixels){return clamp((pixels-${GLOW_DETAIL_PIXELS.off.toFixed(1)})/${(GLOW_DETAIL_PIXELS.full-GLOW_DETAIL_PIXELS.off).toFixed(1)},0.,1.);}`;
 /** No bounds discovery: callers lend an existing bound and current matrices. */
 export function projectedGlowDetail(feature:number,world:readonly number[],view:readonly number[],projectionY:number,height:number,perspective:boolean,center:{x:number;y:number;z:number}={x:0,y:0,z:0}){
  const x=world[0]*center.x+world[4]*center.y+world[8]*center.z+world[12],y=world[1]*center.x+world[5]*center.y+world[9]*center.z+world[13],z=world[2]*center.x+world[6]*center.y+world[10]*center.z+world[14];

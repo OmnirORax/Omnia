@@ -1,3 +1,4 @@
+import {textBrightness} from '../../../properties/textBrightness.ts';
 import {textGlowShadow} from '../../../properties/textGlow.ts';
 import {patternApplies,patternCSS} from '../paint/routing.ts';
 import {patternTile} from '../paint/pattern.ts';
@@ -44,9 +45,9 @@ export function AppearanceStyles() {
       // Otherwise currentColor falls through to a styled text container.
       if (!active && !legacyText && !icon&&!patterned&&!resetPatternText) continue;
       const color = (patterned&&paint?paint.colors[0]:read(target, "color")) as string,
-        brightness = binding.text?1:read(target, "brightness") as number,
+        brightness = binding.text?(read(target,"brightnessEnabled")?Number(read(target,"brightness")):.5):read(target, "brightness") as number,
         opacity = binding.text?1:translucentOpacity(Number(read(target, "opacity")),Number(read(target,"translucency"))),
-        glow = read(target, "glow") as number,glowColor=String(read(target,"glowColor"));
+        glow = read(target, "glow") as number,glowColor=binding.text?textBrightness(String(read(target,"glowColor")),brightness):String(read(target,"glowColor"));
       const owner = target.instance?.owner;
       const scope = owner
         ? owner.startsWith("function:")
@@ -75,14 +76,14 @@ export function AppearanceStyles() {
       const get = (p: string) => read(target, p);
       const custom = (p: string) =>
         values[p] !== undefined || !connected(state, targets, target.id, p, index);
-      if ((!binding.text&&!(sharedUIDecoration(binding)&&binding.css==="border-color")) || ["color", "brightness", "opacity", "translucency"].some(custom) || legacyText)
-        declarations.push(`${binding.css}:${binding.text?color:tint(color,brightness,opacity)} !important`);
+      if ((!binding.text&&!(sharedUIDecoration(binding)&&binding.css==="border-color")) || ["color", "brightnessEnabled", "brightness", "opacity", "translucency"].some(custom) || legacyText)
+        declarations.push(`${binding.css}:${binding.text?textBrightness(color,brightness):tint(color,brightness,opacity)} !important`);
       if(sharedUIDecoration(binding)&&binding.css==='border-color')declarations.push(`border-color:${UI_DECORATION.color} !important`);
       if (icon) {
         declarations.push("-webkit-text-fill-color:currentColor !important", "-webkit-text-stroke:0 !important", "text-shadow:none !important", "font-family:system-ui !important", "letter-spacing:normal !important",
           `filter:saturate(${Number(get("saturation"))})${glow > 0 ? ` drop-shadow(0 0 ${glow * 8}px ${glowColor})` : ""} !important`);
       } else if (binding.text) {
-        if (["glow", "glowSpread", "glowColor", "color", "brightness", "opacity", "translucency"].some(custom) || legacyText)
+        if (["glow", "glowSpread", "glowColor", "color", "brightnessEnabled", "brightness", "opacity", "translucency"].some(custom) || legacyText)
           declarations.push(`text-shadow:${textGlowShadow(glow,tint(glowColor,1,opacity),Number(read(target,"glowSpread")))} !important`);
         if (custom("font"))
           declarations.push(
@@ -127,7 +128,7 @@ export function AppearanceStyles() {
       rules.push(`${rootSelector} ${rawSelector}{${declarations.join(";")}}`);
       if(resetPatternText)rules.push(`${rootSelector} ${rawSelector}{color:${tint(String(read(target,"color")),brightness,opacity)} !important;-webkit-text-fill-color:currentColor !important;-webkit-text-stroke:0 !important}`);
       if(patterned&&paint&&binding.patternRole){
-        const tile=patternTile(paint,brightness,opacity),ink=paint.colors.reduce((sum,c)=>sum+parseInt(c.slice(1,3),16)+parseInt(c.slice(3,5),16)+parseInt(c.slice(5,7),16),0)/6>120?'#071019':'#effcff';
+        const tile=patternTile(paint,binding.text?1:brightness,opacity),ink=paint.colors.reduce((sum,c)=>sum+parseInt(c.slice(1,3),16)+parseInt(c.slice(3,5),16)+parseInt(c.slice(5,7),16),0)/6>120?'#071019':'#effcff';
         // Root containers do not own isolated text masks; keep their surfaces independent.
         const safe=binding.patternRole==='text'?`${rawSelector}:not(.workbench,.floating-window,.spatial-menu,.ui-background-menu,.ui-shortcut-notice,.ui-frame-search-popup,input[type=color],input[type=range],input[type=checkbox],input[type=radio])`:rawSelector;
         rules.push(`${rootSelector} ${safe}{${patternCSS(binding.patternRole,tile,paint.settings.outline,tint(ink,1,opacity))}}`);

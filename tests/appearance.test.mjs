@@ -28,7 +28,7 @@ test('connectors share source node defaults, overrides and inherited visual chan
 
 test('targets share paint definitions and expose font only for text',()=>{
   const text=visualProperties(true),surface=visualProperties(false);
-  assert.equal(text.find(p=>p.key==='color'),surface.find(p=>p.key==='color'));assert.ok(!text.some(p=>['brightness','opacity','translucency'].includes(p.key)));assert.ok(!surface.some(p=>['glow','glowColor'].includes(p.key)));
+  assert.equal(text.find(p=>p.key==='color'),surface.find(p=>p.key==='color'));assert.ok(!text.some(p=>['opacity','translucency'].includes(p.key)));assert.ok(!surface.some(p=>['glow','glowColor'].includes(p.key)));
   assert.equal(text.at(-1).key,'font');assert.ok(text.some(p=>p.key==='embolden'&&p.presentation==='slider'));assert.ok(!surface.some(p=>p.key==='font'||p.key==='embolden'||p.key==='texture'));
   const world=emptyWorld(),node=addStructure(world,[0,0,0],1);
   for(const target of ['nodes','background'])assert.throws(()=>writePaint(world,target,[node.origin],{font:'serif'}),/Invalid/);

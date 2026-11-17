@@ -1,6 +1,6 @@
 import * as T from 'three';
 import {attachMaterialCoverage,declareGlowDetail} from './materialCoverage.ts';
-import {glowScaleGLSL,glowDetailProtection} from './glowScale.ts';
+import {glowScaleGLSL} from './glowScale.ts';
 export const TEXT_STEM_PIXELS=3;
 /** One existing RGBA texture stores clean coverage and authored halo coverage.
  * Opaque storage avoids canvas premultiplication corrupting the data channels. */
@@ -21,7 +21,7 @@ export function packedTextureGlow(material:T.MeshBasicMaterial){
  attachMaterialCoverage(material,target=>{
   const before=target.onBeforeCompile;
   target.onBeforeCompile=(shader,renderer)=>{
-   before.call(target,shader,renderer);shader.uniforms.glowDetailProtection=glowDetailProtection;shader.uniforms.glowTextureSize=state.size;shader.uniforms.glowInkColor=state.color;
+   before.call(target,shader,renderer);shader.uniforms.glowTextureSize=state.size;shader.uniforms.glowInkColor=state.color;
    const coverage=target===material?`
     vec2 sourceDx=dFdx(vMapUv*glowTextureSize),sourceDy=dFdy(vMapUv*glowTextureSize);
     float sourcePixels=max(length(sourceDx),length(sourceDy));
