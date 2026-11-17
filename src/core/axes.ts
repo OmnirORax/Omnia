@@ -73,8 +73,7 @@ export function validateAxes(world:World){
  for(const frame of world.axes){
   const vector=(v:unknown):v is Vec3=>Array.isArray(v)&&v.length===3&&v.every(n=>typeof n==='number'&&Number.isFinite(n));
   if(!frame||typeof frame.id!=='string'||!frame.id||frame.id.length>100||ids.has(frame.id)||!Array.isArray(frame.ends)||![0,1,2].includes(frame.ends.length)||!Array.isArray(frame.members)||frame.members.length<frame.ends.length||frame.members.length>4000||![frame.x,frame.y,frame.z].every(vector))throw Error('Invalid axis frame.');
-  if(frame.activeAxes?.length===3)frame.activeAxes=[0,2];
-  if(frame.activeAxes!==undefined&&(!Array.isArray(frame.activeAxes)||frame.activeAxes.length>2||new Set(frame.activeAxes).size!==frame.activeAxes.length||frame.activeAxes.some(n=>!Number.isInteger(n)||n<0||n>2)))throw Error('Invalid active axes.');
+  if(frame.activeAxes!==undefined&&(!Array.isArray(frame.activeAxes)||frame.activeAxes.length>3||new Set(frame.activeAxes).size!==frame.activeAxes.length||frame.activeAxes.some(n=>!Number.isInteger(n)||n<0||n>2)))throw Error('Invalid active axes.');
   ids.add(frame.id);
   if([frame.x,frame.y,frame.z].some(v=>Math.abs(norm(v)-1)>1e-6)||Math.abs(dot(frame.x,frame.y))>1e-6||norm(minus(cross(frame.x,frame.y),frame.z))>1e-6)throw Error('Invalid axis orientation.');
   if(!frame.ends.length&&!frame.origin)throw Error('An unbound origin requires a position.');
@@ -126,10 +125,10 @@ export function nodeOriginView(position:Vec3,target:Vec3,up:Vec3){
  return {position:[...position] as Vec3,target:[...target] as Vec3,up:vertical};
 }
 
-export const activeWorldAxes=(frame:AxisFrame)=>frame.activeAxes?.length===3?[0,2]:frame.activeAxes??[0,2];
+export const activeWorldAxes=(frame:AxisFrame)=>frame.activeAxes??[0,2];
 export function toggleWorldAxis(world:World,id:string,axis:number){
  const frame=world.axes?.find(frame=>frame.id===id);if(!frame||!Number.isInteger(axis)||axis<0||axis>2)throw Error('Choose a valid axis.');
- const current=activeWorldAxes(frame);frame.activeAxes=current.includes(axis)?current.filter(n=>n!==axis):current.length===2?[axis]:[...current,axis].sort();world.activeAxis=id;
+ const current=activeWorldAxes(frame);frame.activeAxes=current.includes(axis)?current.filter(n=>n!==axis):[...current,axis].sort();world.activeAxis=id;
 }
 export function shiftAxisOrigin(world:World,id:string,offset:Vec3){
  const frame=world.axes?.find(frame=>frame.id===id);if(!frame||offset.length!==3||offset.some(n=>!Number.isSafeInteger(n)))throw Error('Use whole X Y Z offsets.');
@@ -168,4 +167,4 @@ export function insideActivePlane(world:World,frame:AxisFrame,position:Vec3){
  return active.length>0&&coordinates.every((n,i)=>active.includes(i)||Math.abs(n)<=.5+1e-7);
 }
 
-export function projectionAxis(frame:AxisFrame,forward:Vec3){const inactive=[0,1,2].filter(i=>!activeWorldAxes(frame).includes(i)),basis=[frame.x,frame.y,frame.z];if(!inactive.length)throw Error('Choose at most two active axes.');return inactive.reduce((a,b)=>Math.abs(dot(basis[a],forward))>=Math.abs(dot(basis[b],forward))?a:b);}
+export function projectionAxis(frame:AxisFrame,forward:Vec3){const inactive=[0,1,2].filter(i=>!activeWorldAxes(frame).includes(i)),basis=[frame.x,frame.y,frame.z];return (inactive.length?inactive:[0,1,2]).reduce((a,b)=>Math.abs(dot(basis[a],forward))>=Math.abs(dot(basis[b],forward))?a:b);}

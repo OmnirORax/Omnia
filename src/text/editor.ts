@@ -125,7 +125,7 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
   releaseShortcuts=shortcuts.subscribe(()=>{if(editor)editor.dispatch({effects:shortcutMap.reconfigure(Prec.highest(keymap.of(remapDocumentBindings(effectiveBindings))))});});
   const labels=new Map(documentShortcutCatalog().map(item=>[item.id,item.label]));
   releaseActions=registerContextActions({label:'Document',owns:element=>view.root.contains(element),read:()=>{
-    const seen=new Set<string>();return documentBindings(effectiveBindings).flatMap(({definition,binding})=>{if(seen.has(definition.id))return [];seen.add(definition.id);const label=labels.get(definition.id)??definition.label;return [{label,key:shortcutBinding('Document',definition.id,definition.defaultKey),run:()=>{if(editor){binding.run?.(editor);editor.focus();}}}];});
+    const seen=new Set<string>();return documentBindings(effectiveBindings).flatMap(({definition,binding})=>{if(seen.has(definition.id))return [];seen.add(definition.id);const label=labels.get(definition.id)??definition.label;return [{id:definition.id,defaultKey:definition.defaultKey,label,key:shortcutBinding('Document',definition.id,definition.defaultKey),run:()=>{if(editor){binding.run?.(editor);editor.focus();}}}];});
   }});
   let previousLexicon=workspaceLexicon(read()),previousPaint='',previousGlyphs=createGlyphPresentation(read());
   function refreshAppearance(){

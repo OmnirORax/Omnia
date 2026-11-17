@@ -82,7 +82,7 @@ type Input = {originChord:()=>boolean;hierarchy:(roots:readonly Origin[],nextOnl
   adopt: (origins: readonly Origin[], owner: Origin, delta: Vec3) => void;
   park: (origin: Origin, position: Vec3, origins:readonly Origin[]) => World;
   paint: (positions: Vec3[], source?: Origin, axis?:string,parent?:Origin) => void;
-  aimOrigin:()=>void;
+  aimOrigin:(target?:Origin)=>void;
   axis:(first:Origin,second:Origin,up:Vec3)=>void;
   slot:(origins:readonly Origin[],axis:string,point:Vec3)=>void;
   toggleWorldAxis:(id:string,axis:number)=>void;
@@ -474,8 +474,8 @@ export function createWorld(host: HTMLElement, input: Input) {
     if(event.button!==0&&event.button!==2)return;nativeWheel=false;beginRange(event,()=>{boundRotation.cancel();finishAlignment();navigation.finish(true);if(drive.active)cancelDrive();if(gesture||axisStroke||connectorDrag)restore();ghost.visible=false;originPick=undefined;axisPicking=undefined;axisView.preview();if(altPreview){finishPaint(true);altPreview=false;}hover=undefined;selected=input.hover();selectedKeys=new Set(selected.map(key));});
     if(event.button===2&&creating&&!event.altKey&&!event.shiftKey&&!event.ctrlKey&&!event.metaKey&&!boundRotation.active){event.preventDefault();event.stopImmediatePropagation();creationRightPointer=event.pointerId;secondary.cancel();const context=paintContext({x:event.clientX,y:event.clientY},false),candidate=context.session.candidate(context.project({x:event.clientX,y:event.clientY}));try{if(!candidate.valid)throw Error('Choose a free creation position.');input.paint(candidate.stamp,undefined,context.frame,creationParent);exitCreation();}catch(error){input.feedback(error instanceof Error?error.message:String(error));}return;}
     if(event.shiftKey&&!event.ctrlKey&&!event.metaKey&&!event.altKey){if(drive.active)cancelDrive();boundRotation.cancel();}
+    if(event.button===2&&event.altKey&&!event.ctrlKey&&!event.metaKey&&!event.shiftKey){event.preventDefault();event.stopImmediatePropagation();boundRotation.cancel();finishAlignment();originPick=undefined;axisPicking=undefined;axisView.preview();secondary.cancel();navigation.finish(true);cancelDrive();ghost.visible=false;lastPoint={x:event.clientX,y:event.clientY};input.aimOrigin(pointed(lastPoint,undefined,true).origin);return;}
     if(boundRotation.active){event.preventDefault();event.stopImmediatePropagation();secondary.cancel();navigation.finish(true);finishAlignment();controls.enabled=!boundRotation.active&&!drive.active;return;}
-    if(event.button===2&&event.altKey&&!event.ctrlKey&&!event.metaKey&&!event.shiftKey){event.preventDefault();event.stopImmediatePropagation();finishAlignment();originPick=undefined;axisPicking=undefined;axisView.preview();secondary.cancel();navigation.finish(true);cancelDrive();ghost.visible=false;input.aimOrigin();return;}
 
     if(originPick&&event.button===0){lastPoint={x:event.clientX,y:event.clientY};processPointer();originPick.pointer=event.pointerId;event.preventDefault();event.stopImmediatePropagation();canvas.setPointerCapture(event.pointerId);return;}
     if(altPreview&&event.button===0){event.preventDefault();event.stopImmediatePropagation();paintPoint({x:event.clientX,y:event.clientY});altPreview=false;finishPaint();return;}
@@ -699,6 +699,7 @@ export function createWorld(host: HTMLElement, input: Input) {
     toggleCoordinates(){coordinatesVisible=!coordinatesVisible;axisView.setCoordinatesVisible(coordinatesVisible);if(lastPoint)processPointer();request();},
     stamp(){if(hoverCandidate?.valid)input.paint(hoverCandidate.stamp,undefined,activeAxis()?.id,creating?creationParent:undefined);else input.feedback('Choose a free brush placement.');},
     mountHovered(){const origin=pointerInside&&lastPoint?pointed(lastPoint).origin:undefined;if(!origin)return false;const frame=activeAxis(),target=frame?axisCenter(world,frame):selected[0]&&locatePosition(selected[0]);if(!target){input.feedback('Select an origin first.');return true;}try{applyNodeView(origin,nodeOriginView(locatePosition(origin)!,target,xyz(camera.up)),true);}catch(error){input.feedback(error instanceof Error?error.message:String(error));}return true;},
+    confirmRotation(){return boundRotation.confirm();},
     toggleContentsFacing(){contentsFaceCamera=!contentsFaceCamera;request();},
     positionUser(){positionUser();},
     userPositionKey(key:string){if(!userPosition)return false;if(/^\d$/.test(key)){if(userDistanceDigits.length>=7)return true;userDistanceDigits+=key;const distance=Number(userDistanceDigits);if(distance>0)positionUser(distance);return true;}userPosition=undefined;return false;},

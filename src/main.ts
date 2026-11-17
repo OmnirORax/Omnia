@@ -11,8 +11,8 @@ import {WORLD_GESTURES,DOCUMENT_GESTURES} from './ui/gestureShortcuts';
 import {shortcuts,installShortcutCapture,normalizeShortcut,shortcutEvent,worldBinding,worldShortcutId,matchesShortcut,type ShortcutDefinition} from './ui/shortcuts';
 import {shortcutWindow} from './ui/shortcutWindow';
 import {selectionCenter,applyGroupTargets} from './core/groupPlacement';
-import {shortcutContextFor,assignedShortcuts,installContextActions,registerContextActions,refreshContextActions} from './ui/contextActions';
-import {aimFrame,activeWorldAxes,createAxis,toggleWorldAxis,shiftAxisOrigin,setSpatialOrigin,slotNode} from './core/axes.ts';
+import {controlShortcutDefinitions,registerControlShortcutCatalog,shortcutContextFor,assignedShortcuts,installContextActions,registerContextActions,refreshContextActions} from './ui/contextActions';
+import {aimFrame,axisCenter,activeWorldAxes,createAxis,toggleWorldAxis,shiftAxisOrigin,setSpatialOrigin,slotNode} from './core/axes.ts';
 import {parseBrush,brushShape,SINGLE_BRUSH,type Brush} from './core/brush.ts';
 import {handleContentViewShortcut} from './ui/contentViewShortcut.ts';
 import {ANIMATION_TARGETS,animationProperties} from './properties/animations.ts';
@@ -143,7 +143,7 @@ const view = (() => {
       selectionOrigin(ids,position){assignOrigin(ids[0],position);},
       nodeOrigin(origin){assignOrigin(origin,locate(store.world,origin)!.position);},
       origin(id,position){const frame=store.world.axes?.find(frame=>frame.id===id)??view?.reference;if(frame)assignOrigin(frame.ends[0],position);},
-      aimOrigin(){aimOrigin();},
+      aimOrigin(target){aimOrigin(target);},
       axis(first,second,up){store.change(world=>{createAxis(world,first,second,up);});selection.clear();refresh();},
       slot(origins,axis,point){store.change(world=>{slotNode(view!.operationWorld(world),origins[0],axis,point,origins);});},
       toggleWorldAxis(id,axis){if(view?.toggleReferenceAxis(id,axis))return;store.change(world=>toggleWorldAxis(world,id,axis));},
@@ -272,7 +272,8 @@ function relationFrame(origin?:Origin){
 function enterNodePerspective(origin:Origin){
  const relation=relationFrame(origin);if(!view||!relation)return;view.enterNode(origin,relation.id);
 }
-function aimOrigin(){const id=store.world.activeAxis;if(!id){feedback('Set an origin with O first.');return;}requestNode(target=>store.change(world=>aimFrame(world,id,target)));}
+function aimOrigin(target?:Origin){let id=store.world.activeAxis;if(!id&&view){const reference=view.reference,basis=view.frameBasis();store.change(world=>{const frame=setSpatialOrigin(world,undefined,axisCenter(world,reference),basis.right,basis.up);frame.activeAxes=[...activeWorldAxes(reference)];});id=store.world.activeAxis;}if(!id)return;const aim=(node:Origin)=>store.change(world=>aimFrame(world,id!,node));if(target){attempt(()=>aim(target));return;}requestNode(aim);}
+
 const openBrush=defineMenu('brush',()=>{
  open('Brush');let unit:Brush|undefined=store.world.brush?.unit;
  const form=document.createElement('form'),input=document.createElement('input'),count=document.createElement('output');input.type='text';input.setAttribute('aria-label','Brush geometry');input.placeholder='2×2×2 / sphere 2';
@@ -414,7 +415,7 @@ type SearchAction={label:string;keywords:string;run:()=>void;available?:boolean}
 function spaceActions():SearchAction[]{
  const relation=relationFrame(),frame=view?.reference,active=!!store.world.activeAxis;
  return [
- {label:'Face node (Alt+Right click)',keywords:'world origin axes direction aim face align',run:aimOrigin,available:active},
+ {label:'Face origin toward node (Alt+Right click)',keywords:'world origin axes direction aim face align',run:aimOrigin,available:active},
  {label:'Brush (Shift+X)',keywords:'world paint cube sphere geometry recursive unit',run:openBrush},
  {label:'Coordinates (C)',keywords:'world cursor brush coordinates xy xyz readout labels',run:()=>view?.toggleCoordinates()},
  {label:'Position User (P)',keywords:'world camera node axis reference origin focus align',run:focusSelection,available:true},
@@ -425,15 +426,15 @@ function spaceActions():SearchAction[]{
  ...([{label:`Selection depth · ${view?.selectionDepth??8}`,keywords:'selection volume box depth',run:()=>{const value=prompt('Selection depth',String(view?.selectionDepth??8));if(value!==null)view?.setSelectionDepth(Number(value));}}]),
  {label:'Shift origin…',keywords:'world plane origin elevation level offset xyz',available:active,run:()=>{const value=prompt('Origin shift: X Y Z','0 0 0');if(value===null)return;const offset=value.trim().split(/[ ,]+/).map(Number);if(offset.length!==3||offset.some(n=>!Number.isSafeInteger(n)))throw Error('Use three whole numbers.');store.change(world=>shiftAxisOrigin(world,world.activeAxis!,offset as Vec3));}},
  {label:'Origin directions',keywords:'origin axes symmetry half unit dial placement',run:openOriginDirections},
- {label:'Unfocus frame',keywords:'world axis origin reference deactivate',run:()=>store.change(world=>{delete world.activeAxis;}),available:active},
- {label:'Release frame',keywords:'world axis origin reference remove constraints',run:()=>store.change(world=>{world.axes=world.axes?.filter(frame=>frame.id!==world.activeAxis);delete world.activeAxis;}),available:active},
+ {label:'Use User reference',keywords:'world axis origin reference deactivate',run:()=>store.change(world=>{delete world.activeAxis;}),available:active},
+ {label:'Delete origin frame',keywords:'world axis origin reference remove constraints',run:()=>store.change(world=>{world.axes=world.axes?.filter(frame=>frame.id!==world.activeAxis);delete world.activeAxis;}),available:active},
  ];
 }
 const openShortcuts=defineMenu('shortcuts',()=>{
  view?.cancel();let shortcutView:ReturnType<typeof shortcutWindow>|undefined;const find=open('Shortcuts',query=>shortcutView?.filter(query));let defaults:ShortcutDefinition[]=[],omnicDefaults:()=>ShortcutDefinition[]=()=>[],ready=false;
  const read=()=>{const native=worldShortcutActions(true).flatMap(action=>(action.defaultKey||action.key===''||action.id===worldShortcutId('R')||action.id===worldShortcutId('W')||action.id===worldShortcutId('O'))?[{category:'Omnium' as const,id:action.id,label:action.label,defaultKey:action.defaultKey,gesture:'gesture' in action?action.gesture:undefined}]:[]);
  const global:ShortcutDefinition[]=[['V','Content view'],['F11','Fullscreen'],['Esc','Cancel'],['.','Toggle actions'],['Ctrl+Z','Undo'],['Ctrl+Y','Redo'],['Ctrl+Shift+Z','Redo (alternate)'],['Enter','Apply alignment'],['ArrowUp','Move along axes · up'],['ArrowDown','Move along axes · down'],['ArrowLeft','Move along axes · left'],['ArrowRight','Move along axes · right']].map(([key,label])=>({category:'Omnium',id:worldShortcutId(key),defaultKey:key,label,scope:key==='F11'?'application':key.includes('Ctrl')||key==='.'?'applicationExceptDocument':undefined}));
- return [...new Map([...native,...global,...WORLD_GESTURES.map(item=>item.id==='gesture:hierarchy-contents'?{...item,gesture:worldBinding('V')&&worldBinding('Q')?`Hold ${worldBinding('V')} + ${worldBinding('Q')}`:''}:item),...DOCUMENT_GESTURES,...defaults,...omnicDefaults()].map(item=>[`${item.category}/${item.id}`,item])).values()].sort((a,b)=>a.label.localeCompare(b.label));};
+ return [...new Map([...native,...global,...controlShortcutDefinitions(),...WORLD_GESTURES.map(item=>item.id==='gesture:hierarchy-contents'?{...item,gesture:worldBinding('V')&&worldBinding('Q')?`Hold ${worldBinding('V')} + ${worldBinding('Q')}`:''}:item),...DOCUMENT_GESTURES,...defaults,...omnicDefaults()].map(item=>[`${item.category}/${item.id}`,item])).values()].sort((a,b)=>a.label.localeCompare(b.label));};
  const root=document.createElement('div');root.className='shortcut-window';tools.append(root);const window=shortcutWindow(root,read,()=>ready,find);shortcutView=window;disposeTools=window.dispose;
  void Promise.all([import('./text/editor'),import('./composer/runtime/featureActions'),import('./composer/runtime/workspaceActions')]).then(([doc,features,workspace])=>{
  defaults=doc.documentShortcutCatalog();omnicDefaults=()=>features.FEATURE_ACTIONS.filter(action=>!action.id.startsWith('document.')&&!action.id.startsWith('world.')).flatMap(action=>{const key=normalizeShortcut(workspace.shortcutBinding(action.id,{})),current=normalizeShortcut(workspace.shortcutBinding(action.id,shortcuts.getSnapshot().Omnic??{}));return key||current?[{category:'Omnic' as const,id:action.id,label:action.label,defaultKey:key??'',currentKey:current??'',scope:action.scope}]:[];});ready=true;
@@ -672,7 +673,6 @@ function worldShortcutActions(includeUnavailable=false){return [
  {id:worldShortcutId('R'),label:'Rotate node / orbit camera',gesture:'MB3, then move mouse',key:'',run:()=>view?.rotateHovered()},
  {id:worldShortcutId('move'),label:'Move selection / hovered',gesture:'Left click',key:'',run:()=>view?.moveHovered()},
  {label:'Mount hovered / dismount',key:'M',run:()=>view?.mountTarget()},
- {label:view?.userDetached?'Mount User':'Dismount User',key:'U',run:()=>view?.toggleUser()},
  {label:'Save workspace state',key:'5',run:()=>{
   flushLiveForms();view?.saveCamera();
   const session={version:1 as const,views:viewHistory.snapshot(),layout:nativeLayout.getSnapshot(),appearance:nativeAppearance.getSnapshot(),details:navigationState.snapshot(),shortcuts:shortcuts.getSnapshot(),selection:[...selection.targets]};
@@ -684,12 +684,13 @@ function worldShortcutActions(includeUnavailable=false){return [
  ...((includeUnavailable||selectedOrigins().length||view?.hoveredOrigin)?[{label:'Document',key:'D',run:()=>openDocument()}]:[]),
  ...((includeUnavailable||selection.values.length)?[{label:'Remove',key:'Delete',run:remove}]:[]),
  {label:'Label',key:'L',run:editLabel},
- ].map(action=>{const defaultKey=action.key&&normalizeShortcut(action.key),id=('id' in action?action.id:undefined)??worldShortcutId(defaultKey??action.key??action.label);return {...action,id,defaultKey:defaultKey??'',execute:action.run,run:()=>runWorldAction(id),key:normalizeShortcut(action.key??'')||action.key===''?shortcuts.get({category:'Omnium',id,label:action.label,defaultKey:defaultKey??''}):action.key};});}
+ ].map(action=>{const defaultKey=action.key&&normalizeShortcut(action.key),id=('id' in action?action.id:undefined)??worldShortcutId(defaultKey??action.key??action.label);return {...action,id,defaultKey:defaultKey??'',execute:action.run,run:()=>runWorldAction(id),key:shortcuts.get({category:'Omnium',id,label:action.label,defaultKey:defaultKey??''})};});}
 installContextActions();
+registerControlShortcutCatalog(()=>worldShortcutActions(true).map(action=>({category:'Omnium',id:action.id,label:action.label,defaultKey:action.defaultKey})));
 registerContextActions({label:'Omnium',owns:element=>!!element.closest('#world,header'),read:()=>{
  const mode=view?.inputContext;
- if(mode==='rotate')return [{label:'Confirm rotation',key:'MB3'},{label:'Aim at node',key:'MB3 on node'},{label:'Rotate preview',key:'Move mouse'},{label:'Snap value',key:'0–9'},{label:'Cancel',key:'Esc'}];
- if(mode==='align')return [{label:'Rotate alignment axis',key:'Right drag'},{label:'Toggle axes',key:'Hold left + sweep'},{label:`Gap ${view?.alignmentGap??0} (0 = adjacent)`,key:'0–9'},{label:'Face origin toward node',key:'Alt + right click',run:aimOrigin},{label:'Apply alignment',key:'Enter'},{label:'Cancel',key:'Esc'}];
+ if(mode==='rotate')return [{label:'Confirm rotation',key:'MB3',run:()=>view?.confirmRotation()},{label:'Aim at node',key:'MB3 on node'},{label:'Rotate preview',key:'Move mouse'},{label:'Snap value',key:'0–9'},{label:'Cancel',key:'Esc',run:()=>view?.cancel()}];
+ if(mode==='align')return [{label:'Rotate alignment axis',key:'Right drag'},{label:'Toggle axes',key:'Hold left + sweep'},{label:`Gap ${view?.alignmentGap??0} (0 = adjacent)`,key:'0–9'},{label:'Face origin toward node',key:'Alt + right click',run:aimOrigin},{label:'Apply alignment',key:'Enter'},{label:'Cancel',key:'Esc',run:()=>view?.cancel()}];
  if(mode==='origin')return [{label:'Choose origin slot',key:'Click'},{label:'Cancel origin picker',key:'X / Esc'}];
  if(mode==='axis-first'||mode==='axis-second')return [{label:mode==='axis-first'?'Choose first axis node':'Choose second axis node',key:'Click'},{label:'Cancel axis picker',key:'Esc'}];
  if(mode==='create')return [{label:'Expand/collapse hierarchy',key:worldBinding('Q')},{label:'Pick up / place',key:'Click'},{label:'Rotate camera',key:'Shift + right drag'},{label:'Place nodes',key:'Click'},{label:'Paint nodes',key:'W, then Alt'},{label:'Toggle painting',key:'W, then Alt'},{label:'Exit creation',key:'W / Esc',run:()=>view?.toggleCreation()}];
@@ -697,7 +698,7 @@ registerContextActions({label:'Omnium',owns:element=>!!element.closest('#world,h
  {label:`Selection ${selectionLatch.depth?'depth':selectionLatch.control?'plane':selectionLatch.shift?'line':'off'}`,key:'Tap Ctrl / Shift'},
  ...worldShortcutActions(),
  {label:'Expand/collapse next level',key:worldBinding('Shift+Q')},{label:'Select in plane',key:'Ctrl + move'},{label:'Select along line',key:'Shift + move'},{label:'Select with depth',key:'Ctrl + Shift + move'},{label:'Expand/collapse hierarchy',key:worldBinding('Q')}, {label:'Pick up / place',key:'Click'},{label:'Rotate camera',key:'Shift + right drag'},{label:'Toggle painting',key:'W, then Alt'},{label:'Rotate node / orbit camera',key:'MB3, then move mouse'},{label:'Look / orbit empty space',key:'Right drag'},{label:'Undo',key:'Ctrl+Z',run:()=>travelHistory('undo')},{label:'Redo',key:'Ctrl+Y',run:()=>travelHistory('redo')},
- {label:'Cancel',key:'Esc'},{label:'Toggle actions',key:'.'}
+ {label:'Cancel',key:'Esc',run:()=>view?.cancel()},{label:'Toggle actions',key:'.'}
 ];}});
 document.addEventListener('keydown', event => {
   const editing = event.target instanceof Element && (!!event.target.closest('[data-input-owner]') || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement);

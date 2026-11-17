@@ -10,3 +10,11 @@ test('shortcut subsection shares its parent search and renders gestures as selec
  view.filter('Origin');assert.equal(rows.children[0].children[1].tag,'button');assert.equal(typeof rows.children[0].children[1].onclick,'function');
  }finally{view?.dispose();Object.assign(globalThis,before);}
 });
+
+test('shared shortcut editor captures, checks a conflict and atomically swaps the canonical bindings',async()=>{
+ const {editShortcut}=await import('../src/ui/shortcutWindow.ts'),{installShortcutCapture,shortcuts}=await import('../src/ui/shortcuts.ts');
+ class Node{children=[];dataset={};textContent='';append(...items){this.children.push(...items);}}
+ const before={document:globalThis.document,window:globalThis.window};globalThis.document={createElement:()=>new Node()};globalThis.window=new EventTarget();installShortcutCapture();
+ const a={category:'Omnium',id:'control-editor-a',label:'A',defaultKey:'J'},b={category:'Omnium',id:'control-editor-b',label:'B',defaultKey:'K'},row=new Node();let renders=0,stop;
+ try{stop=editShortcut(row,a,()=>[a,b],()=>renders++);const editor=row.children.at(-1),key=new Event('keydown',{cancelable:true});Object.assign(key,{key:'k',ctrlKey:false,metaKey:false,altKey:false,shiftKey:false});window.dispatchEvent(key);assert.equal(editor.children[0].textContent,'K');assert.match(editor.children[1].textContent,/Used by/);assert.equal(editor.children[2].textContent,'Swap');editor.children[2].onclick();assert.equal(shortcuts.get(a),'K');assert.equal(shortcuts.get(b),'J');assert.equal(renders,1);}finally{stop?.();shortcuts.assign(a,'J',[a,b]);Object.assign(globalThis,before);}
+});
