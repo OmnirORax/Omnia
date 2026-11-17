@@ -1,7 +1,8 @@
+import {prepareOriginDirections,validateOriginDirections,type OriginDirections} from './originDirections.ts';
 import {snapSlots} from './planePacking.ts';
 import {locate, sameOrigin, type Origin,type Vec3,type World} from './model.ts';
 import {address,prepareTranslation} from './lattice.ts';
-export type AxisFrame={id:string;ends:Origin[];x:Vec3;y:Vec3;z:Vec3;members:Origin[];origin?:Vec3;directed?:boolean;activeAxes?:number[];packing?:'hex'};
+export type AxisFrame={id:string;ends:Origin[];x:Vec3;y:Vec3;z:Vec3;members:Origin[];origin?:Vec3;directed?:boolean;activeAxes?:number[];packing?:'hex';directions?:OriginDirections};
 export const plus=(a:Vec3,b:Vec3):Vec3=>a.map((n,i)=>n+b[i]) as Vec3;
 export const minus=(a:Vec3,b:Vec3):Vec3=>a.map((n,i)=>n-b[i]) as Vec3;
 export const times=(a:Vec3,n:number):Vec3=>a.map(v=>v*n) as Vec3;
@@ -53,7 +54,7 @@ export function planSlotNode(world:World,origin:Origin,id:string,desired:Vec3,or
  const slot=operationSlot(world,frame,desired),resolve=prepareTranslation(world,origins,false),candidates=Array.from({length:129},(_,i)=>i===0?0:Math.ceil(i/2)*(i%2?-1:1));
  const coordinates=axisCoordinates(world,frame,desired).map(Math.abs),direction=[...activeWorldAxes(frame)].sort((a,b)=>coordinates[b]-coordinates[a])[0];
  if(direction===undefined)throw Error('Activate an axis first.');
- for(const offset of candidates){const trial=[...slot] as Vec3;trial[direction]+=offset;const snapped=frame.packing==='hex'?snapSlots(trial,activeWorldAxes(frame),true):trial;const targets=resolve(minus(axisPoint(world,frame,snapped),node.position));if(!targets)continue;
+ for(const offset of candidates){const trial=[...slot] as Vec3;trial[direction]+=offset;const snapped=frame.directions?operationSlot(world,frame,axisPoint(world,frame,trial)):frame.packing==='hex'?snapSlots(trial,activeWorldAxes(frame),true):trial;const targets=resolve(minus(axisPoint(world,frame,snapped),node.position));if(!targets)continue;
   // Joining an existing arrangement must not move this frame's origin/endpoints.
   if(!frame.members.some(member=>sameOrigin(member,origin))&&frame.ends.some(end=>{const target=targets.get(address(end));return target&&norm(minus(target,locate(world,end)!.position))>1e-7;}))continue;
   return {frame,targets};
@@ -79,6 +80,7 @@ export function validateAxes(world:World){
   if(!frame.ends.length&&!frame.origin)throw Error('An unbound origin requires a position.');
   const members=new Set<string>();
   for(const member of [...frame.members,...frame.ends])if(!member||!nodes.has(address(member)))throw Error('Missing axis node.');
+  if(frame.directions!==undefined)validateOriginDirections(frame.directions);
   if(frame.packing!==undefined&&frame.packing!=='hex')throw Error('Invalid plane packing.');
   if(frame.directed!==undefined&&typeof frame.directed!=='boolean'||frame.origin!==undefined&&(!vector(frame.origin)||frame.origin.some(n=>Math.abs(n)>1e7)))throw Error('Invalid axis origin.');
   const anchor=frame.ends[0]?nodes.get(address(frame.ends[0]))!.position:frame.origin!,end=frame.ends[0]?nodes.get(address(frame.ends[1]??frame.ends[0]))!.position:frame.origin!,half=norm(minus(end,anchor))/2;
@@ -135,6 +137,7 @@ export function shiftAxisOrigin(world:World,id:string,offset:Vec3){
 }
 
 export function operationSlot(world:World,frame:AxisFrame,p:Vec3):Vec3{
+ const directional=prepareOriginDirections(world,frame);if(directional){const plan=directional(p,[[0,0,0]]);if(!plan.stamp.length)throw Error('Enable a placement direction.');return axisCoordinates(world,frame,plan.anchor);}
  const active=activeWorldAxes(frame),coords=axisCoordinates(world,frame,p);
  const slots=snapSlots(coords,active,frame.packing==='hex');
  if(!frame.directed&&!frame.origin&&frame.packing!=='hex')slots[0]+=norm(minus(locate(world,frame.ends[1]??frame.ends[0])!.position,axisAnchor(world,frame)))/2;

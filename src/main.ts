@@ -1,3 +1,4 @@
+import {DEFAULT_ORIGIN_DIRECTIONS,type OriginDirections} from './core/originDirections.ts';
 import {ARROW_NUDGES} from './world/axisNudge.ts';
 import {enableDenseFrames} from './core/planePacking.ts';
 import {selectionLatch} from './ui/selectionLatch.ts';
@@ -230,10 +231,13 @@ const editCapability=defineMenu('capability',(capabilityKey: string)=>{
       if (node.variantOf) node.overrides = [...new Set([...(node.overrides ?? []), ...coupled.properties.map(binding => binding.property.key)])];
     }
   };
-  liveForm(form, group => attempt(() => store.change(apply, group)));
+  liveForm(form, group => attempt(() => store.change(apply, group)),()=>{close();view?.focusInput();});
   watchFields(form,inputs.map((input,index)=>({input,read:()=>{const node=locate(store.world,origins[0]);if(!node)return undefined;if(capabilityKey==='move'&&origins.length>1)return node.position[index]-start[index];return capabilities(resolveNodeSettings(store.world,inherited(node,store.world))).find(c=>c.key===capabilityKey)?.properties[index].read();}})));
   tools.append(form); positionMenu(); inputs[0].focus(); if (inputs[0].type === 'text') inputs[0].select();
 });
+function changeOriginDirections(next:OriginDirections){store.change(world=>{const frame=view?.reference;if(!frame)return;const saved=world.axes?.find(f=>f.id===frame.id);if(saved)saved.directions=structuredClone(next);else world.userDirections=structuredClone(next);});}
+const openOriginDirections=defineMenu('origin-directions',()=>{if(!view)return;open('Origin directions');const host=document.createElement('div');tools.append(host);void loadEditor(()=>import('./ui/originDirections.tsx')).then(({mountOriginDirections})=>{if(!host.isConnected)return;disposeTools=mountOriginDirections(host,()=>view!.reference,store.subscribe,changeOriginDirections,()=>store.world);positionMenu();}).catch(error=>feedback(String(error)));positionMenu();});
+function toggleOriginSymmetry(){if(!view)return;const directions=view.reference.directions??DEFAULT_ORIGIN_DIRECTIONS;changeOriginDirections({...directions,symmetry:!directions.symmetry});openOriginDirections();}
 function editLabel(){
  const edge=selection.targets.find((target):target is Edge=>!isNode(target));if(edge){edgeContext(edge);const input=tools.querySelector<HTMLInputElement>('form input[type=text]');input?.focus();input?.select();return;}
  const hovered=view?.hoveredOrigin;view?.cancel();
@@ -260,7 +264,7 @@ function reference(mode: Binding['mode']) {
   message = 'Choose a component · Esc cancels'; refresh();
 }
 function followSelectionOrigin(){const group=selection.committed.filter(isNode);if(group.length>1)assignOrigin(group[0],selectionCenter(store.world,group));}
-function assignOrigin(anchor:Origin|undefined,position:Vec3){const basis=view!.frameBasis(),axes=[...activeWorldAxes(view!.reference)];store.change(world=>{const frame=setSpatialOrigin(world,anchor,position,basis.right,basis.up);frame.activeAxes=axes;frame.packing='hex';});}
+function assignOrigin(anchor:Origin|undefined,position:Vec3){const basis=view!.frameBasis(),axes=[...activeWorldAxes(view!.reference)],directions=view!.reference.directions;store.change(world=>{const frame=setSpatialOrigin(world,anchor,position,basis.right,basis.up);frame.activeAxes=axes;frame.packing='hex';if(directions)frame.directions=structuredClone(directions);});}
 function focusSelection(){view?.positionUser();}
 function relationFrame(origin?:Origin){
  const world=store.world,active=world.axes?.find(frame=>frame.id===world.activeAxis),anchor=origin??active?.ends[0];
@@ -421,6 +425,7 @@ function spaceActions():SearchAction[]{
  ...(frame?[0,1,2].map(axis=>({label:`${activeWorldAxes(frame).includes(axis)?'✓ ':''}${'XYZ'[axis]} axis`,keywords:'world active axes plane line volume constrain',run:()=>{if(!view?.toggleReferenceAxis(frame.id,axis))store.change(world=>toggleWorldAxis(world,frame.id,axis));}})):[]),
  ...([{label:`Selection depth · ${view?.selectionDepth??8}`,keywords:'selection volume box depth',run:()=>{const value=prompt('Selection depth',String(view?.selectionDepth??8));if(value!==null)view?.setSelectionDepth(Number(value));}}]),
  {label:'Shift origin…',keywords:'world plane origin elevation level offset xyz',available:active,run:()=>{const value=prompt('Origin shift: X Y Z','0 0 0');if(value===null)return;const offset=value.trim().split(/[ ,]+/).map(Number);if(offset.length!==3||offset.some(n=>!Number.isSafeInteger(n)))throw Error('Use three whole numbers.');store.change(world=>shiftAxisOrigin(world,world.activeAxis!,offset as Vec3));}},
+ {label:'Origin directions',keywords:'origin axes symmetry half unit dial placement',run:openOriginDirections},
  {label:'Unfocus frame',keywords:'world axis origin reference deactivate',run:()=>store.change(world=>{delete world.activeAxis;}),available:active},
  {label:'Release frame',keywords:'world axis origin reference remove constraints',run:()=>store.change(world=>{world.axes=world.axes?.filter(frame=>frame.id!==world.activeAxis);delete world.activeAxis;}),available:active},
  ];
@@ -621,7 +626,7 @@ const edgeContext=defineMenu('edge',(edge: Edge)=>{
   const relation=edge.kind==='relationship'?store.world.relationships?.[edge.index]:undefined;
   if(relation && edge.kind === 'relationship'){
     const form=document.createElement('form'),label=field({key:'relation.label',label:'Label',kind:'text'},relation.label),kind=field({key:'relation.kind',label:'Type',kind:'text'},relation.kind);form.append(label.row,kind.row);
-    liveForm(form, group=>attempt(()=>store.change(world=>{const r=world.relationships![edge.index];r.label=String(label.value());r.kind=String(kind.value());}, group)));tools.append(form);
+    liveForm(form, group=>attempt(()=>store.change(world=>{const r=world.relationships![edge.index];r.label=String(label.value());r.kind=String(kind.value());}, group)),()=>{close();view?.focusInput();});tools.append(form);
     button('Reverse',()=>{store.change(world=>{const r=world.relationships![edge.index];[r.from,r.to]=[r.to,r.from];});close();});
     for(const [key,label] of [['from','Reconnect source…'],['to','Reconnect target…']] as const)button(label,()=>requestNode(target=>store.change(world=>{world.relationships![edge.index][key]=bind(locate(world,target)!,'follow',world);})));
   }else if(edge.kind==='part')button('Reconnect target…',()=>requestNode(target=>store.change(world=>{locate(world,edge.owner)!.parts[edge.index]=bind(locate(world,target)!,'follow',world);})));
@@ -661,6 +666,7 @@ function runWorldAction(id:string):void{attempt(()=>worldShortcutActions(true).f
 function worldShortcutActions(includeUnavailable=false){return [
  ...spaceActions().filter(action=>includeUnavailable||action.available!==false).map(action=>{const match=/^(.*?) \(([^)]+)\)$/.exec(action.label);return {label:match?.[1]??action.label,key:match?.[2],run:action.run};}),
  {id:worldShortcutId('O'),label:'Set origin',gesture:undefined,key:'X',run:()=>view?.pickOrigin()},
+ {label:'Toggle origin symmetry',key:'+',run:toggleOriginSymmetry},
  {label:'Expand/collapse hierarchy',key:'Q',run:()=>hierarchyShortcut()},
  {label:'Expand/collapse next level',key:'Shift+Q',run:()=>hierarchyShortcut(true)},
  {label:'Toggle contents facing camera',key:'F',run:()=>view?.toggleContentsFacing()},

@@ -9,7 +9,7 @@ document.addEventListener('keydown', event => {
 window.addEventListener('pagehide', flushPending);
 /** Commit valid edits by the next frame; change/Enter flush the last value.
  * Each form has its own undo group so typing and slider drags coalesce. */
-export function liveForm(form: HTMLFormElement, commit: (group: string) => void) {
+export function liveForm(form: HTMLFormElement, commit: (group: string) => void, confirm?: () => void) {
   const group = `form:${++sequence}`;
   let frame = 0, live = true;
   const flush = () => {
@@ -25,6 +25,7 @@ export function liveForm(form: HTMLFormElement, commit: (group: string) => void)
     if(live&&!frame){pending.add(flush);frame=requestAnimationFrame(flush);}
   });
   form.addEventListener('change', flush);
-  form.addEventListener('submit', event => { event.preventDefault(); flush(); });
+  form.addEventListener('submit', event => { event.preventDefault(); if (!form.checkValidity()) return; flush(); confirm?.(); });
+  form.addEventListener('keydown', event => { if (confirm && event.key === 'Enter' && !event.isComposing && !(event.target instanceof HTMLTextAreaElement)) { event.preventDefault(); form.requestSubmit(); } });
   return () => { live = false; if (frame) cancelAnimationFrame(frame); frame = 0; pending.delete(flush); };
 }

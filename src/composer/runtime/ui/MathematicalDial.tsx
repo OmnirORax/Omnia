@@ -1,3 +1,4 @@
+import {DialSlot,dialRingSlots} from './DialSlots.tsx';
 import {useNavigationState} from '../../../ui/useNavigationState.tsx';
 import {useHoverPreview} from './HoverPreview';
 import {useValueDrag} from './useValueDrag.ts';
@@ -143,7 +144,7 @@ export function MathematicalDial({value,min,max,integer=false,label='Value',disa
    suppressClick.current=false;
    if(disabled||event.button!==0||!(event.target instanceof Element)||!event.target.closest('[data-math-slot]'))return;
    const bounds=ringRef.current!.getBoundingClientRect(),scale=bounds.width/extent,point={x:event.clientX,y:event.clientY};
-   const slots=rings.flatMap(({order,radius,count})=>Array.from({length:count},(_,i)=>{const turn=(clockwise?i:-i)/count*Math.PI*2;return {key:`${order}:${i}`,x:bounds.left+bounds.width/2+Math.sin(turn)*radius*scale,y:bounds.top+bounds.height/2-Math.cos(turn)*radius*scale,radius:minimum.size*scale/2};}));
+   const slots=rings.flatMap(({order,radius,count})=>dialRingSlots(order,radius,count,minimum.size,extent,clockwise).map(slot=>({key:slot.key,x:bounds.left+bounds.width/2+slot.x*scale,y:bounds.top+bounds.height/2+slot.y*scale,radius:slot.size*scale/2})));
    setPainting(true);drag.current={erase:marks.selected.includes(event.target.closest<HTMLElement>('[data-math-slot]')!.dataset.mathSlot!),id:event.pointerId,last:point,slots,visited:[],before:marks,next:marks,brush};hover.current=null;advance(point);
    claimUIPress(event.pointerId,event.pointerType,event.buttons);event.preventDefault();event.stopPropagation();event.currentTarget.setPointerCapture(event.pointerId);
   }}
@@ -170,12 +171,12 @@ export function MathematicalDial({value,min,max,integer=false,label='Value',disa
    {rings.map(({order,radius,count})=><span key={order} className="mathematical-dial-order" role="group" aria-label={`Ring ${order+1}, ${count} slots`}>
     <svg className="mathematical-dial-hover-band" width={extent} height={extent} aria-hidden="true"><circle cx={extent/2} cy={extent/2} r={radius} fill="none" stroke="transparent" strokeWidth={minimum.size}/></svg>
     {order<orders&&<><span className="mathematical-dial-start-arrow" aria-hidden="true" style={{left:'50%',top:`${50-(radius+minimum.size/2)/extent*100}%`}}>{clockwise?'↻':'↺'}</span><span className="mathematical-dial-order-rim" aria-hidden="true" style={{width:2*(radius+minimum.size/2+1),height:2*(radius+minimum.size/2+1)}}/></>}
-    {Array.from({length:count},(_,i)=>{
-     const key=`${order}:${i}`,mode=modeAt(displayed,key),turn=(clockwise?i:-i)/count*Math.PI*2;
+    {dialRingSlots(order,radius,count,minimum.size,extent,clockwise).map(slot=>{const i=slot.index;
+     const key=`${order}:${i}`,mode=modeAt(displayed,key);
      const candidate=paintMathematicalSlots(marks,[key],brush,marks.selected.includes(key)),n=total(candidate),contribution=sign*mathematicalSlotValue(base,i+1,brush);
-     return <button type="button" key={key} disabled={disabled} className="mathematical-dial-slot" data-ui-paint-owner="geometry" data-math-slot={key} data-mode={mode} data-selected={displayed.selected.includes(key)} data-preview={!!sample&&displayed.selected.includes(key)&&(!marks.selected.includes(key)||modeAt(marks,key)!==mode)} style={{width:minimum.size,height:minimum.size,left:`${50+Math.sin(turn)*radius/extent*100}%`,top:`${50-Math.cos(turn)*radius/extent*100}%`}}
+     return <DialSlot slot={slot} selected={displayed.selected.includes(key)} key={key} disabled={disabled} data-ui-paint-owner="geometry" data-math-slot={key} data-mode={mode} data-selected={displayed.selected.includes(key)} preview={!!sample&&displayed.selected.includes(key)&&(!marks.selected.includes(key)||modeAt(marks,key)!==mode)}
       aria-label={`Ring ${order+1}, slot ${i+1}, brush ${brush}, contribution ${contribution}`} aria-pressed={marks.selected.includes(key)} aria-disabled={candidate.selected.length>0&&!valid(n)} title={`Slot ${i+1} · ${sign<0?'−':''}${brush==='normal'?`${base}×${i+1}`:`${base}^${i+2}`} = ${contribution} · ${editing?.kind==='increment'?`${anchor.current} + (${numeral(candidate)} × ${editing.amount}) = `:''}${n} · right-click applies recursion`}
-      onMouseEnter={()=>preview(key)} onMouseLeave={()=>{if(!horizontal?.owns(horizontalOwner.current))restore();}} onFocus={()=>preview(key)} onBlur={restore} onClick={event=>{if(event.detail===0)confirm(candidate);}}><span className="mathematical-dial-mark" aria-hidden="true">{mode==='recursion'&&<svg viewBox="0 0 20 20" width="100%" height="100%"><circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" strokeWidth="1.5"/><circle cx="10" cy="10" r="4" fill="none" stroke="currentColor" strokeWidth="1.5"/></svg>}</span></button>;
+      onMouseEnter={()=>preview(key)} onMouseLeave={()=>{if(!horizontal?.owns(horizontalOwner.current))restore();}} onFocus={()=>preview(key)} onBlur={restore} onClick={event=>{if(event.detail===0)confirm(candidate);}}><span className="mathematical-dial-mark" aria-hidden="true">{mode==='recursion'&&<svg viewBox="0 0 20 20" width="100%" height="100%"><circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" strokeWidth="1.5"/><circle cx="10" cy="10" r="4" fill="none" stroke="currentColor" strokeWidth="1.5"/></svg>}</span></DialSlot>;
     })}
    </span>)}
   </div>

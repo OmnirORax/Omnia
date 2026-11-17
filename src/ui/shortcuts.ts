@@ -16,7 +16,7 @@ export function normalizeShortcut(value:string,mac=macPlatform()):string|undefin
 }
 export function shortcutEvent(event:Pick<KeyboardEvent,'key'|'ctrlKey'|'metaKey'|'altKey'|'shiftKey'>,category:ShortcutCategory='Document'){
  const key=event.key===' '?'Space':event.key;
- return normalizeShortcut([event.ctrlKey||category!=='Document'&&event.metaKey?'Ctrl':'',category==='Document'&&event.metaKey?'Cmd':'',event.altKey?'Alt':'',event.shiftKey?'Shift':'',key].filter(Boolean).join('+'));
+ return normalizeShortcut([event.ctrlKey||category!=='Document'&&event.metaKey?'Ctrl':'',category==='Document'&&event.metaKey?'Cmd':'',event.altKey?'Alt':'',event.shiftKey&&event.key!=='+'?'Shift':'',key].filter(Boolean).join('+'));
 }
 export function matchesShortcut(event:KeyboardEvent,binding:string,category:ShortcutCategory='Omnium'){const expected=normalizeShortcut(binding);return expected!==undefined&&shortcutEvent(event,category)===expected;}
 export const worldShortcutId=(key:string)=>`world:${normalizeShortcut(key)??key}`;

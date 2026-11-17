@@ -1,3 +1,4 @@
+import {validateOriginDirections,type OriginDirections} from './originDirections.ts';
 import {validateWorkspaceSession,type WorkspaceSession} from './workspaceSession.ts';
 import type {createOccupancy} from '../graph/occupancy.ts';
 import { validateNavigation,type NavigationOptions } from '../navigation/options.ts';
@@ -33,7 +34,7 @@ export type Structure = { origin: Origin; label: string; position: Vec3; color: 
   brightness?: number; opacity?: number; glow?: number; translucency?: number; translucencyRadius?: number;
 };
 export type Relationship = { from: Binding; to: Binding; label: string; kind: string };
-export type World = { session?:WorkspaceSession; format: 'omnium-world'; version: 1 | 2 | 3; atlases?:AtlasView[];activeAtlas?:number; axes?:AxisFrame[];activeAxis?:string;brush?:Brush;camera?:CameraState; nodes: Structure[]; assets?: VisualAsset[]; relationships?: Relationship[]; scene?: SceneSettings; appearance?: Appearance;
+export type World = { userDirections?:OriginDirections; session?:WorkspaceSession; format: 'omnium-world'; version: 1 | 2 | 3; atlases?:AtlasView[];activeAtlas?:number; axes?:AxisFrame[];activeAxis?:string;brush?:Brush;camera?:CameraState; nodes: Structure[]; assets?: VisualAsset[]; relationships?: Relationship[]; scene?: SceneSettings; appearance?: Appearance;
   settings?: { latticeScale: number; names: 'all' | 'expanded' | 'selection'; navigation?: NavigationOptions } };
 export const emptyWorld = (): World => ({ format: 'omnium-world', version: 2, nodes: [], assets: [], relationships: [], appearance:{background:{translucency:1},text:{font:DEFAULT_TEXT_FONT,color:'#ff000d',glow:1}}, scene: defaultScene(), settings: { latticeScale: 1, names: 'expanded' } });
 export const samePoint = (a: Vec3, b: Vec3) => a.every((n, i) => n === b[i]);
@@ -117,6 +118,7 @@ export function validateWorld(value: unknown): World {
   validateAppearance(w.appearance);
   validateCameraState(w.camera);
   validateAxes(w);
+  if(w.userDirections!==undefined)validateOriginDirections(w.userDirections);
   if(w.brush!==undefined)brushShape(w.brush);
   validateNavigation(w.settings?.navigation);
   if(w.activeAtlas!==undefined&&!w.atlases)throw Error('Invalid active atlas.');

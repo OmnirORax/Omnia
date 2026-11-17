@@ -10,7 +10,7 @@ import {shortcutBinding as omnicBinding,preferredFeatureKey} from '../src/compos
 const definition=(category,id,key,scope)=>({category,id,label:id,defaultKey:key,scope});
 const key=(key,extra={})=>({key,keyCode:key.length===1?key.toUpperCase().charCodeAt(0):0,ctrlKey:false,metaKey:false,altKey:false,shiftKey:false,preventDefault(){this.prevented=true;},stopImmediatePropagation(){this.stopped=true;},...extra});
 test('keyboard notation handles modifiers, platforms and literal symbols without accepting gesture prose',()=>{
- assert.deepEqual(SHORTCUT_CATEGORIES,['Omnium','Document','Omnic']);assert.equal(normalizeShortcut('Mod-Shift-b',false),'Ctrl+Shift+B');assert.equal(normalizeShortcut('Mod-b',true),'Cmd+B');assert.equal(normalizeShortcut('Ctrl++'),'Ctrl++');assert.equal(normalizeShortcut('Alt--'),'Alt+-');assert.equal(normalizeShortcut('Escape'),'Esc');
+ assert.deepEqual(SHORTCUT_CATEGORIES,['Omnium','Document','Omnic']);assert.equal(normalizeShortcut('Mod-Shift-b',false),'Ctrl+Shift+B');assert.equal(normalizeShortcut('Mod-b',true),'Cmd+B');assert.equal(normalizeShortcut('Ctrl++'),'Ctrl++');assert.equal(normalizeShortcut('Alt--'),'Alt+-');assert.equal(matchesShortcut(key('+',{shiftKey:true}),'+'),true);assert.equal(matchesShortcut(key('+'),'+'),true);assert.equal(normalizeShortcut('Escape'),'Esc');
  for(const invalid of ['Right drag','W / Click','Hold Alt','Shift','Click'])assert.equal(normalizeShortcut(invalid),undefined);
  assert.equal(matchesShortcut(key('k',{ctrlKey:true,shiftKey:true}),'Ctrl+Shift+K'),true);assert.equal(matchesShortcut(key('k',{ctrlKey:true}),'Ctrl+Shift+K'),false);
 });
