@@ -28,3 +28,9 @@ test('cursor configuration distinguishes grid steps from halvings and reciprocal
  assert.equal(formatMathConfiguration({mode:'value',anchor:.75,count:2,value:.75,equilibrium:.5,snap:.125}),'0.5 + 2×0.125 = 0.75');
  assert.equal(formatMathConfiguration({mode:'division',anchor:1,count:5,value:.2}),'1/5 = 0.2');
 });
+
+test('Shift keeps an open operation dial available for Shift-click Snap fields',async()=>{
+ let mounts=0;
+ const number=createOperationNumber({label:'Step',value:1,min:0,max:4,apply(){},reject(){}}),dial=createOperationDial({host:{hidden:true},active:()=>true,number:()=>number,feedback(){},mount:()=>{mounts++;return()=>{};}}),event=()=>({key:'Shift',repeat:false,ctrlKey:false,metaKey:false,altKey:false,preventDefault(){},stopImmediatePropagation(){}});
+ dial.key(event());await Promise.resolve();dial.key(event());assert.equal(dial.active,true);assert.equal(mounts,1);dial.close();
+});
