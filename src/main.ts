@@ -199,7 +199,7 @@ function open(title: string,scopeSearch?:(query:string)=>void,globalOnly=false) 
   };
   find.oninput = filter;
   find.onkeydown = event => { if (event.key === 'Enter') { const match = Array.from(tools.children).find(item => item instanceof HTMLButtonElement && !item.hidden) as HTMLButtonElement | undefined; if (match) { event.preventDefault(); match.click(); } } };
-  const searchRow=document.createElement('div');searchRow.className='menu-searches';searchRow.append(find);if(!globalOnly){const globalFind=document.createElement('input');globalFind.type='search';globalFind.placeholder='Global search…';globalFind.setAttribute('aria-label','Global search');let globalRender:ReturnType<typeof searchRenderer>|undefined;globalFind.oninput=()=>{if(globalFind.value.trim()){globalRender??=searchRenderer(globalResults);globalRender(globalFind.value);}else globalResults.replaceChildren();positionMenu();};searchRow.append(globalFind);}tools.append(searchRow,globalResults);
+  const searchRow=document.createElement('div');searchRow.className='menu-searches';searchRow.append(find);if(!globalOnly){const globalFind=document.createElement('input');globalFind.type='search';globalFind.placeholder='Global search…';globalFind.setAttribute('aria-label','Global search');let globalRender:ReturnType<typeof searchRenderer>|undefined;globalFind.oninput=()=>{if(globalFind.value.trim()){globalRender??=searchRenderer(globalResults);globalRender(globalFind.value);}else globalResults.replaceChildren();positionMenu();};searchRow.prepend(globalFind);}tools.append(searchRow,globalResults);
   requestAnimationFrame(() => { if (!find.isConnected) return; filter(); });
   positionMenu();return find;
 }
