@@ -3,17 +3,7 @@ import { normalizePartScope, type PartScope } from "./partScope.ts";
 /** Stable appearance references belong to presentation settings, never graph identity. */
 export type Value = string | number | boolean;
 export type Values = Record<string, Value>;
-/** General adjusters include their effect channel; effect-only adjusters stay independent. */
-const companions: Record<string, string> = {
-  color: "effectColor",
-  brightness: "effectBrightness",
-  opacity: "effectOpacity",
-  glow: "effectGlow",
-};
-export const propertyChannels = (property: string) => [
-  property,
-  ...(companions[property] ? [companions[property]] : []),
-];
+export const propertyChannels=(property:string)=>[property];
 export type Rule = { all?: boolean; properties?: string[] };
 export type Instance = { base: string; owner: string; label: string; path?: string[]; part?: PartScope };
 export type Target = {
@@ -25,7 +15,6 @@ export type Target = {
   label: string;
   couplings?: Record<string, string>;
   properties?: string[];
-  effectKinds?: readonly string[];
   numberRanges?: Record<string, NumericSpec>;
   /** Compatibility policy ancestry retained when discovery regroups a target. */
   legacyAncestors?: string[];
@@ -184,8 +173,7 @@ export function blocked(
   const path = index.path(id),
     from = origin ? path.indexOf(origin) : -1;
   // A deliberate edit at a locked row is allowed. Propagation stops at lower locks.
-  const family = Object.keys(companions).find((key) => companions[key] === property) ??
-    Object.entries(index.byId.get(id)?.couplings ?? {}).find(([source, channel]) => source !== channel && channel === property)?.[0];
+  const family = Object.entries(index.byId.get(id)?.couplings ?? {}).find(([source, channel]) => source !== channel && channel === property)?.[0];
   const originPath = origin ? index.path(origin) : [];
   const legacyLocks = path.flatMap(key => index.byId.get(key)?.legacyAncestors ?? [])
     .some(key => !originPath.includes(key) && (ruleHas(state.locks[key], property) || (!!family && ruleHas(state.locks[key], family))));
@@ -296,7 +284,6 @@ export function applyValue(
   const index = createTargetIndex(targets);
   for (const target of targets) {
     if (!target.properties?.includes(property)) continue;
-    if (property === "effect" && target.effectKinds && !target.effectKinds.includes(String(value))) continue;
     if (origin ? !index.path(target.id).includes(origin) : !included(set, targets, target.id, index)) continue;
     const root = origin ?? set.only ?? "all";
     for (const channel of new Set((options.exact ? [property] : propertyChannels(property)).map(channel => target.couplings?.[channel] ?? channel))) {

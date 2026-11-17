@@ -1,6 +1,5 @@
 import {SPHERE_VISUAL_DEFAULTS} from './sphereVisualDefaults.ts';
 import {SPHERE_BLEND_MODES} from './sphereBlendModes.ts';
-import { EFFECT_KINDS } from "../graph/effects.ts";
 import { FONT_OPTIONS, normalizeFont } from "../fonts.ts";
 import { createPropertyRegistry, validateValue, type PropertyDefinition, type PropertyValue as Value } from "./registry.ts";
 export type Property = PropertyDefinition;
@@ -39,77 +38,9 @@ const builtins: Property[] = [
     neutral: 1,
   },
   { id: "glow", label: "Glow", kind: "number", min: 0, max: 2, step: 0.05, initial: 0, neutral: 0 },
+  {id:'speed',label:'Speed',kind:'number',min:0,max:1,step:.05,initial:.25,neutral:0},
+  {id:'intensity',label:'Intensity',kind:'number',min:0,max:1,step:.05,initial:.35,neutral:0},
   { id: "blur", label: "Blur", kind: "number", min: 0, max: 20, step: 1, initial: 10, neutral: 0 },
-  {
-    id: "effect",
-    label: "Animation",
-    kind: "select",
-    initial: "stars",
-    neutral: "off",
-    options: EFFECT_KINDS.map((id) => ({
-      id,
-      label:
-        id === "starfield"
-          ? "🌌✧"
-          : id === "electric-text"
-            ? "Lightning text / icons"
-            : id === "falling-stars"
-              ? "Falling stars / snow"
-              : id === "lightning"
-                ? "Lightning outlines"
-                : id[0].toUpperCase() + id.slice(1),
-    })),
-  },
-  {
-    id: "speed",
-    label: "Animation speed",
-    kind: "number",
-    min: 0,
-    max: 1,
-    step: 0.05,
-    initial: 0.25,
-    neutral: 0,
-  },
-  {
-    id: "intensity",
-    label: "Effect intensity",
-    kind: "number",
-    min: 0,
-    max: 1,
-    step: 0.05,
-    initial: 0.35,
-    neutral: 0,
-  },
-  {
-    id: "density",
-    numericRange: { by: "effect", otherwise: { max: 1 }, cases: { starfield: { max: 4 } } },
-    label: "Density",
-    kind: "number",
-    min: 0,
-    max: 4,
-    step: 0.05,
-    initial: 0.5,
-    neutral: 0,
-  },
-  {
-    id: "size",
-    label: "Star size",
-    kind: "number",
-    min: 0.1,
-    max: 3,
-    step: 0.05,
-    initial: 1,
-    neutral: 1,
-  },
-  {
-    id: "length",
-    label: "Lightning length",
-    kind: "number",
-    min: 0.05,
-    max: 1,
-    step: 0.05,
-    initial: 0.35,
-  },
   {
     id: "font",
     label: "Font",
@@ -150,11 +81,9 @@ builtins.push(
   numeric("shadowY", "Shadow vertical offset", -32, 32, 1, 4),
   numeric("saturation", "UI icon saturation", 0, 2, 0.05, 1),
 );
-// Effect controls describe a target's presentation, never another target branch.
-export const EFFECT_PROPERTIES = [
+// Retired property IDs retained only to discard old saved controller values.
+export const RETIRED_VFX_PROPERTIES = [
   "effect",
-  "speed",
-  "intensity",
   "density",
   "size",
   "length",
@@ -163,17 +92,6 @@ export const EFFECT_PROPERTIES = [
   "effectOpacity",
   "effectGlow",
 ];
-for (const [id, label, source] of [
-  ["effectColor", "Animation color", "color"],
-  ["effectBrightness", "Animation brightness", "brightness"],
-  ["effectOpacity", "Animation opacity", "opacity"],
-  ["effectGlow", "Animation glow", "glow"],
-] as const) {
-  const original = builtins.find((p) => p.id === source)!;
-  builtins.push({ ...original, id, label, channelOf: source });
-}
-for (const property of builtins) if (property.id !== "effect" && EFFECT_PROPERTIES.includes(property.id))
-  property.previewActivation = { property: "effect", inactive: "off", active: "lightning" };
 export const PROPERTY_REGISTRY = createPropertyRegistry();
 builtins.forEach(property => PROPERTY_REGISTRY.define({ ...property, category: { id: "visual", label: "Visuals" } }));
 /** Compatibility view of the single shared pool; no separate appearance definitions. */

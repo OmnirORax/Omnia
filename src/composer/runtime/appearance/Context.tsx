@@ -23,7 +23,6 @@ import {
 } from "./registry";
 import { type Appearance, createValueResolver } from "./resolve";
 import { activityPreview, type ActivityPreview } from "./activityPreview";
-import { MouseTrail } from "./MouseTrail";
 import { VisualSelectionProvider } from "./VisualSelector";
 export type AppearanceLocation = { target: string; property?: string };
 export type AppearanceBridge = {
@@ -261,7 +260,7 @@ export function AppearanceProvider({
   const stableValue=useRef(projected);
   if(Object.keys(projected).some(key=>!Object.is(Reflect.get(projected,key),Reflect.get(stableValue.current,key))))stableValue.current=projected;
   return <Context.Provider value={bridge ? stableValue.current : null}>{bridge
-    ? <VisualSelectionProvider masterOpen={bridge.masterOpen} onInspect={setVisualInspection}>{children}<MouseTrail /></VisualSelectionProvider> : children}</Context.Provider>;
+    ? <VisualSelectionProvider masterOpen={bridge.masterOpen} onInspect={setVisualInspection}>{children}</VisualSelectionProvider> : children}</Context.Provider>;
 }
 export function basesForOwner(owner: string, control = false): RegisteredTarget[] {
   const prefix = owner.startsWith("function:") ? (control ? "ui.fields." : "ui.buttons.") : "ui.";

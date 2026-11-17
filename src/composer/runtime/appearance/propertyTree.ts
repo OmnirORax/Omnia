@@ -28,26 +28,6 @@ export const PROPERTY_TREE: PropertyNode[] = [
     ],
   },
   {
-    ...leaf("effect", "Animation"),
-    children: [
-      leaf("speed", "Speed"),
-      leaf("intensity", "Intensity"),
-      leaf("density", "Density"),
-      leaf("size", "Star size"),
-      leaf("length", "Lightning length"),
-      {
-        id: "effectAppearance",
-        label: "Appearance",
-        children: [
-          leaf("effectColor", "Color"),
-          leaf("effectBrightness", "Brightness"),
-          leaf("effectOpacity", "Opacity"),
-          leaf("effectGlow", "Glow"),
-        ],
-      },
-    ],
-  },
-  {
     id: "styling",
     label: "Styling",
     children: [

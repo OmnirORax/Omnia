@@ -32,7 +32,6 @@ import {brightHex} from './composer/runtime/appearance/resolve.ts';
 import {createContentContour,collectContentHull} from './world/contentContour.ts';
 import {contentEnvelope,convexHull} from './world/contentEnvelope.ts';
 import {pushContours,type ContourBody} from './world/contourPush.ts';
-import type {TextScene} from './world/v1/types.ts';
 import {universalHistory} from './core/universalHistory.ts';
 import {createNudgeGesture} from './navigation/nudgeGesture.ts';
 import type {NudgeActionId} from './composer/runtime/workspaceActions.ts';
@@ -156,12 +155,8 @@ export function createWorld(host: HTMLElement, input: Input) {
     constrain:(_id,p)=>{const frame=activeAxis();if(!frame)return p;if(!hasOriginDirections(frame))return;const position=axisPoint(world,frame,operationSlot(world,frame,[p.x/scale,p.y/scale,p.z/scale]));return {x:position[0]*scale,y:position[1]*scale,z:position[2]*scale};},
     commit(id, position) { const result = input.park(visuals.get(id)!.node.origin, vector({x:position.x / scale,y:position.y / scale,z:position.z / scale}),drivingOrigins); return geometry(result); },
   });
-  const effectNodes:TextScene['nodes']=new Map(),effectConnectors:TextScene['connectors']=[];
-  const effectSource:TextScene={nodes:effectNodes,connectors:effectConnectors,animateSelection(_camera,seconds,animate){
-    const pulse=animate?(Math.sin(seconds*Math.PI*1.5)+1)/2:.5;
-    for(const item of effectNodes.values())if(item.outline.visible){item.outline.quaternion.identity();item.outline.scale.setScalar(item.selected?1+pulse*.1:1);item.outline.material.opacity=1;}
-  }};
-  const pipeline = createPipeline(renderer, scene, camera, request,()=>effectSource), session = createSceneSession(pipeline.wallpaper, input.feedback);
+  const connectors:{key:string;line:T.Line<T.BufferGeometry,T.LineBasicMaterial>}[]=[];
+  const pipeline=createPipeline(renderer,scene,camera,request),session=createSceneSession(pipeline.wallpaper,input.feedback);
   let fontRevision=0,pushDirty=false,pushSignature='',pushRevision=0,relocationPin:string|undefined;const relocating=new Set<string>();
   document.fonts.addEventListener('loadingdone',()=>{fontRevision++;if(world)update(world,selected,filter,selectedEdges);});
   const displayed=(v:Visual)=>v.group.getWorldPosition(new T.Vector3());
@@ -220,6 +215,8 @@ export function createWorld(host: HTMLElement, input: Input) {
       if(now-glyphFrame>=1000/RENDER_BUDGET.omnicFps){glyphFrame=now;let sources=0;for(const visual of visuals.values())if(visual.group.visible&&visual.object?.visible&&visual.object.userData.motion){if(visual.object?.userData.omnic&&sources++>=RENDER_BUDGET.omnicSceneSources)continue;animated= glyph(visual,now)||animated;}}
       for(const visual of visuals.values())if(visual.object?.userData.omnic&&visual.object.visible)visual.object.quaternion.identity();
       refreshContours();resolveContentPush();
+      const outlinePulse=reduced.matches?.5:(Math.sin(now/1000*Math.PI*1.5)+1)/2;
+      for(const [id,visual]of visuals)if(visual.contour.outline.visible){const outline=visual.contour.outline;outline.quaternion.identity();outline.scale.setScalar(selectionMarked(id)?1+outlinePulse*.1:1);outline.material.opacity=1;}
       boundRotation.render();
       edges.visible=!navigation.active&&!(gesture?.dragged&&gesture.mode==='move');
       const cameraStamp=`${camera.matrixWorld.elements.join(',')}/${camera.aspect}/${scale}`;if(cameraStamp!==ghostCameraStamp){ghostCameraStamp=cameraStamp;if(pointerInside&&!gesture&&!navigation.active&&!drive.active&&!axisPicking&&lastPoint)processPointer();}
@@ -268,7 +265,7 @@ export function createWorld(host: HTMLElement, input: Input) {
     for (const [id, visual] of visuals) if (visual.group.visible && !drive.owns(id)) { picks.push(visual.contour.hit.visible?visual.contour.hit:visual.slot); }
     for (const child of edges.children) if (child.userData.edge) picks.push(child);
   }
-  function hoverPresentation(){const edgeKey=selectedEdges[0]?JSON.stringify(selectedEdges[0]):undefined;for(const connector of effectConnectors){const active=edgeKey===connector.data.key;if(connector.line.userData.highlighted!==active){connector.line.userData.highlighted=active;connector.line.material.opacity=active?1:connector.line.userData.baseOpacity;connector.line.material.color.set(active?'#ffb000':connector.line.userData.baseColor);}}request();}
+  function hoverPresentation(){const edgeKey=selectedEdges[0]?JSON.stringify(selectedEdges[0]):undefined;for(const connector of connectors){const active=edgeKey===connector.key;if(connector.line.userData.highlighted!==active){connector.line.userData.highlighted=active;connector.line.material.opacity=active?1:connector.line.userData.baseOpacity;connector.line.material.color.set(active?'#ffb000':connector.line.userData.baseColor);}}request();}
   function presentation() {
     for (const [id,v] of visuals) {
       const chosen=selectedKeys.has(id),show=nodeContentVisible(retained,id,world.settings?.names,chosen,hover===id,relocating.has(id)||drive.owns(id));
@@ -287,7 +284,7 @@ export function createWorld(host: HTMLElement, input: Input) {
   }
   const edgeCaptions=new Map<string,{mesh:ReturnType<typeof label>;geometryKey:string}>();
   function clearEdges() {
-    effectConnectors.length=0;
+    connectors.length=0;
     for (const child of [...edges.children]) {
       if (!(child instanceof T.Mesh && child.userData.isLabel)) { const item = child as T.Line; item.geometry?.dispose(); for (const m of Array.isArray(item.material) ? item.material : [item.material]) m.dispose(); }
       edges.remove(child);
@@ -303,12 +300,11 @@ export function createWorld(host: HTMLElement, input: Input) {
     const arrowSize=Math.min(scale*.2,length*.4),side = direction.clone().cross(camera.position.clone().sub(b)).normalize().multiplyScalar(arrowSize*.5), back = b.clone().addScaledVector(direction,-arrowSize);
     const line = new T.Line(new T.BufferGeometry().setFromPoints([a,back]), material);line.userData.edge=edge;line.userData.glowIntensity=paint.glow;edges.add(line);
     const arrow = new T.Mesh(new T.BufferGeometry().setFromPoints([back.clone().add(side),b,back.clone().sub(side)]),new T.MeshBasicMaterial({color:material.color,opacity:material.opacity,transparent:true,side:T.DoubleSide,depthWrite:false})); arrow.userData.edge = edge;arrow.userData.glowIntensity=paint.glow; edges.add(arrow);
-    let edgeLabel:ReturnType<typeof label>|undefined;
     if (text) { const id=JSON.stringify(edge),geometryKey=JSON.stringify([text,labelGeometryKey(world.appearance?.text,fontRevision)]);let cached=edgeCaptions.get(id);
       if(cached?.geometryKey!==geometryKey){if(cached)disposeLabel(cached.mesh);const mesh=label(text,world.appearance?.text);mesh.userData.requestRender=request;mesh.scale.multiplyScalar(.65);cached={mesh,geometryKey};edgeCaptions.set(id,cached);}
-      const caption=cached.mesh;updateLabelPaint(caption,world.appearance?.text);edgeLabel=caption; caption.position.copy(a.clone().add(b).multiplyScalar(.5)); caption.userData.edge = edge; caption.userData.ends=[a,b]; edges.add(caption); }
+      const caption=cached.mesh;updateLabelPaint(caption,world.appearance?.text);caption.position.copy(a.clone().add(b).multiplyScalar(.5)); caption.userData.edge = edge; caption.userData.ends=[a,b]; edges.add(caption); }
     line.userData.baseColor=paint.color;line.userData.baseOpacity=paint.opacity;
-    effectConnectors.push({data:{key:JSON.stringify(edge)},line,path:new T.LineCurve3(a,back),arrow,label:edgeLabel,textOpacity:edgeLabel?.material.opacity??1});
+    connectors.push({key:JSON.stringify(edge),line});
   }
   function connections() {
     clearEdges();
@@ -325,7 +321,6 @@ export function createWorld(host: HTMLElement, input: Input) {
   }
   function update(next: World, selection: readonly Origin[], visible?: ReadonlySet<string>, edgeSelection: readonly Edge[] = []) {
     if(world&&next!==world&&boundRotation.active)boundRotation.cancel();
-    pipeline.configure(next.appearance?.animations);
     if(pointOfView&&world){const old=world.nodes.find(node=>sameOrigin(node.origin,pointOfView!)),current=next.nodes.find(node=>sameOrigin(node.origin,pointOfView!));if(!current){pointOfView=undefined;nodeViewDepth=undefined;if(userView){camera.position.fromArray(userView.position);camera.up.fromArray(userView.up);controls.target.fromArray(userView.target);camera.lookAt(controls.target);userView=undefined;rebind();}}else if(old){const delta=new T.Vector3(...current.position.map((n,i)=>n-old.position[i])).multiplyScalar(scale);camera.position.add(delta);controls.target.add(delta);}}
     if(world&&next!==world){navigation.finish(true);nudging.finish(true);if(gesture&&!contentViewChanging)restore();}
     if (drive.active && (next !== mountedWorld || !selection.some(origin => key(origin) === drive.id))) cancelDrive();
@@ -336,7 +331,7 @@ export function createWorld(host: HTMLElement, input: Input) {
     if (nextScale !== scale) { const shift = controls.target.clone().multiplyScalar(nextScale/scale-1); controls.target.add(shift); camera.position.add(shift); navigator.rescale(nextScale/scale); scale=nextScale; controls.minDistance=Math.min(.2,scale/4); camera.near=Math.max(1e-9,scale*.001); camera.updateProjectionMatrix(); controls.update(); }
     axisView.update(operationWorld(next),scale);
     const present = new Set(next.nodes.map(node => key(node.origin)));
-    for (const [id, visual] of visuals) if (!present.has(id)) { scene.remove(visual.host);visual.contour.dispose(); visual.body.material.dispose(); disposeLabel(visual.text); if (visual.object) disposeVisual(visual.object); visuals.delete(id);effectNodes.delete(id); }
+    for (const [id, visual] of visuals) if (!present.has(id)) { scene.remove(visual.host);visual.contour.dispose(); visual.body.material.dispose(); disposeLabel(visual.text); if (visual.object) disposeVisual(visual.object); visuals.delete(id); }
     for (const node of next.nodes) {
       const actual = resolveNodeAppearance(next,inherited(node,next)), id=key(node.origin), textPaint={...TEXT_DEFAULTS,...next.appearance?.text,...actual.textAppearance,...((actual.glow??defaults.glow)>0?{glow:0}:{})},textKey=labelGeometryKey(textPaint,fontRevision), caption=`${actual.label || (node.invariant ? '⚬' : '')}${node.parts.some(binding => !prepared.resolve(binding).length) ? ' !' : ''}`;
       let visual=visuals.get(id);
@@ -344,7 +339,7 @@ export function createWorld(host: HTMLElement, input: Input) {
         const host=new T.Group(),group=new T.Group(),presentation=new T.Group(),body=new T.Mesh(sphere,atomicCarrierMaterial(actual.color)),slot=new T.Mesh(sphere,slotMaterial),text=label(caption,textPaint);text.userData.requestRender=request;
         const contour=createContentContour();contour.hit.userData.origin=node.origin;
         presentation.add(text,contour.outline,contour.hit);group.add(body,slot,presentation);host.add(group);scene.add(host);visual={node,actual,anchor:group.position,group,host,presentation,body,slot,text,caption,textKey,contour,contourKey:'',contourShapeKey:''};visuals.set(id,visual);
-        const item=visual;effectNodes.set(id,{group:item.group,presentation:item.presentation,cell:item.body,get outline(){return item.contour.outline;},get text(){return item.text;},get visual(){return item.object;},get selected(){return selectionMarked(id);},get color(){return item.actual.color;},get opacity(){return item.actual.opacity??1;}});
+
       }
       if (visual.caption!==caption || visual.textKey!==textKey) { visual.presentation.remove(visual.text);disposeLabel(visual.text);visual.text=label(caption,textPaint);visual.text.userData.requestRender=request;visual.presentation.add(visual.text);visual.caption=caption; }
       visual.textKey=textKey;updateLabelPaint(visual.text,textPaint);

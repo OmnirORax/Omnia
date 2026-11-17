@@ -22,7 +22,7 @@ export function activityPreview(base: Appearance, requests: readonly ActivityPre
       !connected(state, targets, target.id, request.property, index) || !connected(state, targets, target.id, activation.property, index) ||
       read(target, activation.property) !== activation.inactive) continue;
     const activationChannel = target.couplings?.[activation.property] ?? activation.property;
-    const choices = consumer?.choices[activationChannel] ?? (activation.property === "effect" ? target.effectKinds : undefined);
+    const choices = consumer?.choices[activationChannel];
     const active = choices && !choices.includes(String(activation.active)) ? choices.find(value => value !== activation.inactive) : activation.active;
     if (active === undefined) continue;
     controller ??= { ...state, instances: { ...state.instances }, values: { ...state.values } };

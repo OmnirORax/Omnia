@@ -2,7 +2,6 @@ import {validateNodePaint,type NodePaint} from './nodeVisuals.ts';
 import {isImportedFont,importedFontFamily} from './importedFont.ts';
 import { property } from './pool.ts';
 import { translucentOpacity } from './translucency.ts';
-import {validateAnimations,type Animations} from './animations.ts';
 
 /** Native font families reused from V1; presentation never changes authored text. */
 export const FONT_OPTIONS = [
@@ -13,7 +12,7 @@ export const FONT_OPTIONS = [
   { id:'electric',label:'Rubik Glitch',family:"'Rubik Glitch', system-ui, sans-serif" },
 ] as const;
 export type Paint = { color?: string; translucency?: number; glow?: number; font?: string; embolden?: number };
-export type Appearance = { text?: Paint; background?: Paint; nodes?: NodePaint; animations?: Animations };
+export type Appearance = { text?: Paint; background?: Paint; nodes?: NodePaint };
 export const color = property({key:'color',label:'Color',kind:'color'});
 export const translucency = property({key:'translucency',label:'Translucency',kind:'number',min:0,max:1,step:.01});
 export const glow = property({key:'glow',label:'Glow',kind:'number',min:0,max:1,step:.01});
@@ -36,5 +35,5 @@ export function validateAppearance(value: Appearance | undefined) {
   if(value===undefined)return;
   if(!value||typeof value!=='object'||Array.isArray(value))throw Error('Invalid appearance.');
   validatePaint(value.text,true);validatePaint(value.background,false);validateNodePaint(value.nodes);
-  validateAnimations(value.animations);
+  delete (value as Appearance&{animations?:unknown}).animations;
 }
