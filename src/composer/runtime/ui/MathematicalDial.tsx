@@ -17,7 +17,7 @@ export function MathematicalDial(props:MathematicalDialProps){
  const renderValue=(kind:'value'|'min'|'max')=>{
   const n=active.field(kind).value;
   const config=active.record(kind).configuration;
-  return <MiniMathematicalValue value={n} label={active.field(kind).label} configuration={config?.value===n?config:undefined} prefix={kind==='min'?'⊢':kind==='max'?'⊣':''} active={selection.field===kind} formatValue={kind==='value'?p.formatValue:undefined} onClick={event=>dial.select(active.id,kind,event.shiftKey?'snap':'value')}/>;
+  return <MiniMathematicalValue value={n} label={active.field(kind).label} configuration={config?.value===n?config:undefined} prefix={kind==='min'?'⊢':kind==='max'?'⊣':''} active={selection.field===kind} formatValue={kind==='value'?p.formatValue:p.limits?.formatValue} onClick={event=>dial.select(active.id,kind,event.shiftKey?'snap':'value')}/>;
  };
  const retarget=(kind:DialField,target:'value'|'snap',count?:number)=>dial.select(active.id,kind,target,count);
  if(selection.field!=='direct')return <DialReferenceEditor key={`${selection.owner}:${selection.field}:${selection.generation}`} selection={selection} renderValue={renderValue} onReference={retarget}/>;

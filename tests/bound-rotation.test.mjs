@@ -42,8 +42,8 @@ for(const axis of [0,1,2])test(`one active ${'XYZ'[axis]} axis supports rotation
 
 test('Shift after rotation opens the canonical parameter, with no local half/double buttons',async()=>{
  const h=harness();try{h.key('Shift');assert.equal(h.controller.mathDialOpen,false);h.down(1);const tools=h.host.children[0];assert.equal(tools.hidden,true);assert.equal(tools.children.length,0);h.move(76);const quarter=new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),Math.PI/2);assert.ok(h.visuals.get(address(h.a.origin)).group.quaternion.angleTo(quarter)<1e-7);
- h.key('Shift');await Promise.resolve();assert.equal(h.controller.mathDialOpen,true);assert.equal(tools.hidden,false);assert.equal(h.mathView.number.value,1);h.move(300);assert.ok(h.visuals.get(address(h.a.origin)).group.quaternion.angleTo(quarter)<1e-7);
- h.mathView.number.commit(.5,{mode:'halving',anchor:1,count:1,value:.5});const half=new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),Math.PI/4);assert.ok(h.visuals.get(address(h.a.origin)).group.quaternion.angleTo(half)<1e-7);h.mathView.close();assert.equal(h.controller.mathDialOpen,false);h.move(300);assert.ok(h.visuals.get(address(h.a.origin)).group.quaternion.angleTo(half)<1e-7);assert.equal(h.commits.length,0);assert.equal(h.mathDisposed,1);
+ h.key('Shift');await Promise.resolve();assert.equal(h.controller.mathDialOpen,true);assert.equal(tools.hidden,false);assert.equal(h.mathView.number.value,.25);h.move(300);assert.ok(h.visuals.get(address(h.a.origin)).group.quaternion.angleTo(quarter)<1e-7);
+ h.mathView.number.commit(.125,{mode:'halving',anchor:1,count:3,value:.125});const half=new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),Math.PI/4);assert.ok(h.visuals.get(address(h.a.origin)).group.quaternion.angleTo(half)<1e-7);h.mathView.close();assert.equal(h.controller.mathDialOpen,false);h.move(300);assert.ok(h.visuals.get(address(h.a.origin)).group.quaternion.angleTo(half)<1e-7);assert.equal(h.commits.length,0);assert.equal(h.mathDisposed,1);
  h.controller.confirm();assert.equal(h.commits.length,1);
  }finally{h.restore();}
 });
@@ -73,7 +73,7 @@ test('middle-click mouse mode keeps its selected group after cursor leaves and c
 });
 test('mouse rotation cancellation restores original transforms without committing and preserves snap controls',()=>{
  const h=harness();try{
- h.controller.startWheel({clientX:2,clientY:100},h.b.origin);h.controller.snapParameter.commit(.5);
+ h.controller.startWheel({clientX:2,clientY:100},h.b.origin);h.controller.snapParameter.commit(.125);
  h.move(76);
  assert.ok(h.visuals.get(address(h.b.origin)).group.quaternion.angleTo(new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),Math.PI/4))<1e-7);
  h.controller.cancel();assert.equal(h.commits.length,0);assert.deepEqual(h.visuals.get(address(h.b.origin)).group.position.toArray(),h.b.position);assert.equal(h.controller.active,false);
@@ -98,11 +98,11 @@ for(const axis of [0,1,2])test(`MB3 changes the clicked ${'XYZ'[axis]} axis dire
 test('dial choices preview a step from rest, rollback hover, retain clicks and Enter authors once',async()=>{
  const h=harness();try{
   h.down(1);const original=h.visuals.get(address(h.a.origin)).group.quaternion.clone();
-  h.key('Shift');await Promise.resolve();h.mathView.number.preview(.5);
+  h.key('Shift');await Promise.resolve();h.mathView.number.preview(.125);
   const half=new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),Math.PI/4);
   assert.ok(h.visuals.get(address(h.a.origin)).group.quaternion.angleTo(half)<1e-7);assert.equal(h.commits.length,0);
   h.mathView.number.restore();assert.ok(h.visuals.get(address(h.a.origin)).group.quaternion.angleTo(original)<1e-7);
-  h.mathView.number.commit(.5);assert.ok(h.visuals.get(address(h.a.origin)).group.quaternion.angleTo(half)<1e-7);
+  h.mathView.number.commit(.125);assert.ok(h.visuals.get(address(h.a.origin)).group.quaternion.angleTo(half)<1e-7);
   h.mathView.close();h.move(100);assert.ok(h.visuals.get(address(h.a.origin)).group.quaternion.angleTo(half)<1e-7);assert.equal(h.commits.length,0);
   h.key('Enter');assert.equal(h.commits.length,1);assert.equal(h.controller.active,false);
   const q=h.commits[0].nodes.get(address(h.a.origin)).orientation;assert.ok(new T.Quaternion(q.x,q.y,q.z,q.w).angleTo(half)<1e-7);
@@ -110,9 +110,22 @@ test('dial choices preview a step from rest, rollback hover, retain clicks and E
 });
 test('Enter confirms a clicked dial value while open and Escape cancels without authoring',async()=>{
  const h=harness();try{
-  h.down(1);h.key('Shift');await Promise.resolve();h.mathView.number.commit(2);h.key('Enter');
+  h.down(1);h.key('Shift');await Promise.resolve();h.mathView.number.commit(.5);h.key('Enter');
   assert.equal(h.commits.length,1);assert.equal(h.controller.mathDialOpen,false);
-  h.down(1);h.key('Shift');await Promise.resolve();h.mathView.number.commit(.5);h.controller.cancel();assert.equal(h.commits.length,1);
+  h.down(1);h.key('Shift');await Promise.resolve();h.mathView.number.commit(.125);h.controller.cancel();assert.equal(h.commits.length,1);
   assert.deepEqual(h.visuals.get(address(h.a.origin)).group.quaternion.toArray(),[0,0,0,1]);
+ }finally{h.restore();}
+});
+
+test('rotation dial owns the actual fraction of a turn, with ordinary zero/one bounds',async()=>{
+ const h=harness();try{
+  h.down(1);h.key('Shift');await Promise.resolve();const number=h.mathView.number;
+  assert.equal(number.value,.25);assert.equal(number.min,0);assert.equal(number.max,1);assert.equal(number.scaleStart,1);assert.equal(number.grid.equilibrium,.5);assert.equal(number.grid.snap,.125);
+  assert.equal(number.formatValue(.125),'45°');assert.equal(number.formatValue(0),'0°');assert.equal(number.formatValue(1),'360°');assert.ok(!number.label.includes('multiplier'));
+  number.commit(.125,{mode:'halving',anchor:1,count:3,value:.125});
+  const group=h.visuals.get(address(h.a.origin)).group;assert.ok(group.quaternion.angleTo(new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),Math.PI/4))<1e-7);
+  h.mathView.choices.change('unit');assert.equal(number.value,.5);assert.equal(number.formatValue(number.value),'180°');
+  number.commit(.125);assert.ok(group.quaternion.angleTo(new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),Math.PI/4))<1e-7);
+  number.commit(0);assert.ok(group.quaternion.angleTo(new T.Quaternion())<1e-7);assert.equal(h.commits.length,0);
  }finally{h.restore();}
 });

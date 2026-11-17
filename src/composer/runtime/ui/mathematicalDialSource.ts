@@ -6,7 +6,7 @@ import {reportSystemMessage} from '../../../ui/systemMessage.ts';
 type FieldRecord={configuration?:ConfirmedMathValue;snap?:number;snapConfiguration?:ConfirmedMathValue};
 export function createMathematicalDialSource(id:string,read:()=>MathematicalDialProps){
  const session=mathematicalValueSession(read().value),records=new Map<DialField,FieldRecord>();let domain=`${read().min}:${read().max}:${!!read().integer}`;
- const record=(kind:DialField)=>{let found=records.get(kind);if(!found){found={};records.set(kind,found);}return found;};
+ const record=(kind:DialField)=>{let found=records.get(kind);if(!found){found={snap:kind==='value'?read().grid?.snap:undefined};records.set(kind,found);}return found;};
  const source={id,read,record,
   receive(){const props=read(),next=`${props.min}:${props.max}:${!!props.integer}`,changed=session.receive(props.value)||next!==domain;domain=next;return changed;},
   field(kind:DialField){const p=read(),limits=p.limits;
