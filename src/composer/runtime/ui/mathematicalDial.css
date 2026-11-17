@@ -47,7 +47,7 @@
 
 .mathematical-dial{margin-right:48px}
 .mathematical-dial .mathematical-dial-base{pointer-events:auto;padding:0;background:transparent;border:0;cursor:pointer}
-.mathematical-dial-meta{top:0;left:calc(100% + 8px);transform:none;margin-top:0;gap:4px}
+.mathematical-dial-meta{top:0;left:calc(100% + 1px);transform:none;margin-top:0;gap:4px}
 .mathematical-dial-meta .mathematical-dial-settings{flex-direction:column;flex-wrap:nowrap;width:max-content;max-width:none}
 
 .mathematical-dial-slot[data-mode="recursion"][data-selected=true] .mathematical-dial-mark{background:transparent}
@@ -55,5 +55,4 @@
 
 .mathematical-dial .mathematical-dial-limits button{width:auto;min-width:32px;height:24px;padding:2px 4px;font-size:12px;border-radius:3px;white-space:nowrap}
 
-.mathematical-dial-values{display:grid;gap:2px;font-size:12px;line-height:1.2;max-width:200px;overflow-wrap:anywhere}
 .mathematical-dial .mathematical-dial-readout{max-width:200px;overflow-wrap:anywhere;white-space:normal}

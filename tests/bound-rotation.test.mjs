@@ -13,7 +13,7 @@ function harness(){
  const camera=new T.PerspectiveCamera();camera.position.set(0,0,10);camera.lookAt(0,0,0);camera.updateMatrixWorld();const scene=new T.Scene(),canvas={focus(){},getBoundingClientRect:()=>({left:0,top:0,width:100,height:100})},host=new Element(),visuals=new Map(world.nodes.map(n=>{const group=new T.Group();group.position.set(...n.position);return [address(n.origin),{group}];}));const target=new T.Vector3();let cameraCommits=0,commits=[],enabled=true,selection=[],mathView,mathDisposed=0,cursorPoint={x:0,y:0};
  const env={cursorPoint:()=>cursorPoint,mountMathDial:(_host,number,close,choices)=>{mathView={number,close,choices};return()=>{number.restore();mathDisposed++;};},scene,camera,cameraTarget:()=>target,cameraCommit:()=>cameraCommits++,canvas,host,read:()=>world,scale:()=>1,hit:p=>p.x===1?{origin:a.origin}:p.x===2?{origin:b.origin}:p.x===3?{origin:c.origin}:p.x===4?{axis:frame.id}:{},selected:()=>selection,reference:()=>frame,user:()=>({position:[0,0,10],target:[0,0,0],up:[0,1,0]}),visual:id=>visuals.get(id),commit:(nodes,f)=>commits.push({nodes,f}),enabled:v=>{enabled=v;},frameVisibility(){},request(){},feedback(){}};
  const controller=createBoundRotation(env);controller.render();const event=(x,y=100,ctrlKey=false)=>({button:2,clientX:x,clientY:y,ctrlKey,preventDefault(){},stopImmediatePropagation(){}});
- return {get mathView(){return mathView;},get mathDisposed(){return mathDisposed;},key:(key)=>handlers.get('keydown')({key,ctrlKey:false,metaKey:false,altKey:false,repeat:false,preventDefault(){},stopImmediatePropagation(){}}),world,a,b,c,frame,camera,target,get cameraCommits(){return cameraCommits;},controller,host,visuals,commits,get enabled(){return enabled;},select:ids=>{selection=ids;},down:(x,y,ctrl,origin)=>{cursorPoint={x,y:y??100};return controller.down(event(x,y,ctrl),origin);},move:y=>{cursorPoint={x:cursorPoint.x,y};controller.move({clientY:y});while(frames.length)frames.shift()();},restore:()=>Object.assign(globalThis,old)};
+ return {get mathView(){return mathView;},get mathDisposed(){return mathDisposed;},key:(key)=>{const event={key,ctrlKey:false,metaKey:false,altKey:false,repeat:false,preventDefault(){},stopImmediatePropagation(){}};handlers.get('keydown')?.(event);handlers.get('keyup')?.(event);},world,a,b,c,frame,camera,target,get cameraCommits(){return cameraCommits;},controller,host,visuals,commits,get enabled(){return enabled;},select:ids=>{selection=ids;},down:(x,y,ctrl,origin)=>{cursorPoint={x,y:y??100};return controller.down(event(x,y,ctrl),origin);},move:y=>{cursorPoint={x:cursorPoint.x,y};controller.move({clientY:y});while(frames.length)frames.shift()();},restore:()=>Object.assign(globalThis,old)};
 }
 test('rotation about the active own-origin previews without authoring; right-empty confirms once and Escape cancels',()=>{
  const h=harness();try{const before=structuredClone(h.world);h.down(1);assert.equal(h.enabled,false);h.move(76);assert.deepEqual(h.world,before);assert.notEqual(h.visuals.get(address(h.a.origin)).group.quaternion.y,0);h.down(99);assert.equal(h.commits.length,1);assert.deepEqual(h.commits[0].nodes.get(address(h.a.origin)).position,[0,0,0]);assert.equal(h.controller.active,false);assert.equal(h.enabled,true);
@@ -94,3 +94,25 @@ test('MB3 targeting during origin rotation aims only the origin axes',()=>{const
 test('origin mouse rotation starts by frame identity without pointing at the origin',()=>{const h=harness();try{const before=structuredClone(h.world.nodes);assert.equal(h.controller.startFrameWheel({clientX:99,clientY:100},h.frame.id),true);assert.equal(h.controller.active,true);assert.equal(h.controller.frameId,h.frame.id);h.move(124);h.controller.confirm();assert.equal(h.commits.length,1);assert.equal(h.commits[0].nodes.size,0);assert.equal(h.commits[0].f.id,h.frame.id);assert.deepEqual(h.world.nodes,before);}finally{h.restore();}});
 
 for(const axis of [0,1,2])test(`MB3 changes the clicked ${'XYZ'[axis]} axis direction while keeping an orthogonal frame`,()=>{const h=harness();try{h.frame.activeAxes=[];h.frame.origin=[3,4,5];const original=structuredClone(h.world.nodes);assert.equal(h.controller.startFrameWheel({clientX:4,clientY:100},h.frame.id,axis),true);h.move(76);h.controller.confirm();const state=h.commits[0].f.state,basis=[state.x,state.y,state.z].map(v=>new T.Vector3(...v)),before=[h.frame.x,h.frame.y,h.frame.z];assert.deepEqual(state.origin,[3,4,5]);assert.ok(basis[axis].distanceTo(new T.Vector3(...before[axis]))>1);for(const v of basis)assert.ok(Math.abs(v.length()-1)<1e-7);assert.ok(Math.abs(basis[0].dot(basis[1]))<1e-7);assert.ok(basis[0].clone().cross(basis[1]).distanceTo(basis[2])<1e-7);assert.deepEqual(h.world.nodes,original);}finally{h.restore();}});
+
+test('dial choices preview a step from rest, rollback hover, retain clicks and Enter authors once',async()=>{
+ const h=harness();try{
+  h.down(1);const original=h.visuals.get(address(h.a.origin)).group.quaternion.clone();
+  h.key('Shift');await Promise.resolve();h.mathView.number.preview(.5);
+  const half=new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),Math.PI/4);
+  assert.ok(h.visuals.get(address(h.a.origin)).group.quaternion.angleTo(half)<1e-7);assert.equal(h.commits.length,0);
+  h.mathView.number.restore();assert.ok(h.visuals.get(address(h.a.origin)).group.quaternion.angleTo(original)<1e-7);
+  h.mathView.number.commit(.5);assert.ok(h.visuals.get(address(h.a.origin)).group.quaternion.angleTo(half)<1e-7);
+  h.mathView.close();h.move(100);assert.ok(h.visuals.get(address(h.a.origin)).group.quaternion.angleTo(half)<1e-7);assert.equal(h.commits.length,0);
+  h.key('Enter');assert.equal(h.commits.length,1);assert.equal(h.controller.active,false);
+  const q=h.commits[0].nodes.get(address(h.a.origin)).orientation;assert.ok(new T.Quaternion(q.x,q.y,q.z,q.w).angleTo(half)<1e-7);
+ }finally{h.restore();}
+});
+test('Enter confirms a clicked dial value while open and Escape cancels without authoring',async()=>{
+ const h=harness();try{
+  h.down(1);h.key('Shift');await Promise.resolve();h.mathView.number.commit(2);h.key('Enter');
+  assert.equal(h.commits.length,1);assert.equal(h.controller.mathDialOpen,false);
+  h.down(1);h.key('Shift');await Promise.resolve();h.mathView.number.commit(.5);h.controller.cancel();assert.equal(h.commits.length,1);
+  assert.deepEqual(h.visuals.get(address(h.a.origin)).group.quaternion.toArray(),[0,0,0,1]);
+ }finally{h.restore();}
+});
