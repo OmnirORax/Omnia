@@ -5,7 +5,7 @@ import {createHoverPreview,type HoverValue} from './hoverPreview';
 const Context=createContext<ReturnType<typeof createHoverPreview>|null>(null);
 export const useHoverPreview=()=>useContext(Context);
 export function HoverPreviewScope({children}:{children:ReactNode}){
- const [session]=useState(createHoverPreview);
+ const [session]=useState(()=>createHoverPreview(()=>!document.documentElement.classList.contains('value-dragging')));
  useLayoutEffect(()=>{
   const relative=createRelativePointer(()=>session.cancel());
   let frame=0,x=0,y=0,tail=false;

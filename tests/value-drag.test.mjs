@@ -70,10 +70,17 @@ test('locked mouse movement keeps editing after release and accepts with a later
   send('pointerdown');send('pointermove',{clientX:20});assert.equal(values.at(-1),60);
   send('pointercancel');assert.equal(doc.pointerLockElement,root);
   send('pointerup',{buttons:0,clientX:20});send('lostpointercapture');assert.equal(commits.length,0);assert.equal(doc.pointerLockElement,root);
-  send('pointermove',{buttons:0,movementX:10,clientX:20});assert.equal(values.at(-1),60,'locked companion pointer event is ignored');
-  send('mousemove',{buttons:0,movementX:10,clientX:20});assert.equal(values.at(-1),65);
+  send('pointermove',{buttons:0,movementX:10,clientX:20,timeStamp:100});assert.equal(values.at(-1),65,'locked pointer-only movement updates values');
+  send('mousemove',{buttons:0,movementX:10,clientX:20,timeStamp:100});assert.equal(values.at(-1),65,'matching companion movement is not counted twice');
   send('mousemove',{buttons:0,movementX:-30,clientX:20});assert.equal(values.at(-1),50);
   send('mousedown');assert.deepEqual(commits,[50]);assert.equal(doc.pointerLockElement,null);assert.equal(classes.size,0);
   send('pointerdown');send('pointermove',{clientX:20});send('pointerup',{buttons:0});send('mousemove',{buttons:0,movementX:10});send('keydown',{key:'Escape'});assert.equal(values.at(-1),50);assert.deepEqual(commits,[50]);
  }finally{for(const [key,value]of Object.entries(originals)){if(value===undefined)delete globalThis[key];else globalThis[key]=value;}}
+});
+
+test('automatic hover previews cannot take over while a numerical value edit owns movement',async()=>{
+ const {createHoverPreview}=await import('../src/composer/runtime/ui/hoverPreview.ts');
+ let available=true,started=0,cancelled=0;const session=createHoverPreview(()=>available),owner={},value={start:()=>started++,move(){},commit(){},cancel:()=>cancelled++};
+ session.enter(owner,value,0);assert.equal(started,1);available=false;session.enter({},value,0);assert.equal(session.active(),false);assert.equal(cancelled,1);assert.equal(started,1);
+ available=true;session.enter(owner,value,0);assert.equal(session.active(),true);assert.equal(started,2);session.cancel();
 });

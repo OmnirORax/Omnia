@@ -124,7 +124,7 @@ export function updateLabelPaint(mesh:ReturnType<typeof textSprite>,paint:Paint=
  const style={...TEXT_DEFAULTS,...paint},rendered=renderedTextPaint(style);
  mesh.userData.setTextStyle(rendered.color,rendered.color,style.glow);
  updateTextureGlowColor(mesh.material,rendered.glowColor);mesh.userData.glowColor=style.glowColor===undefined?undefined:rendered.glowColor;
- mesh.material.opacity=translucentOpacity(1,style.translucency);
+ mesh.material.opacity=translucentOpacity(style.opacity,style.translucency);
  mesh.userData.labelPaint=style;mesh.userData.textColor=rendered.color;
 }
 export function label(caption:string,paint?:Paint){

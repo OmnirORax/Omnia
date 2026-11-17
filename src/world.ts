@@ -320,7 +320,7 @@ export function createWorld(host: HTMLElement, input: Input) {
   }
   function styleVisual(visual:Visual,actual:Structure,textPaint:Paint){
     visual.actual=actual;updateLabelPaint(visual.text,textPaint);
-    if(actual.visual?.character)visual.object?.userData.setAppearance?.({textColor:textPaint.color,textGlow:textPaint.glow,textBrightness:textPaint.brightness,glowColor:textPaint.glowColor,opacity:translucentOpacity(1,textPaint.translucency)});
+    if(actual.visual?.character)visual.object?.userData.setAppearance?.({textColor:textPaint.color,textGlow:textPaint.glow,textBrightness:textPaint.brightness,glowColor:textPaint.glowColor,opacity:translucentOpacity(textPaint.opacity??1,textPaint.translucency)});
     visual.body.material.color.set(actual.color);visual.contour.outline.material.color.set(actual.color);
     updateAtomicCarrier(visual.body.material,actual.opacity??defaults.opacity,actual.translucency??defaults.translucency,actual.glow??defaults.glow,actual.translucencyRadius??defaults.translucencyRadius);
     visual.group.userData.glowIntensity=actual.glow??defaults.glow;visual.group.userData.glowColor=actual.glowColor;

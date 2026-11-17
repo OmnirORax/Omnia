@@ -14,7 +14,13 @@ export function createRelativePointer(onLost:()=>void=()=>{},onRejected:(message
   },
   observeMove(listener:(event:MouseEvent|PointerEvent)=>void){
    if(typeof window==='undefined')return()=>{};
-   const move=(event:MouseEvent|PointerEvent)=>{if(api.locked?event.type==='mousemove':event.type==='pointermove')listener(event);};
+   let last:{type:string;time:number;x:number;y:number;dx:number;dy:number;paired:boolean}|undefined;
+   const move=(event:MouseEvent|PointerEvent)=>{
+    if(!api.locked&&event.type!=='pointermove')return;
+    const sample={type:event.type,time:event.timeStamp,x:event.clientX,y:event.clientY,dx:event.movementX,dy:event.movementY,paired:false};
+    const companion=api.locked&&last&&!last.paired&&last.type!==sample.type&&Number.isFinite(sample.time)&&sample.time===last.time&&sample.x===last.x&&sample.y===last.y&&sample.dx===last.dx&&sample.dy===last.dy;
+    if(companion){last!.paired=true;return;}last=sample;listener(event);
+   };
    window.addEventListener('mousemove',move,true);window.addEventListener('pointermove',move,true);
    return()=>{window.removeEventListener('mousemove',move,true);window.removeEventListener('pointermove',move,true);};
   },

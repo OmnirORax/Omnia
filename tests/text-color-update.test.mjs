@@ -92,3 +92,9 @@ test('text brightness updates existing material/halo uniforms without texture re
  assert.equal(mesh.material.color.getHexString(),'70a0cf');assert.equal(shader.uniforms.glowInkColor.value.getHexString(),'5890c7');
  assert.equal(mesh.userData.labelPaint.color,'#204060');assert.equal(mesh.material.map,map);assert.deepEqual(snapshot(),before);disposeLabel(mesh);
 });
+
+test('text opacity combines with translucency in material state without redrawing coverage',()=>{
+ const mesh=label('Opacity',{color:'#ff0000',glow:1}),before=snapshot();
+ updateLabelPaint(mesh,{color:'#ff0000',glow:1,opacity:.4,translucency:.25});assert.ok(Math.abs(mesh.material.opacity-.3)<1e-12);assert.deepEqual(snapshot(),before);
+ updateLabelPaint(mesh,{color:'#ff0000',glow:1,opacity:0});assert.equal(mesh.material.opacity,0);assert.deepEqual(snapshot(),before);disposeLabel(mesh);
+});
