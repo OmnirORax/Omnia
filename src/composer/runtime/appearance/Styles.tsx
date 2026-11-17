@@ -1,3 +1,4 @@
+import {textGlowShadow} from '../../../properties/textGlow.ts';
 import {textBrightness} from '../../../properties/textBrightness.ts';
 import {patternApplies,patternCSS} from '../paint/routing.ts';
 import {patternTile} from '../paint/pattern.ts';
@@ -82,7 +83,7 @@ export function AppearanceStyles() {
           `filter:saturate(${Number(get("saturation"))})${glow > 0 ? ` drop-shadow(0 0 ${glow * 8}px ${glowColor})` : ""} !important`);
       } else if (binding.text) {
         if (["glow", "glowColor", "color", "brightness", "opacity", "translucency"].some(custom) || legacyText)
-          declarations.push(`text-shadow:${glow > 0 ? `0 0 ${glow * 10}px ${glowColor}` : "none"} !important`);
+          declarations.push(`text-shadow:${textGlowShadow(glow,glowColor)} !important`);
         if (custom("font"))
           declarations.push(
             `font-family:${fontFamily(read(target, "font"))} !important`,

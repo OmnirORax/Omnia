@@ -1,10 +1,11 @@
+import {textGlowShadow} from '../properties/textGlow.ts';
 import {UI_BORDER_SELECTOR} from '../composer/runtime/appearance/registry.ts';
 import { BACKGROUND_DEFAULTS, renderedTextPaint, fontFamily, paintColor, type Appearance, type Paint } from '../properties/visual.ts';
 import { emboldenStrokeEm } from '../properties/embolden.ts';
 
 export function textStyle(paint?: Paint) {
   const value=renderedTextPaint(paint);
-  return {color:paintColor(value),fontFamily:fontFamily(value.font),textShadow:value.glow?`0 0 ${value.glow*10}px ${paintColor({...value,color:value.glowColor??value.color})}`:'none'};
+  return {color:paintColor(value),fontFamily:fontFamily(value.font),textShadow:textGlowShadow(value.glow,paintColor({...value,color:value.glowColor??value.color}))};
 }
 export function textBorderStyle(paint:Paint={}){const value=renderedTextPaint(paint),border={...value,translucency:0},color=value.opacity===1?value.color:paintColor(border),halo=value.opacity===1?value.glowColor:paintColor({...border,color:value.glowColor});return {borderColor:color,boxShadow:value.glow?`var(--omnium-custom-shadow,0 0 0 transparent),0 0 ${value.glow*14}px ${halo}`:'var(--omnium-custom-shadow,0 0 0 transparent)'};}
 let previous='',borderStyle:HTMLStyleElement|undefined;
