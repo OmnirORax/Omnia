@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as T from 'three';
 import {SceneGlow} from '../src/sceneGlow.ts';
-import {glowScale,projectedGlowDetail,GLOW_DETAIL_PIXELS} from '../src/glowScale.ts';
+import {glowScale,projectedGlowDetail,GLOW_DETAIL_PIXELS,setGlowDetailProtection,glowDetailProtection} from '../src/glowScale.ts';
 import {declareGlowDetail} from '../src/materialCoverage.ts';
 import {packGlowCoverage} from '../src/textureGlow.ts';
 import {glyphFeatureSize,rememberGlyphFeature,glyphAssetFeature} from '../src/omnic/vectorPlan.ts';
@@ -56,8 +56,10 @@ test('zoom fades the entire emission owner, keeps base materials intact and isol
   scene.updateMatrixWorld(true);glow.render(gpu,write,read,0);assert.equal(samples[0].n,1);assert.equal(samples[0].f,0);assert.notEqual(samples[0].near,samples[0].far);
   near.position.z=-20;scene.updateMatrixWorld(true);glow.render(gpu,write,read,0);assert.ok(Math.abs(samples[1].n-.4)<1e-8);assert.equal(samples[1].near,samples[0].near);
   near.position.z=-40;scene.updateMatrixWorld(true);glow.render(gpu,write,read,0);assert.equal(samples[2].n,0);
+  setGlowDetailProtection(false);glow.render(gpu,write,read,0);assert.equal(samples[3].n,1);assert.equal(samples[3].f,1);
+  setGlowDetailProtection(true);glow.render(gpu,write,read,0);assert.equal(samples[4].n,0);assert.equal(samples[4].f,0);
   assert.equal(near.material,original);assert.equal(far.material,original);assert.equal(original.color.r,1);assert.equal(original.opacity,1);
- }finally{glow.dispose();read.dispose();write.dispose();geometry.dispose();original.dispose();}
+ }finally{setGlowDetailProtection(true);glow.dispose();read.dispose();write.dispose();geometry.dispose();original.dispose();}
 });
 test('fine visible content fades its broader owner glow; hidden content and other owners do not',()=>{
  const scene=new T.Scene(),camera=new T.PerspectiveCamera(90,1,.1,1000),parent=new T.Group(),geometry=new T.PlaneGeometry(),broad=new T.MeshBasicMaterial({color:'white'}),fine=broad.clone();declareGlowDetail(broad,1);declareGlowDetail(fine,.1);
@@ -85,7 +87,7 @@ test('large plain nodes retain glow despite their thin rims, while fine contents
   for(const depth of [1,2,4,8,10]){mesh.position.z=-depth;scene.updateMatrixWorld(true);glow.render(gpu,write,read,0);}
   assert.deepEqual(samples,[1,1,1,1,1]);
   mesh.position.z=-40;scene.updateMatrixWorld(true);glow.render(gpu,write,read,0);assert.equal(samples.at(-1),0);
- }finally{glow.dispose();read.dispose();write.dispose();geometry.dispose();original.dispose();}
+ }finally{setGlowDetailProtection(true);glow.dispose();read.dispose();write.dispose();geometry.dispose();original.dispose();}
 });
 test('single selection rings and content contours declare overall size instead of border thickness',async()=>{
  const {analyticSelectionRing,materialGlowDetail}=await import('../src/materialCoverage.ts');const {createContentContour}=await import('../src/world/contentContour.ts');
@@ -101,4 +103,23 @@ test('isolated glyph rings keep their glow while multi-mark glyphs retain fine-d
  assert.equal(glyphFeatureSize({bounds,nodes:[ring]}),.39);
  const bars=[0,5,10].map(x=>({kind:'line',x,y:0,x2:x+20,y2:20,radius:0,thickness:1,fill:false,opacity:1}));
  assert.equal(glyphFeatureSize({bounds,nodes:bars}),.01);
+});
+
+test('live glow protection reaches existing ink, carrier and derived mask shaders without rebuilding materials',async()=>{
+ const {packedTextureGlow}=await import('../src/textureGlow.ts');
+ const {atomicCarrierMaterial}=await import('../src/atomicCarrier.ts');
+ const {inheritMaterialCoverage}=await import('../src/materialCoverage.ts');
+ const text=new T.MeshBasicMaterial(),carrier=atomicCarrierMaterial('red'),mask=new T.MeshBasicMaterial();packedTextureGlow(text);inheritMaterialCoverage(text,mask);
+ const shaders=[text,carrier,mask].map(material=>{const shader={uniforms:{},vertexShader:'#include <begin_vertex>\n#include <project_vertex>',fragmentShader:'#include <map_fragment>\n#include <opaque_fragment>'};material.onBeforeCompile(shader,{});return shader;});
+ try{
+  assert.ok(shaders.every(shader=>shader.uniforms.glowDetailProtection===glowDetailProtection));
+  setGlowDetailProtection(false);assert.equal(glowScale(0),1);assert.ok(shaders.every(shader=>shader.uniforms.glowDetailProtection.value===false));
+  setGlowDetailProtection(true);assert.equal(glowScale(0),0);assert.ok(shaders.every(shader=>shader.uniforms.glowDetailProtection.value===true));
+ }finally{setGlowDetailProtection(true);text.dispose();carrier.dispose();mask.dispose();}
+});
+test('glow protection defaults on for old worlds and preserves saved comparisons',async()=>{
+ const {emptyWorld,validateWorld}=await import('../src/core/model.ts');const world=emptyWorld();
+ validateWorld(world);assert.equal(world.settings.glowDetailProtection??true,true);
+ world.settings.glowDetailProtection=false;const restored=JSON.parse(JSON.stringify(world));validateWorld(restored);assert.equal(restored.settings.glowDetailProtection,false);
+ restored.settings.glowDetailProtection='off';assert.throws(()=>validateWorld(restored),/glow detail protection/);
 });
