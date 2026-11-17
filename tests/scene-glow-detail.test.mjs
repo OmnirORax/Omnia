@@ -77,3 +77,28 @@ test('glyph detail capabilities survive raster fallback as well as native vector
  const plan={bounds:{x:0,y:0,width:100,height:100},nodes:[{kind:'line',opacity:1,thickness:2,radius:0,fill:false},{kind:'ring',opacity:1,thickness:4,radius:10,fill:false}]};
  assert.equal(glyphFeatureSize(plan),.02);const asset={id:'test',kind:'image'};rememberGlyphFeature(asset,plan);assert.equal(glyphAssetFeature(asset),.02);
 });
+test('large plain nodes retain glow despite their thin rims, while fine contents still protect their owner',async()=>{
+ const {atomicCarrierGeometry,atomicCarrierMaterial}=await import('../src/atomicCarrier.ts');
+ const scene=new T.Scene(),camera=new T.PerspectiveCamera(90,1,.1,1000),geometry=atomicCarrierGeometry(),original=atomicCarrierMaterial('red',1,0,1),mesh=new T.Mesh(geometry,original);mesh.userData.glowIntensity=1;scene.add(mesh);camera.updateMatrixWorld();
+ const glow=new SceneGlow(scene,camera,4),read=new T.WebGLRenderTarget(100,100),write=read.clone(),gpu=renderer(),samples=[];glow.setSize(100,100);const draw=gpu.render;gpu.render=object=>{if(object===scene)samples.push(mesh.material.color.r);draw(object);};
+ try{
+  for(const depth of [1,2,4,8,10]){mesh.position.z=-depth;scene.updateMatrixWorld(true);glow.render(gpu,write,read,0);}
+  assert.deepEqual(samples,[1,1,1,1,1]);
+  mesh.position.z=-40;scene.updateMatrixWorld(true);glow.render(gpu,write,read,0);assert.equal(samples.at(-1),0);
+ }finally{glow.dispose();read.dispose();write.dispose();geometry.dispose();original.dispose();}
+});
+test('single selection rings and content contours declare overall size instead of border thickness',async()=>{
+ const {analyticSelectionRing,materialGlowDetail}=await import('../src/materialCoverage.ts');const {createContentContour}=await import('../src/world/contentContour.ts');
+ const material=new T.MeshBasicMaterial(),contour=createContentContour();analyticSelectionRing(material);
+ try{
+  assert.equal(materialGlowDetail(material,0),2);
+  contour.update([{x:-2,y:-2},{x:2,y:-2},{x:2,y:2},{x:-2,y:2}],1);
+  assert.ok(materialGlowDetail(contour.outline.material,0)>=4);
+ }finally{material.dispose();contour.dispose();}
+});
+test('isolated glyph rings keep their glow while multi-mark glyphs retain fine-detail fading',()=>{
+ const bounds={x:0,y:0,width:100,height:100},ring={kind:'ring',x:0,y:0,radius:20,thickness:1,fill:false,opacity:1};
+ assert.equal(glyphFeatureSize({bounds,nodes:[ring]}),.39);
+ const bars=[0,5,10].map(x=>({kind:'line',x,y:0,x2:x+20,y2:20,radius:0,thickness:1,fill:false,opacity:1}));
+ assert.equal(glyphFeatureSize({bounds,nodes:bars}),.01);
+});

@@ -5,8 +5,14 @@ import {RENDER_BUDGET} from '../renderBudget.ts';
 export type GlyphVectorPlan={nodes:readonly StructuralNode[];bounds:{x:number;y:number;width:number;height:number}};
 const plans=new WeakMap<VisualAsset,GlyphVectorPlan>(),features=new WeakMap<VisualAsset,number>();
 export function glyphFeatureSize(plan:GlyphVectorPlan){
- let width=Infinity;
- for(const n of plan.nodes){if(n.kind==='group'||n.opacity<=0)continue;const next=n.kind==='line'||!n.fill?n.thickness:2*n.radius;if(next>0)width=Math.min(width,next);}
+ let width=Infinity,count=0,single:StructuralNode|undefined;
+ for(const n of plan.nodes){if(n.kind==='group'||n.opacity<=0)continue;const next=n.kind==='line'||!n.fill?n.thickness:2*n.radius;if(next>0){width=Math.min(width,next);single=n;count++;}}
+ // A lone mark has no inter-mark spacing to merge. A closed ring's hole,
+ // or a single line's length, is its resolvable detail, not its thin stroke.
+ if(count===1&&single){
+  if(single.kind==='line')width=Math.max(single.thickness,Math.hypot((single.x2??single.x)-single.x,(single.y2??single.y)-single.y));
+  else if(!single.fill)width=single.radius>single.thickness/2?2*single.radius-single.thickness:2*single.radius+single.thickness;
+ }
  return Number.isFinite(width)?width/Math.max(plan.bounds.width,plan.bounds.height):0;
 }
 export function rememberGlyphFeature(asset:VisualAsset,plan:GlyphVectorPlan){features.set(asset,glyphFeatureSize(plan));}

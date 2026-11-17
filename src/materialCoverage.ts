@@ -27,7 +27,7 @@ float pixelCoverage(float distance, float dx, float dy){
 /** Nominal radii are unchanged. The mesh supplies a conservative annular fringe;
  * the circle, stroke and subpixel opacity are evaluated analytically in screen space. */
 export function analyticSelectionRing(material:THREE.MeshBasicMaterial){
- declareGlowDetail(material,.04);
+ declareGlowDetail(material,2); // one closed ring: use its diameter, not stroke width
  attachMaterialCoverage(material,target=>{
   const previous=target.onBeforeCompile;
   target.onBeforeCompile=(shader,renderer)=>{

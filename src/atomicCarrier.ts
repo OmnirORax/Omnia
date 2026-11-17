@@ -8,7 +8,9 @@ import * as THREE from 'three';
 export function atomicCarrierGeometry(diameter=1){return new THREE.SphereGeometry(diameter/2,24,16);}
 export function atomicCarrierMaterial(color:THREE.ColorRepresentation,opacity=1,translucency:number=SPHERE_VISUAL_DEFAULTS.translucency,glow:number=SPHERE_VISUAL_DEFAULTS.glow,translucencyRadius:number=SPHERE_VISUAL_DEFAULTS.translucencyRadius){
  const material=new THREE.MeshPhongMaterial({color,transparent:true,opacity:atomicCarrierOpacity(opacity,translucency),depthWrite:false});
- declareGlowDetail(material,.06);
+ // A plain sphere has one rim, not a tightly packed pattern. Its detail is
+ // the whole diameter; rim thickness alone must not extinguish a large node.
+ declareGlowDetail(material,1);
  material.userData.translucency={value:translucency};
  material.userData.edgeGlow={value:glow};
  material.userData.authoredOpacity={value:opacity};
@@ -34,13 +36,13 @@ float carrierShell = carrierClearRadius>=1.0?0.0:smoothstep(carrierClearRadius,1
 float carrierLocalTranslucency = carrierTranslucency*(1.0-carrierShell);
 float carrierProfile = mix(pow(1.0-carrierLocalTranslucency,2.15),1.0,carrierEdge);
 float carrierPixelSpan=max(abs(dFdx(carrierRadius)),abs(dFdy(carrierRadius)));
-float carrierVisibleGlow=carrierGlow*zoomGlowScale(.12/max(carrierPixelSpan,.00001));
+float carrierVisibleGlow=carrierGlow*zoomGlowScale(2.0/max(carrierPixelSpan,.00001));
 float carrierGain = 1.0 + 2.0 * carrierVisibleGlow * carrierEdge;
 diffuseColor.a = carrierAuthoredOpacity * min((1.0-carrierLocalTranslucency)*carrierProfile * carrierGain,1.0);
 ${target===material?'outgoingLight *= 1.0 + carrierVisibleGlow * carrierEdge;':''}
 #include <opaque_fragment>`);
   };
-  target.customProgramCacheKey=()=> 'atomic-radial-translucency-v3';
+  target.customProgramCacheKey=()=> 'atomic-radial-translucency-v4';
  });return material;
 }
 export const atomicCarrierOpacity=(opacity:number,translucency:number=SPHERE_VISUAL_DEFAULTS.translucency)=>translucentOpacity(opacity,translucency);
