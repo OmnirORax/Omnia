@@ -76,7 +76,7 @@ export function useActiveLayer(open: boolean, ref: RefObject<HTMLElement | null>
     return()=>{for(const type of ['pointerup','mouseup','click','contextmenu'])node.removeEventListener(type,consume,true);};
   },[open,ref]);
 
-  useLayoutEffect(()=>{const node=ref.current;if(!open||!node)return;return registerWindow(node,()=>current.current(),1+(navigation?.ancestors?.length??0));},[open,ref,navigation?.ancestors]);
+  useLayoutEffect(()=>{const node=ref.current;if(!open||!node)return;return registerWindow(node,()=>current.current(),1+(navigation?.ancestors?.length??0),true,!ui&&navigation?.confirm?()=>nav.current?.confirm?.():undefined);},[open,ref,navigation?.ancestors]);
 
   useLayoutEffect(() => {
     const node = ref.current;

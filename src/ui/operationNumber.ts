@@ -1,5 +1,5 @@
 import {mathematicalLimitsRejection,mathematicalValueAllowed,mathematicalValueRejection,mathematicalValueSession,type MathematicalDomain,type MathematicalScaleMode} from '../properties/mathematicalDial.ts';
-export type ConfirmedMathValue={mode:MathematicalScaleMode;anchor:number;count:number;value:number};
+export type ConfirmedMathValue={mode:MathematicalScaleMode;anchor:number;count:number;value:number;equilibrium?:number;snap?:number};
 let sequence=0;
 export function createOperationNumber(options:MathematicalDomain&{label:string;value:number;formatValue?:(value:number)=>string;apply:(value:number,phase:'preview'|'commit'|'restore')=>void;reject:(reason:string)=>void}){
  const session=mathematicalValueSession(options.value),listeners=new Set<()=>void>();let limits:{min:number;max:number}|undefined;

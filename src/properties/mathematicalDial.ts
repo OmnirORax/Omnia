@@ -84,14 +84,18 @@ export function mathematicalSlotScrub(keys:readonly string[],originX:number,init
  return (x:number)=>!keys.length||!Number.isFinite(x)||Math.abs(x-originX)<3?undefined:keys[Math.max(0,Math.min(keys.length-1,start+Math.round((x-originX)/pixelsPerSlot)))];
 }
 
-export type MathematicalScaleMode='value'|'halving'|'doubling';
+export type MathematicalScaleMode='value'|'halving'|'doubling'|'division';
 /** Each exponent is applied to the frozen input, never to the previous sample. */
 export function mathematicalScaleValue(anchor:number,count:number,mode:Exclude<MathematicalScaleMode,'value'>){
- if(!Number.isFinite(anchor)||!Number.isSafeInteger(count)||count<0||count>2048)return NaN;
+ if(!Number.isFinite(anchor)||!Number.isSafeInteger(count)||count<0)return NaN;
+ if(mode==='division')return count>0?anchor/count:NaN;
+ if(count>2048)return NaN;
  let value=anchor;for(let i=0;i<count;i++)value*=mode==='halving'?.5:2;return value;
 }
 export function mathematicalScaleMaximum(anchor:number,mode:Exclude<MathematicalScaleMode,'value'>,domain:MathematicalDomain){
- if(!Number.isFinite(anchor)||anchor===0||!mathematicalValueAllowed(anchor,domain))return 0;
+ if(!Number.isFinite(anchor)||anchor===0)return 0;
+ if(mode==='division'){const boundary=anchor>0?Math.max(0,domain.min):Math.max(0,-domain.max);return Math.max(0,Math.min(Number.MAX_SAFE_INTEGER,domain.integer?Math.floor(Math.abs(anchor)):Number.MAX_SAFE_INTEGER,boundary>0?Math.floor(Math.abs(anchor)/boundary):Number.MAX_SAFE_INTEGER));}
+ if(!mathematicalValueAllowed(anchor,domain))return 0;
  let value=anchor,count=0;while(count<2048){const next=value*(mode==='halving'?.5:2);if(next===0||next===value||!mathematicalValueAllowed(next,domain))break;value=next;count++;}return count;
 }
 export function mathematicalValueRejection(value:number,domain:MathematicalDomain){
@@ -106,7 +110,8 @@ export function mathematicalValueRejection(value:number,domain:MathematicalDomai
 export function mathematicalRingOrders(keys:readonly string[],limit=Number.MAX_SAFE_INTEGER){return Math.min(limit,Math.max(1,...keys.map(key=>Number(key.split(':')[0])+2)));}
 
 export function mathematicalScaleRejection(anchor:number,count:number,mode:Exclude<MathematicalScaleMode,'value'>,domain:MathematicalDomain){
- const name=mode==='halving'?'halves':'doublings';
+ const name=mode==='halving'?'halves':mode==='division'?'divisor':'doublings';
+ if(mode==='division'&&count<1)return 'Use a positive whole-number divisor.';
  if(!Number.isSafeInteger(count)||count<0)return `Use a non-negative whole number of ${name}.`;
  const maximum=mathematicalScaleMaximum(anchor,mode,domain);
  if(count>maximum)return `Maximum ${name} is ${maximum}. ${domain.integer?'The next result would be fractional or outside the allowed range.':'The next result is outside the allowed range.'}`;

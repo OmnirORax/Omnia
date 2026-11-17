@@ -31,10 +31,8 @@
 
 .mathematical-dial-settings{gap:3px;width:max-content;max-width:224px;flex-wrap:wrap}
 .mathematical-dial .mathematical-dial-settings button{min-width:32px;width:32px;height:32px;font-size:20px}
-.mathematical-dial .mathematical-dial-readout{min-width:0;width:max-content;height:auto;padding:1px 4px;font-size:22px;line-height:1.1;background:transparent}
 .mathematical-value-control{display:inline-flex;width:max-content;max-width:100%}
 .mathematical-value-control>button{min-width:0;width:max-content;max-width:100%;padding:2px 4px;white-space:nowrap;font-size:inherit;line-height:1.2}
-.mathematical-dial-exact{width:8ch;min-width:0;max-width:100%}
 
 .mathematical-dial .mathematical-dial-rule{width:max-content;min-width:0;padding:1px 5px;font-size:20px;line-height:1.1}
 
@@ -64,6 +62,12 @@
 
 .mathematical-dial .mathematical-dial-limits button{width:auto;min-width:32px;height:24px;padding:2px 4px;font-size:12px;border-radius:3px;white-space:nowrap}
 
-.mathematical-dial .mathematical-dial-readout{max-width:200px;overflow-wrap:anywhere;white-space:normal}
 
 .mathematical-dial .mathematical-dial-size{position:absolute;left:85.355339%;top:85.355339%;transform:translate(-50%,-50%);width:24px;height:24px;min-width:0;padding:0;border:0;background:transparent;font-size:20px;line-height:1;cursor:nwse-resize;touch-action:none}
+
+.mathematical-dial .mathematical-mini-value,.mathematical-dial .mathematical-dial-settings .mathematical-mini-value{position:relative;display:grid;place-items:center;width:40px;height:40px;min-width:40px;padding:0;border:0;background:transparent;border-radius:50%;font-size:9px;line-height:1;cursor:pointer}
+.mathematical-mini-value svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.mathematical-mini-value span{position:relative;max-width:36px;overflow-wrap:anywhere;pointer-events:none}
+.dial-value-target{display:flex;justify-content:center;gap:4px;font-size:12px}
+.dial-value-target [aria-pressed=true]{outline:1px solid currentColor}
+.dial-value-rounding,.dial-value-equation{display:block;text-align:center;font-size:11px;line-height:1.2}

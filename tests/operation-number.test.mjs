@@ -23,3 +23,8 @@ test('parameter formatting resolves the current mode without replacing accepted 
  number.restore();base=60;assert.equal(number.formatValue(number.value),'1 × 60° = 60°');
  const raw=createOperationNumber({label:'Count',value:8,min:1,max:100,apply(){},reject(){}});assert.equal(raw.formatValue(raw.value),'8');
 });
+
+test('cursor configuration distinguishes grid steps from halvings and reciprocals',()=>{
+ assert.equal(formatMathConfiguration({mode:'value',anchor:.75,count:2,value:.75,equilibrium:.5,snap:.125}),'0.5 + 2×0.125 = 0.75');
+ assert.equal(formatMathConfiguration({mode:'division',anchor:1,count:5,value:.2}),'1/5 = 0.2');
+});

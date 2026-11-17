@@ -38,3 +38,11 @@ test('Escape dismisses a composer popup but leaves its protected composer open',
  assert.equal(windows.close(),true);assert.deepEqual(closed,['popup']);
  windows.activate(other);windows.close();assert.deepEqual(closed,['popup','other']);
 });
+
+test('window confirmation and typed-input ownership follow the same top window as dismissal',()=>{
+ const windows=createWindowDismissal(),calls=[],a={isConnected:true,contains:n=>n==='a'},b={isConnected:true,contains:n=>n==='b'};
+ windows.register(a,()=>calls.push('close a'),1,true,()=>calls.push('confirm a'));
+ const stop=windows.register(b,()=>calls.push('close b'),2,true,()=>calls.push('confirm b'));
+ assert.equal(windows.owns('a'),false);assert.equal(windows.owns('b'),true);assert.equal(windows.canConfirm(),true);assert.equal(windows.confirm(),true);assert.deepEqual(calls,['confirm b']);
+ stop();windows.confirm();assert.deepEqual(calls,['confirm b','confirm a']);a.isConnected=false;assert.equal(windows.canConfirm(),false);assert.equal(windows.confirm(),false);
+});
