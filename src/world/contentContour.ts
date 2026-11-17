@@ -1,5 +1,5 @@
 import * as T from 'three';
-import {attachMaterialCoverage,pixelCoverageGLSL} from '../materialCoverage.ts';
+import {attachMaterialCoverage,pixelCoverageGLSL,declareGlowDetail} from '../materialCoverage.ts';
 import {contentEnvelope,convexHull,type Point2} from './contentEnvelope.ts';
 /** Local ink only: geometry, texture masks and their cache stay with each visual. */
 export function collectContentHull(root:T.Object3D){
@@ -14,7 +14,7 @@ export function collectContentHull(root:T.Object3D){
 }
 export function createContentContour(){
  const material=new T.MeshBasicMaterial({transparent:true,depthWrite:false,depthTest:false,side:T.DoubleSide});
- const stroke={value:.016};
+ const stroke={value:.016},detail={value:.032};declareGlowDetail(material,detail);
  attachMaterialCoverage(material,target=>{
   const previous=target.onBeforeCompile;target.onBeforeCompile=(shader,renderer)=>{
    previous.call(target,shader,renderer);
@@ -27,7 +27,7 @@ export function createContentContour(){
  outline.renderOrder=20;outline.visible=hit.visible=false;let polygon:Point2[]=[];
  return {outline,hit,get points(){return polygon;},
   update(points:readonly Point2[],unit:number){
-   const padding=unit*.05,width=unit*.032,fringe=width*2;stroke.value=width/2;
+   const padding=unit*.05,width=unit*.032,fringe=width*2;stroke.value=width/2;detail.value=width;
    polygon=contentEnvelope(points,padding+width/2);
    const inner=contentEnvelope(points,padding-fringe),outer=contentEnvelope(points,padding+fringe),vertices:number[]=[],distance:number[]=[],indices:number[]=[];
    for(let n=0;n<outer.length;n++){vertices.push(inner[n].x,inner[n].y,0,outer[n].x,outer[n].y,0);distance.push(-fringe,fringe);const next=(n+1)%outer.length;indices.push(n*2,n*2+1,next*2,n*2+1,next*2+1,next*2);}

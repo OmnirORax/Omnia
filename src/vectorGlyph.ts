@@ -1,7 +1,7 @@
 import {convexHull,type Point2} from './world/contentEnvelope.ts';
 import * as THREE from 'three';
-import {attachMaterialCoverage,pixelCoverageGLSL} from './materialCoverage.ts';
-import type {GlyphVectorPlan} from './omnic/vectorPlan.ts';
+import {attachMaterialCoverage,pixelCoverageGLSL,declareGlowDetail} from './materialCoverage.ts';
+import {glyphFeatureSize,type GlyphVectorPlan} from './omnic/vectorPlan.ts';
 const contours=new WeakMap<GlyphVectorPlan,Point2[]>();
 /** One instanced draw per eligible glyph; topology/attributes are prepared once.
  * Current SVG viewport is square with xMidYMid meet. Picking stays with its owner. */
@@ -27,6 +27,7 @@ export function vectorGlyph(plan:GlyphVectorPlan,initial:{color?:string;opacity?
  const colorAttribute=new THREE.InstancedBufferAttribute(new Float32Array(colors),3);geometry.setAttribute('glyphColor',colorAttribute);
  geometry.boundingSphere=new THREE.Sphere(new THREE.Vector3(),Math.SQRT1_2);
  const material=new THREE.MeshBasicMaterial({transparent:true,depthWrite:false,side:THREE.DoubleSide});
+ declareGlowDetail(material,glyphFeatureSize(plan));
  attachMaterialCoverage(material,target=>{
   const previous=target.onBeforeCompile;
   target.onBeforeCompile=(shader,renderer)=>{

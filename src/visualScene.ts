@@ -1,5 +1,6 @@
 import {imageHull} from './world/contentEnvelope.ts';
-import {vectorAsset} from './omnic/vectorPlan.ts';
+import {declareGlowDetail} from './materialCoverage.ts';
+import {vectorAsset,glyphAssetFeature} from './omnic/vectorPlan.ts';
 import {vectorGlyph} from './vectorGlyph.ts';
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
@@ -98,6 +99,7 @@ export function visualObject(
             side: THREE.DoubleSide,
           }),
         );
+        const feature=glyphAssetFeature(asset);if(feature!==undefined)declareGlowDetail(sprite.material,feature);
         const dimensions = map.image as { width: number; height: number };
         const aspect = dimensions.width / dimensions.height;
         sprite.scale.set(Math.min(1, aspect), Math.min(1, 1 / aspect), 1);

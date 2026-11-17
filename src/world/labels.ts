@@ -1,3 +1,4 @@
+import {packedTextureGlow,packGlowCoverage,updateTextureGlowSize} from '../textureGlow.ts';
 import {imageHull} from './contentEnvelope.ts';
 import * as THREE from 'three';
 import {labelLines,labelSize} from '../composer/runtime/graph/labels.ts';
@@ -7,16 +8,27 @@ import {isImportedFont} from '../properties/importedFont.ts';
 type FontId=string;
 const canvasFont=(id:FontId)=>`${id==='electric'||isImportedFont(id)?400:500} 36px ${fontFamily(id)}`;
 type SurfaceStyle={background?:string;contour?:string;opacity?:number;contourOpacity?:number;backgroundGlow?:number;contourGlow?:number};
+// One CPU staging canvas, reused synchronously on content/style changes only.
+let sharpTextCanvas:HTMLCanvasElement|undefined;
+function sharpTextContext(width:number,height:number){
+ const canvas=sharpTextCanvas??=document.createElement('canvas');canvas.width=width;canvas.height=height;
+ return canvas.getContext('2d',{willReadFrequently:true})!;
+}
 export function textSprite(value: string, color: string, selected = false, node = false, neon = false, font: FontId = "system", textGlow = 0, textColor = color, surface: SurfaceStyle = {}, contentOnly = false, columns = 32) {
   const lines = labelLines(value,columns),
     canvas = document.createElement("canvas");
-  const measure = canvas.getContext("2d")!;
+  const measure = canvas.getContext("2d",{willReadFrequently:contentOnly})!;
   measure.font = canvasFont(font);
   canvas.width = Math.ceil(
     Math.max(100, ...lines.map((line) => measure.measureText(line).width)) + 36,
   );
   canvas.height = lines.length * 48 + 20;
-  const ctx = canvas.getContext("2d")!;
+  const ctx = canvas.getContext("2d",{willReadFrequently:contentOnly})!;
+  const drawInk=(context:CanvasRenderingContext2D,ink:string,glow:number)=>{
+    context.font=canvasFont(font);context.textAlign='center';context.textBaseline='middle';context.fillStyle=ink;
+    context.shadowColor=ink;context.shadowBlur=glow*10;
+    lines.forEach((line,i)=>context.fillText(line,canvas.width/2,10+24+i*48));
+  };
   const paint = (border: string, ink: string, glow: number) => {
     ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.shadowBlur = 0;
     if (!contentOnly && node) {
@@ -38,16 +50,17 @@ export function textSprite(value: string, color: string, selected = false, node 
       ctx.globalAlpha = surface.opacity ?? 1;
       ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.globalAlpha = 1;
     }
-    ctx.font = canvasFont(font);
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillStyle = ink;
-    ctx.shadowColor = ink; ctx.shadowBlur = glow * 10;
-    lines.forEach((line, i) => ctx.fillText(line, canvas.width / 2, 10 + 24 + i * 48));
+    drawInk(ctx,ink,glow);
+    if(contentOnly){
+      const combined=ctx.getImageData(0,0,canvas.width,canvas.height);
+      if(glow>0){const clean=sharpTextContext(canvas.width,canvas.height);drawInk(clean,ink,0);packGlowCoverage(clean.getImageData(0,0,canvas.width,canvas.height).data,combined.data);}
+      else packGlowCoverage(combined.data,combined.data);
+      ctx.putImageData(combined,0,0);
+    }
   };
   paint(color, textColor, textGlow);
   const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.colorSpace = contentOnly?THREE.NoColorSpace:THREE.SRGBColorSpace;
   // Minification must integrate the texels covered by each screen pixel.
   // Bilinear-only sampling skips thin glyph strokes at reduced world scales.
   // GPU mip levels provide coverage without per-zoom canvas redraws or passes.
@@ -58,12 +71,14 @@ export function textSprite(value: string, color: string, selected = false, node 
     new THREE.PlaneGeometry(1, 1),
     new THREE.MeshBasicMaterial({
       map: texture,
+      color:contentOnly?textColor:0xffffff,
       transparent: true,
       depthWrite: false,
       depthTest: true,
       side: THREE.DoubleSide,
     }),
   );
+  if(contentOnly)packedTextureGlow(sprite.material);
   sprite.userData.lightningMask = () => {
     const mask = document.createElement("canvas"); mask.width = canvas.width; mask.height = canvas.height;
     const ink = mask.getContext("2d")!; ink.font = canvasFont(font);
@@ -87,7 +102,7 @@ export function textSprite(value: string, color: string, selected = false, node 
   sprite.userData.setTextStyle = (border: string, ink: string, glow: number) => {
     const next = JSON.stringify([border, ink, glow]);
     if (next === paintKey) return;
-    paintKey = next; currentStyle = [border, ink, glow]; paint(border, ink, glow); texture.needsUpdate = true;
+    paintKey = next; currentStyle = [border, ink, glow]; paint(border, ink, glow);if(contentOnly)sprite.material.color.set(ink); texture.needsUpdate = true;
     sprite.userData.textColor = ink;
   };
   sprite.userData.label = value;
@@ -106,7 +121,7 @@ export function label(caption:string,paint?:Paint){
  if(style.font==='electric'||isImportedFont(style.font))void document.fonts.load(canvasFont(style.font)).then(()=>{
    if(mesh.userData.disposed)return;
    const fresh=textSprite(caption,style.color,false,false,false,style.font,style.glow,style.color,{},true);
-   mesh.material.map?.dispose();mesh.material.map=fresh.material.map;mesh.material.needsUpdate=true;mesh.userData.contentHull=fresh.userData.contentHull;fresh.geometry.dispose();fresh.material.dispose();mesh.userData.requestRender?.();
+   mesh.material.map?.dispose();mesh.material.map=fresh.material.map;updateTextureGlowSize(mesh.material);mesh.material.needsUpdate=true;mesh.userData.contentHull=fresh.userData.contentHull;fresh.geometry.dispose();fresh.material.dispose();mesh.userData.requestRender?.();
  });
  return mesh;
 }
