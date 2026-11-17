@@ -436,7 +436,7 @@ for (const consumer of PROPERTY_REGISTRY.consumers.filter(item => item.owner ===
 for (const target of entries) if (target.properties) target.numberRanges = Object.fromEntries(target.properties.flatMap(id => {
   const spec = propertyFor(id);
   if (spec?.kind !== "number") return [];
-  const max = target.binding?.css ? (id === "glow" ? Math.min(spec.max!, RENDER_BUDGET.uiGlow) : id === "blur" ? Math.min(spec.max!, RENDER_BUDGET.uiBlur) : spec.max!) : spec.max!;
+  const max = id==='brightness'&&target.properties?.includes('font')?1:target.binding?.css ? (id === "glow" ? Math.min(spec.max!, RENDER_BUDGET.uiGlow) : id === "blur" ? Math.min(spec.max!, RENDER_BUDGET.uiBlur) : spec.max!) : spec.max!;
   return [[id, max === spec.max ? spec : { ...spec, max }]];
 }));
 // Renderer-declared geometry participates in MS without a second selector/store.

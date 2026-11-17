@@ -1,3 +1,4 @@
+import {textBrightness} from '../../../properties/textBrightness.ts';
 import {patternApplies,patternCSS} from '../paint/routing.ts';
 import {patternTile} from '../paint/pattern.ts';
 import {translucentOpacity} from '../properties/translucency.ts';
@@ -45,7 +46,7 @@ export function AppearanceStyles() {
       const color = (patterned&&paint?paint.colors[0]:read(target, "color")) as string,
         brightness = read(target, "brightness") as number,
         opacity = translucentOpacity(Number(read(target, "opacity")),Number(read(target,"translucency"))),
-        glow = read(target, "glow") as number,glowColor=String(read(target,"glowColor"));
+        glow = read(target, "glow") as number,glowColor=binding.text?textBrightness(String(read(target,"glowColor")),brightness):String(read(target,"glowColor"));
       const owner = target.instance?.owner;
       const scope = owner
         ? owner.startsWith("function:")
@@ -75,7 +76,7 @@ export function AppearanceStyles() {
       const custom = (p: string) =>
         values[p] !== undefined || !connected(state, targets, target.id, p, index);
       if (!binding.text || ["color", "brightness", "opacity", "translucency"].some(custom) || legacyText)
-        declarations.push(`${binding.css}:${tint(color, brightness, opacity)} !important`);
+        declarations.push(`${binding.css}:${binding.text?tint(textBrightness(color,brightness),1,opacity):tint(color,brightness,opacity)} !important`);
       if (icon) {
         declarations.push("-webkit-text-fill-color:currentColor !important", "-webkit-text-stroke:0 !important", "text-shadow:none !important", "font-family:system-ui !important", "letter-spacing:normal !important",
           `filter:saturate(${Number(get("saturation"))})${glow > 0 ? ` drop-shadow(0 0 ${glow * 8}px ${glowColor})` : ""} !important`);

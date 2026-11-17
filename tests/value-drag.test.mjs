@@ -30,18 +30,18 @@ test('numeric inputs and registered readouts share release, click, and cancellat
  globalThis.document={hidden:false,documentElement:{classList:{add:value=>classes.add(value),remove:value=>classes.delete(value)}},addEventListener:()=>{}};
  try{
   installValueDrag();const input=new FakeInput();
-  const send=(type,x=0,extra={})=>{const event={target:input,button:0,buttons:1,pointerType:'mouse',pointerId:1,clientX:x,detail:1,preventDefault(){this.prevented=true;},stopImmediatePropagation(){this.stopped=true;},...extra};for(const fn of handlers.get(type)??[]){fn(event);if(event.stopped)break;}return event;};
+  const send=(type,x=0,extra={})=>{const event={type,target:input,button:0,buttons:1,pointerType:'mouse',pointerId:1,clientX:x,clientY:0,detail:1,preventDefault(){this.prevented=true;},stopImmediatePropagation(){this.stopped=true;},...extra};for(const fn of handlers.get(type)??[]){fn(event);if(event.stopped)break;}return event;};
   send('pointerdown',10);send('pointermove',12);assert.equal(input.value,'50');assert.equal(send('pointerup',12).prevented,undefined);assert.equal(changes.length,0);
   send('pointerdown',10);send('pointermove',30);assert.equal(input.value,'60');assert.equal(classes.has('value-dragging'),true);
-  send('pointermove',-10);assert.equal(input.value,'40');send('pointerup',-10);assert.equal(input.blurred,true);assert.deepEqual(changes,['40']);assert.equal(classes.size,0);
+  send('pointermove',-10);assert.equal(input.value,'40');send('pointerup',-10);assert.equal(input.blurred,false);assert.deepEqual(changes,[]);send('pointermove',-20,{buttons:0});assert.equal(input.value,'35');send('pointerdown',-20);assert.equal(input.blurred,true);assert.deepEqual(changes,['35']);assert.equal(classes.size,0);
   assert.equal(send('click').prevented,true);assert.equal(send('click').prevented,undefined);
-  send('pointerdown',0);send('pointermove',40);assert.equal(input.value,'60');assert.equal(send('keydown',0,{key:'Escape'}).prevented,true);assert.equal(input.value,'40');assert.equal(input.capture,false);
-  send('pointerdown',0);send('pointermove',-20);assert.equal(input.value,'30');send('pointercancel');assert.equal(input.value,'40');
+  send('pointerdown',0);send('pointermove',40);assert.equal(input.value,'55');assert.equal(send('keydown',0,{key:'Escape'}).prevented,true);assert.equal(input.value,'35');assert.equal(input.capture,false);
+  send('pointerdown',0);send('pointermove',-20);assert.equal(input.value,'25');send('pointercancel');assert.equal(input.value,'35');
   input.dataset.valuePixelsPerStep='1';input.max='255';input.value='128';
-  send('pointerdown',100);send('pointermove',101);assert.equal(input.value,'129');send('pointermove',102);assert.equal(input.value,'130');send('pointerup',102);delete input.dataset.valuePixelsPerStep;
+  send('pointerdown',100);send('pointermove',101);assert.equal(input.value,'129');send('pointermove',102);assert.equal(input.value,'130');send('pointerup',102);send('pointerdown',102);delete input.dataset.valuePixelsPerStep;
   input.readOnly=true;send('pointerdown',0);send('pointermove',50);send('pointerup',50);assert.equal(input.value,'130');
   const readout=new FakeElement(),values=[],commits=[],stop=registerValueDrag(readout,{read:()=>({value:10,min:0,max:20,step:1}),input:value=>values.push(value),commit:value=>commits.push(value),cancel:value=>values.push(value)});
-  send('pointerdown',0,{target:readout});send('pointermove',50,{target:readout});send('pointerup',50,{target:readout});assert.deepEqual(values,[15]);assert.deepEqual(commits,[15]);stop();
+  send('pointerdown',0,{target:readout});send('pointermove',50,{target:readout});send('pointerup',50,{target:readout});assert.deepEqual(commits,[]);send('pointerdown',50,{target:readout});assert.deepEqual(values,[15]);assert.deepEqual(commits,[15]);stop();
  }finally{for(const [key,value]of Object.entries(originals)){if(value===undefined)delete globalThis[key];else globalThis[key]=value;}}
 });
 
@@ -54,4 +54,26 @@ test('diagonal size handles inherit scalar dragging while preserving horizontal 
  const {valueDragDistance}=await import('../src/ui/valueDrag.ts');
  assert.equal(valueDragDistance({value:1},10,30),10);assert.ok(Math.abs(valueDragDistance({value:1,axis:{x:1,y:1}},10,10)-Math.sqrt(200))<1e-9);
  assert.ok(valueDragDistance({value:1,axis:{x:1,y:1}},-10,-10)<0);assert.equal(valueDragDistance({value:1,axis:{x:1,y:1}},10,-10),0);
+});
+
+test('locked mouse movement keeps editing after release and accepts with a later click',()=>{
+ const keys=['window','document','HTMLInputElement','Element'],originals=Object.fromEntries(keys.map(key=>[key,globalThis[key]]));
+ const handlers=new Map(),doc=new EventTarget(),classes=new Set(),commits=[],values=[];
+ doc.pointerLockElement=null;doc.hidden=false;doc.documentElement={classList:{add:key=>classes.add(key),remove:key=>classes.delete(key)}};
+ doc.exitPointerLock=()=>{doc.pointerLockElement=null;doc.dispatchEvent(new Event('pointerlockchange'));};
+ class ElementStub {isConnected=true;dataset={};capture=false;ownerDocument=doc;closest(){return this;}hasPointerCapture(){return this.capture;}setPointerCapture(){this.capture=true;}releasePointerCapture(){this.capture=false;}requestPointerLock(){doc.pointerLockElement=this;doc.dispatchEvent(new Event('pointerlockchange'));}}
+ globalThis.Element=ElementStub;globalThis.HTMLInputElement=class extends ElementStub{};globalThis.document=doc;
+ globalThis.window={addEventListener(type,fn){const list=handlers.get(type)??[];list.push(fn);handlers.set(type,list);},removeEventListener(){}};
+ try{
+  installValueDrag();const root=new ElementStub();registerValueDrag(root,{read:()=>({value:50,min:0,max:100,step:1}),input:value=>values.push(value),commit:value=>commits.push(value),cancel:value=>values.push(value)});
+  const send=(type,extra={})=>{const event={type,target:root,button:0,buttons:1,pointerType:'mouse',pointerId:1,clientX:0,clientY:0,movementX:0,movementY:0,detail:1,preventDefault(){},stopImmediatePropagation(){this.stopped=true;},...extra};for(const fn of handlers.get(type)??[]){fn(event);if(event.stopped)break;}};
+  send('pointerdown');send('pointermove',{clientX:20});assert.equal(values.at(-1),60);
+  send('pointercancel');assert.equal(doc.pointerLockElement,root);
+  send('pointerup',{buttons:0,clientX:20});send('lostpointercapture');assert.equal(commits.length,0);assert.equal(doc.pointerLockElement,root);
+  send('pointermove',{buttons:0,movementX:10,clientX:20});assert.equal(values.at(-1),60,'locked companion pointer event is ignored');
+  send('mousemove',{buttons:0,movementX:10,clientX:20});assert.equal(values.at(-1),65);
+  send('mousemove',{buttons:0,movementX:-30,clientX:20});assert.equal(values.at(-1),50);
+  send('mousedown');assert.deepEqual(commits,[50]);assert.equal(doc.pointerLockElement,null);assert.equal(classes.size,0);
+  send('pointerdown');send('pointermove',{clientX:20});send('pointerup',{buttons:0});send('mousemove',{buttons:0,movementX:10});send('keydown',{key:'Escape'});assert.equal(values.at(-1),50);assert.deepEqual(commits,[50]);
+ }finally{for(const [key,value]of Object.entries(originals)){if(value===undefined)delete globalThis[key];else globalThis[key]=value;}}
 });

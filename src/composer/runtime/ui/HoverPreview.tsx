@@ -10,7 +10,7 @@ export function HoverPreviewScope({children}:{children:ReactNode}){
   const relative=createRelativePointer(()=>session.cancel());
   let frame=0,x=0,y=0,tail=false;
   const flush=()=>{cancelAnimationFrame(frame);frame=0;session.move(x,y);};
-  const move=(e:PointerEvent)=>{if(!session.active()||e.buttons)return;if(e.target instanceof Element&&e.target.closest('[data-hover-preview-disabled]')){session.cancel();return;}const point=relative.sample(e);x=point.x;y=point.y;if(!frame)frame=requestAnimationFrame(flush);};
+  const move=(e:MouseEvent|PointerEvent)=>{if(!session.active()||e.buttons)return;if(e.target instanceof Element&&e.target.closest('[data-hover-preview-disabled]')){session.cancel();return;}const point=relative.sample(e);x=point.x;y=point.y;if(!frame)frame=requestAnimationFrame(flush);};
   const consume=(e:Event)=>{e.preventDefault();e.stopImmediatePropagation();};
   const down=(e:PointerEvent)=>{tail=false;if(!session.active())return;if(e.button!==0){session.cancel();return;}if(!session.capturesPress())return;
    // A real slider press starts its captured drag; a hover sample must not eat it.
@@ -20,9 +20,9 @@ export function HoverPreviewScope({children}:{children:ReactNode}){
   const stop=session.subscribe(()=>{cancelAnimationFrame(frame);frame=0;relative.stop();const input=session.relativeInput();if(input)relative.start(input.surface??document.body,input.origin);});
   const cancel=()=>{cancelAnimationFrame(frame);frame=0;session.cancel();};
   const key=(e:KeyboardEvent)=>{if(e.key==='Escape'&&session.active()){cancel();consume(e);}};
-  window.addEventListener('pointermove',move,true);window.addEventListener('pointerdown',down,true);window.addEventListener('keydown',key,true);window.addEventListener('blur',cancel);
+  const stopMoves=relative.observeMove(move);window.addEventListener('pointerdown',down,true);window.addEventListener('keydown',key,true);window.addEventListener('blur',cancel);
   for(const type of ['mousedown','pointerup','mouseup','click'])window.addEventListener(type,after,true);
-  return()=>{stop();cancel();relative.stop();window.removeEventListener('pointermove',move,true);window.removeEventListener('pointerdown',down,true);window.removeEventListener('keydown',key,true);window.removeEventListener('blur',cancel);for(const type of ['mousedown','pointerup','mouseup','click'])window.removeEventListener(type,after,true);};
+  return()=>{stop();cancel();relative.stop();stopMoves();window.removeEventListener('pointerdown',down,true);window.removeEventListener('keydown',key,true);window.removeEventListener('blur',cancel);for(const type of ['mousedown','pointerup','mouseup','click'])window.removeEventListener(type,after,true);};
  },[session]);
  return <Context.Provider value={session}>{children}</Context.Provider>;
 }

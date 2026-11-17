@@ -88,7 +88,7 @@ test('independent text halo color updates the shader without redrawing coverage 
 test('text brightness updates existing material/halo uniforms without texture redraw or cumulative dimming',()=>{
  const mesh=label('Brightness',{color:'#204060',glowColor:'#102030',glow:.5}),map=mesh.material.map,before=snapshot();
  const shader={uniforms:{},vertexShader:'',fragmentShader:'#include <map_fragment>'};mesh.material.onBeforeCompile(shader,{});
- for(let i=0;i<20;i++)updateLabelPaint(mesh,{color:'#204060',glowColor:'#102030',glow:.5,brightness:2});
- assert.equal(mesh.material.color.getHexString(),'4080c0');assert.equal(shader.uniforms.glowInkColor.value.getHexString(),'204060');
+ for(let i=0;i<20;i++)updateLabelPaint(mesh,{color:'#204060',glowColor:'#102030',glow:.5,brightness:.75});
+ assert.equal(mesh.material.color.getHexString(),'70a0cf');assert.equal(shader.uniforms.glowInkColor.value.getHexString(),'5890c7');
  assert.equal(mesh.userData.labelPaint.color,'#204060');assert.equal(mesh.material.map,map);assert.deepEqual(snapshot(),before);disposeLabel(mesh);
 });

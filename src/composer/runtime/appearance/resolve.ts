@@ -20,7 +20,7 @@ export function legacyValue(base: Appearance, target: RegisteredTarget, property
   if (property === "translucency") return (target.instance?.base??target.id)==="omnium.nodes.body"?SPHERE_VISUAL_DEFAULTS.translucency:0;
   if(property==="glowColor")return legacyValue(base,target,"color");
   if (property === "font") return base.font;
-  if (property === "brightness") return 1;
+  if (property === "brightness") return (target.binding?.text||target.id.startsWith("text.")) ? .5 : 1;
   if (property === "blur") return base.blur;
   if (property === "opacity")
     return target.id.startsWith("symbols.")
@@ -89,17 +89,18 @@ export function createValueResolver(base: Appearance, state: Controller, targets
     : [...policyIndex.path(target.instance?.base ?? target.id), target.id];
   const isConnected = (target: RegisteredTarget, property: string) =>
     !pathFor(target).some(id => ruleHas(state.disconnected[id], property));
+  const neutral=(target:RegisteredTarget,property:string):Value=>property==='brightness'&&(target.binding?.text||target.id.startsWith('text.'))?.5:propertyFor(property)?.neutral??legacyValue(base,target,property);
   const resolve = (target: RegisteredTarget, property: string): Value => {
     const channel = target.couplings?.[property];
     if (channel && channel !== property) {
-      if (!isConnected(target, property)) return propertyFor(property)?.neutral ?? legacyValue(base, target, property);
+      if (!isConnected(target, property)) return neutral(target,property);
       return resolve(target, channel);
     }
     const fallback = target.instance
       ? (bases.get(target.instance.base) ?? target)
       : target;
     if (!isConnected(target, property) || Object.entries(target.couplings ?? {}).some(([source, channel]) => channel === property && !isConnected(target, source)))
-      return propertyFor(property)?.neutral ?? legacyValue(base, fallback, property);
+      return neutral(fallback,property);
     if (target.instance?.part && state.values[target.id]?.[property] === undefined) {
       const instance = target.instance;
       const rank = (candidate: RegisteredTarget) => candidate.instance!.owner === instance.owner

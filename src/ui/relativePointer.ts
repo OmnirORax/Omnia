@@ -12,6 +12,12 @@ export function createRelativePointer(onLost:()=>void=()=>{},onRejected:(message
    doc.addEventListener('pointerlockchange',change);doc.addEventListener('pointerlockerror',error);
    try{const request=target.requestPointerLock();legacy=!request;if(request&&typeof request.then==='function')void request.then(()=>{if(epoch!==generation&&owner?.target!==target&&documentOwner.pointerLockElement===target)documentOwner.exitPointerLock();}).catch(()=>{if(epoch===generation)error();});}catch{error();return false;}return true;
   },
+  observeMove(listener:(event:MouseEvent|PointerEvent)=>void){
+   if(typeof window==='undefined')return()=>{};
+   const move=(event:MouseEvent|PointerEvent)=>{if(api.locked?event.type==='mousemove':event.type==='pointermove')listener(event);};
+   window.addEventListener('mousemove',move,true);window.addEventListener('pointermove',move,true);
+   return()=>{window.removeEventListener('mousemove',move,true);window.removeEventListener('pointermove',move,true);};
+  },
   sample(event:Sample){if(api.locked){locked=true;pending=false;point={x:point.x+(Number.isFinite(event.movementX)?event.movementX!:0),y:point.y+(Number.isFinite(event.movementY)?event.movementY!:0)};}else point={x:event.clientX,y:event.clientY};return {...point};},
   stop(){generation++;const previous=element,documentOwner=doc,late=legacy&&pending;legacy=false;element=undefined;doc=undefined;pending=locked=false;if(owner===api)owner=undefined;documentOwner?.removeEventListener('pointerlockchange',change);documentOwner?.removeEventListener('pointerlockerror',error);if(previous&&documentOwner?.pointerLockElement===previous)documentOwner.exitPointerLock();else if(late&&previous&&documentOwner){const cleanup=()=>{documentOwner.removeEventListener('pointerlockchange',release);documentOwner.removeEventListener('pointerlockerror',cleanup);};const release=()=>{cleanup();if(documentOwner.pointerLockElement===previous&&owner?.target!==previous)documentOwner.exitPointerLock();};documentOwner.addEventListener('pointerlockchange',release);documentOwner.addEventListener('pointerlockerror',cleanup);}},
  };return api;

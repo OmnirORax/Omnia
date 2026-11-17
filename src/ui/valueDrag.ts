@@ -1,3 +1,4 @@
+import {createHoverPreview} from '../composer/runtime/ui/hoverPreview.ts';
 import {createRelativePointer} from './relativePointer.ts';
 import {claimUIPress} from '../composer/runtime/ui/pointerOwnership.ts';
 import {PAGE_INPUT_SUSPEND} from '../composer/runtime/ui/pageInputBoundary.ts';
@@ -37,34 +38,36 @@ function inputAdapter(field:HTMLInputElement):Adapter{
   },input:write,commit:()=>{field.dispatchEvent(new Event('change',{bubbles:true}));field.blur();},cancel:value=>{write(value);field.dispatchEvent(new Event('change',{bubbles:true}));}};
 }
 export function installValueDrag(){
-  let drag:{id:number;root:HTMLElement;adapter:Adapter;config:NumberDrag;x:number;y:number;active:boolean;next:number}|undefined,suppressClick=false;
+  let drag:{id:number;root:HTMLElement;adapter:Adapter;config:NumberDrag;x:number;y:number;active:boolean;released:boolean;next:number}|undefined,suppressClick=false;
+  const preview=createHoverPreview(),owner={};
   const relative=createRelativePointer(()=>finish(true));
   const stop=(event:Event)=>{event.preventDefault();event.stopImmediatePropagation();};
   const finish=(cancel=false)=>{
     const current=drag;drag=undefined;relative.stop();if(!current)return;
     document.documentElement.classList.remove('value-dragging');
     if(current.root.hasPointerCapture(current.id))current.root.releasePointerCapture(current.id);
-    if(current.active){suppressClick=true;if(cancel)current.adapter.cancel(current.config.value);else current.adapter.commit(current.next);}
+    if(current.active){suppressClick=!cancel||!current.released;if(cancel)preview.cancel();else preview.commit();}
   };
   window.addEventListener('pointerdown',event=>{
     if(event.button!==0||event.pointerType==='touch')return;
-    finish(true);suppressClick=false;
+    if(drag?.active){stop(event);finish();return;}finish(true);suppressClick=false;
     const field=numericInput(event.target),root=field??(event.target instanceof Element?event.target.closest<HTMLElement>('[data-value-drag]'):null);
     if(!root)return;const adapter=field?inputAdapter(field):adapters.get(root),config=adapter?.read();if(!adapter||!config)return;
-    drag={id:event.pointerId,root,adapter,config,x:event.clientX,y:event.clientY,active:false,next:config.value};
+    drag={id:event.pointerId,root,adapter,config,x:event.clientX,y:event.clientY,active:false,released:false,next:config.value};
   },true);
-  const move=(event:PointerEvent)=>{
-    const current=drag;if(!current||current.id!==event.pointerId)return;
+  const move=(event:MouseEvent|PointerEvent)=>{
+    const current=drag;if(!current||!relative.locked&&'pointerId' in event&&current.id!==event.pointerId)return;
     if(!current.root.isConnected){finish(true);return;}
-    if(!current.active){if(Math.abs(valueDragDistance(current.config,event.clientX-current.x,event.clientY-current.y))<(current.config.pixelsPerStep?1:4))return;current.active=true;claimUIPress(event.pointerId,event.pointerType,event.buttons);current.root.setPointerCapture(event.pointerId);document.documentElement.classList.add('value-dragging');relative.start(current.root,{x:event.clientX,y:event.clientY});}
-    stop(event);const point=relative.sample(event),next=horizontalValue(current.config,valueDragDistance(current.config,point.x-current.x,point.y-current.y));
-    if(next!==current.next){current.next=next;current.adapter.input(next);}
+    if(!current.active){if(Math.abs(valueDragDistance(current.config,event.clientX-current.x,event.clientY-current.y))<(current.config.pixelsPerStep?1:4))return;current.active=true;claimUIPress(current.id,'pointerType' in event?event.pointerType:'mouse',event.buttons);current.root.setPointerCapture(current.id);preview.enter(owner,{start(){},move(x,y){const next=horizontalValue(current.config,valueDragDistance(current.config,x-current.x,(y??current.y)-current.y));if(next!==current.next){current.next=next;current.adapter.input(next);}},commit:()=>current.adapter.commit(current.next),cancel:()=>current.adapter.cancel(current.config.value)},current.x,current.y);document.documentElement.classList.add('value-dragging');relative.start(current.root,{x:event.clientX,y:event.clientY});}
+    stop(event);const point=relative.sample(event);preview.move(point.x,point.y);
   };
-  window.addEventListener('pointermove',event=>{if(drag&&!(event.buttons&1)){finish();return;}move(event);},true);
-  window.addEventListener('pointerup',event=>{if(drag?.id!==event.pointerId||event.button!==0)return;const active=drag.active;if(active){move(event);stop(event);}finish();},true);
+  relative.observeMove(move);
+  window.addEventListener('pointerup',event=>{if(drag?.id!==event.pointerId||event.button!==0)return;if(!drag.active){finish();return;}stop(event);drag.released=true;suppressClick=true;if(drag.root.hasPointerCapture(drag.id))drag.root.releasePointerCapture(drag.id);},true);
+  window.addEventListener('mouseup',event=>{if(drag?.active&&event.button===0){drag.released=true;suppressClick=true;stop(event);if(drag.root.hasPointerCapture(drag.id))drag.root.releasePointerCapture(drag.id);}},true);
+  window.addEventListener('mousedown',event=>{if(relative.locked&&drag?.active&&event.button===0){stop(event);finish();}},true);
   window.addEventListener('dragstart',event=>{if(drag)stop(event);},true);
-  window.addEventListener('pointercancel',event=>{if(drag?.id===event.pointerId)finish(true);},true);
-  window.addEventListener('lostpointercapture',event=>{if(drag?.id===event.pointerId&&!relative.active)finish(true);},true);
+  window.addEventListener('pointercancel',event=>{if(drag?.id===event.pointerId&&!relative.active)finish(true);},true);
+  window.addEventListener('lostpointercapture',event=>{if(drag?.id===event.pointerId&&!drag.active)finish(true);},true);
   window.addEventListener('keydown',event=>{if(event.key==='Escape'&&drag?.active){stop(event);finish(true);}},true);
   window.addEventListener('click',event=>{if(suppressClick&&event.detail>0){suppressClick=false;stop(event);}},true);
   window.addEventListener('blur',()=>finish(true));window.addEventListener(PAGE_INPUT_SUSPEND,()=>finish(true));
