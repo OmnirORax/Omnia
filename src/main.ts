@@ -528,7 +528,7 @@ function requestNode(accept: (target: Origin) => void) {
   message = 'Choose a node · Esc cancels'; refresh();
 }
 function connectNode(origin:Origin){
-  requestNode(target=>{if(key(origin)===key(target))throw Error('Choose another node.');store.change(world=>{world.relationships??=[];world.relationships.push({from:bind(locate(world,origin)!,'follow',world),to:bind(locate(world,target)!,'follow',world),label:'',kind:'relation'});});});
+  requestNode(target=>{if(key(origin)===key(target))throw Error('Choose another node.');store.change(world=>{connectNodes(world,origin,target);});});
   view?.connect(origin);
 }
 const nodeTools=defineMenu('nodeTools',()=>{

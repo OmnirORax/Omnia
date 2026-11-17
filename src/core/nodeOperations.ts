@@ -1,3 +1,4 @@
+import {createRelationNode} from './relationNode.ts';
 import {createOccupancy} from '../graph/occupancy.ts';
 import { addStructure, bind, locate, sameOrigin, type Origin, type Structure, type Vec3, type World } from './model.ts';
 import { address, inherited, prepareTranslation, vector } from './lattice.ts';
@@ -76,9 +77,10 @@ export function toggleSubtree(world: World, origin: Origin) {
 
 /** Connector release commits once: existing targets get a relationship; empty
  * space gets a child with the standard parent/part binding. */
-export function connectNodes(world:World,source:Origin,target:Origin|undefined,position:Vec3){
+export function connectNodes(world:World,source:Origin,target:Origin|undefined,position?:Vec3){
  const owner=locate(world,source);if(!owner)throw Error('The source node no longer exists.');
- if(target){const destination=locate(world,target);if(!destination)throw Error('The target node no longer exists.');if(sameOrigin(source,target))throw Error('Choose a different target node.');world.relationships??=[];world.relationships.push({from:bind(owner,'follow',world),to:bind(destination,'follow',world),label:'',kind:'relation'});return;}
+ if(target)return createRelationNode(world,source,target);
+ if(!position)throw Error('Choose a creation position.');
  const child=childNode(world,source,false,position);owner.collapsed=false;return child.origin;
 }
 
