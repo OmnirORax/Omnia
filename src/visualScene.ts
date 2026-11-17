@@ -13,7 +13,7 @@ export function visualObject(
   assets: VisualAsset[],
   makeText: (text: string) => THREE.Object3D,
   requestRender: () => void,
-  appearance: { color?: string; opacity?: number; brightness?: number; textureOnly?:boolean; textColor?: string; textGlow?: number;glowColor?:string } = {},
+  appearance: { color?: string; opacity?: number; brightness?: number; textureOnly?:boolean; textColor?: string; textGlow?: number;textBrightness?:number;glowColor?:string } = {},
   imageResolution = 512,
   _rasterFallback=false,
 ) {
@@ -26,7 +26,7 @@ export function visualObject(
   const styleText = (label: THREE.Object3D) => {
     const update = () => {
       const ink=appearance.textColor??appearance.color??"#ffffff",glow=appearance.textGlow??0;
-      if(label instanceof THREE.Mesh&&label.userData.isLabel)updateLabelPaint(label as ReturnType<typeof textSprite>,{...label.userData.labelPaint,color:ink,glow,glowColor:appearance.glowColor});
+      if(label instanceof THREE.Mesh&&label.userData.isLabel)updateLabelPaint(label as ReturnType<typeof textSprite>,{...label.userData.labelPaint,color:ink,glow,glowColor:appearance.glowColor,brightness:appearance.textBrightness??label.userData.labelPaint?.brightness});
       else label.userData.setTextStyle?.(appearance.color??ink,ink,glow);
       if (label instanceof THREE.Mesh) label.material.opacity = appearance.opacity ?? 1;
     };

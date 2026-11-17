@@ -1,4 +1,5 @@
-import {validateNodePaint,type NodePaint} from './nodeVisuals.ts';
+import {brightHex} from '../composer/runtime/appearance/resolve.ts';
+import {validateNodePaint,NODE_VISUAL_PROPERTIES,type NodePaint} from './nodeVisuals.ts';
 import {isImportedFont,importedFontFamily} from './importedFont.ts';
 import { property } from './pool.ts';
 import { translucentOpacity } from './translucency.ts';
@@ -11,16 +12,17 @@ export const FONT_OPTIONS = [
   { id:'mono',label:'Monospace',family:'ui-monospace, SFMono-Regular, Consolas, monospace' },
   { id:'electric',label:'Rubik Glitch',family:"'Rubik Glitch', system-ui, sans-serif" },
 ] as const;
-export type Paint = { color?: string; glowColor?:string; translucency?: number; glow?: number; font?: string; embolden?: number };
+export type Paint = { color?: string; brightness?:number; glowColor?:string; translucency?: number; glow?: number; font?: string; embolden?: number };
 export type Appearance = { text?: Paint; background?: Paint; nodes?: NodePaint };
 export const color = property({key:'color',label:'Color',kind:'color'});
+export const brightness=property({...NODE_VISUAL_PROPERTIES.find(p=>p.id==='brightness')!,key:'brightness'});
 export const translucency = property({key:'translucency',label:'Translucency',kind:'number',min:0,max:1,step:.01});
 export const glowColor=property({key:'glowColor',label:'Glow color',kind:'color'});
 export const glow = property({key:'glow',label:'Glow',kind:'number',min:0,max:1,step:.01});
 export const font = property({key:'font',label:'Font',kind:'select',options:FONT_OPTIONS});
 export const embolden = property({key:'embolden',label:'Bold strength',kind:'number',presentation:'slider',min:0,max:10,step:.25});
-export const visualProperties = (text: boolean) => text ? [color,translucency,glow,glowColor,embolden,font] : [color,translucency,glow,glowColor];
-export const TEXT_DEFAULTS = {color:'#eeeee8',translucency:0,glow:0,font:'system',embolden:0};
+export const visualProperties = (text: boolean) => text ? [color,brightness,translucency,glow,glowColor,embolden,font] : [color,translucency,glow,glowColor];
+export const TEXT_DEFAULTS = {color:'#eeeee8',brightness:1,translucency:0,glow:0,font:'system',embolden:0};
 export const BACKGROUND_DEFAULTS = {color:'#191c1b',translucency:.04,glow:0};
 export const fontFamily = (id?: string) => (id&&isImportedFont(id)?importedFontFamily(id):FONT_OPTIONS.find(font=>font.id===id)?.family) ?? FONT_OPTIONS[0].family;
 export const paintColor = (paint: Paint) => `${paint.color}${Math.round(translucentOpacity(1,paint.translucency)*255).toString(16).padStart(2,'0')}`;
@@ -29,6 +31,7 @@ export function validatePaint(paint: Paint | undefined, text: boolean) {
   if(!paint || typeof paint!=='object' || Array.isArray(paint) ||
     paint.color!==undefined&&!/^#[\da-f]{6}$/i.test(paint.color) || paint.glowColor!==undefined&&!/^#[\da-f]{6}$/i.test(paint.glowColor) ||
     ['translucency','glow'].some(key=>paint[key as 'glow']!==undefined&&(!Number.isFinite(paint[key as 'glow'])||paint[key as 'glow']!<0||paint[key as 'glow']!>1)) ||
+    paint.brightness!==undefined&&(!Number.isFinite(paint.brightness)||paint.brightness<0||paint.brightness>3) ||
     paint.font!==undefined&&(!text||!FONT_OPTIONS.some(font=>font.id===paint.font)&&!isImportedFont(paint.font)) ||
     paint.embolden!==undefined&&(!text||!Number.isFinite(paint.embolden)||paint.embolden<0||paint.embolden>10))throw Error('Invalid visual properties.');
 }
@@ -38,3 +41,6 @@ export function validateAppearance(value: Appearance | undefined) {
   validatePaint(value.text,true);validatePaint(value.background,false);validateNodePaint(value.nodes);
   delete (value as Appearance&{animations?:unknown}).animations;
 }
+
+/** The same resolved text ink is used by DOM and world labels; authored colors stay intact. */
+export function renderedTextPaint(paint:Paint={}){const style={...TEXT_DEFAULTS,...paint};return {...style,color:brightHex(style.color,style.brightness),glowColor:brightHex(style.glowColor??style.color,style.brightness)};}

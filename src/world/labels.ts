@@ -2,7 +2,7 @@ import {packedTextureGlow,packGlowCoverage,updateTextureGlowColor} from '../text
 import {imageHull} from './contentEnvelope.ts';
 import * as THREE from 'three';
 import {labelLines,labelSize} from '../composer/runtime/graph/labels.ts';
-import {fontFamily, TEXT_DEFAULTS,type Paint} from '../properties/visual.ts';
+import {fontFamily, TEXT_DEFAULTS,renderedTextPaint,type Paint} from '../properties/visual.ts';
 import {translucentOpacity} from '../properties/translucency.ts';
 import {isImportedFont} from '../properties/importedFont.ts';
 type FontId=string;
@@ -121,11 +121,11 @@ export function textSprite(value: string, color: string, selected = false, node 
 /** Only typography changes text geometry. Color/opacity/glow reuse the label. */
 export const labelGeometryKey=(paint:Paint={},revision=0)=>JSON.stringify([paint.font??TEXT_DEFAULTS.font,revision]);
 export function updateLabelPaint(mesh:ReturnType<typeof textSprite>,paint:Paint={}){
- const style={...TEXT_DEFAULTS,...paint};
- mesh.userData.setTextStyle(style.color,style.color,style.glow);
- updateTextureGlowColor(mesh.material,style.glowColor??style.color);mesh.userData.glowColor=style.glowColor;
+ const style={...TEXT_DEFAULTS,...paint},rendered=renderedTextPaint(style);
+ mesh.userData.setTextStyle(rendered.color,rendered.color,style.glow);
+ updateTextureGlowColor(mesh.material,rendered.glowColor);mesh.userData.glowColor=style.glowColor===undefined?undefined:rendered.glowColor;
  mesh.material.opacity=translucentOpacity(1,style.translucency);
- mesh.userData.labelPaint=style;mesh.userData.textColor=style.color;
+ mesh.userData.labelPaint=style;mesh.userData.textColor=rendered.color;
 }
 export function label(caption:string,paint?:Paint){
  const style={...TEXT_DEFAULTS,...paint};

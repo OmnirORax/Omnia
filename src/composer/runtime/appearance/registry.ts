@@ -443,6 +443,8 @@ for (const target of entries) if (target.properties) target.numberRanges = Objec
 entries.push({id:'geometry.rendered',parent:'all',label:'Rendered geometry',properties:[],binding:{selector:'[data-selection-geometry]',role:'icon'}});
 entries.push({id:'geometry.environment',parent:'all',label:'Rendered environment boundary',properties:[],binding:{selector:'[data-selection-environment]',role:'icon'}});
 export const TARGETS: readonly RegisteredTarget[] = groupVisualRoles(entries);
+/** UI borders inherit the shared global text paint through their existing capabilities. */
+export const UI_BORDER_SELECTOR=[...new Set(TARGETS.flatMap(target=>target.binding?.css==='border-color'&&target.binding.selector?[target.binding.selector]:[]))].join(',');
 const baseTargets = new Map(TARGETS.map(target => [target.id, target]));
 const LEGACY_FIELD_BRANCHES = Object.fromEntries(
   ["single", "multi", "search", "number", "select"].map(kind => [

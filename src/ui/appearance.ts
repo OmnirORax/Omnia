@@ -1,13 +1,16 @@
-import { BACKGROUND_DEFAULTS, TEXT_DEFAULTS, fontFamily, paintColor, type Appearance, type Paint } from '../properties/visual.ts';
+import {UI_BORDER_SELECTOR} from '../composer/runtime/appearance/registry.ts';
+import { BACKGROUND_DEFAULTS, renderedTextPaint, fontFamily, paintColor, type Appearance, type Paint } from '../properties/visual.ts';
 import { emboldenStrokeEm } from '../properties/embolden.ts';
 
 export function textStyle(paint?: Paint) {
-  const value={...TEXT_DEFAULTS,...paint};
+  const value=renderedTextPaint(paint);
   return {color:paintColor(value),fontFamily:fontFamily(value.font),textShadow:value.glow?`0 0 ${value.glow*10}px ${value.glowColor??value.color}`:'none'};
 }
-let previous='';
+export function textBorderStyle(paint:Paint={}){const value=renderedTextPaint(paint);return {borderColor:value.color,boxShadow:value.glow?`var(--omnium-custom-shadow,0 0 0 transparent),0 0 ${value.glow*14}px ${value.glowColor}`:'var(--omnium-custom-shadow,0 0 0 transparent)'};}
+let previous='',borderStyle:HTMLStyleElement|undefined;
 export function updateUIAppearance(appearance?: Appearance) {
   const next=JSON.stringify(appearance??{});if(next===previous)return;previous=next;
+  if(!borderStyle){borderStyle=document.createElement('style');borderStyle.dataset.textBorderPaint='';borderStyle.textContent=`:root[data-visual-text] :is(${UI_BORDER_SELECTOR}){border-color:var(--visual-text-border-color);box-shadow:var(--visual-text-border-shadow)}`;document.head.append(borderStyle);}
   const root=document.documentElement.style;
   document.documentElement.toggleAttribute('data-visual-text',!!appearance?.text);
   document.documentElement.toggleAttribute('data-visual-background',!!appearance?.background);
@@ -16,6 +19,7 @@ export function updateUIAppearance(appearance?: Appearance) {
   for(const [name,value] of Object.entries(text ? textStyle(text) : {color:'',fontFamily:'',textShadow:''})) {
     root.setProperty(`--visual-text-${name}`,value);
   }
+  const border=textBorderStyle(text);root.setProperty('--visual-text-border-color',border.borderColor);root.setProperty('--visual-text-border-shadow',border.boxShadow);
   const background=appearance?.background;
   const paint={...BACKGROUND_DEFAULTS,...background};
   root.setProperty('--visual-background',background?paintColor(paint):'');
