@@ -66,4 +66,4 @@
 
 .mathematical-dial .mathematical-dial-readout{max-width:200px;overflow-wrap:anywhere;white-space:normal}
 
-.mathematical-dial .mathematical-dial-size{position:absolute;left:calc(100% + 4px);top:calc(100% + 4px);width:24px;height:24px;min-width:0;padding:0;border:0;background:transparent;font-size:20px;line-height:1;cursor:nwse-resize;touch-action:none}
+.mathematical-dial .mathematical-dial-size{position:absolute;left:85.355339%;top:85.355339%;transform:translate(-50%,-50%);width:24px;height:24px;min-width:0;padding:0;border:0;background:transparent;font-size:20px;line-height:1;cursor:nwse-resize;touch-action:none}

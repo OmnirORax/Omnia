@@ -184,7 +184,7 @@ export function MathematicalDial({value,min,max,integer=false,label='Value',disa
   }}
   onPointerCancel={cancel} onLostPointerCapture={()=>{if(drag.current)cancel();}}
   onClickCapture={event=>{if(!owns(event.target,event.currentTarget))return;if(suppressClick.current&&event.detail>0){suppressClick.current=false;event.preventDefault();event.stopPropagation();}}}>
-  <div ref={ringRef} className="mathematical-dial-ring" style={{width:extent,height:extent,zoom:scaleDrag.value}} onContextMenu={event=>{
+  <div ref={ringRef} className="mathematical-dial-ring" style={{width:extent,height:extent}} onContextMenu={event=>{
    event.preventDefault();event.stopPropagation();if(disabled||drag.current)return;
    const slot=event.target instanceof Element?event.target.closest<HTMLElement>('[data-math-slot]'):null;
    if(slot&&ringRef.current?.contains(slot)){const key=slot.dataset.mathSlot!,erase=marks.selected.includes(key)&&modeAt(marks,key)==='recursion';const next=paintMathematicalSlots(marks,[key],'recursion',erase);commit(next);}
