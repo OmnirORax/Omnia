@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import type { NudgeActionId } from "../composer/runtime/workspaceActions.ts";
 export type NudgeSnapshot = {
-  step: number; frame: THREE.Quaternion;
+  step: number; frame: THREE.Quaternion;direction?:(actions:readonly NudgeActionId[])=>THREE.Vector3;
   preview: (delta: THREE.Vector3) => void;
   restore: () => void;
   commit: (delta: THREE.Vector3) => void;
@@ -22,7 +22,7 @@ export function createNudgeGesture(env: {
     Number(actions.includes("nudgeUp")) - Number(actions.includes("nudgeDown")), 0);
   const advance = (amount: number) => {
     if (!active) return;
-    const step = direction(active.actions).applyQuaternion(active.snapshot.frame).multiplyScalar(amount * active.snapshot.step);
+    const step = (active.snapshot.direction?.(active.actions).clone()??direction(active.actions).applyQuaternion(active.snapshot.frame)).multiplyScalar(amount * active.snapshot.step);
     if (!step.lengthSq()) return;
     active.delta.add(step); active.snapshot.preview(active.delta);
   };

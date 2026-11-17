@@ -1,3 +1,4 @@
+import {ARROW_NUDGES} from './world/axisNudge.ts';
 import {enableDenseFrames} from './core/planePacking.ts';
 import {selectionLatch} from './ui/selectionLatch.ts';
 import {capturingShortcut} from './ui/shortcuts.ts';
@@ -78,7 +79,7 @@ installReleaseShortcuts(event=>{
  if(editor&&(event.ctrlKey||event.metaKey)&&!event.altKey&&/^[cxv]$/i.test(event.key))return false;
  if(editor&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&/^(Arrow|Home|End|Page)/.test(event.key))return false;
  if(editor&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&event.key!=='Escape'&&!/^F\d+$/.test(event.key)&&!Object.values(shortcuts.getSnapshot().Document??{}).some(binding=>!!binding&&binding===shortcutEvent(event,'Document')))return false;
- if(element?.closest('canvas')&&/^Arrow/.test(event.key)&&!event.ctrlKey&&!event.metaKey&&!event.altKey)return false;
+ if(!typing&&!element?.closest('[data-input-owner]')&&Object.keys(ARROW_NUDGES).some(key=>matchesShortcut(event,worldBinding(key))))return false;
  if(!typing&&/^\d$/.test(event.key))return true;
  if(view?.selectingRange&&!typing&&matchesShortcut({...event,key:event.key,ctrlKey:false,metaKey:false,altKey:false,shiftKey:false} as KeyboardEvent,worldBinding('V')))return true;
  const omnic=!!element&&shortcutContextFor(element)==='Omnic';
@@ -96,7 +97,7 @@ const tools = element('tools'), status = element('status'), search = element<HTM
 type Target = Origin | Edge;
 const isNode = (target: Target): target is Origin => 'born' in target;
 const selection = createSelection<Target>((a, b) => isNode(a) && isNode(b) ? sameOrigin(a, b) : !isNode(a) && !isNode(b) && JSON.stringify(a) === JSON.stringify(b));
-const selectedOrigins = () => selection.values.filter(isNode);
+const selectedOrigins = () => selection.targets.filter(isNode);
 const storage = { getItem: (key: string) => localStorage.getItem(key), setItem: (key: string, value: string) => localStorage.setItem(key, value) };
 const store = createStore(storage,universalHistory);
 let disposeTools:(()=>void)|undefined;
@@ -108,16 +109,16 @@ reloadModuleButton.onclick=()=>{flushLiveForms();location.reload();};status.repl
 const loadEditor=<T,>(load:()=>Promise<T>)=>loadEditorModule(load,()=>{reloadForModule=true;});
 const key = (origin: Origin) => JSON.stringify(origin);
 function feedback(text: string) { message = text; refresh(); }
-function attempt(action: () => void) { try { universalHistory.transaction(action); } catch (error) { feedback(error instanceof Error ? error.message : String(error)); } }
-function renderClose() { disposeTools?.();disposeTools=undefined;tools.hidden = true; view?.update(store.world, selectedOrigins(), shown, selection.values.filter((target): target is Edge => !isNode(target))); }
+function attempt(action: () => void) { try { universalHistory.transaction(()=>{view?.commitSelection();action();}); } catch (error) { feedback(error instanceof Error ? error.message : String(error)); } }
+function renderClose() { disposeTools?.();disposeTools=undefined;tools.hidden = true; view?.update(store.world, selectedOrigins(), shown, selection.targets.filter((target): target is Edge => !isNode(target))); }
 function close(){if(viewHistory.rendering){renderClose();return;}viewHistory.hideMenu();}
 const menuFactories=new Map<string,(args:unknown[])=>void>();
 function defineMenu<Args extends unknown[]>(kind:string,render:(...args:Args)=>void,atCursor=false){
  menuFactories.set(kind,args=>render(...args as Args));
- return(...args:Args)=>{if(viewHistory.rendering){render(...args);return;}if(atCursor)menuPoint={...cursorPosition()};viewHistory.menu({kind,args,point:{...menuPoint},selection:selection.values as Target[]});};
+ return(...args:Args)=>{if(viewHistory.rendering){render(...args);return;}if(atCursor)menuPoint={...cursorPosition()};viewHistory.menu({kind,args,point:{...menuPoint},selection:selection.targets as Target[]});};
 }
 function pick(origin: Origin, extend = false, toggle = false) { universalHistory.activeContext=`node:${key(origin)}`;universalHistory.contextPath=['omnium',universalHistory.activeContext]; selection.pick(origin, extend, toggle);followSelectionOrigin();refresh(); }
-function selectedNodes(world: World) { return world.nodes.filter(node => selection.has(node.origin)); }
+function selectedNodes(world: World) { const ids=new Set(selectedOrigins().map(key));return world.nodes.filter(node=>ids.has(key(node.origin))); }
 const view = (() => {
   try {
     return createWorld(element('world'), {
@@ -129,7 +130,7 @@ const view = (() => {
       pick, picking: () => selection.requesting,
       range(origins, extend) { if (!selection.requesting) { selection.hover(undefined);selection.set(extend ? [...selection.committed.filter(isNode), ...origins] : origins);followSelectionOrigin();refresh(); } },
       clear() { if (selection.requesting) return; close(); selection.clear(); refresh(); },
-      menu(origin, point, position, edge) { if (selection.requesting) {if(edge)selection.cancel();else return;} message = ''; if(edge)selection.set([edge]);else if(origin)selection.set(selection.has(origin)?selectedOrigins():[origin]);else selection.clear(); menuPoint = point; refresh(); context(position,origin,edge); },
+      menu(origin, point, position, edge) { if (selection.requesting) {if(edge)selection.cancel();else return;} message = ''; if(edge)selection.set([edge]);else if(origin)selection.set(selection.has(origin)?selectedOrigins():[origin]);else if(selection.committed.length<2)selection.clear(); menuPoint = point; refresh(); context(position,origin,edge); },
       navigationSettings:()=>openNavigation(),
       rotateCommit(nodes,frame){store.change(world=>{if(nodes.size){applyGroupTargets(world,new Map([...nodes].map(([id,n])=>[id,n.position])));for(const node of world.nodes){const next=nodes.get(key(node.origin));if(next)node.orientation={...next.orientation};}}if(frame){const found=world.axes?.find(f=>f.id===frame.id);if(!found&&frame.id==='@user'){const basis=view!.frameBasis();const created=setSpatialOrigin(world,undefined,frame.state.origin,basis.right,basis.up);Object.assign(created,frame.state,{directed:true});}else if(!found)throw Error('The frame was removed.');else Object.assign(found,frame.state,{directed:true});}});},
       transform(origins,rotation,pivot,layout){store.change(world=>transformNodes(world,origins,rotation,pivot,layout));},
@@ -166,7 +167,7 @@ function refresh() {
   shown = query ? new Set(store.world.nodes.filter(node => node.label.toLocaleLowerCase().includes(query)).map(node => key(node.origin))) : atlas;
   if(atlas&&shown)shown=new Set([...shown].filter(id=>atlas.has(id)));
   selection.retain(target => isNode(target) ? !!locate(store.world, target) : target.kind === 'part' ? !!locate(store.world, target.owner)?.parts[target.index] : target.kind === 'variant' ? !!locate(store.world,target.owner)?.variantOf : target.kind==='child'?!!locate(store.world,target.child)?.parent&&sameOrigin(locate(store.world,target.child)!.parent!,target.owner):!!store.world.relationships?.[target.index]);
-  view?.update(store.world, selectedOrigins(), shown, selection.values.filter((target): target is Edge => !isNode(target)));
+  view?.update(store.world, selectedOrigins(), shown, selection.targets.filter((target): target is Edge => !isNode(target)));
   element('empty').hidden = store.world.nodes.length > 0;
   element<HTMLButtonElement>('undo').disabled = universalHistory.candidates('undo',globalHistoryOptions()).length===0;
   element<HTMLButtonElement>('redo').disabled = universalHistory.candidates('redo',globalHistoryOptions()).length===0;
@@ -234,9 +235,9 @@ const editCapability=defineMenu('capability',(capabilityKey: string)=>{
   tools.append(form); positionMenu(); inputs[0].focus(); if (inputs[0].type === 'text') inputs[0].select();
 });
 function editLabel(){
- const edge=selection.values.find((target):target is Edge=>!isNode(target));if(edge){edgeContext(edge);const input=tools.querySelector<HTMLInputElement>('form input[type=text]');input?.focus();input?.select();return;}
+ const edge=selection.targets.find((target):target is Edge=>!isNode(target));if(edge){edgeContext(edge);const input=tools.querySelector<HTMLInputElement>('form input[type=text]');input?.focus();input?.select();return;}
  const hovered=view?.hoveredOrigin;view?.cancel();
- if(hovered&&!selection.has(hovered))pick(hovered);
+ if(hovered&&selectedOrigins().length<2&&!selection.has(hovered))pick(hovered);
  if(!selectedOrigins().length){feedback('Point to or select a node to name.');return;}
  editCapability('label');
 }
@@ -307,7 +308,7 @@ const chooseReference=defineMenu('include',()=>{
 });
 function remove() {
   store.change(world => {
-    for (const edge of selection.values.filter((value): value is Edge => !isNode(value)).sort((a,b) => ('index' in b?b.index:-1)-('index' in a?a.index:-1))) {
+    for (const edge of selection.targets.filter((value): value is Edge => !isNode(value)).sort((a,b) => ('index' in b?b.index:-1)-('index' in a?a.index:-1))) {
       if (edge.kind === 'relationship') world.relationships?.splice(edge.index,1);
       else if (edge.kind === 'variant') detachNode(world,edge.owner);
       else if(edge.kind==='child')detachNode(world,edge.child);
@@ -427,7 +428,7 @@ function spaceActions():SearchAction[]{
 const openShortcuts=defineMenu('shortcuts',()=>{
  view?.cancel();let shortcutView:ReturnType<typeof shortcutWindow>|undefined;const find=open('Shortcuts',query=>shortcutView?.filter(query));let defaults:ShortcutDefinition[]=[],omnicDefaults:()=>ShortcutDefinition[]=()=>[],ready=false;
  const read=()=>{const native=worldShortcutActions(true).flatMap(action=>(action.defaultKey||action.key===''||action.id===worldShortcutId('R')||action.id===worldShortcutId('W')||action.id===worldShortcutId('O'))?[{category:'Omnium' as const,id:action.id,label:action.label,defaultKey:action.defaultKey,gesture:'gesture' in action?action.gesture:undefined}]:[]);
- const global:ShortcutDefinition[]=[['V','Content view'],['F11','Fullscreen'],['Esc','Cancel'],['.','Toggle actions'],['Ctrl+Z','Undo'],['Ctrl+Y','Redo'],['Ctrl+Shift+Z','Redo (alternate)'],['Enter','Apply alignment'],['ArrowUp','Navigator up'],['ArrowDown','Navigator down'],['ArrowLeft','Navigator left'],['ArrowRight','Navigator right']].map(([key,label])=>({category:'Omnium',id:worldShortcutId(key),defaultKey:key,label,scope:key==='F11'?'application':key.includes('Ctrl')||key==='.'?'applicationExceptDocument':undefined}));
+ const global:ShortcutDefinition[]=[['V','Content view'],['F11','Fullscreen'],['Esc','Cancel'],['.','Toggle actions'],['Ctrl+Z','Undo'],['Ctrl+Y','Redo'],['Ctrl+Shift+Z','Redo (alternate)'],['Enter','Apply alignment'],['ArrowUp','Move along axes · up'],['ArrowDown','Move along axes · down'],['ArrowLeft','Move along axes · left'],['ArrowRight','Move along axes · right']].map(([key,label])=>({category:'Omnium',id:worldShortcutId(key),defaultKey:key,label,scope:key==='F11'?'application':key.includes('Ctrl')||key==='.'?'applicationExceptDocument':undefined}));
  return [...new Map([...native,...global,...WORLD_GESTURES.map(item=>item.id==='gesture:hierarchy-contents'?{...item,gesture:worldBinding('V')&&worldBinding('Q')?`Hold ${worldBinding('V')} + ${worldBinding('Q')}`:''}:item),...DOCUMENT_GESTURES,...defaults,...omnicDefaults()].map(item=>[`${item.category}/${item.id}`,item])).values()].sort((a,b)=>a.label.localeCompare(b.label));};
  const root=document.createElement('div');root.className='shortcut-window';tools.append(root);const window=shortcutWindow(root,read,()=>ready,find);shortcutView=window;disposeTools=window.dispose;
  void Promise.all([import('./text/editor'),import('./composer/runtime/featureActions'),import('./composer/runtime/workspaceActions')]).then(([doc,features,workspace])=>{
@@ -656,6 +657,7 @@ window.addEventListener('keydown',event=>{
   event.preventDefault();event.stopImmediatePropagation();message='';refresh();
 },true);
 function originShortcutBinding(){return shortcuts.get({category:'Omnium',id:worldShortcutId('O'),label:'Set origin',defaultKey:'X'});}
+function runWorldAction(id:string):void{attempt(()=>worldShortcutActions(true).find(action=>action.id===id)?.execute());}
 function worldShortcutActions(includeUnavailable=false){return [
  ...spaceActions().filter(action=>includeUnavailable||action.available!==false).map(action=>{const match=/^(.*?) \(([^)]+)\)$/.exec(action.label);return {label:match?.[1]??action.label,key:match?.[2],run:action.run};}),
  {id:worldShortcutId('O'),label:'Set origin',gesture:undefined,key:'X',run:()=>view?.pickOrigin()},
@@ -668,7 +670,7 @@ function worldShortcutActions(includeUnavailable=false){return [
  {label:view?.userDetached?'Mount User':'Dismount User',key:'U',run:()=>view?.toggleUser()},
  {label:'Save workspace state',key:'5',run:()=>{
   flushLiveForms();view?.saveCamera();
-  const session={version:1 as const,views:viewHistory.snapshot(),layout:nativeLayout.getSnapshot(),appearance:nativeAppearance.getSnapshot(),details:navigationState.snapshot(),shortcuts:shortcuts.getSnapshot(),selection:[...selection.values]};
+  const session={version:1 as const,views:viewHistory.snapshot(),layout:nativeLayout.getSnapshot(),appearance:nativeAppearance.getSnapshot(),details:navigationState.snapshot(),shortcuts:shortcuts.getSnapshot(),selection:[...selection.targets]};
   store.change(world=>{world.session=structuredClone(session);});void saveSharedDraft?.();feedback('Workspace state saved locally.');
  }},
  {label:'Create nodes',key:'W',run:()=>view?.toggleCreation()},
@@ -677,7 +679,7 @@ function worldShortcutActions(includeUnavailable=false){return [
  ...((includeUnavailable||selectedOrigins().length||view?.hoveredOrigin)?[{label:'Document',key:'D',run:()=>openDocument()}]:[]),
  ...((includeUnavailable||selection.values.length)?[{label:'Remove',key:'Delete',run:remove}]:[]),
  {label:'Label',key:'L',run:editLabel},
- ].map(action=>{const defaultKey=action.key&&normalizeShortcut(action.key),id=('id' in action?action.id:undefined)??worldShortcutId(defaultKey??action.key??action.label);return {...action,id,defaultKey:defaultKey??'',run:action.run,key:normalizeShortcut(action.key??'')||action.key===''?shortcuts.get({category:'Omnium',id,label:action.label,defaultKey:defaultKey??''}):action.key};});}
+ ].map(action=>{const defaultKey=action.key&&normalizeShortcut(action.key),id=('id' in action?action.id:undefined)??worldShortcutId(defaultKey??action.key??action.label);return {...action,id,defaultKey:defaultKey??'',execute:action.run,run:()=>runWorldAction(id),key:normalizeShortcut(action.key??'')||action.key===''?shortcuts.get({category:'Omnium',id,label:action.label,defaultKey:defaultKey??''}):action.key};});}
 installContextActions();
 registerContextActions({label:'Omnium',owns:element=>!!element.closest('#world,header'),read:()=>{
  const mode=view?.inputContext;
@@ -699,8 +701,8 @@ document.addEventListener('keydown', event => {
   if(selection.requesting&&selection.values.some(target=>!isNode(target))&&(matchesShortcut(event,worldBinding('Delete'))||matchesShortcut(event,worldBinding('L')))){event.preventDefault();selection.cancel();attempt(()=>matchesShortcut(event,worldBinding('Delete'))?remove():editLabel());return;}
   if(!event.ctrlKey&&!event.metaKey&&!event.altKey&&!matchesShortcut(event,worldBinding('5'))&&view?.userPositionKey(event.key)){event.preventDefault();return;}
   if(!event.defaultPrevented&&!event.repeat&&!selection.requesting){
-    const action=worldShortcutActions().find(action=>action.key&&matchesShortcut(event,action.key));
-    if(action){event.preventDefault();attempt(action.run);return;}
+    const action=worldShortcutActions(true).find(action=>action.key&&matchesShortcut(event,action.key));
+    if(action){event.preventDefault();action.run();return;}
   }
 
 

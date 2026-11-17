@@ -5,6 +5,8 @@ export function createSelection<T>(equal: (a: T, b: T) => boolean) {
   return {
     get values(): readonly T[] { return hovered??values; },
     get committed():readonly T[]{return values;},
+    /** Actions retain a committed group while hover stays available independently. */
+    get targets():readonly T[]{return values.length>1?values:hovered??values;},
     hover(value:T|undefined){hovered=!request&&value!==undefined?[value]:undefined;},
     has: (value: T) => (hovered??values).some(item => equal(item, value)),
     retain(keep:(value:T)=>boolean){values=values.filter(keep);if(hovered&&!hovered.every(keep))hovered=undefined;},
