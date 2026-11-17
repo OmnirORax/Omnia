@@ -112,3 +112,8 @@ export function mathematicalScaleRejection(anchor:number,count:number,mode:Exclu
  if(count>maximum)return `Maximum ${name} is ${maximum}. ${domain.integer?'The next result would be fractional or outside the allowed range.':'The next result is outside the allowed range.'}`;
  return mathematicalValueRejection(mathematicalScaleValue(anchor,count,mode),domain);
 }
+export function mathematicalLimitsRejection(min:number,max:number,domain:MathematicalDomain){
+ if(!Number.isFinite(min)||!Number.isFinite(max))return 'Limits must be finite numbers.';
+ if(min>max)return 'Minimum cannot exceed maximum.';
+ return mathematicalValueRejection(min,domain)??mathematicalValueRejection(max,domain);
+}

@@ -1,7 +1,7 @@
 import {selectionLatch} from './selectionLatch.ts';
-import type {OperationNumber} from './operationNumber.ts';
+import type {OperationNumber,OperationChoices} from './operationNumber.ts';
 /** Shift-after-activation edits a parameter without starting or accepting its operation. */
-export function createOperationDial(options:{host:HTMLElement;active:()=>boolean;number:()=>OperationNumber|undefined;changed?:()=>void;feedback:(message:string)=>void;choices?:{read:()=>string;items:readonly string[];change:(id:string)=>void};mount?:typeof import('./operationMathDial.tsx').mountOperationMathDial}){
+export function createOperationDial(options:{host:HTMLElement;active:()=>boolean;number:()=>OperationNumber|undefined;changed?:()=>void;feedback:(message:string)=>void;choices?:OperationChoices;mount?:typeof import('./operationMathDial.tsx').mountOperationMathDial}){
  let dispose:(()=>void)|undefined,opened=false,generation=0;
  function close(){if(!opened)return;opened=false;generation++;dispose?.();dispose=undefined;options.host.hidden=true;options.changed?.();}
  function open(){if(!options.active())return false;if(opened)return true;const number=options.number();if(!number)return false;opened=true;options.host.hidden=false;const epoch=++generation;

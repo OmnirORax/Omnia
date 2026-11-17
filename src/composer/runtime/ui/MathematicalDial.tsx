@@ -8,7 +8,7 @@ import {useValueDrag} from './useValueDrag.ts';
 import {useValueConfirmation} from './useValueConfirmation';
 import {useId,useLayoutEffect,useEffect,useMemo,useRef,useState} from 'react';
 import {radialDimensions,RADIAL_GEOMETRY} from './radialMenuModel';
-import {mathematicalSlotScrub,mathematicalEmptyValue,mathematicalSlotValue,mathematicalNumberValue,mathematicalEditValue,mathematicalValueAllowed,mathematicalValueSession,radialSlotCapacity,mathematicalScaleValue,mathematicalScaleMaximum,mathematicalScaleRejection,mathematicalValueRejection,mathematicalRingOrders,type MathematicalScaleMode,fillMathematicalSlots,paintMathematicalSlots,type MathematicalMarks,type MathematicalStrokeSlot,type MathematicalSlotMode} from '../properties/mathematicalDial.ts';
+import {mathematicalSlotScrub,mathematicalEmptyValue,mathematicalSlotValue,mathematicalNumberValue,mathematicalEditValue,mathematicalValueAllowed,mathematicalValueSession,radialSlotCapacity,mathematicalLimitsRejection,mathematicalScaleValue,mathematicalScaleMaximum,mathematicalScaleRejection,mathematicalValueRejection,mathematicalRingOrders,type MathematicalScaleMode,fillMathematicalSlots,paintMathematicalSlots,type MathematicalMarks,type MathematicalStrokeSlot,type MathematicalSlotMode} from '../properties/mathematicalDial.ts';
 import './mathematicalDial.css';
 import {useContextNavigation} from './ContextStage';
 import {ContextualMasterController} from './ContextualMasterController';
@@ -24,14 +24,14 @@ type Point={x:number;y:number};
 type Stroke={erase:boolean;id:number;last:Point;slots:MathematicalStrokeSlot[];visited:readonly string[];before:MathematicalMarks;next:MathematicalMarks;brush:MathematicalSlotMode;accepted?:boolean};
 /** Shared raw-number surface. The consumer supplies its domain and real setters.
  * Left-click paints normal values; right-click applies recursion directly. */
-export function MathematicalDial({value,min,max,integer=false,label='Value',disabled=false,configure=false,editing,rule,onPreview=()=>{},onCommit,onCancelPreview,onReject=reportSystemMessage,onConfigurationCommit,readoutOwner,keyboardInput=false}:{
+export function MathematicalDial({value,min,max,integer=false,label='Value',disabled=false,configure=false,editing,rule,onPreview=()=>{},onCommit,onCancelPreview,onReject=reportSystemMessage,onConfigurationCommit,readoutOwner,keyboardInput=false,limits}:{
  value:number;min:number;max:number;integer?:boolean;label?:string;disabled?:boolean;configure?:boolean;
  rule?:{value:string;choices:readonly {id:string;label:string;icon:string}[];onChange:(id:string)=>void};
  editing?:{kind:'value'|'increment';amount:number;minimum:number;maximum:number;onKindChange:(kind:'value'|'increment')=>void;onAmountChange:(amount:number)=>void};
- readoutOwner?:string;keyboardInput?:boolean;onConfigurationCommit?:(config:ConfirmedMathValue)=>void;onReject?:(message:string)=>void;onPreview?:(value:number)=>void;onCommit:(value:number)=>void;onCancelPreview?:()=>void;
+ limits?:{label:string;min:number;max:number;hardMin:number;hardMax:number;integer?:boolean;change:(which:'min'|'max',value:number)=>void|boolean};readoutOwner?:string;keyboardInput?:boolean;onConfigurationCommit?:(config:ConfirmedMathValue)=>void;onReject?:(message:string)=>void;onPreview?:(value:number)=>void;onCommit:(value:number)=>void;onCancelPreview?:()=>void;
 }){
 
- const localReadout=useId(),typedExact=useRef(false);
+ const localReadout=useId(),typedExact=useRef(false),[exactKind,setExactKind]=useState<'value'|'min'|'max'>('value');
  const [base,setBase]=useState<1|2>(2),[scaling,setScaling]=useState<MathematicalScaleMode>('value'),[scaleCount,setScaleCount]=useState(0),scaleAnchor=useRef(value),valueBase=useRef<1|2>(2);
  const readoutDrag=useValueDrag({value,min,max,step:integer?1:undefined,disabled:disabled||scaling!=='value'},n=>previewValue(n),n=>commit(emptyMarks(),n,0),()=>restore());
  const clockwise=true;
@@ -144,14 +144,16 @@ export function MathematicalDial({value,min,max,integer=false,label='Value',disa
  const closeExact=()=>{textFinished.current=true;setExact(null);};
  const finishExact=()=>{
   if(!exact||textFinished.current)return;
-  const parsed=exact.text.trim()?Number(exact.text):NaN,result=scaling==='value'?parsed:mathematicalScaleValue(scaleAnchor.current,parsed,scaling);
+  const parsed=exact.text.trim()?Number(exact.text):NaN;
+  if(exactKind!=='value'&&limits){const next={min:limits.min,max:limits.max,[exactKind]:parsed},reason=mathematicalLimitsRejection(next.min,next.max,{min:limits.hardMin,max:limits.hardMax,integer:limits.integer});if(reason){onReject(`${limits.label}: ${reason}`);return;}if(limits.change(exactKind,parsed)===false)return;textFinished.current=true;setExact(null);return;}
+  const result=scaling==='value'?parsed:mathematicalScaleValue(scaleAnchor.current,parsed,scaling);
   if(!valid(result)||scaling!=='value'&&(!Number.isSafeInteger(parsed)||parsed<0||parsed>(scaleMaximum??0))){reject(result,parsed);return;}
   textFinished.current=true;setExact(null);if(scaling==='value')anchor.current=parsed;else setScaleCount(parsed);setSign(editing?.kind==='increment'?1:result<0?-1:1);commit(emptyMarks(),result,scaling==='value'?0:parsed);
  };
  useCancelValueEdit(textInput,closeExact,!!exact);
- const openExact=()=>{typedExact.current=false;restore();textFinished.current=false;setExact({point:cursorPosition(),text:String(scaling==='value'?session.restore():scaleCount)});};
+ const openExact=()=>{setExactKind('value');typedExact.current=false;restore();textFinished.current=false;setExact({point:cursorPosition(),text:String(scaling==='value'?session.restore():scaleCount)});};
  useEffect(()=>()=>{if(!readoutOwner)clearMathCursorReadout(localReadout);},[readoutOwner,localReadout]);
- useEffect(()=>{if(!keyboardInput)return;const key=(event:KeyboardEvent)=>{if(disabled||!/^\d$/.test(event.key)||event.ctrlKey||event.metaKey||event.altKey||event.target instanceof Element&&event.target.closest('input,textarea,select,[contenteditable]'))return;event.preventDefault();event.stopImmediatePropagation();restore();typedExact.current=true;textFinished.current=false;setExact({point:cursorPosition(),text:event.key});};window.addEventListener('keydown',key,true);return()=>window.removeEventListener('keydown',key,true);},[keyboardInput,disabled]);
+ useEffect(()=>{if(!keyboardInput)return;const key=(event:KeyboardEvent)=>{if(disabled||!/^\d$/.test(event.key)||event.ctrlKey||event.metaKey||event.altKey||event.target instanceof Element&&event.target.closest('input,textarea,select,[contenteditable]'))return;event.preventDefault();event.stopImmediatePropagation();restore();setExactKind('value');typedExact.current=true;textFinished.current=false;setExact({point:cursorPosition(),text:event.key});};window.addEventListener('keydown',key,true);return()=>window.removeEventListener('keydown',key,true);},[keyboardInput,disabled]);
  const changeScaling=(next:MathematicalScaleMode)=>{
   restore();horizontal?.release(horizontalOwner.current);drag.current=null;setPainting(false);setMarks(emptyMarks());setScaleCount(0);
   if(next==='value'){setBase(valueBase.current);}else{if(scaling==='value')valueBase.current=base;scaleAnchor.current=session.restore();setBase(1);setSign(1);}setScaling(next);
@@ -200,6 +202,7 @@ export function MathematicalDial({value,min,max,integer=false,label='Value',disa
   </div>
   <div className="mathematical-dial-meta">
    <div className="mathematical-dial-settings" role="group" aria-label="Number mode">{(['value','halving','doubling'] as const).map(kind=><button key={kind} type="button" disabled={disabled||kind!=='value'&&(!Number.isFinite(session.expected)||session.expected===0)} aria-label={kind==='value'?'Set value':kind==='halving'?'Halve starting value':'Double starting value'} aria-pressed={scaling===kind} onClick={()=>changeScaling(scaling===kind&&kind!=='value'?'value':kind)}>{kind==='value'?'=':kind==='halving'?'/2':'×2'}</button>)}</div>
+   {limits&&<div className="mathematical-dial-settings mathematical-dial-limits" role="group" aria-label={`${limits.label} limits`}>{(['min','max'] as const).map(kind=><button key={kind} type="button" disabled={disabled} aria-label={`Set ${limits.label} ${kind==='min'?'minimum':'maximum'}`} onClick={()=>{restore();typedExact.current=false;textFinished.current=false;setExactKind(kind);setExact({point:cursorPosition(),text:String(limits[kind])});}}>{kind==='min'?'⊢':'⊣'}{limits[kind]}</button>)}</div>}
    <output className="mathematical-dial-maximum" aria-label="Maximum value">{scaling==='value'?`max ${max}`:`${scaleAnchor.current} · max ${scaleMaximum}`}</output>
 
    {rule&&<div className="mathematical-dial-settings" role="group" aria-label="Value generation rule">{rule.choices.map(choice=><button key={choice.id} type="button" disabled={disabled} aria-label={choice.label} title={choice.label} aria-pressed={rule.value===choice.id} onClick={()=>{restore();rule.onChange(choice.id);}}>{choice.icon}</button>)}</div>}
@@ -220,8 +223,8 @@ export function MathematicalDial({value,min,max,integer=false,label='Value',disa
     ...(editing.kind==='increment'?[{id:'amount',label:'Increment amount',symbol:'Δ',content:<button type="button" className="mathematical-rule-choice" title={`Increment amount: ${editing.amount}`} aria-label="Configure increment amount" onClick={()=>{setAmountSample(null);setRulePopup({point:cursorPosition(),stage:'amount'});}}><span aria-hidden="true">Δ</span><small>Amount</small></button>}]:[]),
    ]}/></div>}
   </ContextualMasterController>}
-  {exact&&<ContextualMasterController title={`${label} value`} position={exact.point} onClose={closeExact} onConfirm={finishExact} onAdvance={finishExact}>
-   <input ref={textInput} type="number" autoFocus className="mathematical-dial-exact" aria-label={`${label} exact value`} aria-invalid={exact.text.trim()===''||(scaling==='value'?!valid(Number(exact.text)):!Number.isSafeInteger(Number(exact.text))||Number(exact.text)<0||Number(exact.text)>(scaleMaximum??0))} value={exact.text} min={scaling==='value'?min:0} max={scaling==='value'?max:scaleMaximum} step={scaling==='value'&&!integer?'any':1}
+  {exact&&<ContextualMasterController title={exactKind==='value'?`${label} value`:`${limits?.label??label} ${exactKind}`} position={exact.point} onClose={closeExact} onConfirm={finishExact} onAdvance={finishExact}>
+   <input ref={textInput} type="number" autoFocus className="mathematical-dial-exact" aria-label={exactKind==='value'?`${label} exact value`:`${limits?.label??label} ${exactKind}`} aria-invalid={exactKind!=='value'&&limits?!!mathematicalLimitsRejection(exactKind==='min'?Number(exact.text):limits.min,exactKind==='max'?Number(exact.text):limits.max,{min:limits.hardMin,max:limits.hardMax,integer:limits.integer})||exact.text.trim()==='':exact.text.trim()===''||(scaling==='value'?!valid(Number(exact.text)):!Number.isSafeInteger(Number(exact.text))||Number(exact.text)<0||Number(exact.text)>(scaleMaximum??0))} value={exact.text} min={exactKind==='value'?(scaling==='value'?min:0):limits?.hardMin} max={exactKind==='value'?(scaling==='value'?max:scaleMaximum):limits?.hardMax} step={exactKind==='value'?(scaling==='value'&&!integer?'any':1):limits?.integer?1:'any'}
     onFocus={event=>{if(!typedExact.current)event.currentTarget.select();}} onChange={event=>setExact({...exact,text:event.currentTarget.value})} onBlur={finishExact}
     onKeyDown={event=>{if(event.key==='Enter'){event.preventDefault();event.stopPropagation();finishExact();}if(event.key==='Escape'){event.preventDefault();event.stopPropagation();closeExact();}}}/>
   </ContextualMasterController>}

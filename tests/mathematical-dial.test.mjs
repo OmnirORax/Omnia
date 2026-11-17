@@ -9,3 +9,10 @@ test('value rejections distinguish upper/lower limits, integer requirements and 
 test('accepted outer marks expose a new ring and removing them retracts unused rings',()=>{assert.equal(mathematicalRingOrders([]),2);assert.equal(mathematicalRingOrders(['0:0']),2);assert.equal(mathematicalRingOrders(['0:0','1:2']),3);assert.equal(mathematicalRingOrders(['0:0','1:2','2:3']),4);assert.equal(mathematicalRingOrders(['0:0','1:2']),3);assert.equal(mathematicalRingOrders(['0:0']),2);assert.equal(mathematicalRingOrders(['4:0']),6);});
 test('the default value setter retains the existing numeral arithmetic',()=>{assert.equal(mathematicalNumberValue(2,[{key:'0:0',ordinal:1,mode:'normal'},{key:'0:2',ordinal:3,mode:'normal'}]),8);});
 test('scaling reports its exponent maximum and rejects negative or fractional exponent input',async()=>{const {mathematicalScaleRejection}=await import('../src/properties/mathematicalDial.ts');const domain={min:1,max:1000,integer:true};assert.match(mathematicalScaleRejection(100,3,'halving',domain),/Maximum halves is 2/);assert.match(mathematicalScaleRejection(100,-1,'halving',domain),/non-negative whole/);assert.match(mathematicalScaleRejection(100,1.5,'doubling',domain),/non-negative whole/);assert.equal(mathematicalScaleRejection(100,2,'halving',domain),undefined);});
+
+test('editable limits reject reversed, nonfinite, fractional and out-of-domain ranges',async()=>{
+ const {mathematicalLimitsRejection:reject}=await import('../src/properties/mathematicalDial.ts'),domain={min:0,max:100,integer:true};
+ assert.equal(reject(10,80,domain),undefined);assert.match(reject(80,10,domain),/Minimum cannot exceed maximum/);
+ assert.match(reject(NaN,10,domain),/finite/);assert.match(reject(0,Infinity,domain),/finite/);
+ assert.match(reject(-1,10,domain),/Minimum value/);assert.match(reject(0,101,domain),/Maximum value/);assert.match(reject(1.5,10,domain),/whole number/);
+});
