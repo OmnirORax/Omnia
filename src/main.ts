@@ -1,3 +1,4 @@
+import {bindColorSession} from './ui/colorSession.ts';
 import {SYSTEM_MESSAGE} from './ui/systemMessage.ts';
 import {DEFAULT_ORIGIN_DIRECTIONS,type OriginDirections} from './core/originDirections.ts';
 import {ARROW_NUDGES} from './world/axisNudge.ts';
@@ -110,7 +111,7 @@ const key = (origin: Origin) => JSON.stringify(origin);
 function feedback(text: string) { message = text; refresh(); }
 window.addEventListener(SYSTEM_MESSAGE,event=>feedback((event as CustomEvent<string>).detail));
 function attempt(action: () => void) { try { universalHistory.transaction(()=>{view?.commitSelection();action();}); } catch (error) { feedback(error instanceof Error ? error.message : String(error)); } }
-function renderClose() { disposeTools?.();disposeTools=undefined;tools.hidden = true; view?.update(store.world, selectedOrigins(), shown, selection.targets.filter((target): target is Edge => !isNode(target))); }
+function renderClose() { disposeTools?.();disposeTools=undefined;tools.hidden = true;updateUIAppearance(store.world.appearance);for(const document of documents.values())document?.previewAppearance(store.world); view?.update(store.world, selectedOrigins(), shown, selection.targets.filter((target): target is Edge => !isNode(target))); }
 function close(){if(viewHistory.rendering){renderClose();return;}viewHistory.hideMenu();}
 const menuFactories=new Map<string,(args:unknown[])=>void>();
 function defineMenu<Args extends unknown[]>(kind:string,render:(...args:Args)=>void,atCursor=false,dismissOnOutside=true){
@@ -157,6 +158,10 @@ const view = (() => {
   } catch { status.textContent = 'The 3D renderer could not start. WebGL is required; your saved world is preserved.'; return undefined; }
 })();
 
+function previewPaint(target:VisualTarget,origins:readonly Origin[],patch?:Paint){
+ const candidate=view?.previewPaint(target,origins,patch)??store.world;updateUIAppearance(candidate.appearance);
+ for(const document of documents.values())document?.previewAppearance(candidate);
+}
 function refresh() {
   refreshContextActions();
   requestFormSync();
@@ -393,7 +398,7 @@ function searchSettingsEntries(){
   let nodeWorld=store.world,nodeCapabilities=selected?capabilities(resolveNodeSettings(store.world,inherited(selected,store.world))):[];
   const readNode=(key:string,index:number)=>{if(nodeWorld!==store.world){nodeWorld=store.world;const node=locate(nodeWorld,origins[0]);nodeCapabilities=node?capabilities(resolveNodeSettings(nodeWorld,inherited(node,nodeWorld))):[];}return nodeCapabilities.find(c=>c.key===key)?.properties[index].read();};
   const nodeEntries=selected?nodeCapabilities.flatMap(capability=>capability.properties.map((binding,index)=>({label:`${capability.label} · ${binding.property.label}`,keywords:'selected node',definition:binding.property,read:()=>readNode(capability.key,index),write:(world:World,value:string|number|boolean)=>{if(capability.key==='move'){const first=locate(world,origins[0]);if(first){const delta:Vec3=[0,0,0];delta[index]=Number(value)-first.position[index];translate(world,origins,delta);}return;}for(const origin of origins){const node=locate(world,origin);if(!node)continue;const target=capabilities(node).find(item=>item.key===capability.key);if(!target)continue;target.properties[index].write(String(value));if(node.variantOf)node.overrides=[...new Set([...(node.overrides??[]),binding.property.key])];}}}))):[];
-  const visualEntries=(['nodeDefaults','text','background',...(origins.length?['nodeText' as const,'nodes' as const]:[])] as const).flatMap(target=>(target==='nodeDefaults'||target==='nodes'?NODE_VISUAL_PROPERTIES.map(p=>({...p,key:p.id})):visualProperties(target==='text'||target==='nodeText')).map(definition=>({label:`${target} · ${definition.label}`,keywords:`eye appearance visuals ${target==='nodeDefaults'?'global nodes sphere body':''}`,definition,read:()=>readPaint(store.world,target,origins[0])[definition.key as keyof Paint]!,write:(world:World,value:string|number|boolean)=>writePaint(world,target,origins,{[definition.key]:value})})));
+  const visualEntries=(['nodeDefaults','text','background',...(origins.length?['nodeText' as const,'nodes' as const]:[])] as const).flatMap(target=>(target==='nodeDefaults'||target==='nodes'?NODE_VISUAL_PROPERTIES.map(p=>({...p,key:p.id})):visualProperties(target==='text'||target==='nodeText')).map(definition=>({label:`${target} · ${definition.label}`,keywords:`eye appearance visuals ${target==='nodeDefaults'?'global nodes sphere body':''}`,definition,preview:(value:Value|undefined)=>previewPaint(target,origins,value===undefined?undefined:{[definition.key]:value}),read:()=>readPaint(store.world,target,origins[0])[definition.key as keyof Paint]!,write:(world:World,value:string|number|boolean)=>writePaint(world,target,origins,{[definition.key]:value})})));
   const entries:SearchSetting[]=[
     ...nodeEntries,...visualEntries,
 
@@ -404,7 +409,7 @@ function searchSettingsEntries(){
   ];
   return entries;
 }
-type SearchSetting={label:string;keywords:string;definition:Property;read:()=>Value|undefined;write?:(world:World,value:Value)=>void;set?:(value:Value)=>void};
+type SearchSetting={label:string;keywords:string;definition:Property;read:()=>Value|undefined;write?:(world:World,value:Value)=>void;set?:(value:Value)=>void;preview?:(value:Value|undefined)=>void};
 type SearchAction={label:string;keywords:string;run:()=>void;available?:boolean};
 function spaceActions():SearchAction[]{
  const relation=relationFrame(),frame=view?.reference,active=!!store.world.activeAxis;
@@ -461,7 +466,7 @@ function searchActions():SearchAction[]{return [
 ];}
 function appendSetting(parent:HTMLElement,item:SearchSetting,label=item.definition.label){
  const form=document.createElement('form'),control=field({...item.definition,label},item.read()??'');form.append(control.row);parent.append(form);
- liveForm(form,group=>attempt(()=>{if(item.set)item.set(control.value());else store.change(world=>item.write!(world,control.value()),group);}));
+ if(control.input instanceof HTMLInputElement&&control.input.type==='color'&&item.preview){bindColorSession(control.input,{read:()=>String(item.read()),preview:value=>item.preview!(value),cancel:()=>item.preview!(undefined),commit:value=>attempt(()=>{if(item.set)item.set(value);else store.change(world=>item.write!(world,value));})});}else liveForm(form,group=>attempt(()=>{if(item.set)item.set(control.value());else store.change(world=>item.write!(world,control.value()),group);}));
  watchFields(form,[{input:control.input,read:item.read}]);
 }
 function searchRenderer(results:HTMLElement){
@@ -540,8 +545,8 @@ const openVisualSettings=defineMenu('visualSettings',(target:VisualTarget,origin
  open(title);
  if(target==='nodes'||target==='nodeDefaults'){
   const root=document.createElement('div');root.className='node-body-editor';tools.append(root);
-  void loadEditor(()=>import('./ui/nodeVisuals.tsx')).then(({nodeVisualEditor})=>{if(!root.isConnected)return;disposeTools=nodeVisualEditor(root,{read:()=>store.world,subscribe:store.subscribe,change:store.change,error:feedback},target,origins);positionMenu();}).catch(error=>feedback(String(error)));
- }else tools.append(paintForm(target,origins,()=>store.world,(edit,group)=>store.change(edit,group),feedback));positionMenu();
+  void loadEditor(()=>import('./ui/nodeVisuals.tsx')).then(({nodeVisualEditor})=>{if(!root.isConnected)return;disposeTools=nodeVisualEditor(root,{read:()=>store.world,subscribe:store.subscribe,change:store.change,error:feedback,preview:patch=>previewPaint(target,origins,patch)},target,origins);positionMenu();}).catch(error=>feedback(String(error)));
+ }else tools.append(paintForm(target,origins,()=>store.world,(edit,group)=>store.change(edit,group),feedback,patch=>previewPaint(target,origins,patch)));positionMenu();
 });
 const appearance=defineMenu('appearance',()=>{
   open('👁');

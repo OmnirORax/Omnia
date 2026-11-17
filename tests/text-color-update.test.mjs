@@ -26,7 +26,7 @@ test('hundreds of glowing labels scrub color without canvas work, texture upload
  const labels=Array.from({length:200},(_,i)=>label(`Node ${i}`,{glow:.8,color:'#ffffff'}));
  const textures=labels.map(mesh=>({map:mesh.material.map,version:mesh.material.map.version,geometry:mesh.geometry}));
  const before=snapshot();
- for(let step=0;step<30;step++)for(const mesh of labels)updateLabelPaint(mesh,{color:step%2?'#ff0000':'#0000ff',glow:.8,translucency:step/40});
+ for(let step=0;step<30;step++)for(const mesh of labels)updateLabelPaint(mesh,{color:step%2?'#ff0000':'#0000ff',glow:.8,glowColor:step%2?'#00ff00':'#ffffff',translucency:step/40});
  assert.deepEqual(snapshot(),before);
  labels.forEach((mesh,i)=>{
   assert.equal(mesh.material.map,textures[i].map);assert.equal(mesh.material.map.version,textures[i].version);
@@ -73,4 +73,14 @@ test('character glyphs inherit the same color-only update path',()=>{
  assert.equal(group.children[0],mesh);assert.equal(mesh.material.map,map);assert.equal(map.version,version);
  assert.equal(mesh.material.color.getHexString(),'ff0000');assert.equal(mesh.material.opacity,.7);
  assert.deepEqual(snapshot(),before);disposeVisual(group);
+});
+
+test('independent text halo color updates the shader without redrawing coverage or recoloring clean ink',()=>{
+ const mesh=label('Ink',{color:'#ff0000',glow:.5}),map=mesh.material.map,before=snapshot(),shader={uniforms:{},vertexShader:'',fragmentShader:'#include <map_fragment>'};
+ mesh.material.onBeforeCompile(shader,{});
+ updateLabelPaint(mesh,{color:'#ff0000',glow:.5,glowColor:'#0000ff'});
+ assert.equal(shader.uniforms.glowInkColor.value.getHexString(),'0000ff');assert.equal(mesh.material.color.getHexString(),'ff0000');
+ assert.equal(mesh.material.map,map);assert.deepEqual(snapshot(),before);
+ updateLabelPaint(mesh,{color:'#ff0000',glow:.5,glowColor:'#00ff00'});assert.equal(shader.uniforms.glowInkColor.value.getHexString(),'00ff00');
+ disposeLabel(mesh);
 });

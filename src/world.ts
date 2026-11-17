@@ -27,7 +27,7 @@ import {createPaintSession} from './core/painting.ts';
 import {createAxisView} from './world/axisView.ts';
 import {projectionAxis,operationSlot,activeWorldAxes,nodeOriginView,axisCenter,axisPoint,axisAnchor,planAxis,planSlotNode,endpointView,dot,minus,type AxisFrame} from './core/axes.ts';
 import {startsConnector,connectorDragged} from './world/connectorGesture.ts';
-import {resolveNodeAppearance,nodePaint,connectorPaint} from './core/appearance.ts';
+import {resolveNodeAppearance,nodePaint,connectorPaint,nodeTextPaint,paintPreview,type VisualTarget} from './core/appearance.ts';
 import {brightHex} from './composer/runtime/appearance/resolve.ts';
 import {createContentContour,collectContentHull} from './world/contentContour.ts';
 import {contentEnvelope,convexHull} from './world/contentEnvelope.ts';
@@ -66,7 +66,7 @@ import { createPipeline } from './world/render.ts';
 import { label, disposeLabel, labelGeometryKey, updateLabelPaint } from './world/labels.ts';
 import { createSceneSession } from './scene/session.ts';
 import type { Document } from './graph/geometryTypes.ts';
-import { TEXT_DEFAULTS } from './properties/visual.ts';
+import { type Paint } from './properties/visual.ts';
 
 type Point = { x: number; y: number };
 type Input = {originChord:()=>boolean;hierarchy:(roots:readonly Origin[],nextOnly:boolean,contentOnly:boolean)=>Origin[];toggleAllContent:()=>void;committedSelection:()=>readonly Origin[];hover:(origin?:Origin,edge?:Edge)=>readonly Origin[];cameraChanged:(state:CameraState)=>void; pick: (origin: Origin, extend: boolean, toggle: boolean) => void;
@@ -155,7 +155,7 @@ export function createWorld(host: HTMLElement, input: Input) {
     constrain:(_id,p)=>{const frame=activeAxis();if(!frame)return p;if(!hasOriginDirections(frame))return;const position=axisPoint(world,frame,operationSlot(world,frame,[p.x/scale,p.y/scale,p.z/scale]));return {x:position[0]*scale,y:position[1]*scale,z:position[2]*scale};},
     commit(id, position) { const result = input.park(visuals.get(id)!.node.origin, vector({x:position.x / scale,y:position.y / scale,z:position.z / scale}),drivingOrigins); return geometry(result); },
   });
-  const connectors:{key:string;line:T.Line<T.BufferGeometry,T.LineBasicMaterial>}[]=[];
+  const connectors:{key:string;source:Origin;line:T.Line<T.BufferGeometry,T.LineBasicMaterial>;arrow:T.Mesh<T.BufferGeometry,T.MeshBasicMaterial>}[]=[];
   const pipeline=createPipeline(renderer,scene,camera,request),session=createSceneSession(pipeline.wallpaper,input.feedback);
   let fontRevision=0,pushDirty=false,pushSignature='',pushRevision=0,relocationPin:string|undefined;const relocating=new Set<string>();
   document.fonts.addEventListener('loadingdone',()=>{fontRevision++;if(world)update(world,selected,filter,selectedEdges);});
@@ -200,7 +200,7 @@ export function createWorld(host: HTMLElement, input: Input) {
     if (frame) return;
     frame = requestAnimationFrame(now => {
       frame = 0;
-
+      if(pendingAppearance){const next=pendingAppearance;pendingAppearance=undefined;applyAppearance(next);}
       const carrierPulse=reduced.matches?0:(Math.sin(now/1000*Math.PI*1.5)+1)/2;
       for (const [id,visual] of visuals) {orientNodeContent(visual.presentation.quaternion,camera.quaternion,visual.group.quaternion,contentsFaceCamera);const marked=selectionMarked(id);if(marked||visual.body.userData.selectionPulse){visual.body.scale.setScalar(scale*(marked?1+carrierPulse*.08:1));visual.body.material.color.set(visual.actual.color).multiplyScalar(marked?(.8+carrierPulse*.4):1);visual.body.userData.selectionPulse=marked;}}
       for (const child of edges.children) if (child instanceof T.Mesh && child.userData.isLabel && child.userData.ends) {
@@ -303,8 +303,8 @@ export function createWorld(host: HTMLElement, input: Input) {
     if (text) { const id=JSON.stringify(edge),geometryKey=JSON.stringify([text,labelGeometryKey(world.appearance?.text,fontRevision)]);let cached=edgeCaptions.get(id);
       if(cached?.geometryKey!==geometryKey){if(cached)disposeLabel(cached.mesh);const mesh=label(text,world.appearance?.text);mesh.userData.requestRender=request;mesh.scale.multiplyScalar(.65);cached={mesh,geometryKey};edgeCaptions.set(id,cached);}
       const caption=cached.mesh;updateLabelPaint(caption,world.appearance?.text);caption.position.copy(a.clone().add(b).multiplyScalar(.5)); caption.userData.edge = edge; caption.userData.ends=[a,b]; edges.add(caption); }
-    line.userData.baseColor=paint.color;line.userData.baseOpacity=paint.opacity;
-    connectors.push({key:JSON.stringify(edge),line});
+    line.userData.glowColor=arrow.userData.glowColor=paint.glowColor;arrow.userData.glowIntensity=paint.glow;line.userData.baseColor=paint.color;line.userData.baseOpacity=paint.opacity;
+    connectors.push({key:JSON.stringify(edge),source:source.origin,line,arrow});
   }
   function connections() {
     clearEdges();
@@ -319,6 +319,24 @@ export function createWorld(host: HTMLElement, input: Input) {
     while (parent && depth++ < 500) { if (parent.hidden || parent.collapsed && !node.variantOf) return false; parent = parent.parent && visuals.get(key(parent.parent))?.node; }
     return true;
   }
+  function styleVisual(visual:Visual,actual:Structure,textPaint:Paint){
+    visual.actual=actual;updateLabelPaint(visual.text,textPaint);
+    if(actual.visual?.character)visual.object?.userData.setAppearance?.({textColor:textPaint.color,textGlow:textPaint.glow,glowColor:textPaint.glowColor,opacity:translucentOpacity(1,textPaint.translucency)});
+    visual.body.material.color.set(actual.color);visual.contour.outline.material.color.set(actual.color);
+    updateAtomicCarrier(visual.body.material,actual.opacity??defaults.opacity,actual.translucency??defaults.translucency,actual.glow??defaults.glow,actual.translucencyRadius??defaults.translucencyRadius);
+    visual.group.userData.glowIntensity=actual.glow??defaults.glow;visual.group.userData.glowColor=actual.glowColor;
+  }
+  let pendingAppearance:World|undefined;
+  function previewPaint(target:VisualTarget,origins:readonly Origin[],patch?:Paint){
+    const candidate=patch?paintPreview(world,target,origins,patch):world;
+    pendingAppearance=candidate;request();return candidate;
+  }
+  function applyAppearance(candidate:World){
+    const nodes=new Map(candidate.nodes.map(node=>[key(node.origin),node]));
+    for(const [id,visual]of visuals){const node=nodes.get(id);if(!node)continue;const actual=resolveNodeAppearance(candidate,inherited(node,candidate));styleVisual(visual,actual,nodeTextPaint(candidate,actual));}
+    for(const cached of edgeCaptions.values())updateLabelPaint(cached.mesh,candidate.appearance?.text);
+    for(const connector of connectors){const node=nodes.get(key(connector.source));if(!node)continue;const paint=connectorPaint(candidate,node);for(const mesh of [connector.line,connector.arrow]){mesh.userData.glowColor=paint.glowColor;mesh.userData.glowIntensity=paint.glow;mesh.material.color.set(connector.line.userData.highlighted?'#ffb000':paint.color);} }
+  }
   function update(next: World, selection: readonly Origin[], visible?: ReadonlySet<string>, edgeSelection: readonly Edge[] = []) {
     if(world&&next!==world&&boundRotation.active)boundRotation.cancel();
     if(pointOfView&&world){const old=world.nodes.find(node=>sameOrigin(node.origin,pointOfView!)),current=next.nodes.find(node=>sameOrigin(node.origin,pointOfView!));if(!current){pointOfView=undefined;nodeViewDepth=undefined;if(userView){camera.position.fromArray(userView.position);camera.up.fromArray(userView.up);controls.target.fromArray(userView.target);camera.lookAt(controls.target);userView=undefined;rebind();}}else if(old){const delta=new T.Vector3(...current.position.map((n,i)=>n-old.position[i])).multiplyScalar(scale);camera.position.add(delta);controls.target.add(delta);}}
@@ -326,14 +344,14 @@ export function createWorld(host: HTMLElement, input: Input) {
     if (drive.active && (next !== mountedWorld || !selection.some(origin => key(origin) === drive.id))) cancelDrive();
     if (world !== next) {spaceIndex=createOccupancy(next.nodes.map(node=>[key(node.origin),point(node.position)] as const));cancelOmnic();const sources=createGlyphPresentation(next,true);if(sources!==glyphs)for(const visual of visuals.values())if(visual.object?.userData.omnic)visual.object.userData.glyphKey=undefined;glyphs=sources; prepared = prepareWorld(next); doc = geometry(next); grid = lattice(next); }
     if(selectionGroup&&(selectionGroup.ids.length!==selection.length||selection.some(id=>!selectionGroup!.ids.includes(key(id)))))selectionGroup=undefined;
-    world = next;axisView.update(operationWorld(next),scale); selected = selection;selectedKeys=new Set(selection.map(key)); selectedEdges = edgeSelection; filter = visible;
+    pendingAppearance=undefined;world = next;axisView.update(operationWorld(next),scale); selected = selection;selectedKeys=new Set(selection.map(key)); selectedEdges = edgeSelection; filter = visible;
     const nextScale = next.settings?.latticeScale ?? 1;
     if (nextScale !== scale) { const shift = controls.target.clone().multiplyScalar(nextScale/scale-1); controls.target.add(shift); camera.position.add(shift); navigator.rescale(nextScale/scale); scale=nextScale; controls.minDistance=Math.min(.2,scale/4); camera.near=Math.max(1e-9,scale*.001); camera.updateProjectionMatrix(); controls.update(); }
     axisView.update(operationWorld(next),scale);
     const present = new Set(next.nodes.map(node => key(node.origin)));
     for (const [id, visual] of visuals) if (!present.has(id)) { scene.remove(visual.host);visual.contour.dispose(); visual.body.material.dispose(); disposeLabel(visual.text); if (visual.object) disposeVisual(visual.object); visuals.delete(id); }
     for (const node of next.nodes) {
-      const actual = resolveNodeAppearance(next,inherited(node,next)), id=key(node.origin), textPaint={...TEXT_DEFAULTS,...next.appearance?.text,...actual.textAppearance,...((actual.glow??defaults.glow)>0?{glow:0}:{})},textKey=labelGeometryKey(textPaint,fontRevision), caption=`${actual.label || (node.invariant ? '⚬' : '')}${node.parts.some(binding => !prepared.resolve(binding).length) ? ' !' : ''}`;
+      const actual = resolveNodeAppearance(next,inherited(node,next)), id=key(node.origin), textPaint=nodeTextPaint(next,actual),textKey=labelGeometryKey(textPaint,fontRevision), caption=`${actual.label || (node.invariant ? '⚬' : '')}${node.parts.some(binding => !prepared.resolve(binding).length) ? ' !' : ''}`;
       let visual=visuals.get(id);
       if (!visual) {
         const host=new T.Group(),group=new T.Group(),presentation=new T.Group(),body=new T.Mesh(sphere,atomicCarrierMaterial(actual.color)),slot=new T.Mesh(sphere,slotMaterial),text=label(caption,textPaint);text.userData.requestRender=request;
@@ -342,18 +360,16 @@ export function createWorld(host: HTMLElement, input: Input) {
 
       }
       if (visual.caption!==caption || visual.textKey!==textKey) { visual.presentation.remove(visual.text);disposeLabel(visual.text);visual.text=label(caption,textPaint);visual.text.userData.requestRender=request;visual.presentation.add(visual.text);visual.caption=caption; }
-      visual.textKey=textKey;updateLabelPaint(visual.text,textPaint);
+      visual.textKey=textKey;
       const visualKey=JSON.stringify([actual.visual ?? null,actual.visual?.character?textKey:null]);
       if (visual.visualKey!==visualKey) {
         if (visual.object) {visual.presentation.remove(visual.object);disposeVisual(visual.object);visual.object=undefined;}
         if (actual.visual?.assetId || actual.visual?.character) {visual.object=visualObject(actual.visual,next.assets??[],text=>{const sprite=label(text,textPaint);sprite.userData.requestRender=request;return sprite;},request);visual.object.scale.setScalar(actual.visual.size??1.4);visual.object.userData.origin=node.origin;visual.presentation.add(visual.object);}
         visual.visualKey=visualKey;
       }
-      if(actual.visual?.character)visual.object?.userData.setAppearance?.({textColor:textPaint.color,textGlow:textPaint.glow,opacity:translucentOpacity(1,textPaint.translucency)});
-      visual.node=node;visual.actual=actual;visual.group.quaternion.set(node.orientation?.x??0,node.orientation?.y??0,node.orientation?.z??0,node.orientation?.w??1);visual.group.position.copy(new T.Vector3(...vector(cellPoint(grid.cells.get(id)!,scale))));
-      visual.body.scale.setScalar(scale);visual.slot.scale.setScalar(scale);visual.body.material.color.set(actual.color);
-      updateAtomicCarrier(visual.body.material,actual.opacity??defaults.opacity,actual.translucency??defaults.translucency,actual.glow??defaults.glow,actual.translucencyRadius??defaults.translucencyRadius);
-      visual.group.userData.glowIntensity=actual.glow??defaults.glow;visual.group.userData.origin=node.origin;visual.slot.userData.origin=node.origin;visual.text.userData.origin=node.origin;
+      visual.node=node;visual.group.quaternion.set(node.orientation?.x??0,node.orientation?.y??0,node.orientation?.z??0,node.orientation?.w??1);visual.group.position.copy(new T.Vector3(...vector(cellPoint(grid.cells.get(id)!,scale))));
+      visual.body.scale.setScalar(scale);visual.slot.scale.setScalar(scale);
+      styleVisual(visual,actual,textPaint);visual.group.userData.origin=node.origin;visual.slot.userData.origin=node.origin;visual.text.userData.origin=node.origin;
       visual.group.visible=true;
     }
     if(!sameValue(next.camera,seenCamera)){seenCamera=next.camera;restoreCamera(next.camera);}
@@ -674,7 +690,7 @@ export function createWorld(host: HTMLElement, input: Input) {
     pressedNudges.set(event.code||event.key,action);if(!held.size)nudgeDepth=action==='nudgeUp'||action==='nudgeDown';held.add(action);nudging.update([...held]);});
   window.addEventListener('keyup',event=>{const code=event.code||event.key,action=pressedNudges.get(code);if(action){pressedNudges.delete(code);held.delete(action);nudging.update([...held]);}});
   document.addEventListener('visibilitychange',()=>{if(document.hidden){middlePress=undefined;held.clear();nudging.finish(true);navigation.finish(true);restoreNative();restore();cancelOmnic();cancelDrive();}else request();});
-  return { update,session,commitSelection,saveCamera(){const state=readCamera();seenCamera=state;input.cameraChanged(state);},restoreCamera(value:CameraState|undefined){restoreCamera(value);presentation();},point:creationPoint,center:()=>hoverCandidate?.valid?hoverCandidate.anchor:navigator.initialized?xyz(navigator.position.clone().divideScalar(scale)):xyz(controls.target.clone().divideScalar(scale)),request,
+  return { update,previewPaint,session,commitSelection,saveCamera(){const state=readCamera();seenCamera=state;input.cameraChanged(state);},restoreCamera(value:CameraState|undefined){restoreCamera(value);presentation();},point:creationPoint,center:()=>hoverCandidate?.valid?hoverCandidate.anchor:navigator.initialized?xyz(navigator.position.clone().divideScalar(scale)):xyz(controls.target.clone().divideScalar(scale)),request,
     editOmnic(surface:OmnicSurface){if(omnic!==surface){cancelOmnic();omnic=surface;request();}return()=>{if(omnic===surface){cancelOmnic();omnic=undefined;request();}};},
     focusInput(){canvas.focus();},
     get reference(){return activeAxis();},

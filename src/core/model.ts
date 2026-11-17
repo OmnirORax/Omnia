@@ -31,7 +31,7 @@ export type Structure = { origin: Origin; label: string; position: Vec3; color: 
   parent?: Origin; variantOf?: Origin; overrides?: string[]; hidden?: boolean; collapsed?: boolean;
   omnic?:Recipe;omnicDraft?:Recipe;omnicEdits?:RecipeEdit[];omnicRevision?:number;omnicHistory?:Recipe[];catalog?:Catalog;lexiconWords?:string[];
   orientation?: Rotation; text?: NodeText; textAppearance?: Paint; visual?: Visual; scene?: string | null;
-  brightness?: number; opacity?: number; glow?: number; translucency?: number; translucencyRadius?: number;
+  brightness?: number; opacity?: number; glow?: number; glowColor?:string; translucency?: number; translucencyRadius?: number;
 };
 export type Relationship = { from: Binding; to: Binding; label: string; kind: string };
 export type World = { userDirections?:OriginDirections; session?:WorkspaceSession; format: 'omnium-world'; version: 1 | 2 | 3; atlases?:AtlasView[];activeAtlas?:number; axes?:AxisFrame[];activeAxis?:string;brush?:Brush;camera?:CameraState; nodes: Structure[]; assets?: VisualAsset[]; relationships?: Relationship[]; scene?: SceneSettings; appearance?: Appearance;
@@ -138,8 +138,9 @@ export function validateWorld(value: unknown): World {
     if (anchors.has(a) || positions.has(p)) throw new Error('Two structures cannot occupy the same address.');
     anchors.add(a); positions.add(p);
     if (node.parent !== undefined && !origin(node.parent) || node.variantOf !== undefined && !origin(node.variantOf)) throw Error('Invalid node parent or variant.');
-    if (node.overrides !== undefined && (!Array.isArray(node.overrides) || node.overrides.some(key => !['brightness','color','label','text','visual','opacity','glow','translucency','translucencyRadius','scene','textAppearance'].includes(key)))) throw Error('Invalid variant override.');
+    if (node.overrides !== undefined && (!Array.isArray(node.overrides) || node.overrides.some(key => !['brightness','color','label','text','visual','opacity','glow','glowColor','translucency','translucencyRadius','scene','textAppearance'].includes(key)))) throw Error('Invalid variant override.');
     if (node.hidden !== undefined && typeof node.hidden !== 'boolean' || node.collapsed !== undefined && typeof node.collapsed !== 'boolean') throw Error('Invalid node visibility.');
+    if(node.glowColor!==undefined&&!/^#[\da-f]{6}$/i.test(node.glowColor))throw Error('Invalid glow color.');
     if(node.brightness!==undefined&&(!Number.isFinite(node.brightness)||node.brightness<0||node.brightness>3))throw Error('Invalid node brightness.');
     if(node.colorOverride!==undefined&&typeof node.colorOverride!=='boolean')throw Error('Invalid node color override.');
     if (node.scene !== undefined && node.scene !== null && (typeof node.scene !== 'string' || node.scene.length > 200)) throw Error('Invalid node scene.');

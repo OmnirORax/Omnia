@@ -146,7 +146,7 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
     host.style.setProperty('--visual-text-bold-stroke',`${emboldenStrokeEm(paint.embolden)}em currentColor`);
     editor?.requestMeasure();
   }
-  refreshAppearance();queueMicrotask(()=>{if(view.root.isConnected)editor?.dispatch({effects:refreshLexicon.of()});});editor.focus(); return {...view,refreshAppearance};
+  refreshAppearance();queueMicrotask(()=>{if(view.root.isConnected)editor?.dispatch({effects:refreshLexicon.of()});});editor.focus(); return {...view,refreshAppearance,previewAppearance(world:World){const paint=readPaint(world,'nodeText',origin);Object.assign(host.style,textStyle(paint));}};
 }
 
 const DOCUMENT_SHORTCUT_LABELS:Record<string,string>={'Mod-b':'Bold','Mod-i':'Italic','Mod-ArrowUp':'Move line up','Mod-ArrowDown':'Move line down','Alt-Delete':'Delete line','Mod-Delete':'Remove heading','Mod-F7':'Choose heading','Mod-1':'Numbered list','Mod-2':'Bullet list','Mod-Shift-3':'Cycle list','Mod-Shift-4':'Strikethrough','Mod-5':'Inline code','Alt-Mod-1':'Code block','Mod-3':'Capitalize','Alt-ArrowRight':'Regex search','Mod-PageUp':'Increase font size','Mod-PageDown':'Decrease font size','Escape':'Close / cancel'};

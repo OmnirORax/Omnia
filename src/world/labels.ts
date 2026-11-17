@@ -1,4 +1,4 @@
-import {packedTextureGlow,packGlowCoverage} from '../textureGlow.ts';
+import {packedTextureGlow,packGlowCoverage,updateTextureGlowColor} from '../textureGlow.ts';
 import {imageHull} from './contentEnvelope.ts';
 import * as THREE from 'three';
 import {labelLines,labelSize} from '../composer/runtime/graph/labels.ts';
@@ -105,7 +105,7 @@ export function textSprite(value: string, color: string, selected = false, node 
     paintKey = next;
     const rasterChanged=!contentOnly||glow!==currentStyle[2];
     currentStyle = [border, ink, glow];
-    if(contentOnly)sprite.material.color.set(ink);
+    if(contentOnly){sprite.material.color.set(ink);updateTextureGlowColor(sprite.material,sprite.userData.glowColor??ink);}
     if(rasterChanged){paint(border,ink,glow);texture.needsUpdate=true;}
     sprite.userData.textColor = ink;
   };
@@ -123,6 +123,7 @@ export const labelGeometryKey=(paint:Paint={},revision=0)=>JSON.stringify([paint
 export function updateLabelPaint(mesh:ReturnType<typeof textSprite>,paint:Paint={}){
  const style={...TEXT_DEFAULTS,...paint};
  mesh.userData.setTextStyle(style.color,style.color,style.glow);
+ updateTextureGlowColor(mesh.material,style.glowColor??style.color);mesh.userData.glowColor=style.glowColor;
  mesh.material.opacity=translucentOpacity(1,style.translucency);
  mesh.userData.labelPaint=style;mesh.userData.textColor=style.color;
 }

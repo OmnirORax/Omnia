@@ -45,7 +45,7 @@ export function AppearanceStyles() {
       const color = (patterned&&paint?paint.colors[0]:read(target, "color")) as string,
         brightness = read(target, "brightness") as number,
         opacity = translucentOpacity(Number(read(target, "opacity")),Number(read(target,"translucency"))),
-        glow = read(target, "glow") as number;
+        glow = read(target, "glow") as number,glowColor=String(read(target,"glowColor"));
       const owner = target.instance?.owner;
       const scope = owner
         ? owner.startsWith("function:")
@@ -78,10 +78,10 @@ export function AppearanceStyles() {
         declarations.push(`${binding.css}:${tint(color, brightness, opacity)} !important`);
       if (icon) {
         declarations.push("-webkit-text-fill-color:currentColor !important", "-webkit-text-stroke:0 !important", "text-shadow:none !important", "font-family:system-ui !important", "letter-spacing:normal !important",
-          `filter:saturate(${Number(get("saturation"))})${glow > 0 ? ` drop-shadow(0 0 ${glow * 8}px ${color})` : ""} !important`);
+          `filter:saturate(${Number(get("saturation"))})${glow > 0 ? ` drop-shadow(0 0 ${glow * 8}px ${glowColor})` : ""} !important`);
       } else if (binding.text) {
-        if (["glow", "color", "brightness", "opacity", "translucency"].some(custom) || legacyText)
-          declarations.push(`text-shadow:${glow > 0 ? `0 0 ${glow * 10}px ${color}` : "none"} !important`);
+        if (["glow", "glowColor", "color", "brightness", "opacity", "translucency"].some(custom) || legacyText)
+          declarations.push(`text-shadow:${glow > 0 ? `0 0 ${glow * 10}px ${glowColor}` : "none"} !important`);
         if (custom("font"))
           declarations.push(
             `font-family:${fontFamily(read(target, "font"))} !important`,
@@ -115,7 +115,7 @@ export function AppearanceStyles() {
             );
         }
         declarations.push(
-          `${binding.css === "accent-color" ? "filter" : "box-shadow"}:${glow > 0 ? (binding.css === "accent-color" ? `drop-shadow(0 0 ${glow * 7}px ${color})` : `var(--omnium-custom-shadow),0 0 ${glow * 14}px ${tint(color, brightness, 0.45)}`) : binding.css === "accent-color" ? "none" : "var(--omnium-custom-shadow)"} !important`,
+          `${binding.css === "accent-color" ? "filter" : "box-shadow"}:${glow > 0 ? (binding.css === "accent-color" ? `drop-shadow(0 0 ${glow * 7}px ${glowColor})` : `var(--omnium-custom-shadow),0 0 ${glow * 14}px ${tint(glowColor, brightness, 0.45)}`) : binding.css === "accent-color" ? "none" : "var(--omnium-custom-shadow)"} !important`,
         );
         if (target.properties.includes("blur"))
           declarations.push(
@@ -181,7 +181,7 @@ export function iconTintFor(ctx: ReturnType<typeof useAppearance>, owner: string
   const style = {
     opacity: Number(get("opacity")),
     filter:
-      `${color ? "" : `brightness(${brightness}) `}saturate(${Number(get("saturation"))}) ${glow > 0 ? `drop-shadow(0 0 ${glow * 8}px ${color ?? get("color")})` : ""}`.trim() ||
+      `${color ? "" : `brightness(${brightness}) `}saturate(${Number(get("saturation"))}) ${glow > 0 ? `drop-shadow(0 0 ${glow * 8}px ${get("glowColor")})` : ""}`.trim() ||
       undefined,
   };
   return { color, glyphColor: String(get("color")), style };

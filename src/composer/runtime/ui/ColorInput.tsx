@@ -1,3 +1,4 @@
+import {createColorSession} from '../../../ui/colorSession.ts';
 import { useCancelValueEdit } from "./ActiveContext";
 import { useEffect, useRef, useState, type InputHTMLAttributes } from "react";
 
@@ -14,43 +15,21 @@ export function ColorInput({ value, onChange, onPreview, onCancel, autoOpen=fals
   const input = useRef<HTMLInputElement>(null);
   const callbacks = useRef({ onChange, onPreview, onCancel }); callbacks.current = { onChange, onPreview, onCancel };
   const [draft, setDraft] = useState(value);
-  const editing = useRef(false),opened=useRef(false);
-  const committed = useRef(value), pending = useRef(value), frame = useRef(0);
-  useEffect(() => { if (!editing.current) { committed.current = value; pending.current = value; setDraft(value); } }, [value]);
-  useEffect(() => {
-    const element = input.current!;
-    const commit = () => {
-      cancelAnimationFrame(frame.current); frame.current = 0;
-      const next = editing.current ? pending.current : element.value;
-      pending.current = next; setDraft(next);
-      const changed = next !== committed.current || editing.current;
-      editing.current = false; committed.current = next;
-      if (changed) callbacks.current.onChange(next);
-    };
-    element.addEventListener("change", commit);
-    element.addEventListener("blur", commit);
-    return () => {
-      cancelAnimationFrame(frame.current);
-      element.removeEventListener("change", commit); element.removeEventListener("blur", commit);
-    };
-  }, []);
-  useCancelValueEdit(input, () => {
-    if (!editing.current) return;
-    cancelAnimationFrame(frame.current); frame.current = 0;
-    editing.current = false; pending.current = committed.current; setDraft(committed.current);
-    input.current!.value = committed.current;
-    if(callbacks.current.onCancel)callbacks.current.onCancel();else callbacks.current.onPreview?.(committed.current);
-  });
+  const opened=useRef(false);
+  const session=useRef<ReturnType<typeof createColorSession>|undefined>(undefined);
+  session.current??=createColorSession({value,preview:next=>callbacks.current.onPreview?.(next),commit:next=>callbacks.current.onChange(next),cancel:()=>{if(callbacks.current.onCancel)callbacks.current.onCancel();else callbacks.current.onPreview?.(session.current!.value);}});
+  useEffect(()=>{session.current!.sync(value);if(!session.current!.editing)setDraft(value);},[value]);
+  useEffect(()=>{
+    const node=input.current!,commit=()=>{session.current!.accept(node.value);setDraft(session.current!.value);};
+    node.addEventListener('change',commit);node.addEventListener('blur',commit);
+    return()=>{node.removeEventListener('change',commit);node.removeEventListener('blur',commit);session.current!.cancel();};
+  },[]);
+  useCancelValueEdit(input,()=>{session.current!.cancel();input.current!.value=session.current!.value;setDraft(session.current!.value);});
   // Open after native change listeners and ancestor popup layout are ready.
   useEffect(()=>{
     const node=input.current;if(!autoOpen||props.disabled||opened.current||!node)return;
-    opened.current=true;node.value=value;pending.current=committed.current=value;setDraft(value);
+    opened.current=true;node.value=value;session.current!.sync(value);setDraft(value);
     try{if(node.showPicker)node.showPicker();else node.click();}catch{/* Restricted/programmatic entry leaves the current-color swatch available. */}
   },[autoOpen,props.disabled,value]);
-  return <input {...props} ref={input} type="color" value={draft} onChange={() => {}} onInput={event => {
-    editing.current = true; pending.current = event.currentTarget.value;
-    if (!frame.current) frame.current = requestAnimationFrame(() => {
-      frame.current = 0; setDraft(pending.current); callbacks.current.onPreview?.(pending.current);
-    });
-  }} />;
+  return <input {...props} ref={input} type="color" value={draft} onChange={()=>{}} onInput={event=>{const next=event.currentTarget.value;setDraft(next);session.current!.input(next);}} />;
 }

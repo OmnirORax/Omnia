@@ -71,7 +71,7 @@ export class SceneGlow extends Pass {
     material.depthTest = original.depthTest; material.depthWrite = original.depthWrite; material.alphaTest = original.alphaTest;
     material.visible = original.visible;
     const color = (material as Colored).color;
-    if (color) color.copy((original as Colored).color ?? new THREE.Color("white")).multiplyScalar(intensity);
+    if (color) {const tint=inheritedOwner(owner,'glowColor')?.userData.glowColor;if(tint)color.set(tint);else color.copy((original as Colored).color??new THREE.Color('white'));color.multiplyScalar(intensity);}
     // Shaders declaring this capability supply their own emission-only bloom mask.
     // Share live uniforms so audio/time/texture changes cannot freeze in a cached clone.
     if (material instanceof THREE.ShaderMaterial && original instanceof THREE.ShaderMaterial && original.uniforms.sceneGlowPass) {

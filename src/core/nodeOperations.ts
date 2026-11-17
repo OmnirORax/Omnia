@@ -31,7 +31,7 @@ export function branch(world: World, roots: readonly Origin[]) {
 }
 export function copyNode(world: World, source: Structure, position: Vec3, occupied?:ReturnType<typeof createOccupancy>) {
   const actual = inherited(source, world), node = addStructure(world, position,Date.now(),occupied);
-  for (const key of ['brightness','orientation','label','colorOverride','color','text','visual','opacity','glow','translucency','translucencyRadius','parts','scene','textAppearance','catalog'] as const) if (actual[key] !== undefined) Object.assign(node, { [key]: structuredClone(actual[key]) });
+  for (const key of ['brightness','orientation','label','colorOverride','color','text','visual','opacity','glow','glowColor','translucency','translucencyRadius','parts','scene','textAppearance','catalog'] as const) if (actual[key] !== undefined) Object.assign(node, { [key]: structuredClone(actual[key]) });
   if(actual.variantOf&&actual.overrides?.includes('color'))node.colorOverride=true;
   if(actual.omnic)node.visual={size:actual.visual?.size,showText:actual.visual?.showText,omnicEntityId:JSON.stringify(source.origin)};
   return node;

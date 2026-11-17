@@ -2,7 +2,7 @@
 export const PART_KEYS = ["id", "data-ui-id", "data-property-node", "data-appearance-target"] as const;
 export type PartStep = { tag: string; index: number; key?: typeof PART_KEYS[number]; value?: string };
 export type PartScope = { steps: PartStep[]; text?: number };
-export const GLYPH_PROPERTIES = ["color", "brightness", "opacity", "translucency", "glow"];
+export const GLYPH_PROPERTIES = ["color", "brightness", "opacity", "translucency", "glow", "glowColor"];
 export function normalizePartScope(input: unknown): PartScope | undefined {
   if (!input || typeof input !== "object") return;
   const part = input as PartScope;

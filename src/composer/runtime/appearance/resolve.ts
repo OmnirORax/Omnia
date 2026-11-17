@@ -18,6 +18,7 @@ export function legacyValue(base: Appearance, target: RegisteredTarget, property
     node = key.startsWith("nodes") ? base.nodes : base.binders;
   if (property === "contourWidth" && target.id === "omnium.binders.path") return 1.5;
   if (property === "translucency") return (target.instance?.base??target.id)==="omnium.nodes.body"?SPHERE_VISUAL_DEFAULTS.translucency:0;
+  if(property==="glowColor")return legacyValue(base,target,"color");
   if (property === "font") return base.font;
   if (property === "brightness") return 1;
   if (property === "blur") return base.blur;
@@ -118,6 +119,7 @@ export function createValueResolver(base: Appearance, state: Controller, targets
         if (state.values[ancestor.id]?.[property] !== undefined || !isConnected(ancestor, property))
           return resolve(ancestor, property);
     }
+    if(property==='glowColor'&&state.values[target.id]?.glowColor===undefined&&(!target.instance||state.values[target.instance.base]?.glowColor===undefined))return resolve(target,'color');
     const value = state.values[target.id]?.[property] ??
       (target.instance ? state.values[target.instance.base]?.[property] : undefined) ?? legacyValue(base, fallback, property);
     const spec = target.numberRanges?.[property];

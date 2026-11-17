@@ -3,7 +3,7 @@ import { emboldenStrokeEm } from '../properties/embolden.ts';
 
 export function textStyle(paint?: Paint) {
   const value={...TEXT_DEFAULTS,...paint};
-  return {color:paintColor(value),fontFamily:fontFamily(value.font),textShadow:value.glow?`0 0 ${value.glow*10}px ${value.color}`:'none'};
+  return {color:paintColor(value),fontFamily:fontFamily(value.font),textShadow:value.glow?`0 0 ${value.glow*10}px ${value.glowColor??value.color}`:'none'};
 }
 let previous='';
 export function updateUIAppearance(appearance?: Appearance) {
@@ -19,5 +19,5 @@ export function updateUIAppearance(appearance?: Appearance) {
   const background=appearance?.background;
   const paint={...BACKGROUND_DEFAULTS,...background};
   root.setProperty('--visual-background',background?paintColor(paint):'');
-  root.setProperty('--visual-background-glow',background?`0 0 ${paint.glow*14}px ${paint.color}`:'');
+  root.setProperty('--visual-background-glow',background?`0 0 ${paint.glow*14}px ${paint.glowColor??paint.color}`:'');
 }

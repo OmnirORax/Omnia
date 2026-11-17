@@ -11,14 +11,15 @@ export const FONT_OPTIONS = [
   { id:'mono',label:'Monospace',family:'ui-monospace, SFMono-Regular, Consolas, monospace' },
   { id:'electric',label:'Rubik Glitch',family:"'Rubik Glitch', system-ui, sans-serif" },
 ] as const;
-export type Paint = { color?: string; translucency?: number; glow?: number; font?: string; embolden?: number };
+export type Paint = { color?: string; glowColor?:string; translucency?: number; glow?: number; font?: string; embolden?: number };
 export type Appearance = { text?: Paint; background?: Paint; nodes?: NodePaint };
 export const color = property({key:'color',label:'Color',kind:'color'});
 export const translucency = property({key:'translucency',label:'Translucency',kind:'number',min:0,max:1,step:.01});
+export const glowColor=property({key:'glowColor',label:'Glow color',kind:'color'});
 export const glow = property({key:'glow',label:'Glow',kind:'number',min:0,max:1,step:.01});
 export const font = property({key:'font',label:'Font',kind:'select',options:FONT_OPTIONS});
 export const embolden = property({key:'embolden',label:'Bold strength',kind:'number',presentation:'slider',min:0,max:10,step:.25});
-export const visualProperties = (text: boolean) => text ? [color,translucency,glow,embolden,font] : [color,translucency,glow];
+export const visualProperties = (text: boolean) => text ? [color,translucency,glow,glowColor,embolden,font] : [color,translucency,glow,glowColor];
 export const TEXT_DEFAULTS = {color:'#eeeee8',translucency:0,glow:0,font:'system',embolden:0};
 export const BACKGROUND_DEFAULTS = {color:'#191c1b',translucency:.04,glow:0};
 export const fontFamily = (id?: string) => (id&&isImportedFont(id)?importedFontFamily(id):FONT_OPTIONS.find(font=>font.id===id)?.family) ?? FONT_OPTIONS[0].family;
@@ -26,7 +27,7 @@ export const paintColor = (paint: Paint) => `${paint.color}${Math.round(transluc
 export function validatePaint(paint: Paint | undefined, text: boolean) {
   if(paint===undefined)return;
   if(!paint || typeof paint!=='object' || Array.isArray(paint) ||
-    paint.color!==undefined&&!/^#[\da-f]{6}$/i.test(paint.color) ||
+    paint.color!==undefined&&!/^#[\da-f]{6}$/i.test(paint.color) || paint.glowColor!==undefined&&!/^#[\da-f]{6}$/i.test(paint.glowColor) ||
     ['translucency','glow'].some(key=>paint[key as 'glow']!==undefined&&(!Number.isFinite(paint[key as 'glow'])||paint[key as 'glow']!<0||paint[key as 'glow']!>1)) ||
     paint.font!==undefined&&(!text||!FONT_OPTIONS.some(font=>font.id===paint.font)&&!isImportedFont(paint.font)) ||
     paint.embolden!==undefined&&(!text||!Number.isFinite(paint.embolden)||paint.embolden<0||paint.embolden>10))throw Error('Invalid visual properties.');
