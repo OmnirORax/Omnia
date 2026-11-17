@@ -102,8 +102,8 @@ test('text opacity combines with translucency in material state without redrawin
 
 test('text glow spread updates cached coverage while preserving geometry and color-only fast updates',()=>{
  const mesh=label('Spread',{glow:2,glowSpread:6}),geometry=mesh.geometry,material=mesh.material,texture=material.map;
- assert.ok(blurSamples.includes(12));blurSamples.length=0;const before=texture.version;
- updateLabelPaint(mesh,{glow:2,glowSpread:10});assert.ok(blurSamples.includes(20));assert.ok(texture.version>before);
+ assert.ok(blurSamples.includes(6*1.6));blurSamples.length=0;const before=texture.version;
+ updateLabelPaint(mesh,{glow:2,glowSpread:10});assert.ok(blurSamples.includes(10*1.6));assert.ok(texture.version>before);
  assert.equal(mesh.geometry,geometry);assert.equal(mesh.material,material);assert.equal(mesh.material.map,texture);
  const after=snapshot();updateLabelPaint(mesh,{glow:2,glowSpread:10,color:'#123456'});assert.deepEqual(snapshot(),after);disposeLabel(mesh);
 });

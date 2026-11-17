@@ -19,7 +19,7 @@ test('text opacity inherits and overrides independently from translucency and bo
 });
 test('text opacity fades ink, halo and linked borders; border paint still excludes text translucency',()=>{
  const paint={color:'#ff4000',glowColor:'#0080ff',glow:1,opacity:0};
- assert.ok(textStyle(paint).color.endsWith('00'));assert.ok(textStyle(paint).textShadow.endsWith('00'));
+ assert.ok(textStyle(paint).color.endsWith('00'));assert.ok(textStyle(paint).textShadow.includes('#0080ff00'));
  assert.ok(textBorderStyle(paint).borderColor.endsWith('00'));assert.ok(textBorderStyle(paint).boxShadow.endsWith('00'));
  const visible={...paint,opacity:.5};assert.ok(textStyle({...visible,translucency:.5}).color.endsWith('40'));
  assert.deepEqual(textBorderStyle(visible),textBorderStyle({...visible,translucency:1}));

@@ -83,7 +83,7 @@ export function AppearanceStyles() {
           `filter:saturate(${Number(get("saturation"))})${glow > 0 ? ` drop-shadow(0 0 ${glow * 8}px ${glowColor})` : ""} !important`);
       } else if (binding.text) {
         if (["glow", "glowSpread", "glowColor", "color", "brightness", "opacity", "translucency"].some(custom) || legacyText)
-          declarations.push(`text-shadow:${textGlowShadow(glow,glowColor,Number(read(target,"glowSpread")))} !important`);
+          declarations.push(`text-shadow:${textGlowShadow(glow,tint(glowColor,1,opacity),Number(read(target,"glowSpread")))} !important`);
         if (custom("font"))
           declarations.push(
             `font-family:${fontFamily(read(target, "font"))} !important`,

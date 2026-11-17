@@ -1,4 +1,4 @@
-import {textGlowBlur} from '../properties/textGlow.ts';
+import {textGlowLayers} from '../properties/textGlow.ts';
 import {packedTextureGlow,packGlowCoverage,updateTextureGlowColor} from '../textureGlow.ts';
 import {imageHull} from './contentEnvelope.ts';
 import * as THREE from 'three';
@@ -27,8 +27,11 @@ export function textSprite(value: string, color: string, selected = false, node 
   const ctx = canvas.getContext("2d",{willReadFrequently:contentOnly})!;
   const drawInk=(context:CanvasRenderingContext2D,ink:string,glow:number,spread:number)=>{
     context.font=canvasFont(font);context.textAlign='center';context.textBaseline='middle';context.fillStyle=ink;
-    context.shadowColor=ink;context.shadowBlur=textGlowBlur(glow,spread);
-    lines.forEach((line,i)=>context.fillText(line,canvas.width/2,10+24+i*48));
+    const draw=()=>lines.forEach((line,i)=>context.fillText(line,canvas.width/2,10+24+i*48));
+    context.shadowColor=ink;
+    for(const layer of textGlowLayers(glow,spread)){context.globalAlpha=layer.opacity;context.shadowBlur=layer.blur;draw();}
+    // Clean ink stays fully covered, independently of halo strength.
+    context.globalAlpha=1;context.shadowBlur=0;draw();
   };
   const paint = (border: string, ink: string, glow: number, spread:number=TEXT_DEFAULTS.glowSpread) => {
     ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.shadowBlur = 0;
