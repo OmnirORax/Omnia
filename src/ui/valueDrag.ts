@@ -1,3 +1,4 @@
+import {createRelativePointer} from './relativePointer.ts';
 import {claimUIPress} from '../composer/runtime/ui/pointerOwnership.ts';
 import {PAGE_INPUT_SUSPEND} from '../composer/runtime/ui/pageInputBoundary.ts';
 export type NumberDrag = {value:number;min?:number;max?:number;step?:number;pixelsPerStep?:number};
@@ -36,9 +37,10 @@ function inputAdapter(field:HTMLInputElement):Adapter{
 }
 export function installValueDrag(){
   let drag:{id:number;root:HTMLElement;adapter:Adapter;config:NumberDrag;x:number;active:boolean;next:number}|undefined,suppressClick=false;
+  const relative=createRelativePointer(()=>finish(true));
   const stop=(event:Event)=>{event.preventDefault();event.stopImmediatePropagation();};
   const finish=(cancel=false)=>{
-    const current=drag;drag=undefined;if(!current)return;
+    const current=drag;drag=undefined;relative.stop();if(!current)return;
     document.documentElement.classList.remove('value-dragging');
     if(current.root.hasPointerCapture(current.id))current.root.releasePointerCapture(current.id);
     if(current.active){suppressClick=true;if(cancel)current.adapter.cancel(current.config.value);else current.adapter.commit(current.next);}
@@ -53,15 +55,15 @@ export function installValueDrag(){
   const move=(event:PointerEvent)=>{
     const current=drag;if(!current||current.id!==event.pointerId)return;
     if(!current.root.isConnected){finish(true);return;}
-    if(!current.active){if(Math.abs(event.clientX-current.x)<(current.config.pixelsPerStep?1:4))return;current.active=true;claimUIPress(event.pointerId,event.pointerType,event.buttons);current.root.setPointerCapture(event.pointerId);document.documentElement.classList.add('value-dragging');}
-    stop(event);const next=horizontalValue(current.config,event.clientX-current.x);
+    if(!current.active){if(Math.abs(event.clientX-current.x)<(current.config.pixelsPerStep?1:4))return;current.active=true;claimUIPress(event.pointerId,event.pointerType,event.buttons);current.root.setPointerCapture(event.pointerId);document.documentElement.classList.add('value-dragging');relative.start(current.root,{x:event.clientX,y:event.clientY});}
+    stop(event);const next=horizontalValue(current.config,relative.sample(event).x-current.x);
     if(next!==current.next){current.next=next;current.adapter.input(next);}
   };
   window.addEventListener('pointermove',event=>{if(drag&&!(event.buttons&1)){finish();return;}move(event);},true);
   window.addEventListener('pointerup',event=>{if(drag?.id!==event.pointerId||event.button!==0)return;const active=drag.active;if(active){move(event);stop(event);}finish();},true);
   window.addEventListener('dragstart',event=>{if(drag)stop(event);},true);
   window.addEventListener('pointercancel',event=>{if(drag?.id===event.pointerId)finish(true);},true);
-  window.addEventListener('lostpointercapture',event=>{if(drag?.id===event.pointerId)finish(true);},true);
+  window.addEventListener('lostpointercapture',event=>{if(drag?.id===event.pointerId&&!relative.active)finish(true);},true);
   window.addEventListener('keydown',event=>{if(event.key==='Escape'&&drag?.active){stop(event);finish(true);}},true);
   window.addEventListener('click',event=>{if(suppressClick&&event.detail>0){suppressClick=false;stop(event);}},true);
   window.addEventListener('blur',()=>finish(true));window.addEventListener(PAGE_INPUT_SUSPEND,()=>finish(true));
