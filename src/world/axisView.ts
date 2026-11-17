@@ -32,7 +32,7 @@ export function createAxisView(scene:T.Scene,host:HTMLElement,camera:T.Perspecti
   update(world:World,scale:number){
    unitScale=scale;
    const signature=JSON.stringify([(world.axes??[]).map(f=>f.id==='@user'?{id:f.id,activeAxes:f.activeAxes,directions:f.directions}:f),world.activeAxis,scale,(world.axes??[]).map(frame=>frame.ends.map(end=>locate(world,end)?.position))]);if(signature===previous){updateUser(world,scale);return;}previous=signature;clear();
-   for(const frame of world.axes??[]){const gizmo=createOriginGizmo(scale,frame.id===world.activeAxis,activeWorldAxes(frame),frame.directions);gizmo.userData.axis=frame.id;positionFrame(gizmo,world,frame,scale);gizmo.traverse(child=>{child.userData.axis=frame.id;if(child instanceof T.Mesh)picks.push(child);});group.add(gizmo);orientOriginGizmo(gizmo,camera,host.getBoundingClientRect());}
+   for(const frame of world.axes??[]){if(frame.id!==world.activeAxis)continue;const gizmo=createOriginGizmo(scale,true,activeWorldAxes(frame),frame.directions);gizmo.userData.axis=frame.id;positionFrame(gizmo,world,frame,scale);gizmo.traverse(child=>{child.userData.axis=frame.id;if(child instanceof T.Mesh)picks.push(child);});group.add(gizmo);orientOriginGizmo(gizmo,camera,host.getBoundingClientRect());}
 
   },
   coordinates(world:World,frame:AxisFrame|undefined,p:Vec3|undefined,screen:{x:number;y:number}|undefined){
