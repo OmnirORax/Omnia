@@ -24,8 +24,8 @@ type Point={x:number;y:number};
 type Stroke={erase:boolean;id:number;last:Point;slots:MathematicalStrokeSlot[];visited:readonly string[];before:MathematicalMarks;next:MathematicalMarks;brush:MathematicalSlotMode;accepted?:boolean};
 /** Shared raw-number surface. The consumer supplies its domain and real setters.
  * Left-click paints normal values; right-click applies recursion directly. */
-export function MathematicalDial({value,min,max,integer=false,label='Value',disabled=false,configure=false,editing,rule,onPreview=()=>{},onCommit,onCancelPreview,onReject=reportSystemMessage,onConfigurationCommit,readoutOwner,keyboardInput=false,limits}:{
- value:number;min:number;max:number;integer?:boolean;label?:string;disabled?:boolean;configure?:boolean;
+export function MathematicalDial({value,min,max,integer=false,label='Value',disabled=false,configure=false,editing,rule,onPreview=()=>{},onCommit,onCancelPreview,onReject=reportSystemMessage,onConfigurationCommit,readoutOwner,keyboardInput=false,limits,context,formatValue=(n:number)=>String(n)}:{
+ context?:{label:string;value:number};formatValue?:(value:number)=>string;value:number;min:number;max:number;integer?:boolean;label?:string;disabled?:boolean;configure?:boolean;
  rule?:{value:string;choices:readonly {id:string;label:string;icon:string}[];onChange:(id:string)=>void};
  editing?:{kind:'value'|'increment';amount:number;minimum:number;maximum:number;onKindChange:(kind:'value'|'increment')=>void;onAmountChange:(amount:number)=>void};
  limits?:{label:string;min:number;max:number;hardMin:number;hardMax:number;integer?:boolean;change:(which:'min'|'max',value:number)=>void|boolean};readoutOwner?:string;keyboardInput?:boolean;onConfigurationCommit?:(config:ConfirmedMathValue)=>void;onReject?:(message:string)=>void;onPreview?:(value:number)=>void;onCommit:(value:number)=>void;onCancelPreview?:()=>void;
@@ -201,12 +201,17 @@ export function MathematicalDial({value,min,max,integer=false,label='Value',disa
    </span>)}
   </div>
   <div className="mathematical-dial-meta">
+   <div className="mathematical-dial-values" role="group" aria-label="Current parameter">
+    {context&&<output aria-label={`${context.label} current value`}>Current {context.label}: {context.value}</output>}
+    <output aria-label={`${label} confirmed value`}>Current {label}: {formatValue(session.committed)}</output>
+    {scaling!=='value'&&<output aria-label="Frozen starting value">Start: {formatValue(scaleAnchor.current)}</output>}
+   </div>
    <div className="mathematical-dial-settings" role="group" aria-label="Number mode">{(['value','halving','doubling'] as const).map(kind=><button key={kind} type="button" disabled={disabled||kind!=='value'&&(!Number.isFinite(session.expected)||session.expected===0)} aria-label={kind==='value'?'Set value':kind==='halving'?'Halve starting value':'Double starting value'} aria-pressed={scaling===kind} onClick={()=>changeScaling(scaling===kind&&kind!=='value'?'value':kind)}>{kind==='value'?'=':kind==='halving'?'/2':'×2'}</button>)}</div>
    {limits&&<div className="mathematical-dial-settings mathematical-dial-limits" role="group" aria-label={`${limits.label} limits`}>{(['min','max'] as const).map(kind=><button key={kind} type="button" disabled={disabled} aria-label={`Set ${limits.label} ${kind==='min'?'minimum':'maximum'}`} onClick={()=>{restore();typedExact.current=false;textFinished.current=false;setExactKind(kind);setExact({point:cursorPosition(),text:String(limits[kind])});}}>{kind==='min'?'⊢':'⊣'}{limits[kind]}</button>)}</div>}
    <output className="mathematical-dial-maximum" aria-label="Maximum value">{scaling==='value'?`max ${max}`:`${scaleAnchor.current} · max ${scaleMaximum}`}</output>
 
    {rule&&<div className="mathematical-dial-settings" role="group" aria-label="Value generation rule">{rule.choices.map(choice=><button key={choice.id} type="button" disabled={disabled} aria-label={choice.label} title={choice.label} aria-pressed={rule.value===choice.id} onClick={()=>{restore();rule.onChange(choice.id);}}>{choice.icon}</button>)}</div>}
-   <button ref={readoutDrag.ref} type="button" disabled={disabled} className="mathematical-dial-readout" aria-label={`${label} value: ${value}`} title={`${label} · ${value} · click or right-click to type an exact value`} onClick={openExact} onContextMenu={event=>{event.preventDefault();event.stopPropagation();openExact();}}><output aria-live="polite">{sample?total(sample):readoutDrag.value}</output></button>
+   <button ref={readoutDrag.ref} type="button" disabled={disabled} className="mathematical-dial-readout" aria-label={`${label} value: ${value}`} title={`${label} · ${value} · click or right-click to type an exact value`} onClick={openExact} onContextMenu={event=>{event.preventDefault();event.stopPropagation();openExact();}}><output aria-live="polite">{sample?`Preview: ${formatValue(total(sample))}`:formatValue(readoutDrag.value)}</output></button>
    {editing&&<button type="button" className="mathematical-dial-rule" disabled={disabled} aria-label={`${label} editing rule`} title={editing.kind==='increment'?`Increment from ${anchor.current} by ${editing.amount} per selected step; click chooses rule, right-click sets amount`:'Absolute value; click to configure editing rule'} onClick={()=>{restore();setRulePopup({point:cursorPosition(),stage:'modes'});}} onContextMenu={event=>{event.preventDefault();event.stopPropagation();restore();setAmountSample(null);setRulePopup({point:cursorPosition(),stage:editing.kind==='increment'?'amount':'modes'});}}>Rule {editing.kind==='increment'?'+':'='}</button>}
    <div className="mathematical-dial-settings">
     {(min<0||editing?.kind==='increment')&&<button type="button" disabled={disabled} title="Change sign" aria-label={`${label} sign`} aria-pressed={sign<0} onClick={changeSign}>±</button>}

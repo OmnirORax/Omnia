@@ -1,0 +1,4 @@
+.operation-choices{display:flex;gap:3px}
+.operation-choices button[aria-pressed=false]{opacity:.45;background:transparent;box-shadow:none}
+.operation-choices button[aria-pressed=true]{opacity:1;background:currentColor;border-color:currentColor;box-shadow:0 0 4px currentColor}
+.operation-choices button[aria-pressed=true] span{color:#101419;text-shadow:none}

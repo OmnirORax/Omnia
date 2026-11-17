@@ -54,3 +54,6 @@
 .mathematical-dial-mark svg{display:block;pointer-events:none}
 
 .mathematical-dial .mathematical-dial-limits button{width:auto;min-width:32px;height:24px;padding:2px 4px;font-size:12px;border-radius:3px;white-space:nowrap}
+
+.mathematical-dial-values{display:grid;gap:2px;font-size:12px;line-height:1.2;max-width:200px;overflow-wrap:anywhere}
+.mathematical-dial .mathematical-dial-readout{max-width:200px;overflow-wrap:anywhere;white-space:normal}

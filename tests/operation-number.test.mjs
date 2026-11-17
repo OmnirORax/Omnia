@@ -15,3 +15,11 @@ test('working limits constrain commits, end previews, clamp accepted values and 
  assert.equal(number.min,5);assert.equal(number.max,6);assert.equal(errors.length,5);
  number.resetLimits();assert.equal(number.min,0);assert.equal(number.max,10);assert.equal(number.commit(9),true);
 });
+
+test('parameter formatting resolves the current mode without replacing accepted values with previews',()=>{
+ let base=90;const number=createOperationNumber({label:'Snap multiplier',value:1,min:0,max:4,formatValue:n=>`${n} × ${base}° = ${n*base}°`,apply(){},reject(){}});
+ assert.equal(number.formatValue(number.value),'1 × 90° = 90°');number.preview(.5);
+ assert.equal(number.formatValue(number.value),'1 × 90° = 90°');assert.equal(number.formatValue(number.current),'0.5 × 90° = 45°');
+ number.restore();base=60;assert.equal(number.formatValue(number.value),'1 × 60° = 60°');
+ const raw=createOperationNumber({label:'Count',value:8,min:1,max:100,apply(){},reject(){}});assert.equal(raw.formatValue(raw.value),'8');
+});
