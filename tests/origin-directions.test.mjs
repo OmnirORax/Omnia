@@ -17,6 +17,28 @@ test('invalid direction settings are rejected on load',()=>{const h=harness();h.
 
 test('disabling every direction blocks placement and relocation instead of allowing free movement',()=>{const h=harness({disabled:['0:0','0:1','0:2','0:3']});assert.equal(h.session().candidate([2,0,0]).valid,false);assert.throws(()=>operationSlot(h.world,h.frame,[2,0,0]),/Enable a placement direction/);});
 
-test('symmetry output spans three dimensions while mouse and camera retain their two-axis plane',()=>{const h=harness({planes:['XY','XZ','YZ']});const active=[...h.frame.activeAxes],basisBefore=[...h.frame.x,...h.frame.y,...h.frame.z],candidate=h.session().candidate([2,0,0]);assert.equal(candidate.valid,true);assert.deepEqual(rounded(candidate.stamp),['-2,0,0','0,-2,0','0,0,-2','0,0,2','0,2,0','2,0,0']);assert.deepEqual(h.frame.activeAxes,active);assert.deepEqual([...h.frame.x,...h.frame.y,...h.frame.z],basisBefore);});
-test('each output plane has independently deselectable directions, without requiring the input plane as output',()=>{const h=harness({planes:['XZ'],disabled:['XZ:0:1']});const candidate=h.session().candidate([2,0,0]);assert.equal(candidate.valid,true);assert.deepEqual(rounded(candidate.stamp),['-2,0,0','0,0,-2','2,0,0']);assert.deepEqual(h.frame.activeAxes,[0,1]);});
+test('directions and symmetry follow activated axes, preserving diagonal subdivisions',()=>{
+ const h=harness({halves:1});
+ for(const axes of [[0,1],[0,2],[1,2]]){
+  h.frame.activeAxes=axes;
+  const position=[0,0,0];position[axes[0]]=3;
+  const candidate=h.session().candidate(position);
+  assert.equal(candidate.stamp.length,8);
+  const inactive=[0,1,2].find(i=>!axes.includes(i));
+  assert.ok(candidate.stamp.every(p=>Math.abs(p[inactive])<1e-8));
+  assert.ok(candidate.stamp.some(p=>Math.abs(p[axes[0]])>1&&Math.abs(p[axes[1]])>1));
+  assert.deepEqual(axisPoint(h.world,h.frame,operationSlot(h.world,h.frame,position)),candidate.anchor);
+ }
+});
+test('old plane-button settings are retired on load and direction exclusions remain shared',()=>{
+ const h=harness({planes:['XZ'],disabled:['XY:0:1','XZ:0:1']});
+ validateWorld(h.world);
+ assert.equal('planes' in h.frame.directions,false);
+ assert.deepEqual(h.frame.directions.disabled,['0:1']);
+ const candidate=h.session().candidate([2,0,0]);
+ assert.deepEqual(rounded(candidate.stamp),['-2,0,0','0,-2,0','2,0,0']);
+ h.frame.activeAxes=[0,2];
+ assert.deepEqual(rounded(h.session().candidate([2,0,0]).stamp),['-2,0,0','0,0,-2','2,0,0']);
+});
+
 test('three active axes retain depth from projected mouse input and produce all spatial directions',()=>{const h=harness();h.frame.activeAxes=[0,1,2];const candidate=h.session().candidate([0,0,2]);assert.equal(candidate.valid,true);assert.ok(candidate.stamp.some(p=>p[2]>1.9));assert.equal(candidate.stamp.length,6);});
