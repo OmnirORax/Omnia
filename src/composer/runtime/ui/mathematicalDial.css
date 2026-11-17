@@ -28,8 +28,7 @@
 .mathematical-dial-slot:is(:hover,:focus-visible,[data-preview=true])::after{opacity:1}
 .tool-cursor.mathematical-dial-cursor{font-size:12px}
 
-/* Meta controls sit below the next outward slot band, outside drawing space. */
-.mathematical-dial-meta{position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:26px;display:grid;justify-items:center;gap:2px}
+
 .mathematical-dial-settings{gap:3px;width:max-content;max-width:224px;flex-wrap:wrap}
 .mathematical-dial .mathematical-dial-settings button{min-width:32px;width:32px;height:32px;font-size:20px}
 .mathematical-dial .mathematical-dial-readout{min-width:0;width:max-content;height:auto;padding:1px 4px;font-size:22px;line-height:1.1;background:transparent}
@@ -45,10 +44,20 @@
 .mathematical-dial .mathematical-dial-reference{width:max-content;min-width:0;padding:1px 5px;font-size:20px;line-height:1.1}
 .mathematical-dial-reference[aria-pressed=true]{outline:1px solid currentColor}
 
-.mathematical-dial{margin-right:48px}
+.mathematical-dial{margin:38px 4px 44px}
+.mathematical-dial:has(.mathematical-dial-limits){margin-right:88px}
+.mathematical-dial:has(.mathematical-dial-operation button){margin-left:64px}
 .mathematical-dial .mathematical-dial-base{pointer-events:auto;padding:0;background:transparent;border:0;cursor:pointer}
-.mathematical-dial-meta{top:0;left:calc(100% + 1px);transform:none;margin-top:0;gap:4px}
-.mathematical-dial-meta .mathematical-dial-settings{flex-direction:column;flex-wrap:nowrap;width:max-content;max-width:none}
+/* Categories follow the live outer rim, outside number painting space. */
+.mathematical-dial-meta{position:absolute;inset:0;pointer-events:none}
+.mathematical-dial-meta>*{position:absolute;pointer-events:auto}
+.mathematical-dial-arithmetic{left:50%;bottom:calc(100% + 3px);transform:translateX(-50%);flex-wrap:nowrap}
+.mathematical-dial-limits{left:calc(100% + 3px);top:50%;transform:translateY(-50%);flex-direction:column;flex-wrap:nowrap}
+.mathematical-dial-result{left:50%;top:calc(100% + 3px);transform:translateX(-50%);display:grid;justify-items:center;gap:1px;width:max-content;max-width:200px}
+.mathematical-dial-operation{right:calc(100% + 3px);top:50%;transform:translateY(-50%);display:grid;justify-items:center;gap:3px;width:max-content;max-width:100px}
+.mathematical-dial-operation .operation-choices{flex-direction:column}
+.mathematical-dial-operation .operation-choices button{min-width:28px;height:28px;padding:2px;font-size:18px}
+.mathematical-dial-operation>.mathematical-dial-settings:empty{display:none}
 
 .mathematical-dial-slot[data-mode="recursion"][data-selected=true] .mathematical-dial-mark{background:transparent}
 .mathematical-dial-mark svg{display:block;pointer-events:none}

@@ -134,4 +134,4 @@ input[type="number"]:enabled:not([readonly]), input[inputmode="numeric"]:enabled
 .menu-searches{display:flex;gap:5px}.menu-searches>input{flex:1;min-width:0;width:0}
 
 .shortcut-window .shortcut-key:hover{background:transparent}
-.bound-rotation-controls{display:block;overflow:visible;padding:0;background:transparent;border:0;border-radius:0;box-shadow:none}.operation-number-dial nav{display:flex;gap:3px;margin-bottom:4px}
+.bound-rotation-controls{display:block;overflow:visible;padding:0;background:transparent;border:0;border-radius:0;box-shadow:none}

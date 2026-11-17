@@ -103,7 +103,7 @@ export function mathematicalValueRejection(value:number,domain:MathematicalDomai
  return undefined;
 }
 /** Keep one unmarked outer ring available; deselection retracts unused rings. */
-export function mathematicalRingOrders(keys:readonly string[],limit=Number.MAX_SAFE_INTEGER){return Math.min(limit,Math.max(2,...keys.map(key=>Number(key.split(':')[0])+2)));}
+export function mathematicalRingOrders(keys:readonly string[],limit=Number.MAX_SAFE_INTEGER){return Math.min(limit,Math.max(1,...keys.map(key=>Number(key.split(':')[0])+2)));}
 
 export function mathematicalScaleRejection(anchor:number,count:number,mode:Exclude<MathematicalScaleMode,'value'>,domain:MathematicalDomain){
  const name=mode==='halving'?'halves':'doublings';

@@ -10,8 +10,7 @@ export function mountOperationMathDial(host:HTMLElement,number:OperationNumber,_
  const root=createRoot(host),scope=`operation-number:${++sequence}`;
  function View(){useSyncExternalStore(number.subscribe,number.snapshot);let config:ConfirmedMathValue|undefined;
   return <UIHistoryScope.Provider value={scope}><div data-input-owner className="operation-number-dial">
-   {choices&&<OperationChoices choices={choices}/>}
-   <MathematicalDial key={choices?.read()} value={number.value} min={number.min} max={number.max} integer={number.integer} limits={{label:number.label,min:number.min,max:number.max,hardMin:number.hardMin,hardMax:number.hardMax,integer:number.integer,change:number.setLimit}} formatValue={number.formatValue} label={number.label} readoutOwner={number.readoutOwner} keyboardInput onPreview={number.preview} onCancelPreview={number.restore} onConfigurationCommit={next=>{config=next;}} onCommit={value=>number.commit(value,config)}/>
+   <MathematicalDial modeControl={choices&&<OperationChoices choices={choices}/>} key={choices?.read()} value={number.value} min={number.min} max={number.max} integer={number.integer} limits={{label:number.label,min:number.min,max:number.max,hardMin:number.hardMin,hardMax:number.hardMax,integer:number.integer,change:number.setLimit}} formatValue={number.formatValue} label={number.label} readoutOwner={number.readoutOwner} keyboardInput onPreview={number.preview} onCancelPreview={number.restore} onConfigurationCommit={next=>{config=next;}} onCommit={value=>number.commit(value,config)}/>
   </div></UIHistoryScope.Provider>;
  }
  root.render(<View/>);return()=>{number.restore();root.unmount();};
