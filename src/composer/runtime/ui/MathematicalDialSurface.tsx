@@ -14,7 +14,7 @@ import {useValueDrag} from './useValueDrag.ts';
 import {useValueConfirmation} from './useValueConfirmation';
 import {type ReactNode,useSyncExternalStore,useId,useLayoutEffect,useEffect,useMemo,useRef,useState} from 'react';
 import {radialDimensions,RADIAL_GEOMETRY} from './radialMenuModel';
-import {mathematicalSlotScrub,mathematicalEmptyValue,mathematicalSlotValue,mathematicalNumberValue,mathematicalEditValue,mathematicalValueAllowed,mathematicalValueSession,radialSlotCapacity,mathematicalScaleValue,mathematicalScaleMaximum,mathematicalScaleRejection,mathematicalValueRejection,type MathematicalScaleMode,fillMathematicalSlots,paintMathematicalSlots,type MathematicalMarks,type MathematicalStrokeSlot,type MathematicalSlotMode} from '../properties/mathematicalDial.ts';
+import {mathematicalSlotScrub,mathematicalEmptyValue,mathematicalSlotValue,mathematicalNumberValue,mathematicalEditValue,mathematicalValueAllowed,mathematicalValueSession,radialSlotCapacity,mathematicalScaleValue,mathematicalScaleAnchor,mathematicalScaleMaximum,mathematicalScaleRejection,mathematicalValueRejection,type MathematicalScaleMode,fillMathematicalSlots,paintMathematicalSlots,type MathematicalMarks,type MathematicalStrokeSlot,type MathematicalSlotMode} from '../properties/mathematicalDial.ts';
 import './mathematicalDial.css';
 import {useContextNavigation} from './ContextStage';
 import {ContextualMasterController} from './ContextualMasterController';
@@ -146,7 +146,7 @@ export function MathematicalDialSurface({value,min,max,integer=false,label='Valu
  useEffect(()=>{onSurfaceCancel?.(restore);},[onSurfaceCancel]);
  const changeScaling=(next:MathematicalScaleMode)=>{
   restore();horizontal?.release(horizontalOwner.current);drag.current=null;setPainting(false);setMarks(emptyMarks());
-  if(next==='value'){setBase(valueBase.current);}else{if(scaling==='value')valueBase.current=base;scaleAnchor.current=scaleStart??session.restore();setBase(1);setSign(1);}setScaling(next);onModeChange?.(next);
+  if(next==='value'){setBase(valueBase.current);}else{if(scaling==='value')valueBase.current=base;scaleAnchor.current=mathematicalScaleAnchor(next,session.restore(),scaleStart);setBase(1);setSign(1);}setScaling(next);onModeChange?.(next);
  };
  return <div data-live-dial data-ui-popup-interior className="mathematical-dial" style={{width:extent,height:extent,zoom:scaleDrag.value}} title={`${label}: ${value} (${min}–${max})`} role="group" aria-label={`⠒❉ · ${label}`} aria-disabled={disabled} onMouseLeave={()=>{if(!horizontal?.owns(horizontalOwner.current))restore();}}
   onPointerDownCapture={event=>{

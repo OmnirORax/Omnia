@@ -16,3 +16,10 @@ test('editable limits reject reversed, nonfinite, fractional and out-of-domain r
  assert.match(reject(NaN,10,domain),/finite/);assert.match(reject(0,Infinity,domain),/finite/);
  assert.match(reject(-1,10,domain),/Minimum value/);assert.match(reject(0,101,domain),/Maximum value/);assert.match(reject(1.5,10,domain),/whole number/);
 });
+
+test('full-period refinement and current-value doubling remain independently useful',async()=>{
+ const {mathematicalScaleAnchor}=await import('../src/properties/mathematicalDial.ts');
+ assert.equal(mathematicalScaleValue(mathematicalScaleAnchor('halving',.25,1),3,'halving'),.125);
+ assert.equal(mathematicalScaleValue(mathematicalScaleAnchor('division',.25,1),8,'division'),.125);
+ assert.equal(mathematicalScaleValue(mathematicalScaleAnchor('doubling',.125,1),3,'doubling'),1);
+});

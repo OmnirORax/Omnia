@@ -122,3 +122,6 @@ export function mathematicalLimitsRejection(min:number,max:number,domain:Mathema
  if(min>max)return 'Minimum cannot exceed maximum.';
  return mathematicalValueRejection(min,domain)??mathematicalValueRejection(max,domain);
 }
+
+/** Refinement may receive a unit/period; enlargement starts from the current value. */
+export function mathematicalScaleAnchor(mode:Exclude<MathematicalScaleMode,'value'>,current:number,received?:number){return mode==='doubling'?current:received??current;}
