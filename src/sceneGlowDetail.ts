@@ -10,7 +10,14 @@ float detailProtection(float c,float l,float r,float u,float d){
  float thin=max(abs(c-(l+r)*.5),abs(c-(u+d)*.5))/max(hi,.00001);
  return smoothstep(.6,.9,thin)*smoothstep(.005,.06,contrast);
 }
-float detailIntensityLimit(float peak,float halo){return min(.35,peak*.2/max(halo,.00001));}
+// This is the final gain: never interpolate uncapped emission back in after
+// applying it. Fully protected strokes/gaps keep the original base image;
+// partially protected pixels have a finite halo budget at any user strength.
+float detailIntensityLimit(float peak,float halo,float protect){
+ if(protect<=0.)return 1.;
+ float budget=peak*.05*(1.-protect)/max(protect,.00001);
+ return min(1.,budget/max(halo,.00001));
+}
 vec3 detailGlow(sampler2D source,sampler2D halo,sampler2D narrow,vec2 uv,vec2 pixel,vec3 center,float strength){
  vec3 wide=texture2D(halo,uv).rgb;
  if(glowPeak(wide)==0.)return wide;
@@ -28,6 +35,6 @@ vec3 detailGlow(sampler2D source,sampler2D halo,sampler2D narrow,vec2 uv,vec2 pi
  // the detail neighbourhood, retaining the luminous appearance.
  vec3 close=texture2D(narrow,uv).rgb*(3.*strength);
  vec3 adaptive=mix(wide,close,protect);
- float limit=detailIntensityLimit(hi,glowPeak(adaptive));
- return adaptive*mix(1.,limit,protect);
+ float limit=detailIntensityLimit(hi,glowPeak(adaptive),protect);
+ return adaptive*limit;
 }`;

@@ -27,10 +27,17 @@ test('thin strokes and gaps increase protection smoothly as they shrink on scree
  assert.equal(values[0],0);assert.equal(values.at(-1),1);
  assert.equal(protect(.003,0,0,.003,.003),0);
 });
-test('protected glow stays luminous but bounded even at extreme user intensity',()=>{
- for(const strength of [.01,.1,1,10,100]){const halo=strength*limit(1,strength);assert.ok(halo>0);assert.ok(halo<=.2+1e-8);}
- assert.equal(limit(1,0),.35);
+test('final halo preserves detail at partial protection and leaves the outside glow unchanged',()=>{
+ for(const strength of [.01,.1,1,10,100]){
+  assert.equal(strength*limit(1,strength,0),strength);
+  assert.equal(strength*limit(1,strength,1),0);
+  for(const protection of [.1,.25,.5,.75,.99]){
+   const halo=strength*limit(1,strength,protection),budget=.05*(1-protection)/protection;
+   assert.ok(halo<=budget+1e-8);assert.ok(halo>=0);
+  }
+ }
 });
+
 function renderer(){
  const draws=[];let target;const color=new T.Color();
  return {draws,autoClear:true,getClearColor:c=>c.copy(color),getClearAlpha:()=>1,setClearColor:c=>color.set(c),setRenderTarget:t=>{target=t;},clear(){},render(scene){draws.push({target,scene});}};
