@@ -1,4 +1,4 @@
-import {packedTextureGlow,packGlowCoverage,updateTextureGlowSize} from '../textureGlow.ts';
+import {packedTextureGlow,packGlowCoverage} from '../textureGlow.ts';
 import {imageHull} from './contentEnvelope.ts';
 import * as THREE from 'three';
 import {labelLines,labelSize} from '../composer/runtime/graph/labels.ts';
@@ -50,10 +50,10 @@ export function textSprite(value: string, color: string, selected = false, node 
       ctx.globalAlpha = surface.opacity ?? 1;
       ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.globalAlpha = 1;
     }
-    drawInk(ctx,ink,glow);
+    drawInk(ctx,contentOnly?"#ffffff":ink,glow);
     if(contentOnly){
       const combined=ctx.getImageData(0,0,canvas.width,canvas.height);
-      if(glow>0){const clean=sharpTextContext(canvas.width,canvas.height);drawInk(clean,ink,0);packGlowCoverage(clean.getImageData(0,0,canvas.width,canvas.height).data,combined.data);}
+      if(glow>0){const clean=sharpTextContext(canvas.width,canvas.height);drawInk(clean,"#ffffff",0);packGlowCoverage(clean.getImageData(0,0,canvas.width,canvas.height).data,combined.data);}
       else packGlowCoverage(combined.data,combined.data);
       ctx.putImageData(combined,0,0);
     }
@@ -92,17 +92,21 @@ export function textSprite(value: string, color: string, selected = false, node 
   let surfaceKey = JSON.stringify(surface);
   sprite.userData.setSurfaceStyle = (next: typeof surface) => {
     const key = JSON.stringify(next); if (key === surfaceKey) return;
-    surfaceKey = key; surface = next; paint(...currentStyle); texture.needsUpdate = true;
+    surfaceKey = key; surface = next; if(!contentOnly){paint(...currentStyle); texture.needsUpdate = true;}
   };
   sprite.userData.setSelected = (value: boolean) => {
     if (value === selected) return;
-    selected = value; paint(...currentStyle); texture.needsUpdate = true;
+    selected = value; if(!contentOnly){paint(...currentStyle); texture.needsUpdate = true;}
   };
   let paintKey = JSON.stringify([color, textColor, textGlow]);
   sprite.userData.setTextStyle = (border: string, ink: string, glow: number) => {
     const next = JSON.stringify([border, ink, glow]);
     if (next === paintKey) return;
-    paintKey = next; currentStyle = [border, ink, glow]; paint(border, ink, glow);if(contentOnly)sprite.material.color.set(ink); texture.needsUpdate = true;
+    paintKey = next;
+    const rasterChanged=!contentOnly||glow!==currentStyle[2];
+    currentStyle = [border, ink, glow];
+    if(contentOnly)sprite.material.color.set(ink);
+    if(rasterChanged){paint(border,ink,glow);texture.needsUpdate=true;}
     sprite.userData.textColor = ink;
   };
   sprite.userData.label = value;
@@ -114,14 +118,25 @@ export function textSprite(value: string, color: string, selected = false, node 
   sprite.scale.set(size.width, size.height, 1);
   return sprite;
 }
+/** Only typography changes text geometry. Color/opacity/glow reuse the label. */
+export const labelGeometryKey=(paint:Paint={},revision=0)=>JSON.stringify([paint.font??TEXT_DEFAULTS.font,revision]);
+export function updateLabelPaint(mesh:ReturnType<typeof textSprite>,paint:Paint={}){
+ const style={...TEXT_DEFAULTS,...paint};
+ mesh.userData.setTextStyle(style.color,style.color,style.glow);
+ mesh.material.opacity=translucentOpacity(1,style.translucency);
+ mesh.userData.labelPaint=style;mesh.userData.textColor=style.color;
+}
 export function label(caption:string,paint?:Paint){
  const style={...TEXT_DEFAULTS,...paint};
  const mesh=textSprite(caption,style.color,false,false,false,style.font,style.glow,style.color,{},true);
- mesh.material.opacity=translucentOpacity(1,style.translucency);mesh.userData.isLabel=true;
+ updateLabelPaint(mesh,style);mesh.userData.isLabel=true;
  if(style.font==='electric'||isImportedFont(style.font))void document.fonts.load(canvasFont(style.font)).then(()=>{
    if(mesh.userData.disposed)return;
-   const fresh=textSprite(caption,style.color,false,false,false,style.font,style.glow,style.color,{},true);
-   mesh.material.map?.dispose();mesh.material.map=fresh.material.map;updateTextureGlowSize(mesh.material);mesh.material.needsUpdate=true;mesh.userData.contentHull=fresh.userData.contentHull;fresh.geometry.dispose();fresh.material.dispose();mesh.userData.requestRender?.();
+   const current=mesh.userData.labelPaint as typeof style;
+   const fresh=textSprite(caption,current.color,false,false,false,current.font,current.glow,current.color,{},true);
+   mesh.material.map?.dispose();mesh.material.dispose();mesh.material=fresh.material;
+   for(const name of ['setTextStyle','setSurfaceStyle','setSelected','lightningMask','contentHull'])mesh.userData[name]=fresh.userData[name];
+   updateLabelPaint(mesh,current);fresh.geometry.dispose();mesh.userData.requestRender?.();
  });
  return mesh;
 }

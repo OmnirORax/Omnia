@@ -1,3 +1,4 @@
+import {translucentOpacity} from './properties/translucency.ts';
 import {hasOriginDirections} from './core/originDirections.ts';
 import {ARROW_NUDGES,axisNudgeDirection} from './world/axisNudge.ts';
 import {createNodeOverlap,createNodeVolumeOverlap} from './world/selectionOverlap.ts';
@@ -63,7 +64,7 @@ import { latticeFrame } from './latticeField.ts';
 import { visualObject, disposeVisual } from './visualScene.ts';
 import { paintSamples } from './omnic/paintStroke.ts';
 import { createPipeline } from './world/render.ts';
-import { label, disposeLabel } from './world/labels.ts';
+import { label, disposeLabel, labelGeometryKey, updateLabelPaint } from './world/labels.ts';
 import { createSceneSession } from './scene/session.ts';
 import type { Document } from './graph/geometryTypes.ts';
 import { TEXT_DEFAULTS } from './properties/visual.ts';
@@ -284,10 +285,11 @@ export function createWorld(host: HTMLElement, input: Input) {
     if(signature!==pushSignature){pushSignature=signature;pushDirty=true;}
     refreshContours();rebuildPicks();request();
   }
+  const edgeCaptions=new Map<string,{mesh:ReturnType<typeof label>;geometryKey:string}>();
   function clearEdges() {
     effectConnectors.length=0;
     for (const child of [...edges.children]) {
-      if (child instanceof T.Mesh && child.userData.isLabel) disposeLabel(child as ReturnType<typeof label>); else { const item = child as T.Line; item.geometry?.dispose(); for (const m of Array.isArray(item.material) ? item.material : [item.material]) m.dispose(); }
+      if (!(child instanceof T.Mesh && child.userData.isLabel)) { const item = child as T.Line; item.geometry?.dispose(); for (const m of Array.isArray(item.material) ? item.material : [item.material]) m.dispose(); }
       edges.remove(child);
     }
   }
@@ -302,13 +304,16 @@ export function createWorld(host: HTMLElement, input: Input) {
     const line = new T.Line(new T.BufferGeometry().setFromPoints([a,back]), material);line.userData.edge=edge;line.userData.glowIntensity=paint.glow;edges.add(line);
     const arrow = new T.Mesh(new T.BufferGeometry().setFromPoints([back.clone().add(side),b,back.clone().sub(side)]),new T.MeshBasicMaterial({color:material.color,opacity:material.opacity,transparent:true,side:T.DoubleSide,depthWrite:false})); arrow.userData.edge = edge;arrow.userData.glowIntensity=paint.glow; edges.add(arrow);
     let edgeLabel:ReturnType<typeof label>|undefined;
-    if (text) { const caption = label(text,world.appearance?.text);edgeLabel=caption; caption.userData.requestRender=request;caption.scale.multiplyScalar(.65); caption.position.copy(a.clone().add(b).multiplyScalar(.5)); caption.userData.edge = edge; caption.userData.ends=[a,b]; edges.add(caption); }
+    if (text) { const id=JSON.stringify(edge),geometryKey=JSON.stringify([text,labelGeometryKey(world.appearance?.text,fontRevision)]);let cached=edgeCaptions.get(id);
+      if(cached?.geometryKey!==geometryKey){if(cached)disposeLabel(cached.mesh);const mesh=label(text,world.appearance?.text);mesh.userData.requestRender=request;mesh.scale.multiplyScalar(.65);cached={mesh,geometryKey};edgeCaptions.set(id,cached);}
+      const caption=cached.mesh;updateLabelPaint(caption,world.appearance?.text);edgeLabel=caption; caption.position.copy(a.clone().add(b).multiplyScalar(.5)); caption.userData.edge = edge; caption.userData.ends=[a,b]; edges.add(caption); }
     line.userData.baseColor=paint.color;line.userData.baseOpacity=paint.opacity;
     effectConnectors.push({data:{key:JSON.stringify(edge)},line,path:new T.LineCurve3(a,back),arrow,label:edgeLabel,textOpacity:edgeLabel?.material.opacity??1});
   }
   function connections() {
     clearEdges();
     for(const edge of worldConnections(world,prepared))connection(edge.source,edge.target,edge.text,edge.edge);
+    for(const [id,cached]of edgeCaptions)if(cached.mesh.parent!==edges){disposeLabel(cached.mesh);edgeCaptions.delete(id);}
   }
   function visibility(node: Structure) {
     if (pointOfView&&sameOrigin(node.origin,pointOfView))return false;
@@ -333,7 +338,7 @@ export function createWorld(host: HTMLElement, input: Input) {
     const present = new Set(next.nodes.map(node => key(node.origin)));
     for (const [id, visual] of visuals) if (!present.has(id)) { scene.remove(visual.host);visual.contour.dispose(); visual.body.material.dispose(); disposeLabel(visual.text); if (visual.object) disposeVisual(visual.object); visuals.delete(id);effectNodes.delete(id); }
     for (const node of next.nodes) {
-      const actual = resolveNodeAppearance(next,inherited(node,next)), id=key(node.origin), textPaint={...TEXT_DEFAULTS,...next.appearance?.text,...actual.textAppearance,...((actual.glow??defaults.glow)>0?{glow:0}:{})},textKey=JSON.stringify([textPaint,fontRevision]), caption=`${actual.label || (node.invariant ? '⚬' : '')}${node.parts.some(binding => !prepared.resolve(binding).length) ? ' !' : ''}`;
+      const actual = resolveNodeAppearance(next,inherited(node,next)), id=key(node.origin), textPaint={...TEXT_DEFAULTS,...next.appearance?.text,...actual.textAppearance,...((actual.glow??defaults.glow)>0?{glow:0}:{})},textKey=labelGeometryKey(textPaint,fontRevision), caption=`${actual.label || (node.invariant ? '⚬' : '')}${node.parts.some(binding => !prepared.resolve(binding).length) ? ' !' : ''}`;
       let visual=visuals.get(id);
       if (!visual) {
         const host=new T.Group(),group=new T.Group(),presentation=new T.Group(),body=new T.Mesh(sphere,atomicCarrierMaterial(actual.color)),slot=new T.Mesh(sphere,slotMaterial),text=label(caption,textPaint);text.userData.requestRender=request;
@@ -342,13 +347,14 @@ export function createWorld(host: HTMLElement, input: Input) {
         const item=visual;effectNodes.set(id,{group:item.group,presentation:item.presentation,cell:item.body,get outline(){return item.contour.outline;},get text(){return item.text;},get visual(){return item.object;},get selected(){return selectionMarked(id);},get color(){return item.actual.color;},get opacity(){return item.actual.opacity??1;}});
       }
       if (visual.caption!==caption || visual.textKey!==textKey) { visual.presentation.remove(visual.text);disposeLabel(visual.text);visual.text=label(caption,textPaint);visual.text.userData.requestRender=request;visual.presentation.add(visual.text);visual.caption=caption; }
-      visual.textKey=textKey;
-      const visualKey=JSON.stringify([actual.visual ?? null,actual.visual?.character?textPaint:null]);
+      visual.textKey=textKey;updateLabelPaint(visual.text,textPaint);
+      const visualKey=JSON.stringify([actual.visual ?? null,actual.visual?.character?textKey:null]);
       if (visual.visualKey!==visualKey) {
         if (visual.object) {visual.presentation.remove(visual.object);disposeVisual(visual.object);visual.object=undefined;}
         if (actual.visual?.assetId || actual.visual?.character) {visual.object=visualObject(actual.visual,next.assets??[],text=>{const sprite=label(text,textPaint);sprite.userData.requestRender=request;return sprite;},request);visual.object.scale.setScalar(actual.visual.size??1.4);visual.object.userData.origin=node.origin;visual.presentation.add(visual.object);}
         visual.visualKey=visualKey;
       }
+      if(actual.visual?.character)visual.object?.userData.setAppearance?.({textColor:textPaint.color,textGlow:textPaint.glow,opacity:translucentOpacity(1,textPaint.translucency)});
       visual.node=node;visual.actual=actual;visual.group.quaternion.set(node.orientation?.x??0,node.orientation?.y??0,node.orientation?.z??0,node.orientation?.w??1);visual.group.position.copy(new T.Vector3(...vector(cellPoint(grid.cells.get(id)!,scale))));
       visual.body.scale.setScalar(scale);visual.slot.scale.setScalar(scale);visual.body.material.color.set(actual.color);
       updateAtomicCarrier(visual.body.material,actual.opacity??defaults.opacity,actual.translucency??defaults.translucency,actual.glow??defaults.glow,actual.translucencyRadius??defaults.translucencyRadius);

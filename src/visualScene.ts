@@ -1,3 +1,4 @@
+import {updateLabelPaint,type textSprite} from './world/labels.ts';
 import {imageHull} from './world/contentEnvelope.ts';
 import {declareGlowDetail} from './materialCoverage.ts';
 import {vectorAsset,glyphAssetFeature} from './omnic/vectorPlan.ts';
@@ -24,7 +25,9 @@ export function visualObject(
   };
   const styleText = (label: THREE.Object3D) => {
     const update = () => {
-      label.userData.setTextStyle?.(appearance.color ?? appearance.textColor ?? "#ffffff", appearance.textColor ?? appearance.color ?? "#ffffff", appearance.textGlow ?? 0);
+      const ink=appearance.textColor??appearance.color??"#ffffff",glow=appearance.textGlow??0;
+      if(label instanceof THREE.Mesh&&label.userData.isLabel)updateLabelPaint(label as ReturnType<typeof textSprite>,{...label.userData.labelPaint,color:ink,glow});
+      else label.userData.setTextStyle?.(appearance.color??ink,ink,glow);
       if (label instanceof THREE.Mesh) label.material.opacity = appearance.opacity ?? 1;
     };
     restyle.push(update);
