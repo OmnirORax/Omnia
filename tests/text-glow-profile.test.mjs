@@ -14,10 +14,10 @@ test('neon strength increases halo coverage independently of spread with a bound
  assert.ok(high.some((layer,i)=>layer.opacity>normal[i].opacity));
  assert.deepEqual(textGlowLayers(0,10),[]);assert.deepEqual(textGlowLayers(2,0),[]);assert.equal(textGlowShadow(0,'red'),'none');
 });
-test('neon changes halo strength without whitening ink or dropping authored halo alpha',()=>{
+test('neon changes halo strength without whitening ink; retired text alpha is ignored',()=>{
  const paint={color:'#ff6600',glowColor:'#00aaff',opacity:.4,translucency:.5};
  const low=textStyle({...paint,glow:.25}),high=textStyle({...paint,glow:2});
- assert.equal(low.color,high.color);assert.equal(high.color,'#ff660033');assert.notEqual(low.textShadow,high.textShadow);
- assert.equal(high.textShadow.match(/#00aaff33/g).length,3);
- assert.equal(textStyle({...paint,glow:2,opacity:0}).textShadow.match(/#00aaff00/g).length,3);
+ assert.equal(low.color,high.color);assert.equal(high.color,'#ff6600ff');assert.notEqual(low.textShadow,high.textShadow);
+ assert.equal(high.textShadow.match(/#00aaffff/g).length,3);
+ assert.equal(textStyle({...paint,glow:2,opacity:0}).textShadow.match(/#00aaffff/g).length,3);
 });

@@ -4,7 +4,6 @@ import {imageHull} from './contentEnvelope.ts';
 import * as THREE from 'three';
 import {labelLines,labelSize} from '../composer/runtime/graph/labels.ts';
 import {fontFamily, TEXT_DEFAULTS,renderedTextPaint,type Paint} from '../properties/visual.ts';
-import {translucentOpacity} from '../properties/translucency.ts';
 import {isImportedFont} from '../properties/importedFont.ts';
 type FontId=string;
 const canvasFont=(id:FontId)=>`${id==='electric'||isImportedFont(id)?400:500} 36px ${fontFamily(id)}`;
@@ -128,7 +127,7 @@ export function updateLabelPaint(mesh:ReturnType<typeof textSprite>,paint:Paint=
  const style={...TEXT_DEFAULTS,...paint},rendered=renderedTextPaint(style);
  mesh.userData.setTextStyle(rendered.color,rendered.color,style.glow,style.glowSpread);
  updateTextureGlowColor(mesh.material,rendered.glowColor);mesh.userData.glowColor=style.glowColor===undefined?undefined:rendered.glowColor;
- mesh.material.opacity=translucentOpacity(style.opacity,style.translucency);
+ mesh.material.opacity=1;
  mesh.userData.labelPaint=style;mesh.userData.textColor=rendered.color;
 }
 export function label(caption:string,paint?:Paint){

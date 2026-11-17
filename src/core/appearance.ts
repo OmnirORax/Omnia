@@ -3,7 +3,7 @@ import {brightHex} from '../composer/runtime/appearance/resolve.ts';
 import { locate, type Origin, type World, type Structure } from './model.ts';
 import { inherited } from './lattice.ts';
 import { capabilities } from './capabilities.ts';
-import { BACKGROUND_DEFAULTS, TEXT_DEFAULTS, validatePaint } from '../properties/visual.ts';
+import { BACKGROUND_DEFAULTS, renderedTextPaint, validatePaint } from '../properties/visual.ts';
 import { SPHERE_VISUAL_DEFAULTS } from '../properties/sphereVisualDefaults.ts';
 import {translucentOpacity} from '../properties/translucency.ts';
 
@@ -31,10 +31,10 @@ export function resolveNodeAppearance(world:World,node:Structure):Structure {
 function unresolvedPaint(world: World, target: VisualTarget, origin?: Origin): NodePaint {
  if(target==='nodeDefaults')return nodePaint(world);
  if(target==='background')return {...BACKGROUND_DEFAULTS,...world.appearance?.background};
- if(target==='text')return {...TEXT_DEFAULTS,...world.appearance?.text};
+ if(target==='text')return renderedTextPaint(world.appearance?.text);
  const node=origin&&locate(world,origin),actual=node&&inherited(node,world);
  if(target==='nodes')return nodePaint(world,actual);
- return {...TEXT_DEFAULTS,...world.appearance?.text,...actual?.textAppearance};
+ return renderedTextPaint({...world.appearance?.text,...actual?.textAppearance});
 }
 export function readPaint(world:World,target:VisualTarget,origin?:Origin):NodePaint{const paint=unresolvedPaint(world,target,origin);return {...paint,glowColor:paint.glowColor??paint.color};}
 export function writePaint(world: World, target: VisualTarget, origins: readonly Origin[], patch: NodePaint) {
@@ -68,4 +68,4 @@ export function paintPreview(world:World,target:VisualTarget,origins:readonly Or
  const candidate={...world,appearance:{...world.appearance},nodes:local?world.nodes.map(node=>selected.has(JSON.stringify(node.origin))?{...node}:node):world.nodes};
  writePaint(candidate,target,origins,patch);return candidate;
 }
-export function nodeTextPaint(world:World,actual:Structure){return {...TEXT_DEFAULTS,...world.appearance?.text,...actual.textAppearance,...((actual.glow??NODE_VISUAL_DEFAULTS.glow)>0?{glow:0}:{})};}
+export function nodeTextPaint(world:World,actual:Structure){return {...renderedTextPaint({...world.appearance?.text,...actual.textAppearance}),...((actual.glow??NODE_VISUAL_DEFAULTS.glow)>0?{glow:0}:{})};}

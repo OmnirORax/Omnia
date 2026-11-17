@@ -1,6 +1,5 @@
 import {setGlowDetailProtection} from './glowScale.ts';
 import {createRenderScheduler} from './world/renderScheduler.ts';
-import {translucentOpacity} from './properties/translucency.ts';
 import {hasOriginDirections} from './core/originDirections.ts';
 import {ARROW_NUDGES,axisNudgeDirection} from './world/axisNudge.ts';
 import {createNodeOverlap,createNodeVolumeOverlap} from './world/selectionOverlap.ts';
@@ -321,7 +320,7 @@ export function createWorld(host: HTMLElement, input: Input) {
   }
   function styleVisual(visual:Visual,actual:Structure,textPaint:Paint){
     visual.actual=actual;updateLabelPaint(visual.text,textPaint);
-    if(actual.visual?.character)visual.object?.userData.setAppearance?.({textColor:textPaint.color,textGlow:textPaint.glow,glowSpread:textPaint.glowSpread,textBrightness:textPaint.brightness,glowColor:textPaint.glowColor,opacity:translucentOpacity(textPaint.opacity??1,textPaint.translucency)});
+    if(actual.visual?.character)visual.object?.userData.setAppearance?.({textColor:textPaint.color,textGlow:textPaint.glow,glowSpread:textPaint.glowSpread,glowColor:textPaint.glowColor,opacity:1});
     visual.body.material.color.set(actual.color);visual.contour.outline.material.color.set(actual.color);
     updateAtomicCarrier(visual.body.material,actual.opacity??defaults.opacity,actual.translucency??defaults.translucency,actual.glow??defaults.glow,actual.translucencyRadius??defaults.translucencyRadius);
     visual.group.userData.glowIntensity=actual.glow??defaults.glow;visual.group.userData.glowColor=actual.glowColor;

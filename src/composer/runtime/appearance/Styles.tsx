@@ -1,5 +1,4 @@
 import {textGlowShadow} from '../../../properties/textGlow.ts';
-import {textBrightness} from '../../../properties/textBrightness.ts';
 import {patternApplies,patternCSS} from '../paint/routing.ts';
 import {patternTile} from '../paint/pattern.ts';
 import {translucentOpacity} from '../properties/translucency.ts';
@@ -11,7 +10,7 @@ import { tint } from "./resolve";
 import { brightHex } from "./resolve";
 import { ScopedTextAppearance } from "./ScopedTextAppearance";
 import { partSelector, scopeDepth } from "./partScope";
-import { TARGETS } from "./registry";
+import { TARGETS,sharedUIDecoration,UI_DECORATION } from "./registry";
 
 /** Renderer adapter: styling bindings are declared alongside registered targets. */
 export function AppearanceStyles() {
@@ -45,9 +44,9 @@ export function AppearanceStyles() {
       // Otherwise currentColor falls through to a styled text container.
       if (!active && !legacyText && !icon&&!patterned&&!resetPatternText) continue;
       const color = (patterned&&paint?paint.colors[0]:read(target, "color")) as string,
-        brightness = read(target, "brightness") as number,
-        opacity = translucentOpacity(Number(read(target, "opacity")),Number(read(target,"translucency"))),
-        glow = read(target, "glow") as number,glowColor=binding.text?textBrightness(String(read(target,"glowColor")),brightness):String(read(target,"glowColor"));
+        brightness = binding.text?1:read(target, "brightness") as number,
+        opacity = binding.text?1:translucentOpacity(Number(read(target, "opacity")),Number(read(target,"translucency"))),
+        glow = read(target, "glow") as number,glowColor=String(read(target,"glowColor"));
       const owner = target.instance?.owner;
       const scope = owner
         ? owner.startsWith("function:")
@@ -76,8 +75,9 @@ export function AppearanceStyles() {
       const get = (p: string) => read(target, p);
       const custom = (p: string) =>
         values[p] !== undefined || !connected(state, targets, target.id, p, index);
-      if (!binding.text || ["color", "brightness", "opacity", "translucency"].some(custom) || legacyText)
-        declarations.push(`${binding.css}:${binding.text?tint(textBrightness(color,brightness),1,opacity):tint(color,brightness,opacity)} !important`);
+      if ((!binding.text&&!(sharedUIDecoration(binding)&&binding.css==="border-color")) || ["color", "brightness", "opacity", "translucency"].some(custom) || legacyText)
+        declarations.push(`${binding.css}:${binding.text?color:tint(color,brightness,opacity)} !important`);
+      if(sharedUIDecoration(binding)&&binding.css==='border-color')declarations.push(`border-color:${UI_DECORATION.color} !important`);
       if (icon) {
         declarations.push("-webkit-text-fill-color:currentColor !important", "-webkit-text-stroke:0 !important", "text-shadow:none !important", "font-family:system-ui !important", "letter-spacing:normal !important",
           `filter:saturate(${Number(get("saturation"))})${glow > 0 ? ` drop-shadow(0 0 ${glow * 8}px ${glowColor})` : ""} !important`);
@@ -117,7 +117,7 @@ export function AppearanceStyles() {
             );
         }
         declarations.push(
-          `${binding.css === "accent-color" ? "filter" : "box-shadow"}:${glow > 0 ? (binding.css === "accent-color" ? `drop-shadow(0 0 ${glow * 7}px ${glowColor})` : `var(--omnium-custom-shadow),0 0 ${glow * 14}px ${tint(glowColor, brightness, 0.45)}`) : binding.css === "accent-color" ? "none" : "var(--omnium-custom-shadow)"} !important`,
+          `${binding.css === "accent-color" ? "filter" : "box-shadow"}:${sharedUIDecoration(binding)?UI_DECORATION.shadow:glow > 0 ? (binding.css === "accent-color" ? `drop-shadow(0 0 ${glow * 7}px ${glowColor})` : `var(--omnium-custom-shadow),0 0 ${glow * 14}px ${tint(glowColor, brightness, 0.45)}`) : binding.css === "accent-color" ? "none" : "var(--omnium-custom-shadow)"} !important`,
         );
         if (target.properties.includes("blur"))
           declarations.push(

@@ -32,7 +32,7 @@ test('hundreds of glowing labels scrub color without canvas work, texture upload
  labels.forEach((mesh,i)=>{
   assert.equal(mesh.material.map,textures[i].map);assert.equal(mesh.material.map.version,textures[i].version);
   assert.equal(mesh.geometry,textures[i].geometry);assert.equal(mesh.material.color.getHexString(),'ff0000');
-  assert.ok(mesh.material.opacity<1);disposeLabel(mesh);
+  assert.equal(mesh.material.opacity,1);disposeLabel(mesh);
  });
 });
 
@@ -61,7 +61,7 @@ test('late font completion preserves latest color and subsequent uniform-only up
  const mesh=label('Font',{font:'electric',color:'#ffffff',glow:.5});
  updateLabelPaint(mesh,{font:'electric',color:'#ff0000',glow:.5,translucency:.4});
  finishFont([]);await Promise.resolve();
- assert.equal(mesh.material.color.getHexString(),'ff0000');assert.ok(mesh.material.opacity<1);
+ assert.equal(mesh.material.color.getHexString(),'ff0000');assert.equal(mesh.material.opacity,1);
  const before=snapshot();updateLabelPaint(mesh,{font:'electric',color:'#00ff00',glow:.5});
  assert.equal(mesh.material.color.getHexString(),'00ff00');assert.deepEqual(snapshot(),before);
  disposeLabel(mesh);
@@ -86,18 +86,18 @@ test('independent text halo color updates the shader without redrawing coverage 
  disposeLabel(mesh);
 });
 
-test('text brightness updates existing material/halo uniforms without texture redraw or cumulative dimming',()=>{
+test('retired text brightness cannot change existing ink or halo uniforms',()=>{
  const mesh=label('Brightness',{color:'#204060',glowColor:'#102030',glow:.5}),map=mesh.material.map,before=snapshot();
  const shader={uniforms:{},vertexShader:'',fragmentShader:'#include <map_fragment>'};mesh.material.onBeforeCompile(shader,{});
  for(let i=0;i<20;i++)updateLabelPaint(mesh,{color:'#204060',glowColor:'#102030',glow:.5,brightness:.75});
- assert.equal(mesh.material.color.getHexString(),'70a0cf');assert.equal(shader.uniforms.glowInkColor.value.getHexString(),'5890c7');
+ assert.equal(mesh.material.color.getHexString(),'204060');assert.equal(shader.uniforms.glowInkColor.value.getHexString(),'102030');
  assert.equal(mesh.userData.labelPaint.color,'#204060');assert.equal(mesh.material.map,map);assert.deepEqual(snapshot(),before);disposeLabel(mesh);
 });
 
-test('text opacity combines with translucency in material state without redrawing coverage',()=>{
+test('retired text opacity and translucency cannot fade ink or rebuild coverage',()=>{
  const mesh=label('Opacity',{color:'#ff0000',glow:1}),before=snapshot();
- updateLabelPaint(mesh,{color:'#ff0000',glow:1,opacity:.4,translucency:.25});assert.ok(Math.abs(mesh.material.opacity-.3)<1e-12);assert.deepEqual(snapshot(),before);
- updateLabelPaint(mesh,{color:'#ff0000',glow:1,opacity:0});assert.equal(mesh.material.opacity,0);assert.deepEqual(snapshot(),before);disposeLabel(mesh);
+ updateLabelPaint(mesh,{color:'#ff0000',glow:1,opacity:.4,translucency:.25});assert.equal(mesh.material.opacity,1);assert.deepEqual(snapshot(),before);
+ updateLabelPaint(mesh,{color:'#ff0000',glow:1,opacity:0});assert.equal(mesh.material.opacity,1);assert.deepEqual(snapshot(),before);disposeLabel(mesh);
 });
 
 test('text glow spread updates cached coverage while preserving geometry and color-only fast updates',()=>{

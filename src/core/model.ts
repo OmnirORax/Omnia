@@ -12,7 +12,7 @@ import type {AtlasView,Catalog} from '../omnic/atlas.ts';
 import type {RecipeEdit} from '../omnic/delta.ts';
 import {DEFAULT_TEXT_FONT} from '../properties/defaultFont.ts';
 import { validateAudioResponse } from '../scene/audioResponse.ts';
-import { validateAppearance, validatePaint,normalizeLegacyTextBrightness, type Appearance, type Paint } from '../properties/visual.ts';
+import { validateAppearance, validatePaint,retireTextChannels, type Appearance, type Paint } from '../properties/visual.ts';
 import { creationCell } from './lattice.ts';
 import {validateAxes,type AxisFrame} from './axes.ts';
 import {validateCameraState,type CameraState} from './cameraState.ts';
@@ -157,7 +157,7 @@ export function validateWorld(value: unknown): World {
       size+=new TextEncoder().encode(JSON.stringify([node.omnic,node.omnicDraft,node.omnicEdits,node.omnicHistory,node.catalog,node.lexiconWords])).length;if(size>3500000)throw Error('Definition library exceeds storage budget.');
     }
     if(node.orientation!==undefined){const q=node.orientation;if(!q||!['x','y','z','w'].every(key=>typeof q[key as 'x']==='number'&&Number.isFinite(q[key as 'x']))||Math.abs(Math.hypot(q.x,q.y,q.z,q.w)-1)>.001)throw Error('Invalid node orientation.');}
-    normalizeLegacyTextBrightness(node.textAppearance);validatePaint(node.textAppearance,true);
+    retireTextChannels(node.textAppearance);validatePaint(node.textAppearance,true);
     if (node.text) validateNodeText(node.text, glyphs);
     validateVisual(node.visual, assets);
     for (const binding of node.parts) {

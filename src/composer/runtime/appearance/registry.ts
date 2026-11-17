@@ -1,3 +1,4 @@
+import {RETIRED_TEXT_CHANNELS} from '../../../properties/textChannels.ts';
 import { groupVisualRoles } from "./roleHierarchy.ts";
 import { RENDER_BUDGET } from "../renderBudget.ts";
 import { normalizeFont } from "../fonts.ts";
@@ -32,6 +33,9 @@ export type Binding = {
     priority?: number;
   };
 };
+/** UI surfaces inherit illumination from the native shared text appearance. */
+export const UI_DECORATION={color:'var(--visual-text-border-color)',shadow:'var(--visual-text-border-shadow)'} as const;
+export const sharedUIDecoration=(binding:Binding|undefined)=>!!binding?.selector&&(binding.css==='border-color'||binding.css==='background-color');
 export type RegisteredTarget = Target & { self?: boolean; binding?: Binding; defaults?: Values; hidden?: boolean; aggregate?: boolean };
 export const SELECTOR_FEEDBACK = {
   included: { label: "Included", color: "#28ff62" },
@@ -433,6 +437,10 @@ for (const consumer of PROPERTY_REGISTRY.consumers.filter(item => item.owner ===
     properties: consumer.properties, couplings: consumer.channels, defaults: consumer.defaults,
     binding: consumer.locator ? { selector: consumer.locator, ...consumer.visual } : undefined });
 }
+for(const target of entries)if(target.properties){
+ if(target.binding?.text||target.id.startsWith('text.'))target.properties=target.properties.filter(key=>!RETIRED_TEXT_CHANNELS.some(channel=>channel===key));
+ if(sharedUIDecoration(target.binding))target.properties=target.properties.filter(key=>!['glow','glowColor','glowSpread',...(target.binding?.css==='border-color'?['color',...RETIRED_TEXT_CHANNELS]:[])].includes(key));
+}
 for (const target of entries) if (target.properties) target.numberRanges = Object.fromEntries(target.properties.flatMap(id => {
   const spec = propertyFor(id);
   if (spec?.kind !== "number") return [];
@@ -444,7 +452,8 @@ entries.push({id:'geometry.rendered',parent:'all',label:'Rendered geometry',prop
 entries.push({id:'geometry.environment',parent:'all',label:'Rendered environment boundary',properties:[],binding:{selector:'[data-selection-environment]',role:'icon'}});
 export const TARGETS: readonly RegisteredTarget[] = groupVisualRoles(entries);
 /** UI borders inherit the shared global text paint through their existing capabilities. */
-export const UI_BORDER_SELECTOR=[...new Set(TARGETS.flatMap(target=>target.binding?.css==='border-color'&&target.binding.selector?[target.binding.selector]:[]))].join(',');
+export const UI_BORDER_SELECTOR=[...new Set(['.panel','#tools','.context-actions','body>header','#status','.panel>header','input','textarea','select','button',...TARGETS.flatMap(target=>target.binding?.css==='border-color'&&target.binding.selector?[target.binding.selector]:[])])].join(',');
+export const UI_SURFACE_SELECTOR=[...new Set(TARGETS.flatMap(target=>target.binding?.css==='background-color'&&target.binding.selector?[target.binding.selector]:[]))].join(',');
 const baseTargets = new Map(TARGETS.map(target => [target.id, target]));
 const LEGACY_FIELD_BRANCHES = Object.fromEntries(
   ["single", "multi", "search", "number", "select"].map(kind => [
