@@ -1,4 +1,4 @@
-import {createNodeOverlap} from './world/selectionOverlap.ts';
+import {createNodeOverlap,createNodeVolumeOverlap} from './world/selectionOverlap.ts';
 import {selectionLatch} from './ui/selectionLatch.ts';
 import {nodeCenter,nodeEdge} from './world/nodeBoundary.ts';
 import {previewActivation} from './ui/pointerBindings.ts';
@@ -6,7 +6,7 @@ import {originPlacement} from './world/originPlacement.ts';
 import {pickAxisSegment} from './world/axisHit.ts';
 import {pickupSelection} from './core/selection';
 import {cameraHistoryMatches} from './world/cameraHistory.ts';
-import {beginRange,releaseRange,insideScreenLine,selectionDimension} from './world/rangeSelection.ts';
+import {beginRange,releaseRange,selectionDimension} from './world/rangeSelection.ts';
 import {sameValue} from './core/equality.ts';
 import type {CameraState} from './core/cameraState.ts';
 import {worldConnections,type Edge} from './core/connections.ts';
@@ -17,7 +17,7 @@ import {createUserReference} from './world/userReference';
 import {createSharedReference,USER_REFERENCE} from './core/sharedReference';
 import {orientNodeContent} from './world/nodeOrientation';
 import {createBoundRotation,type NodeRotationState} from './world/boundRotation';
-import {selectionCenter,groupTargets,alignmentTargets,validGroupTargets,insideSelectionBox} from './core/groupPlacement';
+import {selectionCenter,groupTargets,alignmentTargets,validGroupTargets} from './core/groupPlacement';
 import {createOccupancy} from './graph/occupancy.ts';
 import {axisPose} from './world/axisPose.ts';
 import {createPaintSession} from './core/painting.ts';
@@ -113,7 +113,7 @@ export function createWorld(host: HTMLElement, input: Input) {
   let axisPicking:{first?:Origin;up:Vec3;pointer?:number}|undefined;
   const userReference=createUserReference(()=>userView??{position:camera.position.toArray(),target:controls.target.toArray(),up:camera.up.toArray()});
   const sharedReference=createSharedReference(()=>world,()=>{const pose=userReference.read(),matrix=new T.Matrix4().lookAt(new T.Vector3(...pose.position),new T.Vector3(...pose.target),new T.Vector3(...pose.up));return {origin:xyz(new T.Vector3(...pose.target).divideScalar(scale)),x:xyz(new T.Vector3(1,0,0).transformDirection(matrix)),y:xyz(new T.Vector3(0,1,0).transformDirection(matrix)),z:xyz(new T.Vector3(0,0,1).transformDirection(matrix))};});
-  const activeAxis=()=>sharedReference.read();
+  const activeAxis=()=>{const frame=sharedReference.read();return frame.packing==='hex'?frame:{...frame,packing:'hex' as const};};
   const operationWorld=(value=world)=>sharedReference.world(value,activeAxis());
   let contentViewChanging=false;
   const retained = expansionState(), variants = new Set<string>(), navigator = createWorldNavigator();
@@ -400,11 +400,11 @@ export function createWorld(host: HTMLElement, input: Input) {
     gesture.dimension=dimension;gesture.volume=undefined;if(dimension===3)configureRangeVolume(gesture);
     processPointer();
   }
-  const overlapsNode=createNodeOverlap();
+  const overlapsNode=createNodeOverlap(),overlapsVolume=createNodeVolumeOverlap();
   function rangeCandidates(g:Gesture){
     const result:Origin[]=[];
-    if(g.volume){const v=g.volume;if(g.project){const d=minus(xyz(g.project(g.end).divideScalar(scale)),v.center);v.b=[dot(d,v.right),dot(d,v.up),0];}for(const node of world.nodes)if(insideSelectionBox(node.position,v.center,v.right,v.up,v.forward,v.a,v.b,selectionDepth))result.push(node.origin);return result;}
-    const rect=canvas.getBoundingClientRect();for(const visual of visuals.values()){if(!visual.group.visible)continue;if(g.dimension===1?insideScreenLine(nodeCenter(visual).project(camera),rect,g.start,g.end):overlapsNode(visual,camera,rect,g.start,g.end,scale))result.push(visual.node.origin);}return result;
+    if(g.volume){const v=g.volume;if(g.project){const d=minus(xyz(g.project(g.end).divideScalar(scale)),v.center);v.b=[dot(d,v.right),dot(d,v.up),0];}for(const visual of visuals.values())if(overlapsVolume(visual,v,selectionDepth,scale))result.push(visual.node.origin);return result;}
+    const rect=canvas.getBoundingClientRect();for(const visual of visuals.values()){if(!visual.group.visible)continue;if(overlapsNode(visual,camera,rect,g.start,g.end,scale,g.dimension===1?'line':'box'))result.push(visual.node.origin);}return result;
   }
   function previewRange(g?:Gesture){rangePreview=g?new Set([...(g.volume||g.passive?[]:selected.map(key)),...rangeCandidates(g).map(key)]):undefined;request();}
   let gesture:Gesture|undefined;

@@ -1,6 +1,7 @@
+import {snapSlots} from './planePacking.ts';
 import {locate, sameOrigin, type Origin,type Vec3,type World} from './model.ts';
 import {address,prepareTranslation} from './lattice.ts';
-export type AxisFrame={id:string;ends:Origin[];x:Vec3;y:Vec3;z:Vec3;members:Origin[];origin?:Vec3;directed?:boolean;activeAxes?:number[]};
+export type AxisFrame={id:string;ends:Origin[];x:Vec3;y:Vec3;z:Vec3;members:Origin[];origin?:Vec3;directed?:boolean;activeAxes?:number[];packing?:'hex'};
 export const plus=(a:Vec3,b:Vec3):Vec3=>a.map((n,i)=>n+b[i]) as Vec3;
 export const minus=(a:Vec3,b:Vec3):Vec3=>a.map((n,i)=>n-b[i]) as Vec3;
 export const times=(a:Vec3,n:number):Vec3=>a.map(v=>v*n) as Vec3;
@@ -11,7 +12,7 @@ const unit=(a:Vec3)=>times(a,1/norm(a));
 export function axisAnchor(world:World,frame:AxisFrame){return frame.ends[0]?locate(world,frame.ends[0])!.position:frame.origin!;}
 export function axisCenter(world:World,frame:AxisFrame){return frame.origin??times(plus(axisAnchor(world,frame),locate(world,(frame.ends[1]??frame.ends[0]))!.position),.5);}
 export function axisCoordinates(world:World,frame:AxisFrame,p:Vec3):Vec3{const d=minus(p,axisCenter(world,frame));return [dot(d,frame.x),dot(d,frame.y),dot(d,frame.z)];}
-export function axisPoint(world:World,frame:AxisFrame,slot:Vec3):Vec3{return plus(frame.directed||frame.origin?axisCenter(world,frame):axisAnchor(world,frame),plus(times(frame.x,slot[0]),plus(times(frame.y,slot[1]),times(frame.z,slot[2]))));}
+export function axisPoint(world:World,frame:AxisFrame,slot:Vec3):Vec3{return plus(frame.directed||frame.origin||frame.packing==='hex'?axisCenter(world,frame):axisAnchor(world,frame),plus(times(frame.x,slot[0]),plus(times(frame.y,slot[1]),times(frame.z,slot[2]))));}
 export function axisSlot(world:World,frame:AxisFrame,p:Vec3,mode:'axis'|'plane'|'space'='axis'):Vec3{
  const coordinates=axisCoordinates(world,frame,p),half=frame.directed||!frame.ends.length?0:norm(minus(locate(world,(frame.ends[1]??frame.ends[0]))!.position,axisAnchor(world,frame)))/2;
  const slot:Vec3=[Math.round(coordinates[0]+half),Math.round(coordinates[1]),Math.round(coordinates[2])];
@@ -52,7 +53,7 @@ export function planSlotNode(world:World,origin:Origin,id:string,desired:Vec3,or
  const slot=operationSlot(world,frame,desired),resolve=prepareTranslation(world,origins,false),candidates=Array.from({length:129},(_,i)=>i===0?0:Math.ceil(i/2)*(i%2?-1:1));
  const coordinates=axisCoordinates(world,frame,desired).map(Math.abs),direction=[...activeWorldAxes(frame)].sort((a,b)=>coordinates[b]-coordinates[a])[0];
  if(direction===undefined)throw Error('Activate an axis first.');
- for(const offset of candidates){const trial=[...slot] as Vec3;trial[direction]+=offset;const targets=resolve(minus(axisPoint(world,frame,trial),node.position));if(!targets)continue;
+ for(const offset of candidates){const trial=[...slot] as Vec3;trial[direction]+=offset;const snapped=frame.packing==='hex'?snapSlots(trial,activeWorldAxes(frame),true):trial;const targets=resolve(minus(axisPoint(world,frame,snapped),node.position));if(!targets)continue;
   // Joining an existing arrangement must not move this frame's origin/endpoints.
   if(!frame.members.some(member=>sameOrigin(member,origin))&&frame.ends.some(end=>{const target=targets.get(address(end));return target&&norm(minus(target,locate(world,end)!.position))>1e-7;}))continue;
   return {frame,targets};
@@ -78,9 +79,10 @@ export function validateAxes(world:World){
   if(!frame.ends.length&&!frame.origin)throw Error('An unbound origin requires a position.');
   const members=new Set<string>();
   for(const member of [...frame.members,...frame.ends])if(!member||!nodes.has(address(member)))throw Error('Missing axis node.');
+  if(frame.packing!==undefined&&frame.packing!=='hex')throw Error('Invalid plane packing.');
   if(frame.directed!==undefined&&typeof frame.directed!=='boolean'||frame.origin!==undefined&&(!vector(frame.origin)||frame.origin.some(n=>Math.abs(n)>1e7)))throw Error('Invalid axis origin.');
   const anchor=frame.ends[0]?nodes.get(address(frame.ends[0]))!.position:frame.origin!,end=frame.ends[0]?nodes.get(address(frame.ends[1]??frame.ends[0]))!.position:frame.origin!,half=norm(minus(end,anchor))/2;
-  for(const member of frame.members){if(members.has(address(member)))throw Error('Duplicate axis member.');members.add(address(member));const d=minus(nodes.get(address(member))!.position,anchor),coords=[dot(d,frame.x),dot(d,frame.y),dot(d,frame.z)],integer=(n:number)=>Math.abs(n-Math.round(n))<1e-5;if(!frame.directed&&(!integer(coords[1])||!integer(coords[2])||!integer(coords[0])&&!integer(coords[0]-half)))throw Error('Node conflicts with its axis slots.');}
+  for(const member of frame.members){if(members.has(address(member)))throw Error('Duplicate axis member.');members.add(address(member));const d=minus(nodes.get(address(member))!.position,anchor),coords=[dot(d,frame.x),dot(d,frame.y),dot(d,frame.z)],integer=(n:number)=>Math.abs(n-Math.round(n))<1e-5;if(!frame.directed&&frame.packing!=='hex'&&(!integer(coords[1])||!integer(coords[2])||!integer(coords[0])&&!integer(coords[0]-half)))throw Error('Node conflicts with its axis slots.');}
   if(frame.ends.some(end=>!members.has(address(end)))||frame.ends.length===2&&sameOrigin(frame.ends[0],frame.ends[1]))throw Error('Invalid axis endpoints.');
   const delta=minus(end,anchor),length=dot(delta,frame.x);
   if(!frame.directed&&(frame.ends.length===2&&length<1-1e-6||Math.abs(length-Math.round(length))>1e-5||norm(minus(delta,times(frame.x,length)))>1e-5))throw Error('Invalid axis spacing.');
@@ -134,8 +136,8 @@ export function shiftAxisOrigin(world:World,id:string,offset:Vec3){
 
 export function operationSlot(world:World,frame:AxisFrame,p:Vec3):Vec3{
  const active=activeWorldAxes(frame),coords=axisCoordinates(world,frame,p);
- const slots=coords.map((n,i)=>active.includes(i)?Math.round(n):0) as Vec3;
- if(!frame.directed&&!frame.origin)slots[0]+=norm(minus(locate(world,frame.ends[1]??frame.ends[0])!.position,axisAnchor(world,frame)))/2;
+ const slots=snapSlots(coords,active,frame.packing==='hex');
+ if(!frame.directed&&!frame.origin&&frame.packing!=='hex')slots[0]+=norm(minus(locate(world,frame.ends[1]??frame.ends[0])!.position,axisAnchor(world,frame)))/2;
  return slots;
 }
 

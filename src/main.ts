@@ -1,3 +1,4 @@
+import {enableDenseFrames} from './core/planePacking.ts';
 import {selectionLatch} from './ui/selectionLatch.ts';
 import {capturingShortcut} from './ui/shortcuts.ts';
 import {installPointerBindings,pointerActivation} from './ui/pointerBindings.ts';
@@ -132,18 +133,18 @@ const view = (() => {
       navigationSettings:()=>openNavigation(),
       rotateCommit(nodes,frame){store.change(world=>{if(nodes.size){applyGroupTargets(world,new Map([...nodes].map(([id,n])=>[id,n.position])));for(const node of world.nodes){const next=nodes.get(key(node.origin));if(next)node.orientation={...next.orientation};}}if(frame){const found=world.axes?.find(f=>f.id===frame.id);if(!found&&frame.id==='@user'){const basis=view!.frameBasis();const created=setSpatialOrigin(world,undefined,frame.state.origin,basis.right,basis.up);Object.assign(created,frame.state,{directed:true});}else if(!found)throw Error('The frame was removed.');else Object.assign(found,frame.state,{directed:true});}});},
       transform(origins,rotation,pivot,layout){store.change(world=>transformNodes(world,origins,rotation,pivot,layout));},
-      groupMove(targets){store.change(world=>applyGroupTargets(world,targets));followSelectionOrigin();},
-      move(origins, delta) { store.change(world => translate(view!.operationWorld(world), origins, delta));followSelectionOrigin(); },
+      groupMove(targets){store.change(world=>{enableDenseFrames(world);applyGroupTargets(world,targets);});followSelectionOrigin();},
+      move(origins, delta) { store.change(world => {enableDenseFrames(world);translate(view!.operationWorld(world), origins, delta);});followSelectionOrigin(); },
       connectDrag(source,target,position){let child:Origin|undefined;store.change(world=>{child=connectNodes(world,source,target,position);});if(child)selection.set([child]);refresh();},
       adopt(origins, owner, delta) { store.change(world => adoptNodes(view!.operationWorld(world), origins, owner, delta)); },
-      park(origin, position,origins) { message = ''; store.change(world => {const node=locate(world,origin)!;translate(view!.operationWorld(world),origins,position.map((v,i)=>v-node.position[i]) as Vec3);});followSelectionOrigin(); return store.world; },
-      paint(positions,source,axis,parent){store.change(world=>paintNodes(world,positions,source,axis,parent));},
+      park(origin, position,origins) { message = ''; store.change(world => {enableDenseFrames(world);const node=locate(world,origin)!;translate(view!.operationWorld(world),origins,position.map((v,i)=>v-node.position[i]) as Vec3);});followSelectionOrigin(); return store.world; },
+      paint(positions,source,axis,parent){store.change(world=>{enableDenseFrames(world);paintNodes(world,positions,source,axis,parent);});},
       selectionOrigin(ids,position){assignOrigin(ids[0],position);},
       nodeOrigin(origin){assignOrigin(origin,locate(store.world,origin)!.position);},
       origin(id,position){const frame=store.world.axes?.find(frame=>frame.id===id)??view?.reference;if(frame)assignOrigin(frame.ends[0],position);},
       aimOrigin(){aimOrigin();},
       axis(first,second,up){store.change(world=>{createAxis(world,first,second,up);});selection.clear();refresh();},
-      slot(origins,axis,point){store.change(world=>slotNode(view!.operationWorld(world),origins[0],axis,point,origins));},
+      slot(origins,axis,point){store.change(world=>{enableDenseFrames(world);slotNode(view!.operationWorld(world),origins[0],axis,point,origins);});},
       toggleWorldAxis(id,axis){if(view?.toggleReferenceAxis(id,axis))return;store.change(world=>toggleWorldAxis(world,id,axis));},
       focusAxis(id){selection.clear();store.change(world=>{world.activeAxis=id;});},
       connect(origin){connectNode(origin);},
@@ -258,7 +259,7 @@ function reference(mode: Binding['mode']) {
   message = 'Choose a component · Esc cancels'; refresh();
 }
 function followSelectionOrigin(){const group=selection.committed.filter(isNode);if(group.length>1)assignOrigin(group[0],selectionCenter(store.world,group));}
-function assignOrigin(anchor:Origin|undefined,position:Vec3){const basis=view!.frameBasis(),axes=[...activeWorldAxes(view!.reference)];store.change(world=>{const frame=setSpatialOrigin(world,anchor,position,basis.right,basis.up);frame.activeAxes=axes;});}
+function assignOrigin(anchor:Origin|undefined,position:Vec3){const basis=view!.frameBasis(),axes=[...activeWorldAxes(view!.reference)];store.change(world=>{const frame=setSpatialOrigin(world,anchor,position,basis.right,basis.up);frame.activeAxes=axes;frame.packing='hex';});}
 function focusSelection(){view?.positionUser();}
 function relationFrame(origin?:Origin){
  const world=store.world,active=world.axes?.find(frame=>frame.id===world.activeAxis),anchor=origin??active?.ends[0];
