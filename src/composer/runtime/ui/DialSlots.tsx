@@ -1,6 +1,7 @@
 import type {ButtonHTMLAttributes,ReactNode} from 'react';
 import './mathematicalDial.css';
-export function dialRingSlots(order:number,radius:number,count:number,size:number,extent:number,clockwise=true,phase=0){return Array.from({length:count},(_,i)=>{const turn=((clockwise?i:-i)/count+phase)*Math.PI*2;return {key:`${order}:${i}`,index:i,x:Math.sin(turn)*radius,y:-Math.cos(turn)*radius,left:50+Math.sin(turn)*radius/extent*100,top:50-Math.cos(turn)*radius/extent*100,size};});}
+export {dialRingSlots} from './dialSlots.ts';
+import {dialRingSlots} from './dialSlots.ts';
 export type DialSlotLayout=ReturnType<typeof dialRingSlots>[number];
 /** Shared selectable marks; each consumer owns the meaning of its marks. */
 export function DialSlot({slot,selected,preview=false,children,...props}:Omit<ButtonHTMLAttributes<HTMLButtonElement>,'slot'>&{slot:DialSlotLayout;selected:boolean;preview?:boolean;children?:ReactNode}){return <button type="button" {...props} className={`mathematical-dial-slot ${props.className??''}`} data-math-slot={slot.key} data-selected={selected} data-preview={preview} aria-pressed={props['aria-pressed']??selected} style={{width:slot.size,height:slot.size,left:`${slot.left}%`,top:`${slot.top}%`,...props.style}}>{children??<span className="mathematical-dial-mark" aria-hidden="true"/>}</button>;}

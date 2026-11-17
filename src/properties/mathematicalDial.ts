@@ -106,8 +106,8 @@ export function mathematicalValueRejection(value:number,domain:MathematicalDomai
  if(domain.integer&&!Number.isSafeInteger(value))return 'This value must be a whole number.';
  return undefined;
 }
-/** Keep one unmarked outer ring available; deselection retracts unused rings. */
-export function mathematicalRingOrders(keys:readonly string[],limit=Number.MAX_SAFE_INTEGER){return Math.min(limit,Math.max(1,...keys.map(key=>Number(key.split(':')[0])+2)));}
+/** Draw only rings containing committed marks. The next band remains interactive without a rim. */
+export function mathematicalRingOrders(keys:readonly string[],limit=Number.MAX_SAFE_INTEGER){return Math.min(limit,Math.max(1,...keys.map(key=>Number(key.split(':')[0])+1)));}
 
 export function mathematicalScaleRejection(anchor:number,count:number,mode:Exclude<MathematicalScaleMode,'value'>,domain:MathematicalDomain){
  const name=mode==='halving'?'halves':mode==='division'?'divisor':'doublings';

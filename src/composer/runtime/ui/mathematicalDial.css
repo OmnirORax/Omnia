@@ -71,3 +71,16 @@
 .dial-value-target{display:flex;justify-content:center;gap:4px;font-size:12px}
 .dial-value-target [aria-pressed=true]{outline:1px solid currentColor}
 .dial-value-rounding,.dial-value-equation{display:block;text-align:center;font-size:11px;line-height:1.2}
+
+/* The identical drawing supplies all visible marks; live buttons are hit targets. */
+.mathematical-dial-drawing{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
+.mathematical-dial[data-live-dial] .mathematical-dial-ring{border:0}
+.mathematical-dial[data-live-dial] .mathematical-dial-slot{border:0}
+.mathematical-dial[data-live-dial] .mathematical-dial-base{outline:0}
+.mathematical-mini-value[aria-pressed=true]{outline:1px solid currentColor}
+.mathematical-mini-prefix{position:absolute;left:-3px;top:-3px;font-size:10px;line-height:1}
+.mathematical-mini-unconfigured{font-size:10px;overflow-wrap:anywhere}
+
+.mathematical-dial-ink{color:var(--visual-text-color,inherit)}
+:root[data-visual-text] button.mathematical-mini-value{color:inherit}
+.mathematical-mini-prefix,.mathematical-mini-unconfigured{color:var(--visual-text-color,inherit)}
