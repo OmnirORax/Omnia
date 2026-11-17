@@ -162,7 +162,7 @@ function previewPaint(target:VisualTarget,origins:readonly Origin[],patch?:Paint
  const candidate=view?.previewPaint(target,origins,patch)??store.world;updateUIAppearance(candidate.appearance);
  for(const document of documents.values())document?.previewAppearance(candidate);
 }
-function refresh() {
+function refresh(reason?:'document') {
   refreshContextActions();
   requestFormSync();
   updateUIAppearance(store.world.appearance);
@@ -172,7 +172,7 @@ function refresh() {
   shown = query ? new Set(store.world.nodes.filter(node => node.label.toLocaleLowerCase().includes(query)).map(node => key(node.origin))) : atlas;
   if(atlas&&shown)shown=new Set([...shown].filter(id=>atlas.has(id)));
   selection.retain(target => isNode(target) ? !!locate(store.world, target) : target.kind === 'part' ? !!locate(store.world, target.owner)?.parts[target.index] : target.kind === 'variant' ? !!locate(store.world,target.owner)?.variantOf : target.kind==='child'?!!locate(store.world,target.child)?.parent&&sameOrigin(locate(store.world,target.child)!.parent!,target.owner):!!store.world.relationships?.[target.index]);
-  view?.update(store.world, selectedOrigins(), shown, selection.targets.filter((target): target is Edge => !isNode(target)));
+  if(reason==='document')view?.documentChanged(store.world);else view?.update(store.world, selectedOrigins(), shown, selection.targets.filter((target): target is Edge => !isNode(target)));
   element('empty').hidden = store.world.nodes.length > 0;
   element<HTMLButtonElement>('undo').disabled = universalHistory.candidates('undo',globalHistoryOptions()).length===0;
   element<HTMLButtonElement>('redo').disabled = universalHistory.candidates('redo',globalHistoryOptions()).length===0;
@@ -515,10 +515,7 @@ function openDocument(requested?:Origin,restore?:ViewSpec) {
   openingDocuments.add(id); const epoch = documentEpoch,actionId=universalHistory.currentActionId;
   void loadEditor(()=>import('./text/editor.ts')).then(({ editDocument }) => {
     if (epoch !== documentEpoch || !locate(store.world, origin)||restore&&!viewHistory.wants(restore)) return;
-    viewHistory.perform(()=>{const document=editDocument(origin, () => store.world, text => store.change(world => {
-      const node = locate(world, origin); if (!node) throw Error('This node was removed. Copy the document before closing.'); node.text = text;
-      if (node.variantOf) node.overrides = [...new Set([...(node.overrides ?? []), 'text'])];
-    }, `document:${id}`), feedback, () => documents.delete(id));documents.set(id,document);if(document)viewHistory.adopt(`document:${id}`,{kind:'document',args:[origin]},document,restore);},actionId);
+    viewHistory.perform(()=>{const document=editDocument(origin, () => store.world, text => store.changeDocument(origin,text,`document:${id}`), feedback, () => documents.delete(id));documents.set(id,document);if(document)viewHistory.adopt(`document:${id}`,{kind:'document',args:[origin]},document,restore);},actionId);
   }).catch(error => {viewHistory.failed(restore,error);feedback(error instanceof Error ? error.message : String(error));}).finally(() => openingDocuments.delete(id));
 }
 

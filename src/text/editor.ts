@@ -42,7 +42,7 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
   function save() {
     if (!editor||syncing) return;
     try {
-      const text = fromSource(sliceSource(editor.state)); validateNodeText(text, new Set(read().nodes.map(n => JSON.stringify(n.origin)))); commit(text); failed = false;
+      const text = fromSource(sliceSource(editor.state));syncing=true;try{commit(text);failed=false;}finally{syncing=false;}
     } catch (error) { failed = true; feedback(error instanceof Error ? error.message : String(error)); }
   }
   const toolbar = document.createElement('div'), host = document.createElement('div'); toolbar.className = 'document-tools'; host.className = 'document-content'; view.body.append(toolbar, host);
@@ -129,7 +129,7 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
   }});
   let previousLexicon=workspaceLexicon(read()),previousPaint='',previousGlyphs=createGlyphPresentation(read());
   function refreshAppearance(){
-    if(editor&&!failed){
+    if(editor&&!failed&&!syncing){
       const node=locate(read(),origin),text=node&&inherited(node,read()).text;
       const current=fromSource(sliceSource(editor.state));
       if(node&&JSON.stringify(current)!==JSON.stringify(text??{version:1,content:[]})){

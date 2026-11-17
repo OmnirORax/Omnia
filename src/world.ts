@@ -1,3 +1,4 @@
+import {createRenderScheduler} from './world/renderScheduler.ts';
 import {translucentOpacity} from './properties/translucency.ts';
 import {hasOriginDirections} from './core/originDirections.ts';
 import {ARROW_NUDGES,axisNudgeDirection} from './world/axisNudge.ts';
@@ -125,7 +126,8 @@ export function createWorld(host: HTMLElement, input: Input) {
   let selectedKeys=new Set<string>(),rangePreview:Set<string>|undefined;
   const selectionMarked=(id:string)=>rangePreview?.has(id)??selectedKeys.has(id);
   let selected: readonly Origin[] = [], selectedEdges: readonly Edge[] = [], filter: ReadonlySet<string> | undefined;
-  let scale = 1, frame = 0, inputFrame = 0, hover: string | undefined, lastPoint: Point | undefined, picks: T.Object3D[] = [];
+  const renderScheduler=createRenderScheduler(renderFrame);
+  let scale = 1, inputFrame = 0, hover: string | undefined, lastPoint: Point | undefined, picks: T.Object3D[] = [];
   let mountedWorld: World | undefined,omnic:OmnicSurface|undefined,omnicGesture:{surface:OmnicSurface;id:number;bounds:OmnicSurface['bounds']}|undefined;
   const omnicPoint=new T.Vector3(),omnicCenter=new T.Vector3(),omnicQuaternion=new T.Quaternion(),omnicScale=new T.Vector3();
   function editPoint(event:PointerEvent|MouseEvent,surface:OmnicSurface,inside=false){
@@ -196,10 +198,8 @@ export function createWorld(host: HTMLElement, input: Input) {
   }
   let contentsFaceCamera=false;
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
-  function request() {
-    if (frame) return;
-    frame = requestAnimationFrame(now => {
-      frame = 0;
+  function request(){renderScheduler.request();}
+  function renderFrame(now:number){
       if(pendingAppearance){const next=pendingAppearance;pendingAppearance=undefined;applyAppearance(next);}
       const carrierPulse=reduced.matches?0:(Math.sin(now/1000*Math.PI*1.5)+1)/2;
       for (const [id,visual] of visuals) {orientNodeContent(visual.presentation.quaternion,camera.quaternion,visual.group.quaternion,contentsFaceCamera);const marked=selectionMarked(id);if(marked||visual.body.userData.selectionPulse){visual.body.scale.setScalar(scale*(marked?1+carrierPulse*.08:1));visual.body.material.color.set(visual.actual.color).multiplyScalar(marked?(.8+carrierPulse*.4):1);visual.body.userData.selectionPulse=marked;}}
@@ -223,7 +223,6 @@ export function createWorld(host: HTMLElement, input: Input) {
       if(!world.activeAxis)axisView.update(operationWorld(),scale);pipeline.render();
       if((animated||[...visuals.values()].some(v=>v.group.visible&&v.object?.visible&&v.object.userData.motion))&&!document.hidden)request();
       if ((selected.length||rangePreview?.size) && !reduced.matches && !document.hidden) request();
-    });
   }
   const resize = new ResizeObserver(() => { const box = host.getBoundingClientRect(); pipeline.resize(box.width, box.height); camera.aspect = box.width / Math.max(1, box.height); camera.updateProjectionMatrix(); request(); }); resize.observe(host);
   controls.addEventListener('change', () => { navigator.orientation.copy(camera.quaternion); request(); });
@@ -329,7 +328,7 @@ export function createWorld(host: HTMLElement, input: Input) {
   let pendingAppearance:World|undefined;
   function previewPaint(target:VisualTarget,origins:readonly Origin[],patch?:Paint){
     const candidate=patch?paintPreview(world,target,origins,patch):world;
-    pendingAppearance=candidate;request();return candidate;
+    pendingAppearance=candidate;renderScheduler.request(true);return candidate;
   }
   function applyAppearance(candidate:World){
     const nodes=new Map(candidate.nodes.map(node=>[key(node.origin),node]));
@@ -690,7 +689,7 @@ export function createWorld(host: HTMLElement, input: Input) {
     pressedNudges.set(event.code||event.key,action);if(!held.size)nudgeDepth=action==='nudgeUp'||action==='nudgeDown';held.add(action);nudging.update([...held]);});
   window.addEventListener('keyup',event=>{const code=event.code||event.key,action=pressedNudges.get(code);if(action){pressedNudges.delete(code);held.delete(action);nudging.update([...held]);}});
   document.addEventListener('visibilitychange',()=>{if(document.hidden){middlePress=undefined;held.clear();nudging.finish(true);navigation.finish(true);restoreNative();restore();cancelOmnic();cancelDrive();}else request();});
-  return { update,previewPaint,session,commitSelection,saveCamera(){const state=readCamera();seenCamera=state;input.cameraChanged(state);},restoreCamera(value:CameraState|undefined){restoreCamera(value);presentation();},point:creationPoint,center:()=>hoverCandidate?.valid?hoverCandidate.anchor:navigator.initialized?xyz(navigator.position.clone().divideScalar(scale)):xyz(controls.target.clone().divideScalar(scale)),request,
+  return { update,previewPaint,documentChanged(next:World){world=next;const nodes=new Map(next.nodes.map(node=>[key(node.origin),node]));for(const [id,visual]of visuals)visual.node=nodes.get(id)??visual.node;},session,commitSelection,saveCamera(){const state=readCamera();seenCamera=state;input.cameraChanged(state);},restoreCamera(value:CameraState|undefined){restoreCamera(value);presentation();},point:creationPoint,center:()=>hoverCandidate?.valid?hoverCandidate.anchor:navigator.initialized?xyz(navigator.position.clone().divideScalar(scale)):xyz(controls.target.clone().divideScalar(scale)),request,
     editOmnic(surface:OmnicSurface){if(omnic!==surface){cancelOmnic();omnic=surface;request();}return()=>{if(omnic===surface){cancelOmnic();omnic=undefined;request();}};},
     focusInput(){canvas.focus();},
     get reference(){return activeAxis();},
