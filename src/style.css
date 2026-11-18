@@ -74,7 +74,7 @@ header button.wordmark { width:auto; font-size:15px; }
 /* Surface alpha never fades its text or controls. Shared paint uses V1's
    independent transmission, text-shadow and surface-shadow semantics. */
 :root[data-visual-text] { color:var(--visual-text-color,#deded7); font-family:var(--visual-text-fontFamily,ui-sans-serif,system-ui,sans-serif); text-shadow:var(--visual-text-textShadow,none); }
-:root[data-visual-background] :is(header, #tools, .panel, .panel > header, #status, .cm-panels, .context-actions) {
+:root[data-visual-background] :is(header, #tools, .panel, .panel > header, #status, .cm-panels, .context-actions):not(.panel-edge) {
   background-color:var(--visual-background);
   box-shadow:var(--visual-text-border-shadow);
 }
@@ -98,7 +98,9 @@ header button.wordmark { width:auto; font-size:15px; }
 .omnic-state-field{display:block;width:180px;height:150px;margin:auto}.omnic-state-values{display:flex;flex-wrap:wrap;gap:2px}.omnic-menu .omnic-state-values button{width:auto}.omnic-state-field circle{cursor:pointer}
 
 .panel.node-document-panel { display:flex; flex-direction:column; top:8px; left:max(8px,calc((100vw - 700px)/2)); right:auto; width:min(700px,calc(100vw - 16px)); height:calc(100svh - 16px); overflow:hidden; }
-.node-document-panel > header { flex:none; }
+.panel.edge-panel > header.panel-edge { position:absolute; top:0; left:0; right:0; height:10px; padding:0; border:0; border-radius:0; background:transparent; box-shadow:none; z-index:1; }
+.panel-edge > span { position:absolute; top:0; left:50%; transform:translateX(-50%); max-width:80%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:12px; line-height:14px; }
+.node-document-panel.edge-panel > .panel-body { padding-top:16px; }
 .node-document-panel > .panel-body { display:flex; flex-direction:column; flex:1; min-height:0; overflow:hidden; }
 .node-document-panel .document-tools { flex:none; }
 .node-document-panel .document-content { flex:1; min-height:0; }

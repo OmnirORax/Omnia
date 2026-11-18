@@ -1,4 +1,4 @@
-/** Shared document-window drag: top-bar pickup, viewport limits and cancellation. */
+/** Shared document-window drag: handle pickup, viewport limits and cancellation. */
 export function windowDrag(root:HTMLElement,heading:HTMLElement,record?:(before:string)=>void){
  heading.style.cursor='move';heading.style.touchAction='none';
  heading.onpointerdown=event=>{

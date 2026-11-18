@@ -11,7 +11,7 @@ export function textBorderStyle(paint:Paint={}){const value=renderedTextPaint(pa
 let previous='',borderStyle:HTMLStyleElement|undefined;
 export function updateUIAppearance(appearance?: Appearance) {
   const next=JSON.stringify(appearance??{});if(next===previous)return;previous=next;
-  if(!borderStyle){borderStyle=document.createElement('style');borderStyle.dataset.textBorderPaint='';borderStyle.textContent=`:root[data-visual-text] :is(${UI_BORDER_SELECTOR}){border-color:${UI_DECORATION.color} !important;box-shadow:${UI_DECORATION.shadow} !important}:root[data-visual-text] :is(${UI_SURFACE_SELECTOR}){box-shadow:${UI_DECORATION.shadow} !important}`;document.head.append(borderStyle);}
+  if(!borderStyle){borderStyle=document.createElement('style');borderStyle.dataset.textBorderPaint='';borderStyle.textContent=`:root[data-visual-text] :is(${UI_BORDER_SELECTOR}):not(.panel-edge){border-color:${UI_DECORATION.color} !important;box-shadow:${UI_DECORATION.shadow} !important}:root[data-visual-text] :is(${UI_SURFACE_SELECTOR}):not(.panel-edge){box-shadow:${UI_DECORATION.shadow} !important}`;document.head.append(borderStyle);}
   const root=document.documentElement.style;
   document.documentElement.toggleAttribute('data-visual-text',true);
   document.documentElement.toggleAttribute('data-visual-background',!!appearance?.background);
