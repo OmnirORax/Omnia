@@ -17,7 +17,6 @@ const builtins: Property[] = [
   {id:"patternUse",label:"Pattern paint",kind:"select",initial:"inherit",neutral:"off",options:[{id:"inherit",label:"Inherit global"},{id:"on",label:"Use shared pattern"},{id:"off",label:"Solid / manual"}]},
   {id:"translucencyRadius",label:"Translucency radius",kind:"number",min:0,max:1,step:.01,initial:SPHERE_VISUAL_DEFAULTS.translucencyRadius,neutral:1},
   {id:"translucency",label:"Translucency",kind:"number",min:0,max:1,step:.01,initial:0,neutral:0},
-  {id:"brightnessEnabled",label:"Brightness enabled",kind:"toggle",initial:false,neutral:false},
   {id:"glowSpread",label:"Glow spread",kind:"number",...TEXT_GLOW_SPREAD,neutral:TEXT_GLOW_SPREAD.initial},
   {id:"glowColor",label:"Glow color",kind:"color",initial:"#60ddec"},
   { id: "color", label: "Color", kind: "color", initial: "#60ddec" },

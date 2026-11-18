@@ -108,11 +108,11 @@ test('text glow spread updates cached coverage while preserving geometry and col
  const after=snapshot();updateLabelPaint(mesh,{glow:2,glowSpread:10,color:'#123456'});assert.deepEqual(snapshot(),after);disposeLabel(mesh);
 });
 
-test('brightness switch changes cached label and character ink once without canvas work',()=>{
+test('retired brightness switch cannot change cached label or character ink or trigger canvas work',()=>{
  const paint={color:'#204060',glowColor:'#102030',glow:1,brightness:.75,brightnessEnabled:false},mesh=label('Brightness',paint),before=snapshot();
- updateLabelPaint(mesh,{...paint,brightnessEnabled:true});assert.equal(mesh.material.color.getHexString(),'70a0cf');assert.deepEqual(snapshot(),before);
+ updateLabelPaint(mesh,{...paint,brightnessEnabled:true});assert.equal(mesh.material.color.getHexString(),'204060');assert.deepEqual(snapshot(),before);
  updateLabelPaint(mesh,paint);assert.equal(mesh.material.color.getHexString(),'204060');assert.deepEqual(snapshot(),before);disposeLabel(mesh);
  const asset={id:'glyph',kind:'text',text:'x'},object=visualObject({assetId:'glyph',character:'x'},[asset],value=>label(value),()=>{},{textPaint:{...paint,brightnessEnabled:true}});
- const ink=object.children.find(child=>child.userData.isLabel);assert.ok(ink);assert.equal(ink.material.color.getHexString(),'70a0cf');
+ const ink=object.children.find(child=>child.userData.isLabel);assert.ok(ink);assert.equal(ink.material.color.getHexString(),'204060');
  const after=snapshot();object.userData.setAppearance({textPaint:paint});assert.equal(ink.material.color.getHexString(),'204060');assert.deepEqual(snapshot(),after);disposeVisual(object);
 });
