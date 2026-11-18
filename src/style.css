@@ -14,8 +14,8 @@ header { position: fixed; top: 14px; left: 16px; display: flex; align-items: cen
 .wordmark { padding: 0 7px; font-size: 15px; letter-spacing: -.5px; }
 .wordmark small { color: #858d72; font-size: 9px; margin-left: 3px; letter-spacing: 0; }
 header button { width: 28px; height: 28px; font-size: 18px; }
-#find { width: 124px; background: transparent; border-color: transparent; }
-#find:focus { background: #ffffff05; border-color: #ffffff15; }
+.node-search-panel { width:260px; }
+.node-search-panel #find { width:100%; }
 #empty { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); color: #777e70; pointer-events: none; white-space: nowrap; }
 #empty span { color: #c4cb9b; }
 #status { position: fixed; left: 20px; bottom: 15px; max-width: calc(100vw - 40px); color: #969e8c; font-size: 11px; background: #101113e8; border-radius: 3px; }
