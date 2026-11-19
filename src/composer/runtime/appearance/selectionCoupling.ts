@@ -56,7 +56,7 @@ export function applySelectedValue(state: Controller, parts: SelectedPart[], pro
   let changed = false;
   for (const part of parts) {
     const target = selectedPartTarget(part), id = target.id;
-    if (!editable(part, property) || (property === "effect" && target.effectKinds && !target.effectKinds.includes(String(value)))) continue;
+    if (!editable(part, property)) continue;
     // Whole-text hosts supersede older exact-run paint at the same address.
     // Update eligible channels together so an old Highlight cannot mask the edit.
     const equivalentRuns = part.part.text === undefined ? runs.get(hostKey(part)) ?? [] : [];

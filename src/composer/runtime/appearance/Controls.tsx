@@ -57,7 +57,6 @@ function PropertyInput({
   onCancelPreview,
   disabled = false,
   label,
-  effectKinds,
   choices,
   limits,
   configuration,
@@ -74,7 +73,6 @@ function PropertyInput({
   onCancelPreview?:()=>void;
   disabled?: boolean;
   label?: string;
-  effectKinds?: readonly string[];
   choices?: readonly string[];
   limits?: { min: number; max: number; step?:number };
 }) {
@@ -145,7 +143,7 @@ function PropertyInput({
   if (p.kind === "select") {
     const options = [
       ...(p.options ?? []).filter(
-        (o) => (!choices || choices.includes(o.id)) && (p.id !== "effect" || !effectKinds || effectKinds.includes(o.id)),
+        (o) => (!choices || choices.includes(o.id)),
       ),
       ...(p.id === "font" ? (ctx?.fonts ?? []).map((f) => ({ id: f.id, label: f.name })) : []),
     ];

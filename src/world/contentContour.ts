@@ -1,5 +1,5 @@
 import * as T from 'three';
-import {attachMaterialCoverage,pixelCoverageGLSL} from '../materialCoverage.ts';
+import {attachMaterialCoverage,pixelCoverageGLSL,declareGlowDetail} from '../materialCoverage.ts';
 import {contentEnvelope,convexHull,type Point2} from './contentEnvelope.ts';
 /** Local ink only: geometry, texture masks and their cache stay with each visual. */
 export function collectContentHull(root:T.Object3D){
@@ -14,7 +14,7 @@ export function collectContentHull(root:T.Object3D){
 }
 export function createContentContour(){
  const material=new T.MeshBasicMaterial({transparent:true,depthWrite:false,depthTest:false,side:T.DoubleSide});
- const stroke={value:.016};
+ const stroke={value:.016},detail={value:1};declareGlowDetail(material,detail);
  attachMaterialCoverage(material,target=>{
   const previous=target.onBeforeCompile;target.onBeforeCompile=(shader,renderer)=>{
    previous.call(target,shader,renderer);
@@ -29,6 +29,11 @@ export function createContentContour(){
   update(points:readonly Point2[],unit:number){
    const padding=unit*.05,width=unit*.032,fringe=width*2;stroke.value=width/2;
    polygon=contentEnvelope(points,padding+width/2);
+   // The contour is a single outer boundary. Fine contents declare their own
+   // detail, so a thin outline must not independently fade the whole owner.
+   let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+   for(const p of polygon){minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);minY=Math.min(minY,p.y);maxY=Math.max(maxY,p.y);}
+   detail.value=polygon.length?Math.min(maxX-minX,maxY-minY):0;
    const inner=contentEnvelope(points,padding-fringe),outer=contentEnvelope(points,padding+fringe),vertices:number[]=[],distance:number[]=[],indices:number[]=[];
    for(let n=0;n<outer.length;n++){vertices.push(inner[n].x,inner[n].y,0,outer[n].x,outer[n].y,0);distance.push(-fringe,fringe);const next=(n+1)%outer.length;indices.push(n*2,n*2+1,next*2,n*2+1,next*2+1,next*2);}
    const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.Float32BufferAttribute(vertices,3));geometry.setAttribute('contourDistance',new T.Float32BufferAttribute(distance,1));geometry.setIndex(indices);geometry.computeBoundingSphere();outline.geometry.dispose();outline.geometry=geometry;

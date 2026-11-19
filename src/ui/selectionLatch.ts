@@ -1,0 +1,3 @@
+/** Modifier taps toggle each dimension; keys used in a command remain momentary. */
+export function createSelectionLatch(){let control=false,shift=false;const pending=new Set<string>();return{get active(){return control||shift;},get control(){return control;},get shift(){return shift;},get depth(){return control&&shift;},press(key:string){if(['Control','Meta','Shift'].includes(key))pending.add(key);},use(){pending.clear();},release(key:string){if(!pending.delete(key))return;if(key==='Control'||key==='Meta')control=!control;else if(key==='Shift')shift=!shift;},clear(){pending.clear();control=shift=false;}};}
+export const selectionLatch=createSelectionLatch();

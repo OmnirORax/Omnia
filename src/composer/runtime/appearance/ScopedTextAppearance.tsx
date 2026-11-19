@@ -1,9 +1,8 @@
-import {translucentOpacity} from '../properties/translucency.ts';
+import {textGlowShadow} from '../../../properties/textGlow.ts';
 import { useEffect, useMemo, useRef } from "react";
 import { stableUIHash } from "../ui/identity";
 import { useAppearance } from "./Context";
 import { partSelector } from "./partScope";
-import { tint } from "./resolve";
 import { textOwner } from "./uiEffects";
 import { TARGETS } from "./registry";
 import { APPEARANCE_EDITOR } from "./interactionHold";
@@ -26,9 +25,9 @@ export function ScopedTextAppearance() {
       if (!appearance) return;
       const rules = targets.map(target => {
         const get = (property: string) => appearance.read(target, property);
-        const color = String(get("color")), brightness = Number(get("brightness")), opacity = translucentOpacity(Number(get("opacity")),Number(get("translucency"))), glow = Number(get("glow"));
-        const ink = tint(color, brightness, opacity);
-        return `::highlight(omnium-part-${stableUIHash(target.id)}){color:${ink};text-shadow:${glow > 0 ? `0 0 ${glow * 10}px ${ink}` : "none"}}`;
+        const color = String(get("color")), glow = Number(get("glow"));
+        const ink=color,halo=String(get("glowColor"));
+        return `::highlight(omnium-part-${stableUIHash(target.id)}){color:${ink};text-shadow:${textGlowShadow(glow,halo,Number(get("glowSpread")))}}`;
       });
       const css = rules.join("\n");
       if (style.textContent !== css) style.textContent = css;

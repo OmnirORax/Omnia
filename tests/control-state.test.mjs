@@ -8,7 +8,7 @@ import {NODE_VISUAL_PROPERTIES,validateNodePaint} from '../src/properties/nodeVi
 import {propertyFor} from '../src/composer/runtime/appearance/registry.ts';
 
 test('V1 body setters use the actual property definitions, exclude animation, and affect material values',()=>{
- assert.deepEqual(NODE_VISUAL_PROPERTIES.map(p=>p.id),['color','brightness','opacity','translucency','glow','translucencyRadius']);
+ assert.deepEqual(NODE_VISUAL_PROPERTIES.map(p=>p.id),['color','brightness','opacity','translucency','glow','glowColor','translucencyRadius']);
  for(const property of NODE_VISUAL_PROPERTIES)assert.equal(property,propertyFor(property.id));
  const world=emptyWorld(),node=addStructure(world,[0,0,0],1);
  writePaint(world,'nodeDefaults',[],{color:'#204060',brightness:2,opacity:.4,glow:1.5,translucency:.25,translucencyRadius:.6});

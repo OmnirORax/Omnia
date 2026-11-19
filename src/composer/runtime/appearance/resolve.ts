@@ -3,11 +3,6 @@ import {translucentOpacity} from '../properties/translucency.ts';
 import { RENDER_BUDGET } from "../renderBudget.ts";
 import { boundedNumber } from "../properties/numericRange.ts";
 import type { WorkspaceSettings } from "../workspaceActions";
-import {
-  resolveTargetSparkles,
-  type AnimationTarget,
-  type SparkleStyle,
-} from "../graph/effects.ts";
 import { createTargetIndex, connected, ruleHas, type Controller, type Value } from "./model.ts";
 import { scopeContains } from "./partScope.ts";
 import {
@@ -15,73 +10,15 @@ import {
   propertyFor,
   TARGETS,
   type RegisteredTarget,
-  EFFECT_PROPERTIES,
 } from "./registry.ts";
 export type Appearance = WorkspaceSettings["appearance"];
-const glyphEffect = (effect: string) => effect === "electric-text" || effect === "lightning";
-function legacyEffects(base: Appearance, target: RegisteredTarget): SparkleStyle {
-  const binding = target.binding?.animation;
-  const fx = resolveTargetSparkles(base, binding?.source ?? "windows");
-  if (!binding?.source) return { ...fx, effect: "off" };
-  if (binding.glyphsOnly && !glyphEffect(fx.effect)) {
-    const windows = resolveTargetSparkles(base, "windows");
-    return target.id.startsWith("text.ui.") || target.id === "symbols.ui"
-      ? glyphEffect(windows.effect)
-        ? windows
-        : { ...fx, effect: "off" }
-      : { ...fx, effect: "off" };
-  }
-  return fx;
-}
-/** The same animation properties are consumed by every renderer. */
-export function effectsFor(theme: Appearance, id: string | RegisteredTarget): SparkleStyle {
-  const target = typeof id === "string" ? TARGETS.find((t) => t.id === id)! : id;
-  const values = !target.instance ? theme.renderDefaults?.[target.id] : undefined;
-  let resolve: ReturnType<typeof createValueResolver> | undefined;
-  const get = (p: string) =>
-    values?.[p] ??
-    (theme.controller
-      ? (resolve ??= createValueResolver(theme, theme.controller))(target, p)
-      : legacyValue(theme, target, p));
-  return effectsFromValues(get);
-}
-export function effectsFromValues(get: (property: string) => Value): SparkleStyle {
-  const effect = get("effect") as SparkleStyle["effect"];
-  return {
-    effect,
-    color: brightHex(get("effectColor") as string, Number(get("effectBrightness"))),
-    brightness: 1,
-    opacity: Number(get("effectOpacity")),
-    glow: Number(get("effectGlow")),
-    motion: Number(get("speed")),
-    intensity: Number(get("intensity")),
-    density: boundedNumber(propertyFor("density")!, Number(get("density")), get),
-    starSize: Number(get("size")),
-    boltLength: Number(get("length")),
-  };
-}
 export function legacyValue(base: Appearance, target: RegisteredTarget, property: string): Value {
   if (target.defaults?.[property] !== undefined) return target.defaults[property];
   const key = target.binding?.legacy ?? "accent",
     node = key.startsWith("nodes") ? base.nodes : base.binders;
-  if (EFFECT_PROPERTIES.includes(property)) {
-    const fx = legacyEffects(base, target);
-    const map: Record<string, Value | undefined> = {
-      effect: fx.effect,
-      speed: fx.motion,
-      intensity: fx.intensity,
-      density: fx.density,
-      size: fx.starSize ?? 1,
-      length: fx.boltLength ?? 0.35,
-      effectColor: fx.color ?? base.accent,
-      effectBrightness: fx.brightness ?? 1,
-      effectOpacity: fx.opacity ?? 1,
-      effectGlow: fx.glow ?? base.glow,
-    };
-    return map[property] ?? propertyFor(property)?.initial ?? 0;
-  }
   if (property === "contourWidth" && target.id === "omnium.binders.path") return 1.5;
   if (property === "translucency") return (target.instance?.base??target.id)==="omnium.nodes.body"?SPHERE_VISUAL_DEFAULTS.translucency:0;
+  if(property==="glowColor")return legacyValue(base,target,"color");
   if (property === "font") return base.font;
   if (property === "brightness") return 1;
   if (property === "blur") return base.blur;
@@ -152,17 +89,18 @@ export function createValueResolver(base: Appearance, state: Controller, targets
     : [...policyIndex.path(target.instance?.base ?? target.id), target.id];
   const isConnected = (target: RegisteredTarget, property: string) =>
     !pathFor(target).some(id => ruleHas(state.disconnected[id], property));
+  const neutral=(target:RegisteredTarget,property:string):Value=>propertyFor(property)?.neutral??legacyValue(base,target,property);
   const resolve = (target: RegisteredTarget, property: string): Value => {
     const channel = target.couplings?.[property];
     if (channel && channel !== property) {
-      if (!isConnected(target, property)) return propertyFor(property)?.neutral ?? legacyValue(base, target, property);
+      if (!isConnected(target, property)) return neutral(target,property);
       return resolve(target, channel);
     }
     const fallback = target.instance
       ? (bases.get(target.instance.base) ?? target)
       : target;
     if (!isConnected(target, property) || Object.entries(target.couplings ?? {}).some(([source, channel]) => channel === property && !isConnected(target, source)))
-      return propertyFor(property)?.neutral ?? legacyValue(base, fallback, property);
+      return neutral(fallback,property);
     if (target.instance?.part && state.values[target.id]?.[property] === undefined) {
       const instance = target.instance;
       const rank = (candidate: RegisteredTarget) => candidate.instance!.owner === instance.owner
@@ -182,6 +120,7 @@ export function createValueResolver(base: Appearance, state: Controller, targets
         if (state.values[ancestor.id]?.[property] !== undefined || !isConnected(ancestor, property))
           return resolve(ancestor, property);
     }
+    if(property==='glowColor'&&state.values[target.id]?.glowColor===undefined&&(!target.instance||state.values[target.instance.base]?.glowColor===undefined))return resolve(target,'color');
     const value = state.values[target.id]?.[property] ??
       (target.instance ? state.values[target.instance.base]?.[property] : undefined) ?? legacyValue(base, fallback, property);
     const spec = target.numberRanges?.[property];
@@ -218,8 +157,6 @@ export function resolveControllerAppearance(base: Appearance): Appearance {
     controlGlow: Math.min(base.controlGlow, RENDER_BUDGET.uiGlow),
     nodes: { ...base.nodes },
     binders: { ...base.binders },
-    effectTargets: { ...base.effectTargets },
-    surfaceEffects: { ...base.surfaceEffects },
     renderDefaults: {} as Record<string, Record<string, Value>>,
   };
   if (!state) return out;
@@ -257,20 +194,6 @@ export function resolveControllerAppearance(base: Appearance): Appearance {
       };
     }
   }
-  // Compatibility for existing render paths; the editable data stays on real targets.
-  for (const [name, id] of Object.entries({
-    nodes: "omnium.nodes.body",
-    binders: "omnium.binders.path",
-    background: "workspace.background",
-    windows: "ui.windows.contour",
-    buttons: "ui.buttons.contour",
-    fields: "ui.fields.single.contour",
-  })) {
-    const effects = effectsFor(out, id);
-    if (name === "nodes" || name === "binders") out[name] = { ...out[name], effects };
-    else out.surfaceEffects[name as "windows" | "buttons" | "fields" | "background"] = effects;
-    out.effectTargets[name as AnimationTarget] = effects.effect !== "off";
-  }
   const glowValues = TARGETS.filter(
     (t) =>
       t.id.startsWith("omnium.") ||
@@ -279,12 +202,11 @@ export function resolveControllerAppearance(base: Appearance): Appearance {
       t.id.startsWith("symbols."),
   )
     .filter(
-      (t) => state.values[t.id]?.glow !== undefined || state.values[t.id]?.effectGlow !== undefined,
+      (t) => state.values[t.id]?.glow !== undefined,
     )
     .map((t) =>
       Math.max(
         Number(out.renderDefaults[t.id]?.glow ?? 0),
-        Number(out.renderDefaults[t.id]?.effectGlow ?? 0),
       ),
     );
   if (glowValues.length) out.glow = Math.min(1, Math.max(base.glow, ...glowValues));

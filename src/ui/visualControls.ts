@@ -1,3 +1,4 @@
+import {bindColorSession} from './colorSession.ts';
 import {watchFields} from './formState.ts';
 import {importFont,isImportedFont} from '../properties/importedFont.ts';
 import type { Origin, World } from '../core/model.ts';
@@ -6,10 +7,14 @@ import { visualProperties, type Paint } from '../properties/visual.ts';
 import { field } from './fields.ts';
 import { liveForm } from './liveForm.ts';
 
-export function paintForm(target: VisualTarget, origins: readonly Origin[], read:()=>World, change:(edit:(world:World)=>void,group?:string)=>void, feedback:(message:string)=>void) {
+export function paintForm(target: VisualTarget, origins: readonly Origin[], read:()=>World, change:(edit:(world:World)=>void,group?:string)=>void, feedback:(message:string)=>void,preview?:(patch?:Paint)=>void) {
   const form=document.createElement('form'),initial=readPaint(read(),target,origins[0]);
   const inputs=visualProperties(target==='nodeText'||target==='text').map(definition=>{
     const key=definition.key as keyof Paint,entry=field(definition,initial[key]!);if(key==='font'&&isImportedFont(String(initial.font))){const option=document.createElement('option');option.value=initial.font!;option.textContent='Imported';entry.input.append(option);entry.input.value=initial.font!;}form.append(entry.row);return {key,entry,previous:entry.value()};
+  });
+  if(preview)for(const input of inputs)if(input.entry.input instanceof HTMLInputElement&&input.entry.input.type==='color')bindColorSession(input.entry.input,{
+   read:()=>String(readPaint(read(),target,origins[0])[input.key]),preview:value=>preview({[input.key]:value}),cancel:()=>preview(),
+   commit:value=>{try{change(world=>writePaint(world,target,origins,{[input.key]:value}));input.previous=value;}catch(error){preview();feedback(String(error));}}
   });
   liveForm(form, group=>{
     const changed=inputs.filter(input=>input.entry.value()!==input.previous);if(!changed.length)return;

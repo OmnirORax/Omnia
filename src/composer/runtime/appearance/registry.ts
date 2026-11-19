@@ -1,23 +1,18 @@
+import {RETIRED_TEXT_CHANNELS} from '../../../properties/textChannels.ts';
 import { groupVisualRoles } from "./roleHierarchy.ts";
 import { RENDER_BUDGET } from "../renderBudget.ts";
-import { EFFECT_KINDS } from "../graph/effects.ts";
 import { normalizeFont } from "../fonts.ts";
 import { type Controller, type Target, type Values, normalizeController } from "./model.ts";
-import { migrateEffects } from "./migrateEffects.ts";
 import { migrateFieldBranches } from "./migrateFields.ts";
-import type { AnimationTarget } from "../graph/effects.ts";
+type VisualSource='windows'|'buttons'|'fields'|'nodes'|'binders'|'background';
 import { GLYPH_PROPERTIES, partSelector } from "./partScope.ts";
-import { PROPERTY_REGISTRY, propertyFor, validateProperty, EFFECT_PROPERTIES } from "../properties/catalog.ts";
+import { PROPERTY_REGISTRY, propertyFor, validateProperty, RETIRED_VFX_PROPERTIES } from "../properties/catalog.ts";
 import type { ConsumerGroup } from "../properties/registry.ts";
 import "../properties/functions.generated.ts";
-export { PROPERTY_REGISTRY, PROPERTIES, propertyFor, validateProperty, EFFECT_PROPERTIES } from "../properties/catalog.ts";
+export { PROPERTY_REGISTRY, PROPERTIES, propertyFor, validateProperty, RETIRED_VFX_PROPERTIES } from "../properties/catalog.ts";
 export type { Property } from "../properties/catalog.ts";
-export const loadController = (value: unknown) =>
-  migrateFieldBranches(migrateEffects(
-    normalizeController(value, validateProperty),
-    LEGACY_EFFECT_TARGETS,
-    EFFECT_PROPERTIES,
-  ), LEGACY_FIELD_BRANCHES);
+export const loadController = (value:unknown)=>migrateFieldBranches(
+ normalizeController(value,(key,value)=>RETIRED_VFX_PROPERTIES.includes(key)?undefined:validateProperty(key,value)),LEGACY_FIELD_BRANCHES);
 export type Binding = {
   /** Non-CSS adapters expose their actual paint role here. */
   role?: import("./visualRole.ts").VisualRole;
@@ -32,12 +27,15 @@ export type Binding = {
   fallback?: string;
   animation?: {
     kind: "text" | "icons" | "surface";
-    source?: AnimationTarget;
+    source?: VisualSource;
     glyphsOnly?: boolean;
     selector?: string;
     priority?: number;
   };
 };
+/** UI surfaces inherit illumination from the native shared text appearance. */
+export const UI_DECORATION={color:'var(--visual-text-border-color)',shadow:'var(--visual-text-border-shadow)'} as const;
+export const sharedUIDecoration=(binding:Binding|undefined)=>!!binding?.selector&&(binding.css==='border-color'||binding.css==='background-color');
 export type RegisteredTarget = Target & { self?: boolean; binding?: Binding; defaults?: Values; hidden?: boolean; aggregate?: boolean };
 export const SELECTOR_FEEDBACK = {
   included: { label: "Included", color: "#28ff62" },
@@ -46,8 +44,8 @@ export const SELECTOR_FEEDBACK = {
 } as const;
 /** Inline artwork has its own ink; it never inherits a text target's color. */
 export const UI_INLINE_ICON_SELECTOR = 'button svg:not([data-range-glyph]):not([data-omnic-structure]),[role="button"] svg:not([data-range-glyph]):not([data-omnic-structure]),button[data-ui-visual-kind="icon"]:not(.function-icon):not([data-ui-native-icon]):not(:has(svg,img,.appearance-icon-mask))';
-const surface = ["color", "brightness", "opacity", "translucency", "glow"],
-  text = [...surface, "font"];
+const surface = ["color", "brightness", "opacity", "translucency", "glow", "glowColor"],
+  text = [...surface, "glowSpread", "font"];
 const entries: RegisteredTarget[] = [];
 const branch = (id: string, parent: string | undefined, label: string, self = false) =>
   entries.push({ id, parent, label, ...(self ? { self } : {}) });
@@ -60,7 +58,7 @@ const part = (
 ) => {
   if (binding.selector) {
     const kind = binding.text ? "text" : "surface";
-    const source: AnimationTarget | undefined = binding.text
+    const source: VisualSource | undefined = binding.text
       ? id === "text.ui.buttons"
         ? "buttons"
         : id === "text.ui.contents" || id === "text.ui.labels" || id === "text.ui.placeholders"
@@ -104,13 +102,12 @@ const part = (
       "shadowY",
     ];
   if (binding.selector && binding.text)
-    properties = [...properties, "textSize", "textWeight", "textSpacing"];
+    properties = [...properties, "glowSpread", "textSize", "textWeight", "textSpacing"];
   if (id === "symbols.ui") properties = [...properties, "saturation"];
   if (id === "omnium.binders.path") properties = [...properties, "contourWidth"];
   if(binding.selector&&!binding.selector.includes('::')&&(binding.text||binding.css==='background-color'||binding.css==='border-color')){
     binding={...binding,patternRole:binding.text?'text':binding.css==='background-color'?'background':'contour'};properties=[...properties,'patternUse'];
   }
-  if (binding.animation) properties = [...properties, ...EFFECT_PROPERTIES];
   entries.push({
     id,
     parent,
@@ -118,12 +115,7 @@ const part = (
     ...(entries.find(target=>target.id===parent)?.aliases?{aliases:entries.find(target=>target.id===parent)!.aliases}:{}),
     properties: [...new Set(properties.includes("opacity")?[...properties,"translucency"]:properties)],
     binding,
-    effectKinds:
-      binding.animation?.kind === "surface"
-        ? EFFECT_KINDS.filter((kind) => kind !== "electric-text")
-        : binding.animation
-          ? EFFECT_KINDS
-          : undefined,
+
   });
 };
 branch("all", undefined, "Everything");
@@ -425,13 +417,7 @@ for (const target of entries.filter(target => target.properties?.length)) {
   while (parent && parent.id !== "all") { group.unshift({ id: parent.id, label: parent.label, ...(parent.self ? { self: true } : {}) }); parent = entries.find(entry => entry.id === parent!.parent); }
   const consumer = PROPERTY_REGISTRY.couple({ id: target.id, label: target.label, owner: "appearance", group,
     locator: target.binding?.selector,
-    properties: target.properties!.map(property => ({ property,
-      ...(property === "effect" && target.effectKinds ? {
-        initial: target.effectKinds.includes(String(target.defaults?.effect ?? propertyFor("effect")!.initial))
-          ? target.defaults?.effect ?? propertyFor("effect")!.initial : "off",
-        choices: target.effectKinds,
-      } : {}),
-    })),
+    properties: target.properties!.map(property=>({property})),
   });
   target.couplings = consumer.channels;
   target.properties = consumer.properties;
@@ -449,32 +435,29 @@ for (const consumer of PROPERTY_REGISTRY.consumers.filter(item => item.owner ===
   }
   entries.push({ id: consumer.id, label: consumer.label, parent,
     properties: consumer.properties, couplings: consumer.channels, defaults: consumer.defaults,
-    effectKinds: consumer.choices.effect, binding: consumer.locator ? { selector: consumer.locator, ...consumer.visual } : undefined });
+    binding: consumer.locator ? { selector: consumer.locator, ...consumer.visual } : undefined });
+}
+for(const target of entries)if(target.properties){
+ if(target.binding?.text||target.id.startsWith('text.'))target.properties=target.properties.filter(key=>!RETIRED_TEXT_CHANNELS.some(channel=>channel===key));
+ if(sharedUIDecoration(target.binding))target.properties=target.properties.filter(key=>!['glow','glowColor','glowSpread',...(target.binding?.css==='border-color'?['color','brightness',...RETIRED_TEXT_CHANNELS]:[])].includes(key));
 }
 for (const target of entries) if (target.properties) target.numberRanges = Object.fromEntries(target.properties.flatMap(id => {
   const spec = propertyFor(id);
   if (spec?.kind !== "number") return [];
-  const max = target.binding?.css ? (id === "glow" || id === "effectGlow" ? Math.min(spec.max!, RENDER_BUDGET.uiGlow) : id === "blur" ? Math.min(spec.max!, RENDER_BUDGET.uiBlur) : spec.max!) : spec.max!;
+  const max = id==='brightness'&&target.properties?.includes('font')?1:target.binding?.css ? (id === "glow" ? Math.min(spec.max!, RENDER_BUDGET.uiGlow) : id === "blur" ? Math.min(spec.max!, RENDER_BUDGET.uiBlur) : spec.max!) : spec.max!;
   return [[id, max === spec.max ? spec : { ...spec, max }]];
 }));
 // Renderer-declared geometry participates in MS without a second selector/store.
 entries.push({id:'geometry.rendered',parent:'all',label:'Rendered geometry',properties:[],binding:{selector:'[data-selection-geometry]',role:'icon'}});
 entries.push({id:'geometry.environment',parent:'all',label:'Rendered environment boundary',properties:[],binding:{selector:'[data-selection-environment]',role:'icon'}});
 export const TARGETS: readonly RegisteredTarget[] = groupVisualRoles(entries);
+/** UI borders inherit the shared global text paint through their existing capabilities. */
+export const UI_BORDER_SELECTOR=[...new Set(['.panel','#tools','.context-actions','body>header','#status','.panel>header','input','textarea','select','button',...TARGETS.flatMap(target=>target.binding?.css==='border-color'&&target.binding.selector?[target.binding.selector]:[])])].join(',');
+export const UI_SURFACE_SELECTOR=[...new Set(TARGETS.flatMap(target=>target.binding?.css==='background-color'&&target.binding.selector?[target.binding.selector]:[]))].join(',');
 const baseTargets = new Map(TARGETS.map(target => [target.id, target]));
 const LEGACY_FIELD_BRANCHES = Object.fromEntries(
   ["single", "multi", "search", "number", "select"].map(kind => [
     `ui.fields.${kind}`, [`ui.fields.${kind}.background`, `ui.fields.${kind}.contour`],
-  ]),
-);
-const LEGACY_EFFECT_TARGETS = Object.fromEntries(
-  ["windows", "buttons", "fields", "nodes", "binders", "background"].map((source) => [
-    `vfx.${source}`,
-    TARGETS.filter((t) => t.binding?.animation?.source === source).map((t) => ({
-      id: t.id,
-      glyphsOnly: t.binding?.animation?.glyphsOnly,
-      effectKinds: t.effectKinds,
-    })),
   ]),
 );
 export function controllerTargets(state: Controller): RegisteredTarget[] {
@@ -494,7 +477,6 @@ export function controllerTargets(state: Controller): RegisteredTarget[] {
       label: instance.label,
       properties: instance.part?.text !== undefined
         ? base.properties?.filter(property => GLYPH_PROPERTIES.includes(property)) : base.properties,
-      effectKinds: base.effectKinds,
       couplings: base.couplings,
       numberRanges: base.numberRanges,
       instance,

@@ -2,7 +2,7 @@ import {universalHistory} from '../core/universalHistory.ts';
 import type {ActionHistory} from '../composer/runtime/ui/actionHistory.ts';
 import {sameValue} from '../core/equality.ts';
 export const VIEW_CLOSE='omnium:window-close',VIEW_GEOMETRY='omnium:window-geometry',VIEW_ROUTE='omnium:window-route';
-export type ViewSpec={kind:string;args?:unknown;point?:{x:number;y:number};selection?:unknown[];query?:string;instance?:number};
+export type ViewSpec={kind:string;dismissOnOutside?:boolean;args?:unknown;point?:{x:number;y:number};selection?:unknown[];query?:string;instance?:number};
 export type ViewState={menu:ViewSpec|null;windows:Record<string,ViewSpec>};
 type Handle={root:HTMLElement;close:()=>unknown;ready?:Promise<void>};
 /** Pure view descriptors; disposed views are reconstructed by registered factories. */
@@ -55,7 +55,7 @@ export function createViewHistory(history:ActionHistory,schedule:(fn:()=>void)=>
   perform(action:()=>void,actionId?:string){history.transaction(()=>{depth++;try{action();}finally{depth--;}},actionId);},
   menu(spec:ViewSpec){change({...state,menu:{...spec,instance:++sequence}});applying=true;try{renderMenu(state.menu);}finally{applying=false;}},
   query(value:string){if(state.menu&&(state.menu.query??'')!==value)change({...state,menu:{...state.menu,query:value}},`view-query:${state.menu.instance}`);},
-  hideMenu(){if(state.menu!==null)change({...state,menu:null});renderMenu(null);},
+  hideMenu(outside=false){if(outside&&state.menu?.dismissOnOutside===false)return;if(state.menu!==null)change({...state,menu:null});renderMenu(null);},
   adopt(key:string,requested:ViewSpec,handle:Handle,restore?:ViewSpec,initial=false){
    const wanted=state.windows[key];
    if(restore&&(!wanted||wanted.instance!==restore.instance)){handle.close();return;}

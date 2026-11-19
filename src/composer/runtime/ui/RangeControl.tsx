@@ -1,3 +1,4 @@
+import {createRelativePointer} from '../../../ui/relativePointer.ts';
 import {useValueConfirmation} from './useValueConfirmation';
 import {useHoverPreview} from './HoverPreview';
 import {useNavigationState} from '../../../ui/useNavigationState.tsx';
@@ -14,7 +15,8 @@ import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState
 
 /** Layout adapters provide the displayed slider axis; captured once per drag. */
 export const RangeAxis=createContext(0);
-export type RangeGesture={start:(id:number,x:number,y:number)=>boolean;move:(x:number,y:number)=>void;finish:(x:number,y:number)=>void;cancel:()=>void};
+type RangePointer=Pick<PointerEvent,'clientX'|'clientY'|'movementX'|'movementY'>;
+export type RangeGesture={start:(id:number,x:number,y:number,surface?:HTMLElement)=>boolean;move:(x:number,y:number,event?:RangePointer)=>void;finish:(x:number,y:number,event?:RangePointer)=>void;cancel:()=>void;locked?:()=>boolean};
 /** An owning DOF icon may lend its press to this same slider gesture. */
 export const RangeGestureTarget=createContext<MutableRefObject<RangeGesture|null>|null>(null);
 type WorkingRange={min?:number;max?:number;step?:number;selectionMode?:StateSelectionMode;selectionCount?:number;selectionStep?:number;selectionMin?:number;selectionMax?:number};
@@ -70,6 +72,8 @@ export function RangeControl({ value: storedValue, min, max, onValueChange, onMi
   const previewCallback=useRef(onValueChange);previewCallback.current=onValueChange;
   const [valuePreview]=useState(()=>createFramePreview<number>(value=>previewCallback.current(value)));
   useEffect(()=>()=>valuePreview.discard(),[valuePreview]);
+  const [relative]=useState(()=>createRelativePointer(()=>cancelLatest.current()));
+  useEffect(()=>()=>relative.stop(),[relative]);
   const externalGesture=useContext(RangeGestureTarget),track=useRef<HTMLSpanElement>(null);
   const axisAngle=useContext(RangeAxis)*Math.PI/180;
   const value = Math.max(min, Math.min(max, storedValue));
@@ -88,8 +92,9 @@ export function RangeControl({ value: storedValue, min, max, onValueChange, onMi
   const endpoint = useRef<HTMLInputElement>(null), cancelled = useRef(false);
   const input = useRef<HTMLInputElement>(null);
   const drag = useRef<{ id: number; scrub?:ValueScrub; cx:number;cy:number;ux:number;uy:number;width: number; low: number; high: number; step: number; values?:readonly number[]; before: number; next: number } | null>(null);
-  const confirmValue=useValueConfirmation({owner:track,candidate:()=>{valuePreview.flush();const active=drag.current;drag.current=null;return active?.next;},onCommit:(next:number)=>onValueCommit?.(next),disabled:valueDisabled,keyboard:!!drag.current,selection:autoAdjust?'single':'accumulate'});
+  const confirmValue=useValueConfirmation({owner:track,candidate:()=>{valuePreview.flush();const active=drag.current;drag.current=null;return active?.next;},onCommit:(next:number)=>{relative.stop();onValueCommit?.(next);},disabled:valueDisabled,keyboard:!!drag.current,selection:autoAdjust?'single':'accumulate'});
   const cancelDrag = () => {
+    relative.stop();
     valuePreview.discard();
     const active = drag.current;
     if (!active) return;
@@ -97,7 +102,7 @@ export function RangeControl({ value: storedValue, min, max, onValueChange, onMi
     if (onValueCancel) onValueCancel(active.before); else onValueChange(active.before);
   };
   useCancelValueEdit(input, cancelDrag);
-  const confirmDrag=()=>{const active=drag.current;if(!active)return;valuePreview.flush();drag.current=null;confirmValue(active.next);};
+  const confirmDrag=()=>{relative.stop();const active=drag.current;if(!active)return;valuePreview.flush();drag.current=null;confirmValue(active.next);};
   useContextNavigation({owner:track,cancel:drag.current?cancelDrag:undefined});
   const cancelLatest = useRef(cancelDrag); cancelLatest.current = cancelDrag;
   useEffect(() => {
@@ -113,7 +118,7 @@ export function RangeControl({ value: storedValue, min, max, onValueChange, onMi
     if(next===undefined)return;
     if (next !== active.next) { active.next = next; valuePreview.push(next); }
   };
-  const startDrag=(id:number,x:number,y:number,relative=false,horizontal=false,claim=true)=>{
+  const startDrag=(id:number,x:number,y:number,relative=false,horizontal=false,claim=true,surface?:HTMLElement)=>{
     relative=relative||pixelsPerStep!==undefined;
     const node=track.current;if(!node||valueDisabled||drag.current)return false;
     const bounds=node.getBoundingClientRect(),ux=Math.cos(axisAngle),uy=Math.sin(axisAngle);
@@ -121,29 +126,32 @@ export function RangeControl({ value: storedValue, min, max, onValueChange, onMi
     const scale=projected>0?bounds.width/projected:1,width=Math.max(1,node.offsetWidth*scale);
     const fraction=sequence?sequence.length<2?.5:sequenceIndex(sequence,value)/(sequence.length-1):high===low?.5:(value-low)/(high-low);
     drag.current={id,...(relative?{scrub:createValueScrub({origin:{x,y},width,value,min:low,max:high,step:jump,values:sequence,horizontal,pixelsPerStep,...(pixelsPerStep?{axis:{x:ux,y:uy}}:{})})}:{}),cx:relative?x-(fraction-.5)*width*ux:bounds.left+bounds.width/2,cy:relative?y-(fraction-.5)*width*uy:bounds.top+bounds.height/2,ux,uy,width,low,high,step:jump,values:sequence,before:storedValue,next:value};
-    if(claim)claimUIPress(id);return true;
+    if(claim){claimUIPress(id);relativePointerStart(x,y,surface);}return true;
   };
+  const relativePointerStart=(x:number,y:number,surface?:HTMLElement)=>{const node=surface??track.current;if(node)relative.start(node,{x,y});};
   const finishDrag=(x:number,y:number)=>{if(!drag.current)return;moveDrag(x,y);confirmDrag();};
-  const gestureAPI=useRef<RangeGesture>(null!);gestureAPI.current={start:(id,x,y)=>startDrag(id,x,y,true),move:moveDrag,finish:finishDrag,cancel:cancelDrag};
-  useLayoutEffect(()=>{if(!externalGesture)return;const api:RangeGesture={start:(...args)=>gestureAPI.current.start(...args),move:(...args)=>gestureAPI.current.move(...args),finish:(...args)=>gestureAPI.current.finish(...args),cancel:()=>gestureAPI.current.cancel()};externalGesture.current=api;return()=>{if(externalGesture.current===api)externalGesture.current=null;};},[externalGesture]);
+  const gestureAPI=useRef<RangeGesture>(null!);gestureAPI.current={start:(id,x,y,surface)=>startDrag(id,x,y,true,false,true,surface),move:(x,y,event)=>{const point=event?relative.sample(event):{x,y};moveDrag(point.x,point.y);},finish:(x,y,event)=>{const point=event?relative.sample(event):{x,y};finishDrag(point.x,point.y);},cancel:cancelDrag,locked:()=>relative.active};
+  useLayoutEffect(()=>{if(!externalGesture)return;const api:RangeGesture={start:(...args)=>gestureAPI.current.start(...args),move:(...args)=>gestureAPI.current.move(...args),finish:(...args)=>gestureAPI.current.finish(...args),cancel:()=>gestureAPI.current.cancel(),locked:()=>gestureAPI.current.locked?.()??false};externalGesture.current=api;return()=>{if(externalGesture.current===api)externalGesture.current=null;};},[externalGesture]);
   const pointerPreview=useHoverPreview(),pointerOwner=useRef({});
   const pointerActions=useRef({startDrag,moveDrag,confirmDrag,cancelDrag});
   pointerActions.current={startDrag,moveDrag,confirmDrag,cancelDrag};
+  const activatePointer=(x:number,y:number)=>{
+    if(!pointerPreview)return false;
+    pointerPreview.enter(pointerOwner.current,{relative:true,surface:track.current??undefined,
+      start:(sx,sy=0)=>{pointerActions.current.startDrag(-1,sx,sy,true,false,false);},
+      move:(sx,sy=0)=>pointerActions.current.moveDrag(sx,sy),
+      commit:()=>pointerActions.current.confirmDrag(),cancel:()=>pointerActions.current.cancelDrag(),
+    },x,y);return true;
+  };
   const pointerEnabled=autoAdjust&&!valueDisabled&&!editing;
   useLayoutEffect(()=>{
     if(!pointerEnabled||!pointerPreview)return;
-    const owner=pointerOwner.current,point=cursorPosition();
-    pointerPreview.enter(owner,{
-      start:(x,y=0)=>{pointerActions.current.startDrag(-1,x,y,true,false,false);},
-      move:(x,y=0)=>pointerActions.current.moveDrag(x,y),
-      commit:()=>pointerActions.current.confirmDrag(),
-      cancel:()=>pointerActions.current.cancelDrag(),
-    },point.x,point.y);
+    const owner=pointerOwner.current,point=cursorPosition();activatePointer(point.x,point.y);
     return()=>pointerPreview.release(owner);
   },[pointerEnabled,pointerPreview]);
   const label = inputProps["aria-label"] ?? "Value";
   useLayoutEffect(()=>{if(editing){cancelled.current=false;setText(String(editing==='min'?low:editing==='max'?high:editing==='jump'?jump:value));}},[editing,popupPoint,low,high,jump,value]);
-  const edit = (which: Edit) => { const duringGesture=!!drag.current;if(drag.current){const active=drag.current;valuePreview.flush();drag.current=null;onValueCommit?.(active.next);}else cancelDrag();if(onConfigure&&onConfigure(which,duringGesture)!==false)return;setPopupPoint(cursorPosition());cancelled.current = false; setText(String(which === "min" ? low : which === "max" ? high : which === "jump" ? jump : value)); setEditing(which); };
+  const edit = (which: Edit) => { relative.stop(); const duringGesture=!!drag.current;if(drag.current){const active=drag.current;valuePreview.flush();drag.current=null;onValueCommit?.(active.next);}else cancelDrag();if(onConfigure&&onConfigure(which,duringGesture)!==false)return;setPopupPoint(cursorPosition());cancelled.current = false; setText(String(which === "min" ? low : which === "max" ? high : which === "jump" ? jump : value)); setEditing(which); };
   const choose = (next: number|undefined) => { if(next===undefined||valueDisabled)return;onValueChange(next); confirmValue(next); };
   const nudge=(direction:-1|1)=>choose(sequence?sequenceStep(sequence,value,direction):rangeValue(value+direction*jump,low,high,resolution));
   const cancel = () => { cancelled.current = true; setEditing(null); };
@@ -185,6 +193,7 @@ export function RangeControl({ value: storedValue, min, max, onValueChange, onMi
           event.preventDefault(); event.stopPropagation();
           claimUIPress(event.pointerId, event.pointerType, event.buttons);
           input.current?.focus({ preventScroll: true });
+          if(activatePointer(event.clientX,event.clientY))return;
           const readout=event.target instanceof Element&&!!event.target.closest('.range-current');
           startDrag(event.pointerId,event.clientX,event.clientY,readout,readout);
           event.currentTarget.setPointerCapture(event.pointerId);
@@ -192,15 +201,15 @@ export function RangeControl({ value: storedValue, min, max, onValueChange, onMi
         }}
         onPointerMove={event => {
           if (drag.current?.id !== event.pointerId) return;
-          event.stopPropagation(); moveDrag(event.clientX,event.clientY);
+          event.stopPropagation();const point=relative.sample(event);moveDrag(point.x,point.y);
         }}
         onPointerUp={event => {
           if (drag.current?.id !== event.pointerId) return;
-          event.stopPropagation(); moveDrag(event.clientX,event.clientY);
+          event.stopPropagation();const point=relative.sample(event);moveDrag(point.x,point.y);
           confirmDrag();
-          event.currentTarget.releasePointerCapture(event.pointerId);
+          if(event.currentTarget.hasPointerCapture(event.pointerId))event.currentTarget.releasePointerCapture(event.pointerId);
         }}
-        onPointerCancel={cancelDrag} onLostPointerCapture={cancelDrag}
+        onPointerCancel={()=>{if(!relative.active&&!pointerPreview?.owns(pointerOwner.current))cancelDrag();}} onLostPointerCapture={()=>{if(!relative.active&&!pointerPreview?.owns(pointerOwner.current))cancelDrag();}}
         onClick={event => { event.preventDefault(); event.stopPropagation(); }}>
 
         <span className="range-current" aria-hidden><i /><span title={String(value)}>{rangeLabel(value)}</span></span>

@@ -1,5 +1,5 @@
 import { TARGETS, type RegisteredTarget } from "./registry.ts";
-import type { GlyphScope } from "../uiLightning";
+type GlyphScope={key:string;shape?:'surface'|'contour'|'glyphs';text?:(parent:HTMLElement)=>boolean;input?:(input:HTMLElement)=>boolean;icons?:boolean};
 export const uiEffectTargets = TARGETS.filter(
   (t) => !t.aggregate && t.binding?.animation && (t.binding.animation.selector || t.binding.selector),
 );

@@ -41,3 +41,12 @@ export function popupBelowButton(button:PopupRect,child:{width:number;height:num
  }
  return {x,y:top+child.height/2};
 }
+
+/** Nearest clear edge of a scene target, constrained to the available viewport. */
+export function popupBesideTarget(target:PopupRect,child:{width:number;height:number},viewport:PopupRect,requested={x:target.x+target.width/2,y:target.y+target.height/2},gap=8){
+ const clamp=(n:number,start:number,size:number,available:number)=>Math.max(start,Math.min(n,start+Math.max(0,available-size)));
+ const candidates=[{x:target.x-child.width-gap,y:requested.y-child.height/2},{x:target.x+target.width+gap,y:requested.y-child.height/2},{x:requested.x-child.width/2,y:target.y-child.height-gap},{x:requested.x-child.width/2,y:target.y+target.height+gap}];
+ let best={x:viewport.x,y:viewport.y},score=Infinity;
+ for(const point of candidates){const x=clamp(point.x,viewport.x,child.width,viewport.width),y=clamp(point.y,viewport.y,child.height,viewport.height),overlap=Math.max(0,Math.min(x+child.width,target.x+target.width+gap)-Math.max(x,target.x-gap))*Math.max(0,Math.min(y+child.height,target.y+target.height+gap)-Math.max(y,target.y-gap)),distance=(x+child.width/2-requested.x)**2+(y+child.height/2-requested.y)**2,next=overlap*1e9+distance;if(next<score){best={x,y};score=next;}}
+ return best;
+}

@@ -46,3 +46,12 @@ test('live edits commit the latest value once per frame, flush before closing an
   form.dispatchEvent(new Event('input'));assert.equal(frames.size,0);
 
 });
+
+test('Enter submits the latest valid label and finishes the editor; invalid or composing text stays open',async()=>{
+ globalThis.HTMLTextAreaElement=class {};
+ const {liveForm}=await import('../src/ui/liveForm.ts');const form=new EventTarget();let value='old',valid=true,closed=0;const writes=[];form.isConnected=true;form.checkValidity=()=>valid;form.requestSubmit=()=>form.dispatchEvent(new Event('submit',{cancelable:true}));
+ const dispose=liveForm(form,()=>writes.push(value),()=>closed++),enter=()=>{const event=new Event('keydown',{cancelable:true});Object.assign(event,{key:'Enter'});form.dispatchEvent(event);return event;};
+ value='latest';assert.equal(enter().defaultPrevented,true);assert.deepEqual(writes,['latest']);assert.equal(closed,1);
+ valid=false;enter();assert.deepEqual(writes,['latest']);assert.equal(closed,1);
+ valid=true;const composing=new Event('keydown');Object.assign(composing,{key:'Enter',isComposing:true});form.dispatchEvent(composing);assert.equal(closed,1);dispose();
+});

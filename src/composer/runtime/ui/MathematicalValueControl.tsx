@@ -9,7 +9,7 @@ import {useNumericEditor} from './NumericEditorScope';
 /** All Composer numeric projections inherit state selection. The math dial is
  * reserved for the field's rule parameters; external editors retain RangeControl. */
 export function MathematicalValueControl({inline=false,configurationKey,step=1,onPreview=()=>{},...props}:Parameters<typeof MathematicalDial>[0]&{inline?:boolean;configurationKey?:string;step?:number}){
- const valueDrag=useValueDrag({value:props.value,min:props.min,max:props.max,step,disabled:props.disabled},onPreview,props.onCommit,props.onCancelPreview);
+ const valueDrag=useValueDrag({value:props.value,min:props.min,max:props.max,step,disabled:props.disabled,activation:'drag'},onPreview,props.onCommit,props.onCancelPreview);
  const [point,setPoint]=useNavigationState<{x:number;y:number}|null>(`${configurationKey??props.label??'Value'}:value-popup`,null),scope=useNumericEditor();
  const close=()=>{props.onCancelPreview?.();scope.cancelPreview?.();setPoint(null);};
  const field=<DofStateField property={configurationKey??props.label??'value'} label={props.label??'Value'} value={props.value} disabled={props.disabled} configure={props.configure} onDismiss={close}

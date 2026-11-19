@@ -5,6 +5,11 @@ const coverage=new WeakMap<THREE.Material,(target:THREE.Material)=>void>();
 export function attachMaterialCoverage(material:THREE.Material,apply:(target:THREE.Material)=>void){apply(material);coverage.set(material,apply);}
 export function inheritMaterialCoverage(source:THREE.Material,target:THREE.Material){coverage.get(source)?.(target);}
 
+/** Source detail is declared once; derived emission masks use the same owner. */
+const glowDetails=new WeakMap<THREE.Material,number|{value:number}>();
+export function declareGlowDetail(material:THREE.Material,size:number|{value:number}){glowDetails.set(material,size);}
+export function materialGlowDetail(material:THREE.Material,fallback:number){const value=glowDetails.get(material);return typeof value==='number'?value:value?.value??fallback;}
+
 /** Area of a locally straight edge over a square pixel. Projecting a pixel onto
  * its normal produces a trapezoidal distribution, not an angle-independent ramp.
  * The piecewise form avoids subtracting nearly equal squared terms. */
@@ -22,6 +27,7 @@ float pixelCoverage(float distance, float dx, float dy){
 /** Nominal radii are unchanged. The mesh supplies a conservative annular fringe;
  * the circle, stroke and subpixel opacity are evaluated analytically in screen space. */
 export function analyticSelectionRing(material:THREE.MeshBasicMaterial){
+ declareGlowDetail(material,2); // one closed ring: use its diameter, not stroke width
  attachMaterialCoverage(material,target=>{
   const previous=target.onBeforeCompile;
   target.onBeforeCompile=(shader,renderer)=>{

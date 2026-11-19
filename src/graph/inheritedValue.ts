@@ -1,5 +1,7 @@
 /** Runtime descendants inherit from the nearest owner; explicit zero is a delta. */
+export function inheritedOwner<T extends {userData:Record<string,any>;parent:any}>(object:T|null,key:string):T|undefined{
+ for(let owner=object;owner;owner=owner.parent)if(owner.userData[key]!==undefined)return owner;
+}
 export function inheritedValue<T>(object:{userData:Record<string,any>;parent:any}|null,key:string,fallback:T):T{
- for(let owner=object;owner;owner=owner.parent)if(owner.userData[key]!==undefined)return owner.userData[key] as T;
- return fallback;
+ const owner=inheritedOwner(object,key);return owner?owner.userData[key]:fallback;
 }

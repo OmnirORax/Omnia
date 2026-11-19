@@ -1,3 +1,4 @@
+import {validateOriginDirections,type OriginDirections} from './originDirections.ts';
 import {validateWorkspaceSession,type WorkspaceSession} from './workspaceSession.ts';
 import type {createOccupancy} from '../graph/occupancy.ts';
 import { validateNavigation,type NavigationOptions } from '../navigation/options.ts';
@@ -11,7 +12,7 @@ import type {AtlasView,Catalog} from '../omnic/atlas.ts';
 import type {RecipeEdit} from '../omnic/delta.ts';
 import {DEFAULT_TEXT_FONT} from '../properties/defaultFont.ts';
 import { validateAudioResponse } from '../scene/audioResponse.ts';
-import { validateAppearance, validatePaint, type Appearance, type Paint } from '../properties/visual.ts';
+import { validateAppearance, validatePaint,retireTextChannels, type Appearance, type Paint } from '../properties/visual.ts';
 import { creationCell } from './lattice.ts';
 import {validateAxes,type AxisFrame} from './axes.ts';
 import {validateCameraState,type CameraState} from './cameraState.ts';
@@ -30,10 +31,10 @@ export type Structure = { origin: Origin; label: string; position: Vec3; color: 
   parent?: Origin; variantOf?: Origin; overrides?: string[]; hidden?: boolean; collapsed?: boolean;
   omnic?:Recipe;omnicDraft?:Recipe;omnicEdits?:RecipeEdit[];omnicRevision?:number;omnicHistory?:Recipe[];catalog?:Catalog;lexiconWords?:string[];
   orientation?: Rotation; text?: NodeText; textAppearance?: Paint; visual?: Visual; scene?: string | null;
-  brightness?: number; opacity?: number; glow?: number; translucency?: number; translucencyRadius?: number;
+  brightness?: number; opacity?: number; glow?: number; glowColor?:string; translucency?: number; translucencyRadius?: number;
 };
 export type Relationship = { from: Binding; to: Binding; label: string; kind: string };
-export type World = { session?:WorkspaceSession; format: 'omnium-world'; version: 1 | 2 | 3; atlases?:AtlasView[];activeAtlas?:number; axes?:AxisFrame[];activeAxis?:string;brush?:Brush;camera?:CameraState; nodes: Structure[]; assets?: VisualAsset[]; relationships?: Relationship[]; scene?: SceneSettings; appearance?: Appearance;
+export type World = { userDirections?:OriginDirections; session?:WorkspaceSession; format: 'omnium-world'; version: 1 | 2 | 3; atlases?:AtlasView[];activeAtlas?:number; axes?:AxisFrame[];activeAxis?:string;brush?:Brush;camera?:CameraState; nodes: Structure[]; assets?: VisualAsset[]; relationships?: Relationship[]; scene?: SceneSettings; appearance?: Appearance;
   settings?: { latticeScale: number; names: 'all' | 'expanded' | 'selection'; navigation?: NavigationOptions } };
 export const emptyWorld = (): World => ({ format: 'omnium-world', version: 2, nodes: [], assets: [], relationships: [], appearance:{background:{translucency:1},text:{font:DEFAULT_TEXT_FONT,color:'#ff000d',glow:1}}, scene: defaultScene(), settings: { latticeScale: 1, names: 'expanded' } });
 export const samePoint = (a: Vec3, b: Vec3) => a.every((n, i) => n === b[i]);
@@ -117,6 +118,7 @@ export function validateWorld(value: unknown): World {
   validateAppearance(w.appearance);
   validateCameraState(w.camera);
   validateAxes(w);
+  if(w.userDirections!==undefined)validateOriginDirections(w.userDirections);
   if(w.brush!==undefined)brushShape(w.brush);
   validateNavigation(w.settings?.navigation);
   if(w.activeAtlas!==undefined&&!w.atlases)throw Error('Invalid active atlas.');
@@ -136,8 +138,9 @@ export function validateWorld(value: unknown): World {
     if (anchors.has(a) || positions.has(p)) throw new Error('Two structures cannot occupy the same address.');
     anchors.add(a); positions.add(p);
     if (node.parent !== undefined && !origin(node.parent) || node.variantOf !== undefined && !origin(node.variantOf)) throw Error('Invalid node parent or variant.');
-    if (node.overrides !== undefined && (!Array.isArray(node.overrides) || node.overrides.some(key => !['brightness','color','label','text','visual','opacity','glow','translucency','translucencyRadius','scene','textAppearance'].includes(key)))) throw Error('Invalid variant override.');
+    if (node.overrides !== undefined && (!Array.isArray(node.overrides) || node.overrides.some(key => !['brightness','color','label','text','visual','opacity','glow','glowColor','translucency','translucencyRadius','scene','textAppearance'].includes(key)))) throw Error('Invalid variant override.');
     if (node.hidden !== undefined && typeof node.hidden !== 'boolean' || node.collapsed !== undefined && typeof node.collapsed !== 'boolean') throw Error('Invalid node visibility.');
+    if(node.glowColor!==undefined&&!/^#[\da-f]{6}$/i.test(node.glowColor))throw Error('Invalid glow color.');
     if(node.brightness!==undefined&&(!Number.isFinite(node.brightness)||node.brightness<0||node.brightness>3))throw Error('Invalid node brightness.');
     if(node.colorOverride!==undefined&&typeof node.colorOverride!=='boolean')throw Error('Invalid node color override.');
     if (node.scene !== undefined && node.scene !== null && (typeof node.scene !== 'string' || node.scene.length > 200)) throw Error('Invalid node scene.');
@@ -154,7 +157,7 @@ export function validateWorld(value: unknown): World {
       size+=new TextEncoder().encode(JSON.stringify([node.omnic,node.omnicDraft,node.omnicEdits,node.omnicHistory,node.catalog,node.lexiconWords])).length;if(size>3500000)throw Error('Definition library exceeds storage budget.');
     }
     if(node.orientation!==undefined){const q=node.orientation;if(!q||!['x','y','z','w'].every(key=>typeof q[key as 'x']==='number'&&Number.isFinite(q[key as 'x']))||Math.abs(Math.hypot(q.x,q.y,q.z,q.w)-1)>.001)throw Error('Invalid node orientation.');}
-    validatePaint(node.textAppearance,true);
+    retireTextChannels(node.textAppearance);validatePaint(node.textAppearance,true);
     if (node.text) validateNodeText(node.text, glyphs);
     validateVisual(node.visual, assets);
     for (const binding of node.parts) {
@@ -173,6 +176,7 @@ export function validateWorld(value: unknown): World {
       if (!current) throw Error('Missing node parent or variant source.');
     }
   }
+  if(w.settings)delete (w.settings as World['settings']&{glowDetailProtection?:unknown}).glowDetailProtection;
   if (w.settings && (!Number.isFinite(w.settings.latticeScale) || w.settings.latticeScale <= 0 || !['all','expanded','selection'].includes(w.settings.names))) throw Error('Invalid world settings.');
   if (w.scene && (!w.scene.vfx || !w.scene.normalization || typeof w.scene.prompt !== 'string' || w.scene.prompt.length > 4000 || !['label','notes','label-and-notes'].includes(w.scene.source))) throw Error('Invalid scene settings.');
   if (w.scene?.vfx?.audioResponse !== undefined) validateAudioResponse(w.scene.vfx.audioResponse);

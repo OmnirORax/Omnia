@@ -159,7 +159,7 @@ test('active world axes constrain painting, whole-unit relocation and origin-rel
  toggleWorldAxis(world,frame.id,2);toggleWorldAxis(world,frame.id,1);assert.deepEqual(activeWorldAxes(frame),[0,1]);session=createPaintSession(world,[0,0,0],basis,frame);close(session.candidate([3.2,7.7,5.8]).anchor,[3,8,0]);
  toggleWorldAxis(world,frame.id,0);session=createPaintSession(world,[0,0,0],basis,frame);close(session.candidate([3.2,7.7,5.8]).anchor,[0,8,0]);
  toggleWorldAxis(world,frame.id,1);assert.equal(createPaintSession(world,[0,0,0],basis,frame).candidate([3,8,6]).valid,false);assert.equal(prepareTranslation(world,[node.origin])([1,1,1]),undefined);
- for(const axis of [0,1,2])toggleWorldAxis(world,frame.id,axis);assert.deepEqual(activeWorldAxes(frame),[2]);close(createPaintSession(world,[0,0,0],basis,frame).candidate([3.2,7.7,5.8]).anchor,[0,3,6]);toggleWorldAxis(world,frame.id,0);assert.deepEqual(activeWorldAxes(frame),[0,2]);assert.equal(insideActivePlane(world,frame,[3,3,6]),true);assert.equal(insideActivePlane(world,frame,[3,5,6]),false);
+ for(const axis of [0,1,2])toggleWorldAxis(world,frame.id,axis);assert.deepEqual(activeWorldAxes(frame),[0,1,2]);toggleWorldAxis(world,frame.id,0);toggleWorldAxis(world,frame.id,1);close(createPaintSession(world,[0,0,0],basis,frame).candidate([3.2,7.7,5.8]).anchor,[0,3,6]);toggleWorldAxis(world,frame.id,0);assert.deepEqual(activeWorldAxes(frame),[0,2]);assert.equal(insideActivePlane(world,frame,[3,3,6]),true);assert.equal(insideActivePlane(world,frame,[3,5,6]),false);
  validateWorld(JSON.parse(JSON.stringify(world)));assert.throws(()=>shiftAxisOrigin(world,frame.id,[0,.5,0]),/whole/);
 });
 test('aiming the origin changes only its frame direction and preserves roll stability',async()=>{
@@ -176,14 +176,14 @@ test('the shared origin setter uses camera orientation for every unbound origin 
  aimFrame(w,frame.id,b.origin);const basis=[...frame.z];setSpatialOrigin(w,b.origin,[3,1,0],[1,0,0],[0,0,1]);close(frame.z,basis);assert.deepEqual(w.nodes,before);validateWorld(w);
 });
 
-test('a third-axis click replaces the pair and waits for a second selection; legacy volume states normalize',()=>{
+test('three axes can remain active and survive save validation',()=>{
  const w=emptyWorld(),a=addStructure(w,[0,0,0],1),frame=focusNodeFrame(w,a.origin,[1,0,0],[0,1,0]);
- assert.deepEqual(activeWorldAxes(frame),[0,2]);toggleWorldAxis(w,frame.id,1);assert.deepEqual(activeWorldAxes(frame),[1]);toggleWorldAxis(w,frame.id,2);assert.deepEqual(activeWorldAxes(frame),[1,2]);
- frame.activeAxes=[0,1,2];validateWorld(w);assert.deepEqual(frame.activeAxes,[0,2]);
+ assert.deepEqual(activeWorldAxes(frame),[0,2]);toggleWorldAxis(w,frame.id,1);assert.deepEqual(activeWorldAxes(frame),[0,1,2]);toggleWorldAxis(w,frame.id,2);assert.deepEqual(activeWorldAxes(frame),[0,1]);
+ frame.activeAxes=[0,1,2];validateWorld(w);assert.deepEqual(frame.activeAxes,[0,1,2]);
 });
 
 test('empty-space projection uses the active plane and a stable plane for a single axis',async()=>{
  const {projectionAxis}=await import('../src/core/axes.ts');const frame={x:[1,0,0],y:[0,1,0],z:[0,0,1]};
  for(const [active,expected]of [[[0,1],2],[[0,2],1],[[1,2],0]])assert.equal(projectionAxis({...frame,activeAxes:active},[0,-1,-1]),expected);
- assert.equal(projectionAxis({...frame,activeAxes:[0]},[0,-1,0]),1);
+ assert.equal(projectionAxis({...frame,activeAxes:[0]},[0,-1,0]),1);assert.equal(projectionAxis({...frame,activeAxes:[0,1,2]},[0,-1,0]),1);
 });

@@ -9,11 +9,6 @@ export function radialSlotCapacity(radius:number,diameter:number){
  return Math.max(1,Math.floor(Math.PI/Math.asin(diameter/(2*radius))+1e-9));
 }
 
-/** Only a mark beyond the current outer rim unlocks the next order. */
-export function canAddMathematicalRing(orders:number,markedOrders:readonly number[],limit=4){
- return orders<limit&&markedOrders.includes(orders);
-}
-
 export type MathematicalStrokeSlot={key:string;x:number;y:number;radius:number};
 /** Segment hits prevent fast pointer moves skipping slots. Preserves identity if unchanged. */
 export function fillMathematicalSlots(selected:readonly string[],slots:readonly MathematicalStrokeSlot[],from:{x:number;y:number},to:{x:number;y:number}):readonly string[]{
@@ -69,6 +64,7 @@ export function mathematicalValueSession<T>(value:T,equal:(a:T,b:T)=>boolean=(a,
   preview(next:T){expected=next;sampling=true;return next;},
   commit(next:T){committed=expected=received=next;sampling=false;return next;},
   restore(){expected=committed;sampling=false;return committed;},
+  get committed(){return committed;},
   get sampling(){return sampling;},
   get expected(){return expected;},
  };
@@ -87,3 +83,45 @@ export function mathematicalSlotScrub(keys:readonly string[],originX:number,init
  const start=Math.max(0,Math.min(keys.length-1,initialIndex));
  return (x:number)=>!keys.length||!Number.isFinite(x)||Math.abs(x-originX)<3?undefined:keys[Math.max(0,Math.min(keys.length-1,start+Math.round((x-originX)/pixelsPerSlot)))];
 }
+
+export type MathematicalScaleMode='value'|'halving'|'doubling'|'division';
+/** Each exponent is applied to the frozen input, never to the previous sample. */
+export function mathematicalScaleValue(anchor:number,count:number,mode:Exclude<MathematicalScaleMode,'value'>){
+ if(!Number.isFinite(anchor)||!Number.isSafeInteger(count)||count<0)return NaN;
+ if(mode==='division')return count>0?anchor/count:NaN;
+ if(count>2048)return NaN;
+ let value=anchor;for(let i=0;i<count;i++)value*=mode==='halving'?.5:2;return value;
+}
+export function mathematicalScaleMaximum(anchor:number,mode:Exclude<MathematicalScaleMode,'value'>,domain:MathematicalDomain){
+ if(!Number.isFinite(anchor)||anchor===0)return 0;
+ if(mode==='division'){const boundary=anchor>0?Math.max(0,domain.min):Math.max(0,-domain.max);return Math.max(0,Math.min(Number.MAX_SAFE_INTEGER,domain.integer?Math.floor(Math.abs(anchor)):Number.MAX_SAFE_INTEGER,boundary>0?Math.floor(Math.abs(anchor)/boundary):Number.MAX_SAFE_INTEGER));}
+ if(!mathematicalValueAllowed(anchor,domain))return 0;
+ let value=anchor,count=0;while(count<2048){const next=value*(mode==='halving'?.5:2);if(next===0||next===value||!mathematicalValueAllowed(next,domain))break;value=next;count++;}return count;
+}
+export function mathematicalValueRejection(value:number,domain:MathematicalDomain){
+ if(!Number.isFinite(value))return 'Enter a finite number.';
+ if(value<domain.min)return `Minimum value is ${domain.min}.`;
+ if(value>domain.max)return `Maximum value is ${domain.max}.`;
+ if(Math.abs(value)>Number.MAX_SAFE_INTEGER)return 'Value exceeds safe numeric precision.';
+ if(domain.integer&&!Number.isSafeInteger(value))return 'This value must be a whole number.';
+ return undefined;
+}
+/** Draw only rings containing committed marks. The next band remains interactive without a rim. */
+export function mathematicalRingOrders(keys:readonly string[],limit=Number.MAX_SAFE_INTEGER){return Math.min(limit,Math.max(1,...keys.map(key=>Number(key.split(':')[0])+1)));}
+
+export function mathematicalScaleRejection(anchor:number,count:number,mode:Exclude<MathematicalScaleMode,'value'>,domain:MathematicalDomain){
+ const name=mode==='halving'?'halves':mode==='division'?'divisor':'doublings';
+ if(mode==='division'&&count<1)return 'Use a positive whole-number divisor.';
+ if(!Number.isSafeInteger(count)||count<0)return `Use a non-negative whole number of ${name}.`;
+ const maximum=mathematicalScaleMaximum(anchor,mode,domain);
+ if(count>maximum)return `Maximum ${name} is ${maximum}. ${domain.integer?'The next result would be fractional or outside the allowed range.':'The next result is outside the allowed range.'}`;
+ return mathematicalValueRejection(mathematicalScaleValue(anchor,count,mode),domain);
+}
+export function mathematicalLimitsRejection(min:number,max:number,domain:MathematicalDomain){
+ if(!Number.isFinite(min)||!Number.isFinite(max))return 'Limits must be finite numbers.';
+ if(min>max)return 'Minimum cannot exceed maximum.';
+ return mathematicalValueRejection(min,domain)??mathematicalValueRejection(max,domain);
+}
+
+/** Refinement may receive a unit/period; enlargement starts from the current value. */
+export function mathematicalScaleAnchor(mode:Exclude<MathematicalScaleMode,'value'>,current:number,received?:number){return mode==='doubling'?current:received??current;}

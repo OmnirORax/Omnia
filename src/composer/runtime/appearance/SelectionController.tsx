@@ -28,10 +28,9 @@ export function SelectedProperties({ parts, scope = "selection", selectedPropert
         const applicable = targets.filter(target => target.properties?.includes(id));
         const editable = parts.filter(part => editablePart(part, id));
         const values = applicable.map(target => read(target, id));
-        const kinds = [...new Set(applicable.flatMap(target => target.effectKinds ?? []))];
         const mixed = new Set(values).size > 1;
         return <div className="selection-property-editor">
-          <PropertyEditor previewTargets={editable.map(selectedPartTarget)} property={id} label={`Selected ${id}`} value={values[0]} effectKinds={kinds.length ? kinds : undefined}
+          <PropertyEditor previewTargets={editable.map(selectedPartTarget)} property={id} label={`Selected ${id}`} value={values[0]}
             disabled={ctx.safe || !editable.length} onPreview={value => change(id, value, true)} onCommit={value => change(id, value, false)} />
           <small>{mixed ? "Mixed values · " : ""}{editable.length} applicable{applicable.length > editable.length ? ` · ${applicable.length - editable.length} locked or bypassed` : ""}</small>
         </div>;

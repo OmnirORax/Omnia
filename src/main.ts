@@ -1,3 +1,8 @@
+import {bindColorSession} from './ui/colorSession.ts';
+import {SYSTEM_MESSAGE} from './ui/systemMessage.ts';
+import {DEFAULT_ORIGIN_DIRECTIONS,type OriginDirections} from './core/originDirections.ts';
+import {ARROW_NUDGES} from './world/axisNudge.ts';
+import {selectionLatch} from './ui/selectionLatch.ts';
 import {capturingShortcut} from './ui/shortcuts.ts';
 import {installPointerBindings,pointerActivation} from './ui/pointerBindings.ts';
 import {nativeLayout,nativeAppearance} from './composer/runtime/historyBridge.ts';
@@ -7,13 +12,11 @@ import {reconnectBinder} from './core/connections';
 import {WORLD_GESTURES,DOCUMENT_GESTURES} from './ui/gestureShortcuts';
 import {shortcuts,installShortcutCapture,normalizeShortcut,shortcutEvent,worldBinding,worldShortcutId,matchesShortcut,type ShortcutDefinition} from './ui/shortcuts';
 import {shortcutWindow} from './ui/shortcutWindow';
-import {applyGroupTargets} from './core/groupPlacement';
-import {shortcutContextFor,assignedShortcuts,installContextActions,registerContextActions,refreshContextActions} from './ui/contextActions';
-import {aimFrame,activeWorldAxes,createAxis,toggleWorldAxis,shiftAxisOrigin,setSpatialOrigin,slotNode} from './core/axes.ts';
+import {selectionCenter,applyGroupTargets} from './core/groupPlacement';
+import {controlShortcutDefinitions,registerControlShortcutCatalog,shortcutContextFor,assignedShortcuts,installContextActions,registerContextActions,refreshContextActions} from './ui/contextActions';
+import {aimFrame,axisCenter,activeWorldAxes,createAxis,toggleWorldAxis,shiftAxisOrigin,setSpatialOrigin,slotNode} from './core/axes.ts';
 import {parseBrush,brushShape,SINGLE_BRUSH,type Brush} from './core/brush.ts';
 import {handleContentViewShortcut} from './ui/contentViewShortcut.ts';
-import {ANIMATION_TARGETS,animationProperties} from './properties/animations.ts';
-import {animationValue} from './world/animations.ts';
 import {createImmersiveMode,handleImmersiveShortcut,type KeyboardLock} from './ui/immersiveMode.ts';
 import {createSettingsCatalog} from './ui/settingsCatalog.ts';
 import {installBrowserShortcutGuard,browserShortcutsEnabled,enableBrowserShortcuts} from './ui/browserShortcuts.ts';
@@ -31,7 +34,7 @@ import {installCursorTracking,cursorPosition} from './composer/runtime/ui/cursor
 import {installValueDrag} from './ui/valueDrag.ts';
 import {closeActiveWindow} from './ui/windowDismissal.ts';
 import {uiPointerHeld} from './composer/runtime/ui/pointerOwnership.ts';
-import {universalHistory,globalHistoryOptions,travelGlobalHistory} from './core/universalHistory.ts';
+import {universalHistory,travelGlobalHistory} from './core/universalHistory.ts';
 import {installHistoryBindings} from './ui/historyBindings.ts';
 import { transformNodes } from './core/navigation.ts';
 import {NAV_DEFAULTS,NAVIGATION_PROPERTIES,type NavigationOptions} from './navigation/options.ts';
@@ -70,13 +73,14 @@ installPointerBindings(()=>view?.inputContext==='rotate'?'world':view?.inputCont
 installReleaseShortcuts(event=>{
  if(capturingShortcut())return false;
  if(/^(Control|Shift|Alt|Meta|AltGraph)$/.test(event.key)||event.isComposing)return false;
+ if(matchesShortcut(event,worldBinding('Ctrl+S')))return true;
  if(event.target instanceof Element&&event.target.closest('button,a[href]')&&(event.key==='Enter'||event.key===' '))return false;
  const element=event.target instanceof Element?event.target:undefined,editor=element?.closest('.cm-editor'),typing=element?.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"]),[role="textbox"]');
  if(element?.closest('input,textarea,select')||typing&&!editor)return matchesShortcut(event,worldBinding('Esc'));
  if(editor&&(event.ctrlKey||event.metaKey)&&!event.altKey&&/^[cxv]$/i.test(event.key))return false;
  if(editor&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&/^(Arrow|Home|End|Page)/.test(event.key))return false;
  if(editor&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&event.key!=='Escape'&&!/^F\d+$/.test(event.key)&&!Object.values(shortcuts.getSnapshot().Document??{}).some(binding=>!!binding&&binding===shortcutEvent(event,'Document')))return false;
- if(element?.closest('canvas')&&/^Arrow/.test(event.key)&&!event.ctrlKey&&!event.metaKey&&!event.altKey)return false;
+ if(!typing&&!element?.closest('[data-input-owner]')&&Object.keys(ARROW_NUDGES).some(key=>matchesShortcut(event,worldBinding(key))))return false;
  if(!typing&&/^\d$/.test(event.key))return true;
  if(view?.selectingRange&&!typing&&matchesShortcut({...event,key:event.key,ctrlKey:false,metaKey:false,altKey:false,shiftKey:false} as KeyboardEvent,worldBinding('V')))return true;
  const omnic=!!element&&shortcutContextFor(element)==='Omnic';
@@ -90,11 +94,12 @@ installBrowserShortcutGuard();
 installValueDrag();
 installCursorTracking();
 const element = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
-const tools = element('tools'), status = element('status'), search = element<HTMLInputElement>('find');
+const tools = element('tools'), status = element('status'), search = document.createElement('input');
+search.id='find';search.type='search';search.placeholder='Find nodes…';search.setAttribute('aria-label','Find nodes');search.autocomplete='off';
 type Target = Origin | Edge;
 const isNode = (target: Target): target is Origin => 'born' in target;
 const selection = createSelection<Target>((a, b) => isNode(a) && isNode(b) ? sameOrigin(a, b) : !isNode(a) && !isNode(b) && JSON.stringify(a) === JSON.stringify(b));
-const selectedOrigins = () => selection.values.filter(isNode);
+const selectedOrigins = () => selection.targets.filter(isNode);
 const storage = { getItem: (key: string) => localStorage.getItem(key), setItem: (key: string, value: string) => localStorage.setItem(key, value) };
 const store = createStore(storage,universalHistory);
 let disposeTools:(()=>void)|undefined;
@@ -106,16 +111,17 @@ reloadModuleButton.onclick=()=>{flushLiveForms();location.reload();};status.repl
 const loadEditor=<T,>(load:()=>Promise<T>)=>loadEditorModule(load,()=>{reloadForModule=true;});
 const key = (origin: Origin) => JSON.stringify(origin);
 function feedback(text: string) { message = text; refresh(); }
-function attempt(action: () => void) { try { universalHistory.transaction(action); } catch (error) { feedback(error instanceof Error ? error.message : String(error)); } }
-function renderClose() { disposeTools?.();disposeTools=undefined;tools.hidden = true; view?.update(store.world, selectedOrigins(), shown, selection.values.filter((target): target is Edge => !isNode(target))); }
+window.addEventListener(SYSTEM_MESSAGE,event=>feedback((event as CustomEvent<string>).detail));
+function attempt(action: () => void) { try { universalHistory.transaction(()=>{view?.commitSelection();action();}); } catch (error) { feedback(error instanceof Error ? error.message : String(error)); } }
+function renderClose() { disposeTools?.();disposeTools=undefined;tools.hidden = true;updateUIAppearance(store.world.appearance);for(const document of documents.values())document?.previewAppearance(store.world); view?.update(store.world, selectedOrigins(), shown, selection.targets.filter((target): target is Edge => !isNode(target))); }
 function close(){if(viewHistory.rendering){renderClose();return;}viewHistory.hideMenu();}
 const menuFactories=new Map<string,(args:unknown[])=>void>();
-function defineMenu<Args extends unknown[]>(kind:string,render:(...args:Args)=>void,atCursor=false){
+function defineMenu<Args extends unknown[]>(kind:string,render:(...args:Args)=>void,atCursor=false,dismissOnOutside=true){
  menuFactories.set(kind,args=>render(...args as Args));
- return(...args:Args)=>{if(viewHistory.rendering){render(...args);return;}if(atCursor)menuPoint={...cursorPosition()};viewHistory.menu({kind,args,point:{...menuPoint},selection:selection.values as Target[]});};
+ return(...args:Args)=>{if(viewHistory.rendering){render(...args);return;}if(atCursor)menuPoint={...cursorPosition()};viewHistory.menu({kind,args,dismissOnOutside,point:{...menuPoint},selection:selection.targets as Target[]});};
 }
-function pick(origin: Origin, extend = false, toggle = false) { universalHistory.activeContext=`node:${key(origin)}`;universalHistory.contextPath=['omnium',universalHistory.activeContext]; selection.pick(origin, extend, toggle); refresh(); }
-function selectedNodes(world: World) { return world.nodes.filter(node => selection.has(node.origin)); }
+function pick(origin: Origin, extend = false, toggle = false) { universalHistory.activeContext=`node:${key(origin)}`;universalHistory.contextPath=['omnium',universalHistory.activeContext]; selection.pick(origin, extend, toggle);followSelectionOrigin();refresh(); }
+function selectedNodes(world: World) { const ids=new Set(selectedOrigins().map(key));return world.nodes.filter(node=>ids.has(key(node.origin))); }
 const view = (() => {
   try {
     return createWorld(element('world'), {
@@ -125,24 +131,24 @@ const view = (() => {
       committedSelection:()=>selection.committed.filter(isNode),
       hover(origin,edge){selection.hover(edge??origin);return selectedOrigins();},
       pick, picking: () => selection.requesting,
-      range(origins, extend) { if (!selection.requesting) { selection.set(extend ? [...selection.committed.filter(isNode), ...origins] : origins); refresh(); } },
-      clear() { if (selection.requesting) return; close(); selection.clear(); refresh(); },
-      menu(origin, point, position, edge) { if (selection.requesting) {if(edge)selection.cancel();else return;} message = ''; if(edge)selection.set([edge]);else if(origin)selection.set(selection.has(origin)?selectedOrigins():[origin]);else selection.clear(); menuPoint = point; refresh(); context(position,origin,edge); },
+      range(origins, extend) { if (!selection.requesting) { selection.hover(undefined);selection.set(extend ? [...selection.committed.filter(isNode), ...origins] : origins);followSelectionOrigin();refresh(); } },
+      clear() { if (selection.requesting) return; viewHistory.hideMenu(true); selection.clear(); refresh(); },
+      menu(origin, point, position, edge) { if (selection.requesting) {if(edge)selection.cancel();else return;} message = ''; if(edge)selection.set([edge]);else if(origin)selection.set(selection.has(origin)?selectedOrigins():[origin]);else if(selection.committed.length<2)selection.clear(); menuPoint = point; refresh(); context(position,origin,edge); },
       navigationSettings:()=>openNavigation(),
       rotateCommit(nodes,frame){store.change(world=>{if(nodes.size){applyGroupTargets(world,new Map([...nodes].map(([id,n])=>[id,n.position])));for(const node of world.nodes){const next=nodes.get(key(node.origin));if(next)node.orientation={...next.orientation};}}if(frame){const found=world.axes?.find(f=>f.id===frame.id);if(!found&&frame.id==='@user'){const basis=view!.frameBasis();const created=setSpatialOrigin(world,undefined,frame.state.origin,basis.right,basis.up);Object.assign(created,frame.state,{directed:true});}else if(!found)throw Error('The frame was removed.');else Object.assign(found,frame.state,{directed:true});}});},
       transform(origins,rotation,pivot,layout){store.change(world=>transformNodes(world,origins,rotation,pivot,layout));},
-      groupMove(targets){store.change(world=>applyGroupTargets(world,targets));},
-      move(origins, delta) { store.change(world => translate(view!.operationWorld(world), origins, delta)); },
+      groupMove(targets){store.change(world=>{applyGroupTargets(world,targets);});followSelectionOrigin();},
+      move(origins, delta) { store.change(world => {translate(view!.operationWorld(world), origins, delta);});followSelectionOrigin(); },
       connectDrag(source,target,position){let child:Origin|undefined;store.change(world=>{child=connectNodes(world,source,target,position);});if(child)selection.set([child]);refresh();},
       adopt(origins, owner, delta) { store.change(world => adoptNodes(view!.operationWorld(world), origins, owner, delta)); },
-      park(origin, position,origins) { message = ''; store.change(world => {const node=locate(world,origin)!;translate(view!.operationWorld(world),origins,position.map((v,i)=>v-node.position[i]) as Vec3);}); return store.world; },
-      paint(positions,source,axis,parent){store.change(world=>paintNodes(world,positions,source,axis,parent));},
+      park(origin, position,origins) { message = ''; store.change(world => {const node=locate(world,origin)!;translate(view!.operationWorld(world),origins,position.map((v,i)=>v-node.position[i]) as Vec3);});followSelectionOrigin(); return store.world; },
+      paint(positions,source,axis,parent){store.change(world=>{paintNodes(world,positions,source,axis,parent);});},
       selectionOrigin(ids,position){assignOrigin(ids[0],position);},
       nodeOrigin(origin){assignOrigin(origin,locate(store.world,origin)!.position);},
       origin(id,position){const frame=store.world.axes?.find(frame=>frame.id===id)??view?.reference;if(frame)assignOrigin(frame.ends[0],position);},
-      aimOrigin(){aimOrigin();},
+      aimOrigin(target){aimOrigin(target);},
       axis(first,second,up){store.change(world=>{createAxis(world,first,second,up);});selection.clear();refresh();},
-      slot(origins,axis,point){store.change(world=>slotNode(view!.operationWorld(world),origins[0],axis,point,origins));},
+      slot(origins,axis,point){store.change(world=>{slotNode(view!.operationWorld(world),origins[0],axis,point,origins);});},
       toggleWorldAxis(id,axis){if(view?.toggleReferenceAxis(id,axis))return;store.change(world=>toggleWorldAxis(world,id,axis));},
       focusAxis(id){selection.clear();store.change(world=>{world.activeAxis=id;});},
       connect(origin){connectNode(origin);},
@@ -154,7 +160,11 @@ const view = (() => {
   } catch { status.textContent = 'The 3D renderer could not start. WebGL is required; your saved world is preserved.'; return undefined; }
 })();
 
-function refresh() {
+function previewPaint(target:VisualTarget,origins:readonly Origin[],patch?:Paint){
+ const candidate=view?.previewPaint(target,origins,patch)??store.world;updateUIAppearance(candidate.appearance);
+ for(const document of documents.values())document?.previewAppearance(candidate);
+}
+function refresh(reason?:'document') {
   refreshContextActions();
   requestFormSync();
   updateUIAppearance(store.world.appearance);
@@ -164,15 +174,13 @@ function refresh() {
   shown = query ? new Set(store.world.nodes.filter(node => node.label.toLocaleLowerCase().includes(query)).map(node => key(node.origin))) : atlas;
   if(atlas&&shown)shown=new Set([...shown].filter(id=>atlas.has(id)));
   selection.retain(target => isNode(target) ? !!locate(store.world, target) : target.kind === 'part' ? !!locate(store.world, target.owner)?.parts[target.index] : target.kind === 'variant' ? !!locate(store.world,target.owner)?.variantOf : target.kind==='child'?!!locate(store.world,target.child)?.parent&&sameOrigin(locate(store.world,target.child)!.parent!,target.owner):!!store.world.relationships?.[target.index]);
-  view?.update(store.world, selectedOrigins(), shown, selection.values.filter((target): target is Edge => !isNode(target)));
+  if(reason==='document')view?.documentChanged(store.world);else view?.update(store.world, selectedOrigins(), shown, selection.targets.filter((target): target is Edge => !isNode(target)));
   element('empty').hidden = store.world.nodes.length > 0;
-  element<HTMLButtonElement>('undo').disabled = universalHistory.candidates('undo',globalHistoryOptions()).length===0;
-  element<HTMLButtonElement>('redo').disabled = universalHistory.candidates('redo',globalHistoryOptions()).length===0;
   if (view){statusText.data=store.message||message;reloadModuleButton.hidden=!reloadForModule;}
 }
 store.subscribe(refresh);
 store.subscribeReplace(()=>view?.restoreCamera(store.world.camera));
-universalHistory.subscribe(()=>{requestFormSync();element<HTMLButtonElement>('undo').disabled=universalHistory.candidates('undo',globalHistoryOptions()).length===0;element<HTMLButtonElement>('redo').disabled=universalHistory.candidates('redo',globalHistoryOptions()).length===0;});
+universalHistory.subscribe(requestFormSync);
 function open(title: string,scopeSearch?:(query:string)=>void,globalOnly=false) {
   disposeTools?.();disposeTools=undefined;tools.replaceChildren(); tools.hidden = false;
   const row = document.createElement('div'); row.className = 'title';
@@ -191,7 +199,7 @@ function open(title: string,scopeSearch?:(query:string)=>void,globalOnly=false) 
   };
   find.oninput = filter;
   find.onkeydown = event => { if (event.key === 'Enter') { const match = Array.from(tools.children).find(item => item instanceof HTMLButtonElement && !item.hidden) as HTMLButtonElement | undefined; if (match) { event.preventDefault(); match.click(); } } };
-  const searchRow=document.createElement('div');searchRow.className='menu-searches';searchRow.append(find);if(!globalOnly){const globalFind=document.createElement('input');globalFind.type='search';globalFind.placeholder='Global search…';globalFind.setAttribute('aria-label','Global search');let globalRender:ReturnType<typeof searchRenderer>|undefined;globalFind.oninput=()=>{if(globalFind.value.trim()){globalRender??=searchRenderer(globalResults);globalRender(globalFind.value);}else globalResults.replaceChildren();positionMenu();};searchRow.append(globalFind);}tools.append(searchRow,globalResults);
+  const searchRow=document.createElement('div');searchRow.className='menu-searches';searchRow.append(find);if(!globalOnly){const globalFind=document.createElement('input');globalFind.type='search';globalFind.placeholder='Global search…';globalFind.setAttribute('aria-label','Global search');let globalRender:ReturnType<typeof searchRenderer>|undefined;globalFind.oninput=()=>{if(globalFind.value.trim()){globalRender??=searchRenderer(globalResults);globalRender(globalFind.value);}else globalResults.replaceChildren();positionMenu();};searchRow.prepend(globalFind);}tools.append(searchRow,globalResults);
   requestAnimationFrame(() => { if (!find.isConnected) return; filter(); });
   positionMenu();return find;
 }
@@ -227,14 +235,17 @@ const editCapability=defineMenu('capability',(capabilityKey: string)=>{
       if (node.variantOf) node.overrides = [...new Set([...(node.overrides ?? []), ...coupled.properties.map(binding => binding.property.key)])];
     }
   };
-  liveForm(form, group => attempt(() => store.change(apply, group)));
+  liveForm(form, group => attempt(() => store.change(apply, group)),()=>{close();view?.focusInput();});
   watchFields(form,inputs.map((input,index)=>({input,read:()=>{const node=locate(store.world,origins[0]);if(!node)return undefined;if(capabilityKey==='move'&&origins.length>1)return node.position[index]-start[index];return capabilities(resolveNodeSettings(store.world,inherited(node,store.world))).find(c=>c.key===capabilityKey)?.properties[index].read();}})));
   tools.append(form); positionMenu(); inputs[0].focus(); if (inputs[0].type === 'text') inputs[0].select();
 });
+function changeOriginDirections(next:OriginDirections){store.change(world=>{const frame=view?.reference;if(!frame)return;const saved=world.axes?.find(f=>f.id===frame.id);if(saved)saved.directions=structuredClone(next);else world.userDirections=structuredClone(next);});}
+const openOriginDirections=defineMenu('origin-directions',()=>{if(!view)return;open('Origin directions');const host=document.createElement('div');tools.append(host);void loadEditor(()=>import('./ui/originDirections.tsx')).then(({mountOriginDirections})=>{if(!host.isConnected)return;disposeTools=mountOriginDirections(host,()=>view!.reference,store.subscribe,changeOriginDirections,()=>store.world);positionMenu();}).catch(error=>feedback(String(error)));positionMenu();},false,false);
+function toggleOriginSymmetry(){if(!view)return;const directions=view.reference.directions??DEFAULT_ORIGIN_DIRECTIONS;changeOriginDirections({...directions,symmetry:!directions.symmetry});openOriginDirections();}
 function editLabel(){
- const edge=selection.values.find((target):target is Edge=>!isNode(target));if(edge){edgeContext(edge);const input=tools.querySelector<HTMLInputElement>('form input[type=text]');input?.focus();input?.select();return;}
+ const edge=selection.targets.find((target):target is Edge=>!isNode(target));if(edge){edgeContext(edge);const input=tools.querySelector<HTMLInputElement>('form input[type=text]');input?.focus();input?.select();return;}
  const hovered=view?.hoveredOrigin;view?.cancel();
- if(hovered&&!selection.has(hovered))pick(hovered);
+ if(hovered&&selectedOrigins().length<2&&!selection.has(hovered))pick(hovered);
  if(!selectedOrigins().length){feedback('Point to or select a node to name.');return;}
  editCapability('label');
 }
@@ -256,7 +267,8 @@ function reference(mode: Binding['mode']) {
   });
   message = 'Choose a component · Esc cancels'; refresh();
 }
-function assignOrigin(anchor:Origin|undefined,position:Vec3){const basis=view!.frameBasis(),axes=[...activeWorldAxes(view!.reference)];store.change(world=>{const frame=setSpatialOrigin(world,anchor,position,basis.right,basis.up);frame.activeAxes=axes;});}
+function followSelectionOrigin(){const group=selection.committed.filter(isNode);if(group.length>1)assignOrigin(group[0],selectionCenter(store.world,group));}
+function assignOrigin(anchor:Origin|undefined,position:Vec3){const basis=view!.frameBasis(),axes=[...activeWorldAxes(view!.reference)],directions=view!.reference.directions;store.change(world=>{const frame=setSpatialOrigin(world,anchor,position,basis.right,basis.up);frame.activeAxes=axes;delete frame.packing;if(directions)frame.directions=structuredClone(directions);});}
 function focusSelection(){view?.positionUser();}
 function relationFrame(origin?:Origin){
  const world=store.world,active=world.axes?.find(frame=>frame.id===world.activeAxis),anchor=origin??active?.ends[0];
@@ -265,7 +277,8 @@ function relationFrame(origin?:Origin){
 function enterNodePerspective(origin:Origin){
  const relation=relationFrame(origin);if(!view||!relation)return;view.enterNode(origin,relation.id);
 }
-function aimOrigin(){const id=store.world.activeAxis;if(!id){feedback('Set an origin with O first.');return;}requestNode(target=>store.change(world=>aimFrame(world,id,target)));}
+function aimOrigin(target?:Origin){let id=store.world.activeAxis;if(!id&&view){const reference=view.reference,basis=view.frameBasis();store.change(world=>{const frame=setSpatialOrigin(world,undefined,axisCenter(world,reference),basis.right,basis.up);frame.activeAxes=[...activeWorldAxes(reference)];});id=store.world.activeAxis;}if(!id)return;const aim=(node:Origin)=>store.change(world=>aimFrame(world,id!,node));if(target){attempt(()=>aim(target));return;}requestNode(aim);}
+
 const openBrush=defineMenu('brush',()=>{
  open('Brush');let unit:Brush|undefined=store.world.brush?.unit;
  const form=document.createElement('form'),input=document.createElement('input'),count=document.createElement('output');input.type='text';input.setAttribute('aria-label','Brush geometry');input.placeholder='2×2×2 / sphere 2';
@@ -304,7 +317,7 @@ const chooseReference=defineMenu('include',()=>{
 });
 function remove() {
   store.change(world => {
-    for (const edge of selection.values.filter((value): value is Edge => !isNode(value)).sort((a,b) => ('index' in b?b.index:-1)-('index' in a?a.index:-1))) {
+    for (const edge of selection.targets.filter((value): value is Edge => !isNode(value)).sort((a,b) => ('index' in b?b.index:-1)-('index' in a?a.index:-1))) {
       if (edge.kind === 'relationship') world.relationships?.splice(edge.index,1);
       else if (edge.kind === 'variant') detachNode(world,edge.owner);
       else if(edge.kind==='child')detachNode(world,edge.child);
@@ -362,12 +375,6 @@ window.addEventListener('pagehide',()=>{void immersive.leave().catch(()=>{});});
 window.addEventListener('keydown',event=>{if(immersive.supported&&!browserShortcutsEnabled())handleImmersiveShortcut(event,()=>immersiveAction().run(),worldBinding('F11'));},true);
 window.addEventListener('keydown',event=>{if(immersive.phase==='active'&&event.code==='F4'&&(event.ctrlKey||event.metaKey)&&!browserShortcutsEnabled()){event.preventDefault();event.stopImmediatePropagation();}},true);
 const settingsCatalog=createSettingsCatalog<SearchSetting>();
-const animationSettings=settingsCatalog.define('animations',()=>ANIMATION_TARGETS.flatMap(target=>animationProperties(target.id).map(property=>({
- label:`Animations · ${target.label} · ${property.label}`,keywords:`appearance animation particles stars lightning text symbols effects ${target.id}`,
- definition:{...property,key:`${target.id}/${property.key}`},
- read:()=>animationValue(store.world.appearance?.animations,target.id,property.key),
- write:(world:World,value:Value)=>{world.appearance??={};world.appearance.animations??={};world.appearance.animations[target.id]??={};world.appearance.animations[target.id][property.key]=value;},
-}))));
 const worldSettings=settingsCatalog.define('world',()=>[
     {label:'Lattice scale',keywords:'world lattice',definition:{key:'latticeScale',label:'Lattice scale',kind:'number' as const,min:1e-9},read:()=>store.world.settings?.latticeScale??1,write:(world:World,value:string|number|boolean)=>{world.settings??={latticeScale:1,names:'expanded'};world.settings.latticeScale=Number(value);}},
     {label:'Content view',keywords:'world names labels glyph contents visibility contour expansion all on off focused selection v shortcut',definition:{key:'names',label:'Content view',kind:'toggle'},read:()=>store.world.settings?.names==='all',write:(world:World,value:Value)=>{world.settings??={latticeScale:1,names:'expanded'};world.settings.names=value?'all':'selection';}},
@@ -391,7 +398,7 @@ function searchSettingsEntries(){
   let nodeWorld=store.world,nodeCapabilities=selected?capabilities(resolveNodeSettings(store.world,inherited(selected,store.world))):[];
   const readNode=(key:string,index:number)=>{if(nodeWorld!==store.world){nodeWorld=store.world;const node=locate(nodeWorld,origins[0]);nodeCapabilities=node?capabilities(resolveNodeSettings(nodeWorld,inherited(node,nodeWorld))):[];}return nodeCapabilities.find(c=>c.key===key)?.properties[index].read();};
   const nodeEntries=selected?nodeCapabilities.flatMap(capability=>capability.properties.map((binding,index)=>({label:`${capability.label} · ${binding.property.label}`,keywords:'selected node',definition:binding.property,read:()=>readNode(capability.key,index),write:(world:World,value:string|number|boolean)=>{if(capability.key==='move'){const first=locate(world,origins[0]);if(first){const delta:Vec3=[0,0,0];delta[index]=Number(value)-first.position[index];translate(world,origins,delta);}return;}for(const origin of origins){const node=locate(world,origin);if(!node)continue;const target=capabilities(node).find(item=>item.key===capability.key);if(!target)continue;target.properties[index].write(String(value));if(node.variantOf)node.overrides=[...new Set([...(node.overrides??[]),binding.property.key])];}}}))):[];
-  const visualEntries=(['nodeDefaults','text','background',...(origins.length?['nodeText' as const,'nodes' as const]:[])] as const).flatMap(target=>(target==='nodeDefaults'||target==='nodes'?NODE_VISUAL_PROPERTIES.map(p=>({...p,key:p.id})):visualProperties(target==='text'||target==='nodeText')).map(definition=>({label:`${target} · ${definition.label}`,keywords:`eye appearance visuals ${target==='nodeDefaults'?'global nodes sphere body':''}`,definition,read:()=>readPaint(store.world,target,origins[0])[definition.key as keyof Paint]!,write:(world:World,value:string|number|boolean)=>writePaint(world,target,origins,{[definition.key]:value})})));
+  const visualEntries=(['nodeDefaults','text','background',...(origins.length?['nodeText' as const,'nodes' as const]:[])] as const).flatMap(target=>(target==='nodeDefaults'||target==='nodes'?NODE_VISUAL_PROPERTIES.map(p=>({...p,key:p.id})):visualProperties(target==='text'||target==='nodeText')).map(definition=>({label:`${target} · ${definition.label}`,keywords:`eye appearance visuals ${target==='nodeDefaults'?'global nodes sphere body':''}`,definition,preview:(value:Value|undefined)=>previewPaint(target,origins,value===undefined?undefined:{[definition.key]:value}),read:()=>readPaint(store.world,target,origins[0])[definition.key as keyof Paint]!,write:(world:World,value:string|number|boolean)=>writePaint(world,target,origins,{[definition.key]:value})})));
   const entries:SearchSetting[]=[
     ...nodeEntries,...visualEntries,
 
@@ -402,12 +409,12 @@ function searchSettingsEntries(){
   ];
   return entries;
 }
-type SearchSetting={label:string;keywords:string;definition:Property;read:()=>Value|undefined;write?:(world:World,value:Value)=>void;set?:(value:Value)=>void};
+type SearchSetting={label:string;keywords:string;definition:Property;read:()=>Value|undefined;write?:(world:World,value:Value)=>void;set?:(value:Value)=>void;preview?:(value:Value|undefined)=>void};
 type SearchAction={label:string;keywords:string;run:()=>void;available?:boolean};
 function spaceActions():SearchAction[]{
  const relation=relationFrame(),frame=view?.reference,active=!!store.world.activeAxis;
  return [
- {label:'Face node (Alt+Right click)',keywords:'world origin axes direction aim face align',run:aimOrigin,available:active},
+ {label:'Face origin toward node (Alt+Right click)',keywords:'world origin axes direction aim face align',run:aimOrigin,available:active},
  {label:'Brush (Shift+X)',keywords:'world paint cube sphere geometry recursive unit',run:openBrush},
  {label:'Coordinates (C)',keywords:'world cursor brush coordinates xy xyz readout labels',run:()=>view?.toggleCoordinates()},
  {label:'Position User (P)',keywords:'world camera node axis reference origin focus align',run:focusSelection,available:true},
@@ -417,15 +424,16 @@ function spaceActions():SearchAction[]{
  ...(frame?[0,1,2].map(axis=>({label:`${activeWorldAxes(frame).includes(axis)?'✓ ':''}${'XYZ'[axis]} axis`,keywords:'world active axes plane line volume constrain',run:()=>{if(!view?.toggleReferenceAxis(frame.id,axis))store.change(world=>toggleWorldAxis(world,frame.id,axis));}})):[]),
  ...([{label:`Selection depth · ${view?.selectionDepth??8}`,keywords:'selection volume box depth',run:()=>{const value=prompt('Selection depth',String(view?.selectionDepth??8));if(value!==null)view?.setSelectionDepth(Number(value));}}]),
  {label:'Shift origin…',keywords:'world plane origin elevation level offset xyz',available:active,run:()=>{const value=prompt('Origin shift: X Y Z','0 0 0');if(value===null)return;const offset=value.trim().split(/[ ,]+/).map(Number);if(offset.length!==3||offset.some(n=>!Number.isSafeInteger(n)))throw Error('Use three whole numbers.');store.change(world=>shiftAxisOrigin(world,world.activeAxis!,offset as Vec3));}},
- {label:'Unfocus frame',keywords:'world axis origin reference deactivate',run:()=>store.change(world=>{delete world.activeAxis;}),available:active},
- {label:'Release frame',keywords:'world axis origin reference remove constraints',run:()=>store.change(world=>{world.axes=world.axes?.filter(frame=>frame.id!==world.activeAxis);delete world.activeAxis;}),available:active},
+ {label:'Origin directions',keywords:'origin axes symmetry half unit dial placement',run:openOriginDirections},
+ {label:'Use User reference',keywords:'world axis origin reference deactivate',run:()=>store.change(world=>{delete world.activeAxis;}),available:active},
+ {label:'Delete origin frame',keywords:'world axis origin reference remove constraints',run:()=>store.change(world=>{world.axes=world.axes?.filter(frame=>frame.id!==world.activeAxis);delete world.activeAxis;}),available:active},
  ];
 }
 const openShortcuts=defineMenu('shortcuts',()=>{
  view?.cancel();let shortcutView:ReturnType<typeof shortcutWindow>|undefined;const find=open('Shortcuts',query=>shortcutView?.filter(query));let defaults:ShortcutDefinition[]=[],omnicDefaults:()=>ShortcutDefinition[]=()=>[],ready=false;
- const read=()=>{const native=worldShortcutActions(true).flatMap(action=>(action.defaultKey||action.key===''||action.id===worldShortcutId('R')||action.id===worldShortcutId('W')||action.id===worldShortcutId('O'))?[{category:'Omnium' as const,id:action.id,label:action.label,defaultKey:action.defaultKey,gesture:'gesture' in action?action.gesture:undefined}]:[]);
- const global:ShortcutDefinition[]=[['V','Content view'],['F11','Fullscreen'],['Esc','Cancel'],['.','Toggle actions'],['Ctrl+Z','Undo'],['Ctrl+Y','Redo'],['Ctrl+Shift+Z','Redo (alternate)'],['Enter','Apply alignment'],['ArrowUp','Navigator up'],['ArrowDown','Navigator down'],['ArrowLeft','Navigator left'],['ArrowRight','Navigator right']].map(([key,label])=>({category:'Omnium',id:worldShortcutId(key),defaultKey:key,label,scope:key==='F11'?'application':key.includes('Ctrl')||key==='.'?'applicationExceptDocument':undefined}));
- return [...new Map([...native,...global,...WORLD_GESTURES.map(item=>item.id==='gesture:hierarchy-contents'?{...item,gesture:worldBinding('V')&&worldBinding('Q')?`Hold ${worldBinding('V')} + ${worldBinding('Q')}`:''}:item),...DOCUMENT_GESTURES,...defaults,...omnicDefaults()].map(item=>[`${item.category}/${item.id}`,item])).values()].sort((a,b)=>a.label.localeCompare(b.label));};
+ const read=()=>{const native=worldShortcutActions(true).flatMap(action=>(action.defaultKey||action.key===''||action.id===worldShortcutId('R')||action.id===worldShortcutId('W')||action.id===worldShortcutId('O'))?[{category:'Omnium' as const,id:action.id,label:action.label,defaultKey:action.defaultKey,scope:action.scope,gesture:'gesture' in action?action.gesture:undefined}]:[]);
+ const global:ShortcutDefinition[]=[['V','Content view'],['F11','Fullscreen'],['Esc','Cancel'],['.','Toggle actions'],['Ctrl+Z','Undo'],['Ctrl+Y','Redo'],['Ctrl+Shift+Z','Redo (alternate)'],['Enter','Apply alignment'],['ArrowUp','Move along axes · up'],['ArrowDown','Move along axes · down'],['ArrowLeft','Move along axes · left'],['ArrowRight','Move along axes · right']].map(([key,label])=>({category:'Omnium',id:worldShortcutId(key),defaultKey:key,label,scope:key==='F11'?'application':key.includes('Ctrl')||key==='.'?'applicationExceptDocument':undefined}));
+ return [...new Map([...native,...global,...controlShortcutDefinitions(),...WORLD_GESTURES.map(item=>item.id==='gesture:hierarchy-contents'?{...item,gesture:worldBinding('V')&&worldBinding('Q')?`Hold ${worldBinding('V')} + ${worldBinding('Q')}`:''}:item),...DOCUMENT_GESTURES,...defaults,...omnicDefaults()].map(item=>[`${item.category}/${item.id}`,item])).values()].sort((a,b)=>a.label.localeCompare(b.label));};
  const root=document.createElement('div');root.className='shortcut-window';tools.append(root);const window=shortcutWindow(root,read,()=>ready,find);shortcutView=window;disposeTools=window.dispose;
  void Promise.all([import('./text/editor'),import('./composer/runtime/featureActions'),import('./composer/runtime/workspaceActions')]).then(([doc,features,workspace])=>{
  defaults=doc.documentShortcutCatalog();omnicDefaults=()=>features.FEATURE_ACTIONS.filter(action=>!action.id.startsWith('document.')&&!action.id.startsWith('world.')).flatMap(action=>{const key=normalizeShortcut(workspace.shortcutBinding(action.id,{})),current=normalizeShortcut(workspace.shortcutBinding(action.id,shortcuts.getSnapshot().Omnic??{}));return key||current?[{category:'Omnic' as const,id:action.id,label:action.label,defaultKey:key??'',currentKey:current??'',scope:action.scope}]:[];});ready=true;
@@ -435,7 +443,6 @@ function searchActions():SearchAction[]{return [
  {label:'Shortcuts',keywords:'keyboard shortcuts hotkeys keybindings controls bindings',run:openShortcuts},
  immersiveAction(),
  ...spaceActions(),
- {label:'Appearance · Animations',keywords:'appearance effects particles stars lightning electric text symbols animation',run:animations},
  ...SCENE_TABS.map(([tab,label])=>({label:`Scene · ${label}`,keywords:`scene ${tab} ${tab==='audio'?'system audio sound connect code import':tab==='image'?'wallpaper background import paste download library':tab==='normalization'?'normalization correction thresholds':''}`,run:()=>openScene(tab)})),
  ...VISUAL_TARGETS.map(([target,label])=>({label:`Visuals · ${label}`,keywords:`eye appearance visuals ${target==='nodeDefaults'?'global node sphere body':target==='text'?'font import typeface':target==='background'?'background ui surfaces':''}`,run:()=>openVisualSettings(target,[...selectedOrigins()],label),available:(target!=='nodes'&&target!=='nodeText')||!!selectedOrigins().length})),
  ...CAMERA_ACTIONS.map(([id,label])=>({label:`Camera · ${label}`,keywords:`camera navigation ${id}`,run:()=>view?.camera(id)})),
@@ -459,7 +466,7 @@ function searchActions():SearchAction[]{return [
 ];}
 function appendSetting(parent:HTMLElement,item:SearchSetting,label=item.definition.label){
  const form=document.createElement('form'),control=field({...item.definition,label},item.read()??'');form.append(control.row);parent.append(form);
- liveForm(form,group=>attempt(()=>{if(item.set)item.set(control.value());else store.change(world=>item.write!(world,control.value()),group);}));
+ if(control.input instanceof HTMLInputElement&&control.input.type==='color'&&item.preview){bindColorSession(control.input,{read:()=>String(item.read()),preview:value=>item.preview!(value),cancel:()=>item.preview!(undefined),commit:value=>attempt(()=>{if(item.set)item.set(value);else store.change(world=>item.write!(world,value));})});}else liveForm(form,group=>attempt(()=>{if(item.set)item.set(control.value());else store.change(world=>item.write!(world,control.value()),group);}));
  watchFields(form,[{input:control.input,read:item.read}]);
 }
 function searchRenderer(results:HTMLElement){
@@ -476,6 +483,22 @@ function searchRenderer(results:HTMLElement){
 }
 const searchSettings=defineMenu('search',()=>{
  const results=document.createElement('div');results.className='settings-search-results';const render=searchRenderer(results),input=open('Search',render,true);tools.append(results);if(input.value)render(input.value);input.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();results.querySelector<HTMLElement>('input,select,button:not(:disabled)')?.focus();}});positionMenu();input.focus();
+},true);
+let nodeSearchView:ReturnType<typeof panel>|undefined;
+const createNodeSearch=viewHistory.defineWindow('nodeSearch',()=>{
+ const window=panel('Find nodes',()=>{search.value='';nodeSearchView=undefined;refresh();});
+ nodeSearchView=window;window.root.classList.add('node-search-panel');window.body.append(search);
+ requestAnimationFrame(()=>{if(search.isConnected){search.focus();search.select();}});
+ return window;
+});
+function openNodeSearch(){
+ view?.cancel();close();
+ if(nodeSearchView?.root.isConnected){search.focus();search.select();return;}
+ createNodeSearch();
+}
+window.addEventListener('keydown',event=>{
+ if(capturingShortcut()||event.isComposing||event.defaultPrevented||!matchesShortcut(event,worldBinding('Ctrl+S')))return;
+ event.preventDefault();event.stopImmediatePropagation();if(!event.repeat)runWorldAction(worldShortcutId('Ctrl+S'));
 },true);
 let draftControl:HTMLButtonElement|undefined;
 let saveSharedDraft:(()=>Promise<void>)|undefined;
@@ -508,10 +531,7 @@ function openDocument(requested?:Origin,restore?:ViewSpec) {
   openingDocuments.add(id); const epoch = documentEpoch,actionId=universalHistory.currentActionId;
   void loadEditor(()=>import('./text/editor.ts')).then(({ editDocument }) => {
     if (epoch !== documentEpoch || !locate(store.world, origin)||restore&&!viewHistory.wants(restore)) return;
-    viewHistory.perform(()=>{const document=editDocument(origin, () => store.world, text => store.change(world => {
-      const node = locate(world, origin); if (!node) throw Error('This node was removed. Copy the document before closing.'); node.text = text;
-      if (node.variantOf) node.overrides = [...new Set([...(node.overrides ?? []), 'text'])];
-    }, `document:${id}`), feedback, () => documents.delete(id));documents.set(id,document);if(document)viewHistory.adopt(`document:${id}`,{kind:'document',args:[origin]},document,restore);},actionId);
+    viewHistory.perform(()=>{const document=editDocument(origin, () => store.world, text => store.changeDocument(origin,text,`document:${id}`), feedback, () => documents.delete(id));documents.set(id,document);if(document)viewHistory.adopt(`document:${id}`,{kind:'document',args:[origin]},document,restore);},actionId);
   }).catch(error => {viewHistory.failed(restore,error);feedback(error instanceof Error ? error.message : String(error));}).finally(() => openingDocuments.delete(id));
 }
 
@@ -520,7 +540,7 @@ function requestNode(accept: (target: Origin) => void) {
   message = 'Choose a node · Esc cancels'; refresh();
 }
 function connectNode(origin:Origin){
-  requestNode(target=>{if(key(origin)===key(target))throw Error('Choose another node.');store.change(world=>{world.relationships??=[];world.relationships.push({from:bind(locate(world,origin)!,'follow',world),to:bind(locate(world,target)!,'follow',world),label:'',kind:'relation'});});});
+  requestNode(target=>{if(key(origin)===key(target))throw Error('Choose another node.');store.change(world=>{connectNodes(world,origin,target);});});
   view?.connect(origin);
 }
 const nodeTools=defineMenu('nodeTools',()=>{
@@ -538,27 +558,13 @@ const openVisualSettings=defineMenu('visualSettings',(target:VisualTarget,origin
  open(title);
  if(target==='nodes'||target==='nodeDefaults'){
   const root=document.createElement('div');root.className='node-body-editor';tools.append(root);
-  void loadEditor(()=>import('./ui/nodeVisuals.tsx')).then(({nodeVisualEditor})=>{if(!root.isConnected)return;disposeTools=nodeVisualEditor(root,{read:()=>store.world,subscribe:store.subscribe,change:store.change,error:feedback},target,origins);positionMenu();}).catch(error=>feedback(String(error)));
- }else tools.append(paintForm(target,origins,()=>store.world,(edit,group)=>store.change(edit,group),feedback));positionMenu();
+  void loadEditor(()=>import('./ui/nodeVisuals.tsx')).then(({nodeVisualEditor})=>{if(!root.isConnected)return;disposeTools=nodeVisualEditor(root,{read:()=>store.world,subscribe:store.subscribe,change:store.change,error:feedback,preview:patch=>previewPaint(target,origins,patch)},target,origins);positionMenu();}).catch(error=>feedback(String(error)));
+ }else tools.append(paintForm(target,origins,()=>store.world,(edit,group)=>store.change(edit,group),feedback,patch=>previewPaint(target,origins,patch)));positionMenu();
 });
 const appearance=defineMenu('appearance',()=>{
   open('👁');
   button('Scene', openScene); button('World', worldControls);
   button('Visuals',visualTargets);
-  button('Animations',animations);
-});
-const animations=defineMenu('animations',()=>{
- open('Animations');
- for(const target of ANIMATION_TARGETS)button(target.label,()=>animationControls(target.id));
- button('All off',()=>store.change(world=>{world.appearance??={};world.appearance.animations=Object.fromEntries(ANIMATION_TARGETS.map(target=>[target.id,{...world.appearance?.animations?.[target.id],effect:'off'}]));}));
- positionMenu();
-});
-const animationControls=defineMenu('animationControls',(id:string)=>{
- const target=ANIMATION_TARGETS.find(target=>target.id===id);if(!target)return;
- open(target.label);
- for(const item of animationSettings().filter(item=>item.definition.key.startsWith(`${id}/`)))appendSetting(tools,item);
- button('Reset',()=>store.change(world=>{if(world.appearance?.animations)delete world.appearance.animations[id];}));
- positionMenu();
 });
 const visualTargets=defineMenu('visualTargets',()=>{
     open('👁 Visuals');
@@ -617,7 +623,7 @@ const edgeContext=defineMenu('edge',(edge: Edge)=>{
   const relation=edge.kind==='relationship'?store.world.relationships?.[edge.index]:undefined;
   if(relation && edge.kind === 'relationship'){
     const form=document.createElement('form'),label=field({key:'relation.label',label:'Label',kind:'text'},relation.label),kind=field({key:'relation.kind',label:'Type',kind:'text'},relation.kind);form.append(label.row,kind.row);
-    liveForm(form, group=>attempt(()=>store.change(world=>{const r=world.relationships![edge.index];r.label=String(label.value());r.kind=String(kind.value());}, group)));tools.append(form);
+    liveForm(form, group=>attempt(()=>store.change(world=>{const r=world.relationships![edge.index];r.label=String(label.value());r.kind=String(kind.value());}, group)),()=>{close();view?.focusInput();});tools.append(form);
     button('Reverse',()=>{store.change(world=>{const r=world.relationships![edge.index];[r.from,r.to]=[r.to,r.from];});close();});
     for(const [key,label] of [['from','Reconnect source…'],['to','Reconnect target…']] as const)button(label,()=>requestNode(target=>store.change(world=>{world.relationships![edge.index][key]=bind(locate(world,target)!,'follow',world);})));
   }else if(edge.kind==='part')button('Reconnect target…',()=>requestNode(target=>store.change(world=>{locate(world,edge.owner)!.parts[edge.index]=bind(locate(world,target)!,'follow',world);})));
@@ -626,15 +632,11 @@ const edgeContext=defineMenu('edge',(edge: Edge)=>{
   button('Remove (Del)',remove);positionMenu();
 });
 element('workspace').onclick = ()=>openWorkspace();
-element<HTMLButtonElement>('create').disabled = !view;
-element('create').onclick = () => view?.toggleCreation();
 function travelHistory(direction:'undo'|'redo'){
   const field=document.activeElement,editing=field instanceof HTMLInputElement||field instanceof HTMLTextAreaElement||field instanceof HTMLSelectElement;
   if(editing)field.blur();flushLiveForms();view?.cancel();selection.cancel();travelGlobalHistory(direction);
   if(editing&&field.isConnected)field.focus({preventScroll:true});refresh();
 }
-element('undo').onclick = () => travelHistory('undo');
-element('redo').onclick = () => travelHistory('redo');
 search.oninput = () => { close(); refresh(); };
 search.onkeydown = event => { if (event.key === 'Enter' && shown && !selection.requesting) { selection.set(store.world.nodes.filter(node => shown!.has(key(node.origin))).map(node => node.origin)); search.blur(); refresh(); } };
 tools.addEventListener('contextmenu', event => { event.preventDefault(); event.stopPropagation(); });
@@ -653,40 +655,44 @@ window.addEventListener('keydown',event=>{
   event.preventDefault();event.stopImmediatePropagation();message='';refresh();
 },true);
 function originShortcutBinding(){return shortcuts.get({category:'Omnium',id:worldShortcutId('O'),label:'Set origin',defaultKey:'X'});}
+function runWorldAction(id:string):void{attempt(()=>worldShortcutActions(true).find(action=>action.id===id)?.execute());}
 function worldShortcutActions(includeUnavailable=false){return [
  ...spaceActions().filter(action=>includeUnavailable||action.available!==false).map(action=>{const match=/^(.*?) \(([^)]+)\)$/.exec(action.label);return {label:match?.[1]??action.label,key:match?.[2],run:action.run};}),
  {id:worldShortcutId('O'),label:'Set origin',gesture:undefined,key:'X',run:()=>view?.pickOrigin()},
+ {label:'Toggle origin symmetry',key:'+',run:toggleOriginSymmetry},
  {label:'Expand/collapse hierarchy',key:'Q',run:()=>hierarchyShortcut()},
  {label:'Expand/collapse next level',key:'Shift+Q',run:()=>hierarchyShortcut(true)},
  {label:'Toggle contents facing camera',key:'F',run:()=>view?.toggleContentsFacing()},
  {id:worldShortcutId('R'),label:'Rotate node / orbit camera',gesture:'MB3, then move mouse',key:'',run:()=>view?.rotateHovered()},
  {id:worldShortcutId('move'),label:'Move selection / hovered',gesture:'Left click',key:'',run:()=>view?.moveHovered()},
  {label:'Mount hovered / dismount',key:'M',run:()=>view?.mountTarget()},
- {label:view?.userDetached?'Mount User':'Dismount User',key:'U',run:()=>view?.toggleUser()},
  {label:'Save workspace state',key:'5',run:()=>{
   flushLiveForms();view?.saveCamera();
-  const session={version:1 as const,views:viewHistory.snapshot(),layout:nativeLayout.getSnapshot(),appearance:nativeAppearance.getSnapshot(),details:navigationState.snapshot(),shortcuts:shortcuts.getSnapshot(),selection:[...selection.values]};
+  const session={version:1 as const,views:viewHistory.snapshot(),layout:nativeLayout.getSnapshot(),appearance:nativeAppearance.getSnapshot(),details:navigationState.snapshot(),shortcuts:shortcuts.getSnapshot(),selection:[...selection.targets]};
   store.change(world=>{world.session=structuredClone(session);});void saveSharedDraft?.();feedback('Workspace state saved locally.');
  }},
  {label:'Create nodes',key:'W',run:()=>view?.toggleCreation()},
  {label:'Search',key:'S',run:searchSettings},
+ {label:'Find nodes',key:'Ctrl+S',scope:'application',run:openNodeSearch},
  ...((includeUnavailable||selectedOrigins().length>1)?[{label:'Align selection',key:'I',run:()=>view?.alignSelection()}]:[]),
  ...((includeUnavailable||selectedOrigins().length||view?.hoveredOrigin)?[{label:'Document',key:'D',run:()=>openDocument()}]:[]),
  ...((includeUnavailable||selection.values.length)?[{label:'Remove',key:'Delete',run:remove}]:[]),
  {label:'Label',key:'L',run:editLabel},
- ].map(action=>{const defaultKey=action.key&&normalizeShortcut(action.key),id=('id' in action?action.id:undefined)??worldShortcutId(defaultKey??action.key??action.label);return {...action,id,defaultKey:defaultKey??'',run:action.run,key:normalizeShortcut(action.key??'')||action.key===''?shortcuts.get({category:'Omnium',id,label:action.label,defaultKey:defaultKey??''}):action.key};});}
+ ].map(action=>{const defaultKey=action.key&&normalizeShortcut(action.key),id=('id' in action?action.id:undefined)??worldShortcutId(defaultKey??action.key??action.label);return {...action,id,scope:'scope' in action?String(action.scope):undefined,defaultKey:defaultKey??'',execute:action.run,run:()=>runWorldAction(id),key:shortcuts.get({category:'Omnium',id,label:action.label,defaultKey:defaultKey??''})};});}
 installContextActions();
+registerControlShortcutCatalog(()=>worldShortcutActions(true).map(action=>({category:'Omnium',id:action.id,label:action.label,defaultKey:action.defaultKey,scope:action.scope})));
 registerContextActions({label:'Omnium',owns:element=>!!element.closest('#world,header'),read:()=>{
  const mode=view?.inputContext;
- if(mode==='rotate')return [{label:'Confirm rotation',key:'MB3'},{label:'Aim at node',key:'MB3 on node'},{label:'Rotate preview',key:'Move mouse'},{label:'Snap value',key:'0–9'},{label:'Cancel',key:'Esc'}];
- if(mode==='align')return [{label:'Rotate alignment axis',key:'Right drag'},{label:'Toggle axes',key:'Hold left + sweep'},{label:`Gap ${view?.alignmentGap??0} (0 = adjacent)`,key:'0–9'},{label:'Face origin toward node',key:'Alt + right click',run:aimOrigin},{label:'Apply alignment',key:'Enter'},{label:'Cancel',key:'Esc'}];
+ if(mode==='rotate')return [{label:'Confirm rotation',key:'MB3',run:()=>view?.confirmRotation()},{label:'Aim at node',key:'MB3 on node'},{label:'Rotate preview',key:'Move mouse'},{label:'Step settings · math dial',key:'Shift'},{label:'Cancel',key:'Esc',run:()=>view?.cancel()}];
+ if(mode==='align')return [{label:'Rotate alignment axis',key:'Right drag'},{label:'Toggle axes',key:'Hold left + sweep'},{label:`Gap ${view?.alignmentGap??0} (0 = adjacent)`,key:'0–9'},{label:'Face origin toward node',key:'Alt + right click',run:aimOrigin},{label:'Apply alignment',key:'Enter'},{label:'Cancel',key:'Esc',run:()=>view?.cancel()}];
  if(mode==='origin')return [{label:'Choose origin slot',key:'Click'},{label:'Cancel origin picker',key:'X / Esc'}];
  if(mode==='axis-first'||mode==='axis-second')return [{label:mode==='axis-first'?'Choose first axis node':'Choose second axis node',key:'Click'},{label:'Cancel axis picker',key:'Esc'}];
  if(mode==='create')return [{label:'Expand/collapse hierarchy',key:worldBinding('Q')},{label:'Pick up / place',key:'Click'},{label:'Rotate camera',key:'Shift + right drag'},{label:'Place nodes',key:'Click'},{label:'Paint nodes',key:'W, then Alt'},{label:'Toggle painting',key:'W, then Alt'},{label:'Exit creation',key:'W / Esc',run:()=>view?.toggleCreation()}];
  return [
+ {label:`Selection ${selectionLatch.depth?'depth':selectionLatch.control?'plane':selectionLatch.shift?'line':'off'}`,key:'Tap Ctrl / Shift'},
  ...worldShortcutActions(),
  {label:'Expand/collapse next level',key:worldBinding('Shift+Q')},{label:'Select in plane',key:'Ctrl + move'},{label:'Select along line',key:'Shift + move'},{label:'Select with depth',key:'Ctrl + Shift + move'},{label:'Expand/collapse hierarchy',key:worldBinding('Q')}, {label:'Pick up / place',key:'Click'},{label:'Rotate camera',key:'Shift + right drag'},{label:'Toggle painting',key:'W, then Alt'},{label:'Rotate node / orbit camera',key:'MB3, then move mouse'},{label:'Look / orbit empty space',key:'Right drag'},{label:'Undo',key:'Ctrl+Z',run:()=>travelHistory('undo')},{label:'Redo',key:'Ctrl+Y',run:()=>travelHistory('redo')},
- {label:'Cancel',key:'Esc'},{label:'Toggle actions',key:'.'}
+ {label:'Cancel',key:'Esc',run:()=>view?.cancel()},{label:'Toggle actions',key:'.'}
 ];}});
 document.addEventListener('keydown', event => {
   const editing = event.target instanceof Element && (!!event.target.closest('[data-input-owner]') || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement);
@@ -695,8 +701,8 @@ document.addEventListener('keydown', event => {
   if(selection.requesting&&selection.values.some(target=>!isNode(target))&&(matchesShortcut(event,worldBinding('Delete'))||matchesShortcut(event,worldBinding('L')))){event.preventDefault();selection.cancel();attempt(()=>matchesShortcut(event,worldBinding('Delete'))?remove():editLabel());return;}
   if(!event.ctrlKey&&!event.metaKey&&!event.altKey&&!matchesShortcut(event,worldBinding('5'))&&view?.userPositionKey(event.key)){event.preventDefault();return;}
   if(!event.defaultPrevented&&!event.repeat&&!selection.requesting){
-    const action=worldShortcutActions().find(action=>action.key&&matchesShortcut(event,action.key));
-    if(action){event.preventDefault();attempt(action.run);return;}
+    const action=worldShortcutActions(true).find(action=>action.key&&matchesShortcut(event,action.key));
+    if(action){event.preventDefault();action.run();return;}
   }
 
 
@@ -712,7 +718,8 @@ viewHistory.factory('scene',spec=>openScene((spec.args as SceneTab[])[0],spec));
 viewHistory.factory('document',spec=>openDocument((spec.args as Origin[])[0],spec));
 viewHistory.factory('composer',spec=>openComposer((spec.args as Origin[])[0],spec));
 installHistoryBindings({undo:()=>travelHistory('undo'),redo:()=>travelHistory('redo'),configure:openHistory,flush:flushLiveForms});
-shortcuts.subscribe(()=>{refreshContextActions();for(const control of document.querySelectorAll<HTMLButtonElement>('[data-immersive-mode]'))control.textContent=immersiveLabel();});
+shortcuts.subscribe(()=>{refreshContextActions();element('empty').querySelector('span')!.textContent=worldBinding('W')||'Create nodes';for(const control of document.querySelectorAll<HTMLButtonElement>('[data-immersive-mode]'))control.textContent=immersiveLabel();});
+element('empty').querySelector('span')!.textContent=worldBinding('W')||'Create nodes';
 refresh();
 
 // Builds share one draft; production retains its published starting state.

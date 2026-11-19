@@ -1,3 +1,4 @@
+import {selectionLatch} from './selectionLatch.ts';
 import {releaseShortcuts} from './releaseShortcuts.ts';
 import {shortcuts,capturingShortcut,type ShortcutDefinition} from './shortcuts.ts';
 import {pointerCombo} from './activationCombo.ts';
@@ -22,22 +23,24 @@ export const pointerActivation=()=>activeAction;
  * drag, preview, acceptance and cancellation lifecycle. */
 export function installPointerBindings(context:()=>string){
  const held=new Set<string>(),drags=new Map<number,{combo:string;id:string}>();
- window.addEventListener('keydown',event=>{if(event.key.length===1&&!event.repeat){held.add(event.key.toUpperCase());pressed.add(event.key.toUpperCase());}},true);
- window.addEventListener('keyup',event=>{held.delete(event.key.toUpperCase());pressed.delete(event.key.toUpperCase());},true);
- window.addEventListener('blur',()=>{held.clear();pressed.clear();drags.clear();activeAction=undefined;});
+ window.addEventListener('keydown',event=>{if(!capturingShortcut()&&!(event.target instanceof Element&&event.target.closest('input,textarea,select,[contenteditable],.cm-editor,[data-input-owner]'))){if(event.key==='Escape')selectionLatch.clear();else if(!event.repeat){if(['Control','Meta','Shift'].includes(event.key))selectionLatch.press(event.key);else selectionLatch.use();}}if(event.key.length===1&&!event.repeat){held.add(event.key.toUpperCase());pressed.add(event.key.toUpperCase());}},true);
+ window.addEventListener('keyup',event=>{selectionLatch.release(event.key);held.delete(event.key.toUpperCase());pressed.delete(event.key.toUpperCase());},true);
+ window.addEventListener('blur',()=>{selectionLatch.clear();held.clear();pressed.clear();drags.clear();activeAction=undefined;});
  const apply=(event:MouseEvent,combo:string)=>{if(!('activationPhysicalButton' in event))Object.defineProperty(event,'activationPhysicalButton',{value:event.button});const parts=combo.split('+'),button=parts.at(-1),values={ctrlKey:parts.includes('Ctrl'),metaKey:false,altKey:parts.includes('Alt'),shiftKey:parts.includes('Shift'),...(button?.startsWith('MB')?{button:button==='MB1'?0:button==='MB2'?2:1}:{})};for(const [key,value]of Object.entries(values))Object.defineProperty(event,key,{value,configurable:true});};
  window.addEventListener('pointerdown',event=>{
+  selectionLatch.use();
   if(capturingShortcut()||!(event.target instanceof Element)||event.target.closest('.shortcut-capture')||!event.target.closest('#world,.cm-content'))return;
   const doc=!!event.target.closest('.cm-content'),mode=doc?'document':context(),combo=pointerCombo(event,[...held]);if(!combo)return;
-  const binding=resolvePointerBinding(combo,mode);
+  const latched=!doc&&selectionLatch.active&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&held.size===0?POINTER_BINDINGS.find(d=>d.id===(selectionLatch.depth||event.shiftKey?'gesture:multi-depth':'gesture:multi-plane')):undefined;
+  const activation=latched&&shortcuts.get(latched);const binding=activation?.split('+').at(-1)===combo.split('+').at(-1)?{id:latched!.id,combo:latched!.defaultKey}:resolvePointerBinding(combo,mode);
   if(!binding){if(doc){apply(event,'MB1');return;}if(mode!=='world'&&mode!=='create'&&mode!=='align')return;event.preventDefault();event.stopImmediatePropagation();return;}
   if(binding.id==='gesture:origin-rotation')releaseShortcuts.consume(combo.split('+').slice(0,-1).join('+'));activeAction=binding.id;drags.set(event.pointerId,binding);apply(event,binding.combo);
  },true);
- window.addEventListener('pointerup',event=>{const binding=drags.get(event.pointerId);if(binding){apply(event,binding.combo);drags.delete(event.pointerId);}activeAction=undefined;},true);
+ window.addEventListener('pointerup',event=>{if(![0,1,2].includes(event.button))return;const binding=drags.get(event.pointerId);if(binding){apply(event,binding.combo);drags.delete(event.pointerId);}activeAction=undefined;},true);
  window.addEventListener('pointercancel',event=>{drags.delete(event.pointerId);activeAction=undefined;},true);
  window.addEventListener('wheel',event=>{if(capturingShortcut()||!(event.target instanceof Element)||!event.target.closest('#world'))return;const combo=pointerCombo(event,[...held],true),mode=context()==='rotate'?'world':context(),binding=combo&&(resolvePointerBinding(combo,mode)??resolvePointerBinding('Wheel',mode));if(!binding){event.preventDefault();event.stopImmediatePropagation();return;}apply(event,binding.combo);},{capture:true,passive:false});
  // Mouse-based editors (CodeMirror) receive compatibility mouse events as well.
- window.addEventListener('mousedown',event=>{if(capturingShortcut()||!(event.target instanceof Element)||!event.target.closest('.cm-content'))return;const combo=pointerCombo(event,[...held]);const binding=combo&&resolvePointerBinding(combo,'document');if(binding)apply(event,binding.combo);else apply(event,'MB1');},true);
+ window.addEventListener('mousedown',event=>{if(![0,1,2].includes(event.button)||capturingShortcut()||!(event.target instanceof Element)||!event.target.closest('.cm-content'))return;const combo=pointerCombo(event,[...held]);const binding=combo&&resolvePointerBinding(combo,'document');if(binding)apply(event,binding.combo);else apply(event,'MB1');},true);
 }
 
 export const PREVIEW_BINDING:ShortcutDefinition={id:'gesture:paint-preview',category:'Omnium',label:'Toggle painting nodes in creation mode',defaultKey:'Alt',activation:true,hold:false};

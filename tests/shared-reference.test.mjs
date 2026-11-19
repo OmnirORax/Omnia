@@ -17,5 +17,7 @@ test('painting, movement and group movement resolve through the same reference w
  assert.deepEqual(createPaintSession(effective,[0,0,0],[frame.x,frame.y,frame.z],ref.read()).candidate(point).anchor,snapped);
  assert.deepEqual(prepareTranslation(effective,[a.origin])(point).get(address(a.origin)),snapped);
  assert.deepEqual(groupTargets(effective,[a.origin,b.origin],[0,0,0],point).origin,snapped);assert.equal(w.activeAxis,undefined);assert.equal(w.axes,undefined);
- ref.toggle(1);assert.deepEqual(ref.read().activeAxes,[1]);ref.toggle(0);assert.deepEqual(ref.read().activeAxes,[0,1]);
+ ref.toggle(1);assert.deepEqual(ref.read().activeAxes,[0,1,2]);ref.toggle(0);assert.deepEqual(ref.read().activeAxes,[1,2]);
 });
+
+test('legacy automatic hex packing no longer overrides placement; explicit Unit directions still work',()=>{const w=emptyWorld(),f=setSpatialOrigin(w,undefined,[0,0,0],[1,0,0],[0,1,0]);f.packing='hex';const ref=createSharedReference(()=>w,()=>({origin:[0,0,0],x:[1,0,0],y:[0,1,0],z:[0,0,1]})),before=structuredClone(w),frame=ref.read();assert.equal(frame.packing,undefined);assert.deepEqual(operationSlot(w,frame,[.6,.9,0]),[1,1,0]);assert.equal(ref.world(w,frame).axes[0].packing,undefined);assert.deepEqual(w,before);f.directions={mode:'unit',halves:0,rings:1,disabled:[],symmetry:true};const next=ref.read(),candidate=createPaintSession(w,[0,0,0],[next.x,next.y,next.z],next).candidate([1,0,0]);assert.equal(candidate.stamp.length,6);assert.equal(candidate.valid,true);});

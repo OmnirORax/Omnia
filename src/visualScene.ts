@@ -1,5 +1,8 @@
+import type {Paint} from './properties/visual.ts';
+import {updateLabelPaint,type textSprite} from './world/labels.ts';
 import {imageHull} from './world/contentEnvelope.ts';
-import {vectorAsset} from './omnic/vectorPlan.ts';
+import {declareGlowDetail} from './materialCoverage.ts';
+import {vectorAsset,glyphAssetFeature} from './omnic/vectorPlan.ts';
 import {vectorGlyph} from './vectorGlyph.ts';
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
@@ -11,7 +14,7 @@ export function visualObject(
   assets: VisualAsset[],
   makeText: (text: string) => THREE.Object3D,
   requestRender: () => void,
-  appearance: { color?: string; opacity?: number; brightness?: number; textureOnly?:boolean; textColor?: string; textGlow?: number } = {},
+  appearance: { textPaint?:Paint; color?: string; opacity?: number; brightness?: number; textureOnly?:boolean; textColor?: string; textGlow?: number;glowSpread?:number;glowColor?:string } = {},
   imageResolution = 512,
   _rasterFallback=false,
 ) {
@@ -23,11 +26,13 @@ export function visualObject(
   };
   const styleText = (label: THREE.Object3D) => {
     const update = () => {
-      label.userData.setTextStyle?.(appearance.color ?? appearance.textColor ?? "#ffffff", appearance.textColor ?? appearance.color ?? "#ffffff", appearance.textGlow ?? 0);
+      const ink=appearance.textColor??appearance.color??"#ffffff",glow=appearance.textGlow??0;
+      if(label instanceof THREE.Mesh&&label.userData.isLabel)updateLabelPaint(label as ReturnType<typeof textSprite>,{...label.userData.labelPaint,color:ink,glow,glowSpread:appearance.glowSpread??label.userData.labelPaint?.glowSpread,glowColor:appearance.glowColor,...appearance.textPaint});
+      else label.userData.setTextStyle?.(appearance.color??ink,ink,glow,appearance.glowSpread);
       if (label instanceof THREE.Mesh) label.material.opacity = appearance.opacity ?? 1;
     };
     restyle.push(update);
-    if (appearance.textColor !== undefined) update();
+    if (appearance.textColor !== undefined||appearance.textPaint) update();
   };
   const asset = assets.find((a) => a.id === visual.assetId);
   const plan=asset&&vectorAsset(asset);
@@ -98,6 +103,7 @@ export function visualObject(
             side: THREE.DoubleSide,
           }),
         );
+        const feature=glyphAssetFeature(asset);if(feature!==undefined)declareGlowDetail(sprite.material,feature);
         const dimensions = map.image as { width: number; height: number };
         const aspect = dimensions.width / dimensions.height;
         sprite.scale.set(Math.min(1, aspect), Math.min(1, 1 / aspect), 1);

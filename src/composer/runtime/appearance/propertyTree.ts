@@ -14,7 +14,7 @@ export const PROPERTY_TREE: PropertyNode[] = [
   {
     id: "lighting",
     label: "Lighting",
-    children: [leaf("brightness", "Brightness"), leaf("glow", "Glow")],
+    children: [leaf("brightness", "Brightness"), {...leaf("glow", "Glow"),children:[leaf("glowColor","Glow color"),leaf("glowSpread","Glow spread")]}],
   },
   leaf("opacity", "Opacity"),
   {...leaf("translucency", "Translucency"),children:[{...leaf("translucencyRadius","Translucency radius"),tooltip:"1: transmission over the whole sphere. Lower values keep a transparent centre with a stronger outer shell."}]},
@@ -25,26 +25,6 @@ export const PROPERTY_TREE: PropertyNode[] = [
       leaf("textSize", "Size"),
       leaf("textWeight", "Weight"),
       leaf("textSpacing", "Spacing"),
-    ],
-  },
-  {
-    ...leaf("effect", "Animation"),
-    children: [
-      leaf("speed", "Speed"),
-      leaf("intensity", "Intensity"),
-      leaf("density", "Density"),
-      leaf("size", "Star size"),
-      leaf("length", "Lightning length"),
-      {
-        id: "effectAppearance",
-        label: "Appearance",
-        children: [
-          leaf("effectColor", "Color"),
-          leaf("effectBrightness", "Brightness"),
-          leaf("effectOpacity", "Opacity"),
-          leaf("effectGlow", "Glow"),
-        ],
-      },
     ],
   },
   {

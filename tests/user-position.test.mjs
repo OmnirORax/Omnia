@@ -9,3 +9,4 @@ test('P preserves plane sidedness and manual distance overrides fit from the sam
 test('one axis positions User along that axis, rather than perpendicular to it',()=>{
  for(const index of [0,1,2]){const user=center.clone().addScaledVector(new T.Vector3(...[frame.x,frame.y,frame.z][index]),-30),pose=userPositionPlan({...frame,activeAxes:[index]},center,user,bounds,camera)(20),delta=pose.position.clone().sub(center);assert.ok(delta.distanceTo(new T.Vector3(...[frame.x,frame.y,frame.z][index]).multiplyScalar(-20))<1e-7);assert.ok(Math.abs(pose.up.dot(delta))<1e-7);}
 });
+test('all three axes use a camera-facing projection for P without disabling any axis',()=>{const all={...frame,activeAxes:[0,1,2]},pose=userPositionPlan(all,center,center.clone().add(new T.Vector3(0,0,30)),bounds,camera)(20);assert.deepEqual(pose.position.toArray(),[3,4,25]);assert.deepEqual(all.activeAxes,[0,1,2]);});

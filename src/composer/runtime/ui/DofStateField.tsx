@@ -1,3 +1,4 @@
+import {clearMathCursorReadout} from '../../../ui/mathCursorReadout.ts';
 import {useNavigationState} from '../../../ui/useNavigationState.tsx';
 import {DofLinearField} from './DofLinearField';
 import {createReferenceField,selectedReferenceStep} from '../properties/referenceUse';
@@ -6,7 +7,7 @@ import {DofAxisWheel} from './DofAxisWheel';
 import {DofRuleExpression,dofModePresentation,dofModes as modes,type DofSettingsKind,type DofInformationState} from './DofInformation';
 import type {ReactNode} from 'react';
 import type {RadialNode} from './radialMenuModel';
-import {useContext,useEffect,useLayoutEffect,useMemo,useRef,useState} from 'react';
+import {useContext,useEffect,useLayoutEffect,useMemo,useId,useRef,useState} from 'react';
 import {maximumSelectionStates,type StateSelectionMode} from '../properties/stateSelection';
 import {createStateField,fieldLimits,type StateFieldDomain} from '../properties/stateField';
 import {mathematicalValueSession} from '../properties/mathematicalDial';
@@ -38,6 +39,8 @@ export function DofStateField({property,label,symbol='⠒❉',domain,value,disab
  const pickGeneration=useRef(0);
  const pickingRef=useRef(false);pickingRef.current=picking;
  const pickCancel=useRef(operation?.selection?.cancel);pickCancel.current=operation?.selection?.cancel;
+ const mathReadoutOwner=useId();
+ useEffect(()=>()=>clearMathCursorReadout(mathReadoutOwner),[]);
  const alive=useRef(true),callbacks=useRef({onPreview,cancel:scope.cancelPreview});callbacks.current={onPreview,cancel:scope.cancelPreview};
  useEffect(()=>{alive.current=true;return()=>{alive.current=false;pickGeneration.current++;if(pickingRef.current)pickCancel.current?.();if(session.sampling){const before=session.restore();if(callbacks.current.cancel)callbacks.current.cancel();else callbacks.current.onPreview(before);}};},[session]);
  useLayoutEffect(()=>{if(session.receive(value)){anchor.current=domain.cyclic?.north??value;setSample(null);}},[value,session]);
@@ -93,6 +96,7 @@ export function DofStateField({property,label,symbol='⠒❉',domain,value,disab
   {settings&&<ContextualMasterController radial dismissOutside title={`${label} mode`} stage={settings.kind} position={settings.point} onClose={closeSettings} onDismiss={()=>{closeSettings();onDismiss?.();}} onConfirm={closeSettings}>
    {settings.kind==='options'?<RadialMenu onClose={closeSettings} items={[
     {id:'dof',symbol:symbol,label:label,content:<button type="button" title="Choose DOF" onClick={()=>{closeSettings();scope.showDegrees?.(operation?.targets??[]);}}>{symbol}</button>},
+    ...(Object.keys(modes) as StateSelectionMode[]).map(id=>({id:`distribution:${id}`,symbol:dofModePresentation(id,!!domain.cyclic).icon,label:dofModePresentation(id,!!domain.cyclic).label,content:<button type="button" aria-label={dofModePresentation(id,!!domain.cyclic).label} aria-pressed={working.mode===id} onClick={()=>chooseMode(id)}>{dofModePresentation(id,!!domain.cyclic).icon}</button>})),
     {id:'expression',symbol:'⠒❉',label:'Rule variables',content:<button type="button" title="Edit rule expression" onClick={()=>show(working.mode==='step'?'step':'count')}>{working.mode==='step'?`Δ ${step}`:countLabel}</button>},
     ...(components??[]),
     ...(domain.cyclic?(['min','max'] as const).map(kind=>({id:kind,symbol:kind==='min'?'⊢':'⊣',label:kind==='min'?'Minimum':'Maximum',content:<button type="button" title={kind==='min'?'Minimum':'Maximum'} onClick={()=>show(kind)}>{kind==='min'?'⊢':'⊣'}</button>})):[]),
@@ -105,7 +109,7 @@ export function DofStateField({property,label,symbol='⠒❉',domain,value,disab
     {id:'denominator',symbol:'÷',label:'Divisor',content:<button type="button" title={`Measurement divisor: ${relation.settings.denominator}`} onClick={()=>show('denominator')}>÷</button>}
    ]:[]}/>:settings.kind==='measurements'?<RadialMenu onClose={closeSettings} items={(relation?.measures??[]).map(measure=>({id:measure.id,symbol:measure.symbol,label:measure.label,content:<button type="button" title={`${measure.label}: ${rangeLabel(measure.value)} · ${measure.unit}`} aria-label={measure.label} aria-pressed={relation?.settings.measure===measure.id} onClick={()=>{restore();relation?.change({measure:measure.id});working.clearLimits();setSettings({kind:'relation',point:settings.point});}}>{measure.symbol}</button>}))}/>:
     (settings.kind==='min'||settings.kind==='max')?<div className="dof-rule-number"><RangeControl aria-label={numeric.label} value={parameterSample[numeric.key]??numeric.value} min={limitField.min} max={limitField.max} step={domain.resolution} values={limitValues} onValueChange={n=>setParameterSample({[numeric.key]:n})} onValueCancel={()=>setParameterSample({})} onValueCommit={n=>{setParameterSample({});numeric.commit(n);}}/><button type="button" title="Reset limits" aria-label="Reset limits" onClick={()=>{setParameterSample({});working.clearLimits();}}>↺</button></div>:
-    <div className="dof-rule-number"><MathematicalDial key={`${settings.kind}:${working.mode}`} label={numeric.label} value={numeric.value} min={numeric.min} max={numeric.max} integer={numeric.integer} rule={settings.kind==='count'||settings.kind==='step'?{value:working.mode,choices:(Object.keys(modes) as StateSelectionMode[]).map(id=>({id,...dofModePresentation(id,!!domain.cyclic)})),onChange:id=>chooseMode(id as StateSelectionMode)}:undefined} onPreview={n=>setParameterSample({[numeric.key]:n})} onCancelPreview={()=>setParameterSample({})} onCommit={n=>{setParameterSample({});numeric.commit(n);}}/></div>}
+    <div className="dof-rule-number"><MathematicalDial readoutOwner={mathReadoutOwner} limits={{label,min:field.min,max:field.max,hardMin:domain.min,hardMax:domain.max,integer:domain.integer,change:(which,n)=>{if(which==='min')working.minChange(n);else working.maxChange(n);}}} key={`${settings.kind}:${working.mode}`} label={numeric.label} value={numeric.value} min={numeric.min} max={numeric.max} integer={numeric.integer}  onPreview={n=>setParameterSample({[numeric.key]:n})} onCancelPreview={()=>setParameterSample({})} onCommit={n=>{setParameterSample({});numeric.commit(n);}}/></div>}
   </ContextualMasterController>}
  </div>;
 }

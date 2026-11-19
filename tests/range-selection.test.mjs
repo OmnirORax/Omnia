@@ -46,3 +46,5 @@ test('line selection follows a finite diagonal segment rather than its bounding 
  assert.equal(insideScreenLine({x:0,y:0,z:2},rect,a,b),false);
  assert.equal(insideScreenLine({x:0,y:0,z:0},rect,b,a),true);
 });
+
+test('action targets retain the committed group while hover remains independently available',()=>{const s=createSelection((a,b)=>a===b);s.set(['a','b']);s.hover('c');assert.deepEqual(s.values,['c']);assert.deepEqual(s.targets,['a','b']);s.clear();s.hover('c');assert.deepEqual(s.targets,['c']);});

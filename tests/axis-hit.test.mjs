@@ -15,3 +15,9 @@ test('axis click tolerance remains six pixels across zoom levels and includes se
  const x=line(0,[-.18,0,0],[.18,0,0]);
  for(const zoom of [.5,1,2]){const c=camera(zoom);assert.ok(pickAxisSegment({x:310,y:255},[x],c,rect));assert.equal(pickAxisSegment({x:310,y:257},[x],c,rect),undefined);assert.ok(pickAxisSegment({x:300+36*zoom+3,y:250},[x],c,rect));}
 });
+
+test('end-on axes expose a distinct clickable centre dot and win over crossing segments',async()=>{
+ const {createOriginGizmo,orientOriginGizmo}=await import('../src/world/originGizmo.ts');const c=camera();c.position.set(0,5,0);c.up.set(0,0,1);c.lookAt(0,0,0);c.updateMatrixWorld();const gizmo=createOriginGizmo();gizmo.traverse(child=>child.userData.axis='frame');orientOriginGizmo(gizmo,c,rect);
+ const dot=gizmo.children.find(child=>child.userData.originAxisDot&&child.userData.axisIndex===1);assert.equal(dot.visible,true);assert.deepEqual(pickAxisSegment({x:300,y:250},gizmo.children,c,rect),{axis:'frame',axisIndex:1});
+ assert.deepEqual(pickAxisSegment({x:340,y:250},gizmo.children,c,rect),{axis:'frame',axisIndex:0});
+});
