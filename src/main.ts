@@ -243,6 +243,7 @@ function changeOriginDirections(next:OriginDirections){store.change(world=>{cons
 const openOriginDirections=defineMenu('origin-directions',()=>{if(!view)return;open('Origin directions');const host=document.createElement('div');tools.append(host);void loadEditor(()=>import('./ui/originDirections.tsx')).then(({mountOriginDirections})=>{if(!host.isConnected)return;disposeTools=mountOriginDirections(host,()=>view!.reference,store.subscribe,changeOriginDirections,()=>store.world);positionMenu();}).catch(error=>feedback(String(error)));positionMenu();},false,false);
 function toggleOriginSymmetry(){if(!view)return;const directions=view.reference.directions??DEFAULT_ORIGIN_DIRECTIONS;changeOriginDirections({...directions,symmetry:!directions.symmetry});openOriginDirections();}
 function editLabel(){
+ selection.commitTargets();
  const edge=selection.targets.find((target):target is Edge=>!isNode(target));if(edge){edgeContext(edge);const input=tools.querySelector<HTMLInputElement>('form input[type=text]');input?.focus();input?.select();return;}
  const hovered=view?.hoveredOrigin;view?.cancel();
  if(hovered&&selectedOrigins().length<2&&!selection.has(hovered))pick(hovered);
