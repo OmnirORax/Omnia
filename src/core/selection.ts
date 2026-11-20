@@ -7,6 +7,8 @@ export function createSelection<T>(equal: (a: T, b: T) => boolean) {
     get committed():readonly T[]{return values;},
     /** Actions retain a committed group while hover stays available independently. */
     get targets():readonly T[]{return values.length>1?values:hovered??values;},
+    /** UI actions must retain their resolved targets when focus leaves the canvas. */
+    commitTargets(){values=[...(values.length>1?values:hovered??values)];hovered=undefined;return [...values];},
     hover(value:T|undefined){hovered=!request&&value!==undefined?[value]:undefined;},
     has: (value: T) => (hovered??values).some(item => equal(item, value)),
     retain(keep:(value:T)=>boolean){values=values.filter(keep);if(hovered&&!hovered.every(keep))hovered=undefined;},
