@@ -1,4 +1,6 @@
 .operation-choices{display:flex;gap:3px}
-.operation-choices button[aria-pressed=false]{opacity:.45;background:transparent;box-shadow:none}
-.operation-choices button[aria-pressed=true]{opacity:1;background:currentColor;border-color:currentColor;box-shadow:0 0 4px currentColor}
-.operation-choices button[aria-pressed=true] span{color:#101419;text-shadow:none}
+.operation-toggle[aria-pressed=false]{opacity:.4;background:transparent;box-shadow:none}
+.operation-toggle[aria-pressed=true]{opacity:1;background:transparent;outline:1px solid currentColor;outline-offset:-3px}
+.operation-toggle>span{display:inline-flex;align-items:center;justify-content:center;vertical-align:middle}
+.operation-toggle[aria-pressed=true]>span{filter:drop-shadow(0 0 2px currentColor)}
+.operation-toggle svg{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round}
