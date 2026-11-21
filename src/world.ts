@@ -407,7 +407,7 @@ export function createWorld(host: HTMLElement, input: Input) {
   function pickSpatialOrigin(){const session=beginOriginSet();if(session)session.release();else input.feedback('Point inside the world to set its origin.');}
 
   function cancelDrive() { const active=drive.active;if(active)relocationPin=drive.id;drive.cancel();mountedWorld=undefined;navigatorOffset.set(0,0,0);controls.enabled=true;edges.visible=true;rebuildPicks();if(active)presentation();else request();return active; }
-  type Gesture={pointer:number;button:number;alt:boolean;start:Point;end:Point;origin?:Origin;edge?:Edge;axis?:string;axisIndex?:number;anchor:T.Vector3;dimension?:1|2|3;passive?:boolean;mode:'move'|'range'|'view'|'drive'|'paint'|'pickup';dragged:boolean;volume?:{center:Vec3;right:Vec3;up:Vec3;forward:Vec3;a:Vec3;b:Vec3};group?:{origin:Vec3;order:Vec3};groupLanding?:ReturnType<typeof groupTargets>;landing?:{delta:Vec3;frame?:string;point?:Vec3};origins:readonly Origin[];moving?:Set<string>;project?:ReturnType<typeof pointerPlane>;resolve?:ReturnType<typeof import('./core/lattice.ts').prepareTranslation>};
+  type Gesture={rejection?:string;pointer:number;button:number;alt:boolean;start:Point;end:Point;origin?:Origin;edge?:Edge;axis?:string;axisIndex?:number;anchor:T.Vector3;dimension?:1|2|3;passive?:boolean;mode:'move'|'range'|'view'|'drive'|'paint'|'pickup';dragged:boolean;volume?:{center:Vec3;right:Vec3;up:Vec3;forward:Vec3;a:Vec3;b:Vec3};group?:{origin:Vec3;order:Vec3};groupLanding?:ReturnType<typeof groupTargets>;landing?:{delta:Vec3;frame?:string;point?:Vec3};origins:readonly Origin[];moving?:Set<string>;project?:ReturnType<typeof pointerPlane>;resolve?:ReturnType<typeof import('./core/lattice.ts').prepareTranslation>};
   let selectionDepth=8,selectionGroup:{ids:string[];order:Vec3}|undefined;
   let alignment:{ids:Origin[];origin:Vec3;order:Vec3;direction:Vec3;interval:number;digits?:string;typedAt?:number;targets:Map<string,Vec3>;valid:boolean;pointer?:number;project:ReturnType<typeof pointerPlane>}|undefined;
   const alignmentLine=new T.Line(new T.BufferGeometry().setFromPoints([new T.Vector3(),new T.Vector3()]),new T.LineBasicMaterial({color:'#00d8ff',depthTest:false}));alignmentLine.visible=false;alignmentLine.frustumCulled=false;scene.add(alignmentLine);
@@ -535,15 +535,16 @@ export function createWorld(host: HTMLElement, input: Input) {
       if(g.mode==='pickup'&&g.dragged&&g.origin){if(!drive.active)mount(g.origin,g.start,g.origins);aimNavigator(p);return;}
       if(g.dragged&&g.mode==='move'){
         if(activeAxis()&&!activeWorldAxes(activeAxis()!).length){g.groupLanding=undefined;g.landing=undefined;ghost.visible=false;return;}
-        if(g.group){const destination=xyz((g.project?.(p)??at(p,g.anchor)).divideScalar(scale)),plan=groupTargets(operationWorld(),g.origins,g.group.origin,destination);if(validGroupTargets(world,plan.targets)){g.groupLanding=plan;showTargets(plan.targets);}request();return;}
+        if(g.group){g.groupLanding=undefined;g.rejection=undefined;try{const destination=xyz((g.project?.(p)??at(p,g.anchor)).divideScalar(scale)),plan=groupTargets(operationWorld(),g.origins,g.group.origin,destination);if(validGroupTargets(world,plan.targets)){g.groupLanding=plan;showTargets(plan.targets);}else ghost.visible=false;}catch(error){g.rejection=error instanceof Error?error.message:String(error);ghost.visible=false;}request();return;}
 
         if(activeAxis()&&!activeWorldAxes(activeAxis()!).length){g.landing=undefined;ghost.visible=false;return;}
         if(!g.moving){g.resolve=prepareTranslation(operationWorld(),g.origins);const carried=g.resolve([0,0,0]);g.moving=new Set(carried?.keys()??g.origins.map(key));for(const id of carried?.keys()??g.origins.map(key))relocating.add(id);relocationPin=g.origin?key(g.origin):undefined;presentation();}
         let delta=(g.project?.(p)??at(p,g.anchor)).sub(g.anchor).divideScalar(scale);
-        const original=g.origin&&locatePosition(g.origin),snap=original&&nearAxis(p,original.map((n,i)=>n+delta.getComponent(i)) as Vec3);if(snap&&original)delta=new T.Vector3(...snap.point.map((n,i)=>n-original[i]));
+        const original=g.origin&&locatePosition(g.origin);let snap:ReturnType<typeof nearAxis>;g.rejection=undefined;try{snap=original&&nearAxis(p,original.map((n,i)=>n+delta.getComponent(i)) as Vec3);}catch(error){g.landing=undefined;g.rejection=error instanceof Error?error.message:String(error);ghost.visible=false;request();return;}if(snap&&original)delta=new T.Vector3(...snap.point.map((n,i)=>n-original[i]));
         // Same lattice transform used by numerical operation commits; preparation is once per gesture.
         g.resolve??=prepareTranslation(operationWorld(),g.origins);
-        if(gesture!==g)return;let targets:Map<string,Vec3>|undefined;try{targets=snap&&g.origin?planSlotNode(operationWorld(),g.origin,snap.frame.id,snap.point,g.origins).targets:g.resolve(xyz(delta));}catch{targets=undefined;}
+        if(gesture!==g)return;let targets:Map<string,Vec3>|undefined;try{targets=snap&&g.origin?planSlotNode(operationWorld(),g.origin,snap.frame.id,snap.point,g.origins).targets:g.resolve(xyz(delta));}catch(error){targets=undefined;g.rejection=error instanceof Error?error.message:String(error);}
+        if(!targets){g.landing=undefined;ghost.visible=false;}
         if(targets){const source=g.origin&&locatePosition(g.origin),target=g.origin&&targets.get(key(g.origin));g.landing={delta:source&&target?target.map((n,i)=>n-source[i]) as Vec3:xyz(delta),frame:snap?.frame.id,point:target};}
         if(targets){const actual=g.origin&&visuals.get(key(g.origin))?.actual,paint=nodePaint(world),color=actual?.color??brightHex(paint.color!,paint.brightness!);ghost.material.color.set(color);updateAtomicCarrier(ghost.material,(actual?.opacity??paint.opacity!)*.7,actual?.translucency??paint.translucency,actual?.glow??paint.glow,actual?.translucencyRadius??paint.translucencyRadius);let index=0;for(const [id,position]of targets)if(visuals.get(id)?.group.visible)ghost.setMatrixAt(index++,new T.Matrix4().makeScale(scale,scale,scale).setPosition(new T.Vector3(...position).multiplyScalar(scale)));ghost.count=index;ghost.instanceMatrix.needsUpdate=true;ghost.visible=index>0;}
         if(g.landing?.point)axisView.coordinates(world,activeAxis(),g.landing.point,p);edges.visible=false;request();return;
@@ -596,10 +597,10 @@ export function createWorld(host: HTMLElement, input: Input) {
     try{
       if(g.mode==='paint'){if(!stroke?.session.points.length&&hoverCandidate&&!hoverCandidate.valid)input.feedback(hoverCandidate.rejection??'Choose a free brush placement.');finishPaint();return;}
       if(g.dragged&&g.mode==='move'){
-        if(g.group){const plan=g.groupLanding;if(!plan)return;if(event.altKey){beginAlignment(g.origins,plan.origin,g.group.order);}else{input.groupMove(plan.targets);selectionGroup={ids:g.origins.map(key),order:g.group.order};}return;}
+        if(g.group){const plan=g.groupLanding;if(!plan){input.feedback(g.rejection??'That group landing is occupied.');return;}if(event.altKey){beginAlignment(g.origins,plan.origin,g.group.order);}else{input.groupMove(plan.targets);selectionGroup={ids:g.origins.map(key),order:g.group.order};}return;}
 
         g.moving??=new Set((prepareTranslation(operationWorld(),g.origins)([0,0,0]))?.keys()??g.origins.map(key));
-        const landing=g.landing;if(!landing)return;
+        const landing=g.landing;if(!landing){input.feedback(g.rejection??'That landing is occupied.');return;}
         if(landing.frame&&g.origin&&landing.point)input.slot(g.origins,landing.frame,landing.point);else input.move(g.origins,landing.delta);return;
       }
       if(g.dragged&&g.mode!=='drive'){secondary.cancel();return;}
@@ -688,13 +689,13 @@ export function createWorld(host: HTMLElement, input: Input) {
       return {step:scale,frame:new T.Quaternion().setFromUnitVectors(new T.Vector3(0,1,0),navigator.forward()),preview:delta=>{navigator.position.copy(origin).add(delta);if(lastPoint)aimNavigator(lastPoint);request();},restore:()=>{},commit:()=>{}};
     }
     if(!origins.length||drive.active)return null;
-    const resolve=prepareTranslation(operationWorld(),origins),snapshot=grid,reference=activeAxis(),orientation=camera.quaternion.clone(),root=locatePosition(origins[0])!;let landing:T.Vector3|undefined;
-    return {step:1,frame:new T.Quaternion(),direction:actions=>axisNudgeDirection(reference,orientation,actions),preview:delta=>{const targets=resolve(xyz(delta));if(targets){const target=targets.get(key(origins[0]))!;landing=new T.Vector3(...target.map((n,i)=>n-root[i]) as Vec3);for(const[id,p]of targets)visuals.get(id)?.group.position.set(...p).multiplyScalar(scale);}request();},
-      restore:()=>{for(const[id,v]of visuals){const cell=snapshot.cells.get(id);if(cell)v.group.position.set(...vector(cellPoint(cell,scale)));}request();},commit:()=>{if(landing)input.move(origins,xyz(landing));}};
+    const resolve=prepareTranslation(operationWorld(),origins),snapshot=grid,reference=activeAxis(),orientation=camera.quaternion.clone(),root=locatePosition(origins[0])!;let landing:T.Vector3|undefined,rejection:string|undefined;
+    return {step:1,frame:new T.Quaternion(),direction:actions=>axisNudgeDirection(reference,orientation,actions),preview:delta=>{let targets:ReturnType<typeof resolve>;rejection=undefined;try{targets=resolve(xyz(delta));}catch(error){rejection=error instanceof Error?error.message:String(error);landing=undefined;}if(targets){const target=targets.get(key(origins[0]))!;landing=new T.Vector3(...target.map((n,i)=>n-root[i]) as Vec3);for(const[id,p]of targets)visuals.get(id)?.group.position.set(...p).multiplyScalar(scale);}request();},
+      restore:()=>{for(const[id,v]of visuals){const cell=snapshot.cells.get(id);if(cell)v.group.position.set(...vector(cellPoint(cell,scale)));}request();},commit:()=>{if(landing)input.move(origins,xyz(landing));else if(rejection)input.feedback(rejection);}};
   }});
   const arrowActions=ARROW_NUDGES;
   const pressedNudges=new Map<string,NudgeActionId>();
-  window.addEventListener('keydown',event=>{if(event.defaultPrevented||event.target instanceof Element&&event.target.closest('input,textarea,select,[contenteditable],.cm-editor,[data-input-owner]'))return;const entry=Object.entries(arrowActions).find(([key])=>matchesShortcut(event,worldBinding(key)));if(!entry)return;const action=entry[1];event.preventDefault();if(event.repeat)return;commitSelection();boundRotation.cancel();finishAlignment();
+  window.addEventListener('keydown',event=>{if(event.defaultPrevented||event.target instanceof Element&&event.target.closest('input,textarea,select,[contenteditable],.cm-editor,[data-input-owner]'))return;const entry=Object.entries(arrowActions).find(([key])=>matchesShortcut(event,worldBinding(key)));if(!entry)return;const action=entry[1];event.preventDefault();if(event.repeat)return;originSet?.cancel();commitSelection();boundRotation.cancel();finishAlignment();
     pressedNudges.set(event.code||event.key,action);if(!held.size)nudgeDepth=action==='nudgeUp'||action==='nudgeDown';held.add(action);nudging.update([...held]);});
   window.addEventListener('keyup',event=>{const code=event.code||event.key,action=pressedNudges.get(code);if(action){pressedNudges.delete(code);held.delete(action);nudging.update([...held]);}});
   document.addEventListener('visibilitychange',()=>{if(document.hidden){middlePress=undefined;held.clear();nudging.finish(true);navigation.finish(true);restoreNative();restore();cancelOmnic();cancelDrive();}else request();});

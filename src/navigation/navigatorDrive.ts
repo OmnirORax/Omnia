@@ -25,11 +25,11 @@ export function createNavigatorDrive(env:{
   },
   move(point:THREE.Vector3){
    const s=session;if(!s)return true;s.error=undefined;s.attempt=undefined;
-   if(env.constrain){const target=env.constrain(s.id,{x:point.x,y:point.y,z:point.z});if(!target){s.valid=false;return false;}point=new THREE.Vector3(target.x,target.y,target.z);}
-   const delta=point.clone().sub(new THREE.Vector3(s.root.x,s.root.y,s.root.z));
-   const candidates=new Map([...s.worlds].map(([id,p])=>[id,{x:p.x+delta.x,y:p.y+delta.y,z:p.z+delta.z}]));
-   s.attempt=candidates;let resolved;try{resolved=s.resolve(candidates);}catch(error){s.error=error instanceof Error?error.message:String(error);s.valid=false;return false;}
-   s.valid=!!resolved;if(!resolved)return false;s.last=resolved.get(s.id)!;s.lastWorlds=resolved;paint(resolved);return true;
+   try{
+    if(env.constrain){const target=env.constrain(s.id,{x:point.x,y:point.y,z:point.z});if(!target){s.valid=false;return false;}point=new THREE.Vector3(target.x,target.y,target.z);}
+    const delta=point.clone().sub(new THREE.Vector3(s.root.x,s.root.y,s.root.z)),candidates=new Map([...s.worlds].map(([id,p])=>[id,{x:p.x+delta.x,y:p.y+delta.y,z:p.z+delta.z}]));
+    s.attempt=candidates;const resolved=s.resolve(candidates);s.valid=!!resolved;if(!resolved)return false;s.last=resolved.get(s.id)!;s.lastWorlds=resolved;paint(resolved);return true;
+   }catch(error){s.error=error instanceof Error?error.message:String(error);s.valid=false;return false;}
   },
   cancel(){const s=session;session=undefined;if(s)paint(s.worlds);},
   park(lastValid=false,commit=env.commit){const s=session;if(!s)return undefined;if(!s.valid&&!lastValid)return null;
