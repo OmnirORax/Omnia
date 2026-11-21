@@ -50,6 +50,27 @@ export function changeOriginMode(settings:OriginDirections,mode:OriginDirections
  if(mode==='area')for(const [i,slot]of directionSlots(value).entries())if(i%(directionCount(value)/4)!==0&&!originDirectionAllowed(value,slot.x,slot.y))disabled.add(slot.key);
  return {...value,mode,disabled:[...disabled]};
 }
+/** Refinement edits one direction selection. Locked edits retain its angular footprint;
+ * they never silently reset disabled rays or round a boundary onto another angle. */
+export function refineOriginDirections(settings:OriginDirections,delta:1|-1,ignoreBounds=false,active:readonly number[]=[0,1]):OriginDirections{
+ if(settings.mode==='unit')throw Error('Unit directions use rings rather than angular subdivision.');
+ const halves=settings.halves+delta;if(halves<0||halves>6)throw Error('Direction refinement supports 0–6 halves.');
+ const value=planarOriginDirections(settings,active),area=changeOriginMode(value,'area',active),mask=originAreaMask({...area,invert:false},active),oldCount=directionCount(value),nextCount=4*2**halves,quarter=nextCount/4;
+ const sides=ignoreBounds?[0,1,2,3]:[...value.sides!],disabled:string[]=[],oldDisabled=new Set(value.disabled);
+ for(let i=0;i<nextCount;i++){
+  if(i%quarter===0)continue;
+  const oldIndex=i*oldCount/nextCount,angle=i/nextCount*Math.PI*2,x=Math.cos(angle),y=Math.sin(angle);
+  const selected=ignoreBounds||(Number.isInteger(oldIndex)?!oldDisabled.has(`0:${oldIndex}`)&&(value.mode==='area'||originDirectionAllowed(value,x,y)):originAreaContains(mask,x,y));
+  if(!selected)disabled.push(`0:${i}`);
+ }
+ const next={...value,halves,sides,disabled,...(ignoreBounds?{invert:false}:{})};
+ if(!ignoreBounds&&delta===-1){
+  // Compare sector interiors at the finer resolution, including an inverted Area.
+  const before=originAreaMask(area,active),after=originAreaMask(changeOriginMode(next,'area',active),active);
+  for(let i=0;i<oldCount;i++){const angle=(i+.5)/oldCount*Math.PI*2;if(originAreaContains(before,Math.cos(angle),Math.sin(angle))!==originAreaContains(after,Math.cos(angle),Math.sin(angle)))throw Error('Bounds are locked: ×2 would remove an active boundary. Unlock subdivision bounds to continue.');}
+ }
+ return next;
+}
 export function originDirectionAllowed(settings:OriginDirections,x:number,y:number){const sides=settings.sides;if(!sides)return true;return (Math.abs(x)<1e-8||sides.includes(x>0?0:1))&&(Math.abs(y)<1e-8||sides.includes(y>0?2:3));}
 export function directionCount(settings:OriginDirections,ring=1){return settings.mode!=='unit'?4*2**settings.halves:radialSlotCapacity(ring,1);}
 export function directionSlots(settings:OriginDirections,ring=1){const count=directionCount(settings,ring);return Array.from({length:count},(_,i)=>{const turn=i/count*Math.PI*2;return {key:`${settings.mode!=='unit'?0:ring-1}:${i}`,x:Math.cos(turn),y:Math.sin(turn)};});}
