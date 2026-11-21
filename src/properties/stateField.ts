@@ -11,8 +11,6 @@ export type StateFieldDomain={min:number;max:number;integer?:boolean;resolution:
 export type StateFieldCandidate={id:string;index:number;value:number;point:{x:number;y:number};thresholds?:readonly string[];derivation:{mode:StateSelectionMode|'reference';reference:number;referenceId?:string;index:number;count:number;step:number;min:number;max:number}};
 export type StateField={domain:StateFieldDomain;min:number;max:number;candidates:readonly StateFieldCandidate[];projection:StateFieldProjection};
 export type StateFieldConfiguration={mode:StateSelectionMode;count:number;step:number;reference:number;referenceId?:string;min?:number;max?:number;thresholds?:readonly FieldThreshold[]};
-/** Shared radial projection for value fields and existing directional slot owners. */
-export function radialFieldPoint(turn:number){return {x:Math.sin(turn*Math.PI*2)*.8,y:-Math.cos(turn*Math.PI*2)*.8};}
 /** One bounded generator/filter/project path. Projections are addresses for raw
  * quantities, directions for cyclic values, and coordinates for spatial axes. */
 export function createStateField(domain:StateFieldDomain,config:StateFieldConfiguration,allowed:(value:number)=>boolean=()=>true):StateField{
@@ -48,7 +46,7 @@ export function createStateField(domain:StateFieldDomain,config:StateFieldConfig
  const candidates=valid.map(({value,index},address)=>{
   const turn=domain.cyclic?(value-domain.cyclic.north)/domain.cyclic.period:address/Math.max(1,valid.length);
   const position=max===min?0:2*(value-min)/(max-min)-1;
-  const point=domain.projection==='axis-x'?{x:position*.8,y:0}:domain.projection==='axis-y'?{x:0,y:position*.8}:radialFieldPoint(turn);
+  const point=domain.projection==='axis-x'?{x:position*.8,y:0}:domain.projection==='axis-y'?{x:0,y:position*.8}:{x:Math.sin(turn*Math.PI*2)*.8,y:-Math.cos(turn*Math.PI*2)*.8};
   const landmarks=thresholdIds.get(value);
   return {id:landmarks?`threshold:${landmarks.join("|")}`:`${config.mode}:${index}`,index,value,point,...(landmarks?{thresholds:landmarks}:{}),derivation:{mode:!domain.cyclic&&config.mode==='symmetry'&&index===referenceIndex?'reference' as const:config.mode,reference:config.reference,referenceId:config.referenceId,index,count:config.count,step:config.step,min,max}};
  });
