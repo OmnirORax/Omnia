@@ -1,23 +1,34 @@
 import {OperationChoices,OperationToggle} from './OperationChoices.tsx';
 import {SNAP_MODE_ITEMS} from '../properties/snapMode.ts';
 import {createRoot} from 'react-dom/client';
-import {useReducer,useSyncExternalStore} from 'react';
+import {useMemo,useReducer,useSyncExternalStore} from 'react';
+import {createOriginControlView,originControlSegments,projectOriginControlDirection} from '../world/originControl.ts';
+import {disposeOriginGizmo} from '../world/originGizmo.ts';
 import {AXIS_COLORS} from '../world/axisReadout.ts';
+import {AxisWheelVisual,type AxisWheelRay} from '../composer/runtime/ui/AxisWheelVisual.tsx';
 import {DialSlot,dialRingSlots} from '../composer/runtime/ui/DialSlots.tsx';
-import {DEFAULT_ORIGIN_DIRECTIONS,directionCount,type OriginDirections} from '../core/originDirections.ts';
+import {DEFAULT_ORIGIN_DIRECTIONS,directionCount,spatialDirectionSlots,type OriginDirections} from '../core/originDirections.ts';
 import {activeWorldAxes,type AxisFrame} from '../core/axes.ts';
 import './originDirections.css';
 export function mountOriginDirections(host:HTMLElement,read:()=>AxisFrame,subscribe:(fn:()=>void)=>()=>void,change:(next:OriginDirections)=>void,snapshot:()=>unknown,toggleAxis:(axis:number)=>void){
  const root=createRoot(host);
  function View(){useSyncExternalStore(subscribe,snapshot);const [,redraw]=useReducer(n=>n+1,0),frame=read(),active=activeWorldAxes(frame),value=frame.directions??DEFAULT_ORIGIN_DIRECTIONS,dimensions=active.length,size=24,orders=value.mode==='unit'?value.rings:1,firstCount=dimensions===1?2:directionCount(value),minimum=Math.max(size,size/(2*Math.sin(Math.PI/firstCount))),extent=2*(minimum+(orders-1)*size+size/2+1),set=(next:Partial<OriginDirections>)=>change({...value,...next});
+  const axisMask=active.join(',');
+  const fixed=useMemo(()=>{
+   const {gizmo,camera}=createOriginControlView([]);
+   try{return {axes:originControlSegments(gizmo,camera),camera};}finally{disposeOriginGizmo(gizmo);}
+  },[]);
+  const directions=useMemo(()=>value.mode==='axis'&&value.halves?spatialDirectionSlots({...value,disabled:[]},active).filter(slot=>slot.direction.filter(n=>Math.abs(n)>1e-6).length>1).map(slot=>({...slot,point:projectOriginControlDirection(fixed.camera,slot.direction)})):[],[axisMask,value.mode,value.halves]);
+  const toggleDirection=(key:string)=>set({disabled:value.disabled.includes(key)?value.disabled.filter(item=>item!==key):[...value.disabled,key]});
+  const rays:AxisWheelRay[]=[...directions.map(slot=>({id:slot.key,point:slot.point,selected:!value.disabled.includes(slot.choiceKey),arrow:true,label:`Direction ${slot.choiceKey}`,onToggle:()=>toggleDirection(slot.choiceKey)})),...fixed.axes.flatMap(({axis,points})=>points.map((point,index)=>({id:`axis-${axis}-${index}`,point:{x:point.x/56,y:point.y/56},color:AXIS_COLORS[axis],selected:active.includes(axis),arrow:index===1,label:`${['Red','Green','Blue'][axis]} axis`,onToggle:()=>{toggleAxis(axis);redraw();}})))];
   return <div className="mathematical-dial origin-direction-dial" data-input-owner onKeyDown={event=>{if(event.key==='+'){event.preventDefault();event.stopPropagation();set({symmetry:!value.symmetry});}}}><div className="origin-direction-tools">
    <OperationToggle label="Symmetry" selected={value.symmetry} onClick={()=>set({symmetry:!value.symmetry})}>↔</OperationToggle>
    <OperationChoices choices={{read:()=>value.mode,items:SNAP_MODE_ITEMS,change:mode=>set({mode:mode as OriginDirections['mode'],disabled:[]})}}/>
    {value.mode==='axis'?<><button disabled={value.halves>=6} onClick={()=>set({halves:value.halves+1,disabled:[]})}>/2</button><button disabled={!value.halves} onClick={()=>set({halves:value.halves-1,disabled:[]})}>×2</button></>:<><button disabled={value.rings>=4} onClick={()=>set({rings:value.rings+1})}>◎+</button><button disabled={value.rings<=1} onClick={()=>set({rings:value.rings-1})}>◎−</button></>}
-  </div><div className="origin-direction-axes" role="group" aria-label="Active origin axes">{AXIS_COLORS.map((color,axis)=><OperationToggle key={axis} label={`${['Red','Green','Blue'][axis]} axis`} selected={active.includes(axis)} onClick={()=>{toggleAxis(axis);redraw();}}><svg viewBox="-10 -10 20 20" style={{color}} aria-hidden="true"><path d="M0 8V-8M-4-4 0-8 4-4"/></svg></OperationToggle>)}</div><div className="mathematical-dial-ring" style={{width:extent,height:extent}}>
+  </div><div className="origin-direction-axes"><AxisWheelVisual rays={rays} rim={false}/></div>{value.mode==='unit'&&<div className="mathematical-dial-ring" style={{width:extent,height:extent}}>
    <span className="origin-direction-center"/>
    {Array.from({length:orders},(_,order)=>{const count=dimensions===1?2:directionCount(value,order+1),radius=minimum+order*size;return dialRingSlots(order,radius,count,size,extent,false,.25).map(slot=>{const key=slot.key,selected=!value.disabled.includes(key);return <DialSlot key={key} slot={slot} selected={selected} aria-label={`Ring ${order+1}, direction ${slot.index+1}`} onClick={()=>set({disabled:selected?[...value.disabled,key]:value.disabled.filter(item=>item!==key)})}/>;});})}
-  </div></div>;
+  </div>}</div>;
  }
  root.render(<View/>);return()=>root.unmount();
 }
