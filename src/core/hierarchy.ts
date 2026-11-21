@@ -17,7 +17,7 @@ export function createHierarchyIsolation(){
  ensure(next:readonly Origin[]){if(next.length)set(next);else if(!roots.length)throw Error('Point at or select a hierarchy first.');},
  visible(world:World){if(!roots.length)return undefined;if(cachedWorld===world)return cached;
  const scope=hierarchyScope(world,roots),byId=new Map(world.nodes.map(n=>[address(n.origin),n])),ids=new Set(scope.nodes.map(n=>address(n.origin)));
- for(const root of scope.roots){let parent=root.parent;const seen=new Set<string>();while(parent){const id=address(parent);if(seen.has(id))break;seen.add(id);ids.add(id);parent=byId.get(id)?.parent;}}
+ const seen=new Set<string>();for(const root of scope.roots){let parent=root.parent;while(parent){const id=address(parent);if(seen.has(id))break;seen.add(id);ids.add(id);parent=byId.get(id)?.parent;}}
  cachedWorld=world;cached=ids;return ids;}
  };
 }
