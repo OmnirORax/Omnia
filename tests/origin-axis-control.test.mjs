@@ -35,3 +35,17 @@ test('Unit mode retains only the base origin visual and releases all control res
  const resources=new Map();gizmo.traverse(o=>{for(const resource of [o.geometry,...[o.material].flat()].filter(Boolean))if(!resources.has(resource)){resources.set(resource,0);resource.addEventListener('dispose',()=>resources.set(resource,resources.get(resource)+1));}});
  disposeOriginGizmo(gizmo);assert.ok([...resources.values()].every(n=>n===1));
 });
+
+test('the flat composer-style rays remain aligned with the existing origin click targets',async()=>{
+ const {originControlRays}=await import('../src/world/originAxisControl.ts');
+ const directions={...DEFAULT_ORIGIN_DIRECTIONS,halves:1,disabled:['0:1']},{gizmo,camera}=createOriginControl([0,1],directions);
+ try{
+  const rays=originControlRays(gizmo,camera,[0,1],directions);
+  assert.equal(rays.length,7);
+  for(const ray of rays.filter(ray=>ray.id.startsWith('axis:'))){
+   const point={x:(ray.point.x+1)*rect.width/2,y:(ray.point.y+1)*rect.height/2};
+   assert.equal(pickAxisSegment(point,gizmo.children.filter(o=>o.visible),camera,rect,8).axisIndex,Number(ray.id.slice(5)));
+  }
+  assert.equal(rays.filter(ray=>!ray.selected).length,2);
+ }finally{disposeOriginGizmo(gizmo);}
+});
