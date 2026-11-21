@@ -18,7 +18,7 @@ export function createAxisView(scene:T.Scene,host:HTMLElement,camera:T.Perspecti
  return {get picks(){return visible?picks:hiddenPicks;},
   setVisible(value:boolean){visible=value;group.visible=value;if(!value){preview.visible=false;hint.hidden=true;readout.hidden=true;}},
   referenceVisible(id:string,visible:boolean){for(const child of group.children)if(child.userData.axis===id)child.visible=visible;},
-  setCoordinatesVisible(visible:boolean){coordinatesVisible=visible;readout.hidden=!visible;if(!visible)hint.hidden=true;},
+  setCoordinatesVisible(visible:boolean){coordinatesVisible=visible;readout.hidden=!visible||!group.visible;if(readout.hidden)hint.hidden=true;},
   brushCoordinates(world:World,frame:AxisFrame|undefined,points:Vec3[],scale:number,camera:T.PerspectiveCamera,visible:boolean){
    readout.hidden=!visible||!group.visible||!coordinatesVisible;if(readout.hidden)return;
    const width=innerWidth,height=innerHeight;if(readout.width!==width||readout.height!==height){readout.width=width;readout.height=height;}
