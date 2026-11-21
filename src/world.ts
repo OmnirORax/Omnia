@@ -268,7 +268,7 @@ export function createWorld(host: HTMLElement, input: Input) {
   }
   function hoverPresentation(){const edgeKey=selectedEdges[0]?JSON.stringify(selectedEdges[0]):undefined;for(const connector of connectors){const active=edgeKey===connector.key;if(connector.line.userData.highlighted!==active){connector.line.userData.highlighted=active;connector.line.material.opacity=active?1:connector.line.userData.baseOpacity;connector.line.material.color.set(active?'#ffb000':connector.line.userData.baseColor);}}request();}
   let movementVisible=false;
-  function refreshNodeVisibility(){movementVisible=drive.active||relocating.size>0;for(const visual of visuals.values())visual.group.visible=visibility(visual.node);}
+  function refreshNodeVisibility(){movementVisible=drive.active||relocating.size>0;axisView.setVisible(!isolation.hidesAll||movementVisible);for(const visual of visuals.values())visual.group.visible=visibility(visual.node);}
   function presentation() {
     if(movementVisible!==(drive.active||relocating.size>0)){refreshNodeVisibility();connections();}
     for (const [id,v] of visuals) {

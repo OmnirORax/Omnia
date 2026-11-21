@@ -9,3 +9,8 @@ export function OperationToggle({label,selected,onClick,children,onPreview}:{lab
 export function OperationChoices({choices,preview}:{choices:Choices;preview?:(id:string|undefined)=>void}){
  return <nav className="operation-choices" aria-label="Mode">{choices.items.map(item=><OperationToggle key={item.id} label={item.label} selected={choices.read()===item.id} onClick={()=>choices.change(item.id)} onPreview={preview?active=>preview(active?item.id:undefined):undefined}>{item.symbol==='🞡'?<svg viewBox="-10 -10 20 20" aria-hidden="true"><path d="M-8 0H8M0-8V8M-6-6 6 6M-6 6 6-6"/></svg>:item.symbol}</OperationToggle>)}</nav>;
 }
+
+/** Two alternatives share one compact, split control and the normal toggle lifecycle. */
+export function OperationPair({label,choices,preview}:{label:string;choices:Choices;preview?:(id:string|undefined)=>void}){
+ return <span className="operation-pair" role="group" aria-label={label}>{choices.items.map(item=><OperationToggle key={item.id} label={item.label} selected={choices.read()===item.id} onClick={()=>choices.change(item.id)} onPreview={preview?active=>preview(active?item.id:undefined):undefined}>{item.symbol}</OperationToggle>)}</span>;
+}

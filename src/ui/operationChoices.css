@@ -4,3 +4,9 @@
 .operation-toggle>span{display:inline-flex;align-items:center;justify-content:center;vertical-align:middle}
 .operation-toggle[aria-pressed=true]>span{filter:drop-shadow(0 0 2px currentColor)}
 .operation-toggle svg{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round}
+
+.operation-pair{display:inline-flex;border:1px solid currentColor;border-radius:50%;overflow:hidden;vertical-align:middle;flex-shrink:0}
+.operation-pair>.operation-toggle{min-width:0!important;width:1.05em;padding:2px 1px!important;border:0!important;border-radius:0!important;margin:0!important;outline:0!important;box-shadow:none!important;background:transparent!important}
+.operation-pair>.operation-toggle+button{border-left:1px solid currentColor!important}
+.operation-pair>.operation-toggle[aria-pressed=true]{background:color-mix(in srgb,currentColor 15%,transparent)!important}
+.operation-pair>.operation-toggle>span{font-size:.85em}

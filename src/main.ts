@@ -1,6 +1,6 @@
 import {bindColorSession} from './ui/colorSession.ts';
 import {SYSTEM_MESSAGE} from './ui/systemMessage.ts';
-import {DEFAULT_ORIGIN_DIRECTIONS,planarOriginDirections,sideAxes,toggleOriginSide,type OriginDirections} from './core/originDirections.ts';
+import {DEFAULT_ORIGIN_DIRECTIONS,planarOriginDirections,originSides,sideAxes,toggleOriginSide,type OriginDirections} from './core/originDirections.ts';
 import {ARROW_NUDGES} from './world/axisNudge.ts';
 import {selectionLatch} from './ui/selectionLatch.ts';
 import {capturingShortcut} from './ui/shortcuts.ts';
@@ -433,7 +433,7 @@ function spaceActions():SearchAction[]{
  {label:'View from first node',keywords:'world camera perspective occupy endpoint depth z',run:()=>{if(relation)enterNodePerspective(relation.ends[0]);},available:!!relation},
  {label:'View from second node',keywords:'world camera perspective occupy endpoint depth z',run:()=>{if(relation?.ends[1])enterNodePerspective(relation.ends[1]);},available:!!relation},
  {label:'Return to user view',keywords:'world camera perspective user leave node',run:()=>view?.leaveNode(),available:!!view?.inNodeView},
- ...(frame?[0,1].map(axis=>({label:`${activeWorldAxes(frame).includes(axis)?'✓ ':''}${'XYZ'[axis]} axis`,keywords:'world active axes plane line volume constrain',run:()=>toggleOriginAxis(axis)})):[]),
+ ...(frame?[0,1].map(axis=>({label:`${sideAxes(originSides(frame.directions,activeWorldAxes(frame))).includes(axis)?'✓ ':''}${'XYZ'[axis]} axis`,keywords:'world active axes plane line volume constrain',run:()=>toggleOriginAxis(axis)})):[]),
  ...([{label:`Selection depth · ${view?.selectionDepth??8}`,keywords:'selection volume box depth',run:()=>{const value=prompt('Selection depth',String(view?.selectionDepth??8));if(value!==null)view?.setSelectionDepth(Number(value));}}]),
  {label:'Shift origin…',keywords:'world plane origin elevation level offset xyz',available:active,run:()=>{const value=prompt('Origin shift: X Y Z','0 0 0');if(value===null)return;const offset=value.trim().split(/[ ,]+/).map(Number);if(offset.length!==3||offset.some(n=>!Number.isSafeInteger(n)))throw Error('Use three whole numbers.');store.change(world=>shiftAxisOrigin(world,world.activeAxis!,offset as Vec3));}},
  {label:'Origin directions',keywords:'origin axes symmetry half unit dial placement',run:openOriginDirections},

@@ -29,3 +29,5 @@ test('dense subdivision ticks retain gaps at every displayed size',()=>{
 test('Unit mode keeps signed-axis controls without a second set of axis refinement ticks',()=>{
  for(const rings of [1,2,3,4]){const {rays,targets}=originAxisLayout([0,1],{...DEFAULT_ORIGIN_DIRECTIONS,mode:'unit',rings,sides:[0,2]});assert.equal(rays.length,4);assert.ok([...targets.values()].every(target=>'axis'in target));}
 });
+
+test('Area exposes clickable enabled and disabled refinement ticks independently of colored axes',()=>{const value={...DEFAULT_ORIGIN_DIRECTIONS,mode:'area',halves:2,sides:[],disabled:['0:1']},layout=originAxisLayout([],value);assert.equal(layout.rays.length,16);const off=layout.rays.find(ray=>ray.id==='direction:0:1');assert.equal(off.selected,false);const segment=dialSegments(off)[0],point={x:(segment.a.x+segment.b.x)/2,y:(segment.a.y+segment.b.y)/2};assert.strictEqual(pickAxisDial(point,layout.rays),off);assert.deepEqual(layout.targets.get(off.id),{key:'0:1'});const on=originAxisLayout([],{...value,disabled:[]}).rays.find(ray=>ray.id===off.id);assert.equal(on.selected,true);});

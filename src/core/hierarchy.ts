@@ -12,7 +12,7 @@ export function hierarchyAction(world:World,roots:readonly Origin[],nextOnly=fal
 export function createHierarchyIsolation(){
  let active=false,roots:Origin[]=[],cachedWorld:World|undefined,cached:Set<string>|undefined;
  function set(next:readonly Origin[],enabled=true){active=enabled;roots=structuredClone([...next]);cachedWorld=undefined;cached=undefined;}
- return {get active(){return active;},get roots(){return roots as readonly Origin[];},
+ return {get active(){return active;},get hidesAll(){return active&&roots.length===0;},get roots(){return roots as readonly Origin[];},
  toggle(next:readonly Origin[]){const ids=new Set(roots.map(address));if(active&&next.length===roots.length&&next.every(origin=>ids.has(address(origin))))set([],false);else set(next);},
  ensure(next:readonly Origin[]){if(next.length)set(next);else if(!roots.length)throw Error('Point at or select a hierarchy first.');},
  visible(world:World){if(!active)return undefined;if(cachedWorld===world)return cached;

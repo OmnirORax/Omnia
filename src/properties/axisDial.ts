@@ -15,5 +15,5 @@ export function pickAxisDial(point:{x:number;y:number},rays:readonly AxisDialRay
  for(const ray of rays){if(ray.kind!=='axis')continue;for(const {a,b}of dialSegments(ray)){const dx=b.x-a.x,dy=b.y-a.y,t=Math.max(0,Math.min(1,((point.x-a.x)*dx+(point.y-a.y)*dy)/(dx*dx+dy*dy))),d=(point.x-a.x-t*dx)**2+(point.y-a.y-t*dy)**2;if(d<distance){distance=d;best=ray;}}}return best;
 }
 
-/** Quadrants share the placement owner's order: NE, NW, SW, SE. */
-export function dialAreaPath(quadrant:number){const radius=AXIS_DIAL.needleOuter,points=[[radius,0],[0,-radius],[-radius,0],[0,radius]],a=points[quadrant],b=points[(quadrant+1)%4];return `M0 0 L${a[0]} ${a[1]} A${radius} ${radius} 0 0 0 ${b[0]} ${b[1]} Z`;}
+/** Sector order shares the placement owner's counter-clockwise direction slots. */
+export function dialAreaPath(index:number,count=4){const radius=AXIS_DIAL.needleOuter,point=(i:number)=>[radius*Math.cos(i/count*Math.PI*2),-radius*Math.sin(i/count*Math.PI*2)],a=point(index),b=point(index+1);return `M0 0 L${a[0]} ${a[1]} A${radius} ${radius} 0 0 0 ${b[0]} ${b[1]} Z`;}

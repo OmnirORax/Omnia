@@ -130,7 +130,7 @@ export function nodeOriginView(position:Vec3,target:Vec3,up:Vec3){
  return {position:[...position] as Vec3,target:[...target] as Vec3,up:vertical};
 }
 
-export const activeWorldAxes=(frame:AxisFrame)=>frame.activeAxes??[0,2];
+export const activeWorldAxes=(frame:AxisFrame)=>frame.directions?.mode==='area'?[0,1]:frame.activeAxes??[0,2];
 export function toggleWorldAxis(world:World,id:string,axis:number){
  const frame=world.axes?.find(frame=>frame.id===id);if(!frame||!Number.isInteger(axis)||axis<0||axis>2)throw Error('Choose a valid axis.');
  const current=activeWorldAxes(frame);frame.activeAxes=current.includes(axis)?current.filter(n=>n!==axis):[...current,axis].sort();world.activeAxis=id;

@@ -26,16 +26,33 @@ export function toggleOriginSide(settings:OriginDirections,active:readonly numbe
  const clicked=sign===undefined?undefined:sideIndex(axis,sign),enabled=clicked===undefined?(whole?[]:pair):whole?[clicked]:sides.includes(clicked)?[]:pair;
  next.sides=[...sides.filter(side=>!pair.includes(side)),...enabled].sort();return next;
 }
+const areaCaches=new WeakMap<OriginDirections,Map<string,boolean[]>>();
+/** Adjacent enabled rays bound the smaller sectors; opposite rays alone have no area. */
 export function originAreaMask(settings:OriginDirections,active:readonly number[]=[0,1]){
- const sides=originSides(settings,active),valid=sideAxes(sides).length===2;
- return [[0,2],[1,2],[1,3],[0,3]].map(pair=>valid&&(settings.invert?!pair.every(side=>sides.includes(side)):pair.every(side=>sides.includes(side))));
+ let cache=areaCaches.get(settings);if(!cache){cache=new Map();areaCaches.set(settings,cache);}const key=active.join(',');const cached=cache.get(key);if(cached)return cached;
+ const sides=originSides(settings,active),count=4*2**settings.halves,quarter=count/4,cardinals=[0,2,1,3],disabled=new Set(settings.disabled),selected:number[]=[];
+ for(let i=0;i<count;i++)if(i%quarter===0?sides.includes(cardinals[i/quarter]):!disabled.has(`0:${i}`))selected.push(i);
+ const mask=Array<boolean>(count).fill(false);
+ if(selected.length>1)for(let i=0;i<selected.length;i++){const start=selected[i],end=selected[(i+1)%selected.length],gap=(end-start+count)%count;if(gap<count/2)for(let j=0;j<gap;j++)mask[(start+j)%count]=true;}
+ const valid=mask.some(Boolean),result=mask.map(enabled=>valid&&(settings.invert?!enabled:enabled));cache.set(key,result);return result;
 }
 export function originAreaContains(mask:readonly boolean[],x:number,y:number){
- return mask.some((enabled,index)=>enabled&&(index===0?x>=-1e-8&&y>=-1e-8:index===1?x<=1e-8&&y>=-1e-8:index===2?x<=1e-8&&y<=1e-8:x>=-1e-8&&y<=1e-8));
+ const count=mask.length;if(!count)return false;if(Math.hypot(x,y)<1e-8)return mask.some(Boolean);
+ const angle=(Math.atan2(y,x)+Math.PI*2)%(Math.PI*2),slot=angle/(Math.PI*2)*count,index=Math.floor(slot)%count,tolerance=1e-8;
+ return !!mask[index]||Math.abs(slot-Math.round(slot))<tolerance&&(!!mask[Math.round(slot)%count]||!!mask[(Math.round(slot)+count-1)%count]);
+}
+/** Axis and Area share refined direction identities; Unit has its own ring slots. */
+export function changeOriginMode(settings:OriginDirections,mode:OriginDirections['mode'],active:readonly number[]=[0,1]):OriginDirections{
+ if(mode===settings.mode)return settings;
+ const value=planarOriginDirections(settings,active);
+ if(mode==='unit'||settings.mode==='unit')return {...value,mode,disabled:[]};
+ const disabled=new Set(value.disabled);
+ if(mode==='area')for(const [i,slot]of directionSlots(value).entries())if(i%(directionCount(value)/4)!==0&&!originDirectionAllowed(value,slot.x,slot.y))disabled.add(slot.key);
+ return {...value,mode,disabled:[...disabled]};
 }
 export function originDirectionAllowed(settings:OriginDirections,x:number,y:number){const sides=settings.sides;if(!sides)return true;return (Math.abs(x)<1e-8||sides.includes(x>0?0:1))&&(Math.abs(y)<1e-8||sides.includes(y>0?2:3));}
-export function directionCount(settings:OriginDirections,ring=1){return settings.mode==='axis'?4*2**settings.halves:radialSlotCapacity(ring,1);}
-export function directionSlots(settings:OriginDirections,ring=1){const count=directionCount(settings,ring);return Array.from({length:count},(_,i)=>{const turn=i/count*Math.PI*2;return {key:`${settings.mode==='axis'?0:ring-1}:${i}`,x:Math.cos(turn),y:Math.sin(turn)};});}
+export function directionCount(settings:OriginDirections,ring=1){return settings.mode!=='unit'?4*2**settings.halves:radialSlotCapacity(ring,1);}
+export function directionSlots(settings:OriginDirections,ring=1){const count=directionCount(settings,ring);return Array.from({length:count},(_,i)=>{const turn=i/count*Math.PI*2;return {key:`${settings.mode!=='unit'?0:ring-1}:${i}`,x:Math.cos(turn),y:Math.sin(turn)};});}
 export function validateOriginDirections(value:OriginDirections){
  if(!value||!['axis','unit','area'].includes(value.mode)||!Number.isInteger(value.halves)||value.halves<0||value.halves>6||!Number.isInteger(value.rings)||value.rings<1||value.rings>4||!Array.isArray(value.disabled)||value.disabled.length>1024||new Set(value.disabled).size!==value.disabled.length||value.disabled.some(key=>!/^(?:(XY|XZ|YZ):)?\d{1,6}:\d{1,4}$/.test(key))||typeof value.symmetry!=='boolean')throw Error('Invalid origin directions.');
  if(value.sides!==undefined&&(!Array.isArray(value.sides)||value.sides.length>4||new Set(value.sides).size!==value.sides.length||value.sides.some(side=>!Number.isInteger(side)||side<0||side>3)))throw Error('Invalid origin sides.');
@@ -65,19 +82,19 @@ export function spatialDirectionSlots(settings:OriginDirections,active:readonly 
  return [...slots.values()];
 }
 export function hasOriginDirections(frame:AxisFrame){
- const settings=frame.directions,active=settings?.sides?sideAxes(settings.sides):activeWorldAxes(frame);if(!active.length)return false;if(!settings)return true;if(settings.mode==='area')return originAreaMask(settings,active).some(Boolean);
+ const settings=frame.directions,active=settings?.sides?sideAxes(settings.sides):activeWorldAxes(frame);if(settings?.mode==='area')return originAreaMask(settings,active).some(Boolean);if(!active.length)return false;if(!settings)return true;
  return Array.from({length:settings.mode==='axis'?1:settings.rings},(_,i)=>spatialDirectionSlots(settings,active,i+1)).some(slots=>slots.length>0);
 }
 /** One directional placement plan is shared by previews, painting and relocation. */
 export function prepareOriginDirections(world:World,frame:AxisFrame){
  const original=frame.directions;if(!original)return undefined;const settings=original.mode==='area'?planarOriginDirections(original,activeWorldAxes(frame)):original;
- const enabled=settings.sides?sideAxes(settings.sides):activeWorldAxes(frame),center=axisCenter(world,frame),basis=[frame.x,frame.y,frame.z];
+ const enabled=settings.mode==='area'?[0,1]:settings.sides?sideAxes(settings.sides):activeWorldAxes(frame),center=axisCenter(world,frame),basis=[frame.x,frame.y,frame.z];
  const worldVector=(direction:Vec3)=>new T.Vector3(...basis[0]).multiplyScalar(direction[0]).addScaledVector(new T.Vector3(...basis[1]),direction[1]).addScaledVector(new T.Vector3(...basis[2]),direction[2]);
  return (position:Vec3,offsets:readonly Vec3[]):{anchor:Vec3;stamp:Vec3[];rejection?:string}=>{
   if(!enabled.length)return {anchor:position,stamp:[],rejection:'Enable a placement direction.'};
   if(settings.mode==='area'){
    const mask=originAreaMask(settings,enabled),coords=axisCoordinates(world,frame,position),slot=snapSlots([coords[0],coords[1],0],[0,1],settings.pattern==='hex'),anchor=plus(center,plus(times(basis[0],slot[0]),times(basis[1],slot[1])));
-   if(!mask.some(Boolean))return {anchor,stamp:[],rejection:sideAxes(settings.sides!).length<2?'Area needs an X side and a Y side.':'The selected area is empty; change its sides or invert setting.'};
+   if(!mask.some(Boolean))return {anchor,stamp:[],rejection:'The selected area is empty; enable two non-opposite directions or change the invert setting.'};
    if(!originAreaContains(mask,coords[0],coords[1])||!originAreaContains(mask,slot[0],slot[1]))return {anchor,stamp:[],rejection:'Point is outside the active area.'};
    const flips=(settings.symmetry?[[1,1],[-1,1],[1,-1],[-1,-1]]:[[1,1]]).filter(([fx,fy])=>originAreaContains(mask,slot[0]*fx,slot[1]*fy)),stamp:Vec3[]=[];
    if(flips.length*offsets.length>4000)return {anchor,stamp:[],rejection:'The symmetric brush exceeds 4000 positions.'};
