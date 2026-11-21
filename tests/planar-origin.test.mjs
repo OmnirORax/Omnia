@@ -16,8 +16,8 @@ test('tap-origin explicitly resets a previously aimed frame to camera basis whil
  const saved=structuredClone(h.frame);assert.throws(()=>aimFramePoint(h.world,h.frame.id,[1,2,3]),/away/);assert.deepEqual(h.frame,saved);
  assert.equal(projectionAxis(h.frame,[0,-1,0]),2);
 });
-test('positive and negative X/Y sides toggle independently and Z cannot be activated',()=>{
- let settings=planarOriginDirections(undefined);settings=toggleOriginSide(settings,[0,1],0,-1);assert.deepEqual(settings.sides,[0,2,3]);settings=toggleOriginSide(settings,[0,1],0,1);assert.deepEqual(sideAxes(settings.sides),[1]);settings=toggleOriginSide(settings,[1],0);assert.deepEqual(settings.sides,[0,1,2,3]);assert.throws(()=>toggleOriginSide(settings,[0,1],2),/facing-only/);
+test('axis clicks cycle whole axis, clicked side, off and Z cannot be activated',()=>{
+ let settings=planarOriginDirections(undefined);settings=toggleOriginSide(settings,[0,1],0,-1);assert.deepEqual(settings.sides,[1,2,3]);settings=toggleOriginSide(settings,[0,1],0,-1);assert.deepEqual(sideAxes(settings.sides),[1]);settings=toggleOriginSide(settings,[1],0);assert.deepEqual(settings.sides,[0,1,2,3]);assert.throws(()=>toggleOriginSide(settings,[0,1],2),/facing-only/);
  const h=harness({sides:[0],symmetry:false}),positive=h.session().candidate([3,0,20]);near(positive.anchor,[3,0,0]);assert.equal(positive.valid,true);const rejected=h.session().candidate([-3,0,0]);assert.equal(rejected.valid,false);assert.match(rejected.rejection,/behind/);
 });
 test('signed directions define quadrants, full axes define the full plane, and invert selects the complement',()=>{
@@ -59,4 +59,12 @@ test('P can face the drawing plane even when all placement sides are disabled, w
 test('Z stays visibly facing-only while the authorable axes remain XY',async()=>{
  const {createOriginGizmo,disposeOriginGizmo}=await import('../src/world/originGizmo.ts'),h=harness({mode:'area'}),gizmo=createOriginGizmo(1,true,[0,1],h.frame.directions);
  try{const facing=gizmo.children.find(object=>object.userData.directionIndicator&&object.userData.axisIndex===2);assert.equal(facing.material.opacity,1);assert.deepEqual(h.frame.activeAxes,[0,1]);}finally{disposeOriginGizmo(gizmo);}
+});
+
+for(const axis of [0,1])for(const sign of [1,-1])test(`signed axis cycle ${axis}:${sign} preserves the other axis`,()=>{
+ let value={...planarOriginDirections(undefined),sides:axis===0?[2,3]:[0,1]};const preserved=[...value.sides],side=axis*2+(sign===1?0:1);
+ value=toggleOriginSide(value,[0,1],axis,sign);assert.deepEqual(value.sides,[0,1,2,3]);
+ value=toggleOriginSide(value,[0,1],axis,sign);assert.deepEqual(value.sides,[...preserved,side].sort());
+ value=toggleOriginSide(value,[0,1],axis,sign);assert.deepEqual(value.sides,preserved);
+ value={...value,sides:[...preserved,side^1].sort()};value=toggleOriginSide(value,[0,1],axis,sign);assert.deepEqual(value.sides,[0,1,2,3]);
 });

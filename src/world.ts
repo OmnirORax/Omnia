@@ -1,3 +1,4 @@
+import {createHierarchyIsolation} from './core/hierarchy.ts';
 import {createRenderScheduler} from './world/renderScheduler.ts';
 import {hasOriginDirections} from './core/originDirections.ts';
 import {ARROW_NUDGES,axisNudgeDirection} from './world/axisNudge.ts';
@@ -117,6 +118,7 @@ export function createWorld(host: HTMLElement, input: Input) {
   const activeAxis=()=>sharedReference.read();
   const operationWorld=(value=world)=>sharedReference.world(value,activeAxis());
   let contentViewChanging=false;
+  const isolation=createHierarchyIsolation();
   const retained = expansionState(), variants = new Set<string>(), navigator = createWorldNavigator();
   const rectangle = document.createElement('div'); rectangle.className = 'marquee'; rectangle.hidden = true; host.append(rectangle);
   let spaceIndex:ReturnType<typeof createOccupancy>,pointerInside=false,ghostCameraStamp='';
@@ -311,6 +313,7 @@ export function createWorld(host: HTMLElement, input: Input) {
   }
   function visibility(node: Structure) {
     if (pointOfView&&sameOrigin(node.origin,pointOfView))return false;
+    if (isolation.visible(world)?.has(key(node.origin))===false)return false;
     if (node.hidden || filter && !filter.has(key(node.origin))) return false;
     if (node.variantOf && !variants.has(key(node.variantOf))) return false;
     let parent = node.parent && visuals.get(key(node.parent))?.node, depth = 0;
@@ -712,7 +715,9 @@ export function createWorld(host: HTMLElement, input: Input) {
     get selectingRange(){return gesture?.mode==='range';},
     toggleContentView(){const group=input.committedSelection();if(group.length>1){const close=group.every(origin=>nodeContentVisible(retained,key(origin),world.settings?.names,false,false));for(const origin of group){const id=key(origin);if(close){retained.open.delete(id);retained.closed.add(id);}else{retained.closed.delete(id);retained.open.add(id);}}presentation();return;}const origin=gesture?.mode!=='range'&&pointerInside&&lastPoint?pointed(lastPoint).origin:undefined;if(origin){const id=key(origin),visible=nodeContentVisible(retained,id,world.settings?.names,false,false);if(visible){retained.open.delete(id);retained.closed.add(id);}else{retained.closed.delete(id);retained.open.add(id);}presentation();return;}retained.open.clear();retained.closed.clear();contentViewChanging=true;try{input.toggleAllContent();}finally{contentViewChanging=false;}if(gesture?.mode==='range')previewRange(gesture);},
     get hoveredOrigin(){return pointerInside&&lastPoint?pointed(lastPoint).origin:undefined;},
-    toggleHierarchy(nextOnly=false,content=false){const origin=pointerInside&&lastPoint?pointed(lastPoint).origin:undefined,roots=origin?[origin]:[],visible=new Map(world.nodes.map(n=>[key(n.origin),nodeContentVisible(retained,key(n.origin),world.settings?.names,false,false)])),affected=input.hierarchy(roots,nextOnly,content);if(content){const close=affected.length>0&&affected.every(id=>visible.get(key(id)));for(const id of affected){if(close){retained.open.delete(key(id));retained.closed.add(key(id));}else{retained.closed.delete(key(id));retained.open.add(key(id));}}}presentation();},
+    toggleHierarchyIsolation(){const origin=pointerInside&&lastPoint?pointed(lastPoint).origin:undefined;isolation.toggle(origin?[origin]:input.committedSelection());update(world,selected,filter,selectedEdges);},
+    get hierarchyIsolated(){return isolation.active;},
+    toggleHierarchy(nextOnly=false,content=false,isolate=false){const origin=pointerInside&&lastPoint?pointed(lastPoint).origin:undefined,group=input.committedSelection(),roots=origin?[origin]:isolate&&group.length?[...group]:isolation.active?[...isolation.roots]:[];if(isolate)isolation.ensure(roots);const visible=new Map(world.nodes.map(n=>[key(n.origin),nodeContentVisible(retained,key(n.origin),world.settings?.names,false,false)])),affected=input.hierarchy(roots,nextOnly,content);if(content){const close=affected.length>0&&affected.every(id=>visible.get(key(id)));for(const id of affected){if(close){retained.open.delete(key(id));retained.closed.add(key(id));}else{retained.closed.delete(key(id));retained.open.add(key(id));}}}if(isolate)update(world,selected,filter,selectedEdges);else presentation();},
     get inputContext(){return boundRotation.active?'rotate':alignment?'align':originPick?'origin':axisPicking?(axisPicking.first?'axis-second':'axis-first'):creating?'create':'world';},
     pickOrigin:pickSpatialOrigin,beginOriginSet,originAimPoint(){return pointerInside&&lastPoint?originTarget(lastPoint).position:undefined;},
     toggleCreation(){pointerAlt=false;originPick=undefined;creating=!creating;if(stroke)finishPaint(true);hoverPaint=undefined;hoverCandidate=undefined;ghost.visible=false;if(creating){creationParent=(pointerInside&&lastPoint?pointed(lastPoint).origin:undefined)??selected[0];cancelDrive();if(lastPoint)processPointer();}else axisView.brushCoordinates(world,activeAxis(),[],scale,camera,coordinatesVisible);request();return creating;},

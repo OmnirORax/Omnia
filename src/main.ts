@@ -7,10 +7,10 @@ import {capturingShortcut} from './ui/shortcuts.ts';
 import {installPointerBindings,pointerActivation} from './ui/pointerBindings.ts';
 import {nativeLayout,nativeAppearance} from './composer/runtime/historyBridge.ts';
 import {navigationState} from './ui/navigationState.ts';
-import {releaseShortcuts,installReleaseShortcuts} from './ui/releaseShortcuts';
+import {releaseShortcuts,installReleaseShortcuts,createHeldCommands} from './ui/releaseShortcuts';
 import {reconnectBinder} from './core/connections';
 import {WORLD_GESTURES,DOCUMENT_GESTURES} from './ui/gestureShortcuts';
-import {shortcuts,installShortcutCapture,normalizeShortcut,shortcutEvent,worldBinding,worldShortcutId,matchesShortcut,type ShortcutDefinition} from './ui/shortcuts';
+import {shortcuts,assignAvailableDefault,installShortcutCapture,normalizeShortcut,shortcutEvent,worldBinding,worldShortcutId,matchesShortcut,type ShortcutDefinition} from './ui/shortcuts';
 import {shortcutWindow} from './ui/shortcutWindow';
 import {selectionCenter,applyGroupTargets} from './core/groupPlacement';
 import {controlShortcutDefinitions,registerControlShortcutCatalog,shortcutContextFor,assignedShortcuts,installContextActions,registerContextActions,refreshContextActions} from './ui/contextActions';
@@ -70,6 +70,10 @@ import { liveForm,flushLiveForms } from './ui/liveForm.ts';
 
 try{shortcuts.initialize(localStorage);}catch{/* Session-only bindings when storage is unavailable. */}
 installPointerBindings(()=>view?.inputContext==='rotate'?'world':view?.inputContext??'world');
+const hierarchyCommands=createHeldCommands(releaseShortcuts,()=>[
+ {binding:worldBinding('V'),run:command=>attempt(()=>view?.toggleHierarchy(command==='next',true))},
+ {binding:worldBinding('Shift+V'),run:command=>attempt(()=>view?.toggleHierarchy(command==='next',false,true))},
+],()=>[{id:'all',binding:worldBinding('Q')},{id:'next',binding:worldBinding('Shift+Q')}]);
 installReleaseShortcuts(event=>{
  if(capturingShortcut())return false;
  if(/^(Control|Shift|Alt|Meta|AltGraph)$/.test(event.key)||event.isComposing)return false;
@@ -80,6 +84,7 @@ installReleaseShortcuts(event=>{
  if(editor&&(event.ctrlKey||event.metaKey)&&!event.altKey&&/^[cxv]$/i.test(event.key))return false;
  if(editor&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&/^(Arrow|Home|End|Page)/.test(event.key))return false;
  if(editor&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&event.key!=='Escape'&&!/^F\d+$/.test(event.key)&&!Object.values(shortcuts.getSnapshot().Document??{}).some(binding=>!!binding&&binding===shortcutEvent(event,'Document')))return false;
+ if(!typing&&!element?.closest('[data-input-owner]')&&hierarchyCommands.match(event))return true;
  if(!typing&&!element?.closest('[data-input-owner]')&&Object.keys(ARROW_NUDGES).some(key=>matchesShortcut(event,worldBinding(key))))return false;
  if(!typing&&/^\d$/.test(event.key))return true;
  if(view?.selectingRange&&!typing&&matchesShortcut({...event,key:event.key,ctrlKey:false,metaKey:false,altKey:false,shiftKey:false} as KeyboardEvent,worldBinding('V')))return true;
@@ -87,7 +92,7 @@ installReleaseShortcuts(event=>{
  if(omnic&&!typing&&event.key.length===1&&event.key!==' ')return true;
  const keys=[...(!editor&&!omnic?worldShortcutActions(true).map(action=>({key:action.key??'',category:'Omnium' as const})):[]),...assignedShortcuts().filter(action=>editor?action.context==='Document':omnic?action.context==='Omnic':action.context==='Omnium').map(action=>({key:action.key,category:action.context==='Document'?'Document' as const:'Omnium' as const})),...(!editor?['V','Esc','.','F11','Ctrl+Z','Ctrl+Y','Ctrl+Shift+Z','Enter']:['F11']).map(key=>({key:worldBinding(key),category:'Omnium' as const}))];
  return keys.some(action=>matchesShortcut(event,action.key,action.category));
-},event=>(matchesShortcut(event,worldBinding('Q'))||matchesShortcut(event,worldBinding('Shift+Q')))&&releaseShortcuts.held(worldBinding('V'))?[worldBinding('V')]:[],event=>{const element=event.target instanceof Element?event.target:undefined;if(!matchesShortcut(event,originShortcutBinding())||element?.closest('input,textarea,select,[contenteditable],[data-input-owner],.cm-editor')||element&&shortcutContextFor(element)==='Omnic')return;return view?.beginOriginSet()??{release:()=>feedback('Point inside the world to set its origin.'),cancel:()=>{}};});
+},event=>{const chord=hierarchyCommands.match(event);return chord?[chord.prefix]:[];},event=>{const chord=hierarchyCommands.match(event);if(chord)return {release:chord.run,cancel:()=>{}};const element=event.target instanceof Element?event.target:undefined;if(!matchesShortcut(event,originShortcutBinding())||element?.closest('input,textarea,select,[contenteditable],[data-input-owner],.cm-editor')||element&&shortcutContextFor(element)==='Omnic')return;return view?.beginOriginSet()??{release:()=>feedback('Point inside the world to set its origin.'),cancel:()=>{}};});
 installShortcutCapture();
 installPrimaryClickGate();
 installBrowserShortcutGuard();
@@ -386,9 +391,10 @@ const worldSettings=settingsCatalog.define('world',()=>[
     {label:'Browser shortcuts',keywords:'world browser chrome keyboard shortcuts',definition:{key:'browserShortcuts',label:'Browser shortcuts',kind:'toggle'},read:browserShortcutsEnabled,set:value=>{enableBrowserShortcuts(Boolean(value));if(value)void immersive.leave().catch(error=>feedback(error.message));}},
 ]);
 
-function hierarchyShortcut(nextOnly=false){const content=releaseShortcuts.held(worldBinding('V'));if(content)releaseShortcuts.consume(worldBinding('V'));view?.toggleHierarchy(nextOnly,content);}
+function hierarchyShortcut(nextOnly=false){view?.toggleHierarchy(nextOnly);}
 window.addEventListener('keydown',event=>{
  const target=event.target,typing=target instanceof Element&&!!target.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"]),[role="textbox"],.cm-editor,[data-input-owner]');
+ if(!typing&&matchesShortcut(event,worldBinding('Shift+V'))){event.preventDefault();event.stopImmediatePropagation();if(!event.repeat)attempt(()=>view?.toggleHierarchyIsolation());return;}
  handleContentViewShortcut(event,typing,()=>attempt(()=>view?.toggleContentView()),worldBinding('V'),view?.selectingRange);
 },true);
 const historySettings=settingsCatalog.define('history',()=>[
@@ -421,6 +427,7 @@ function spaceActions():SearchAction[]{
  return [
  {label:'Face origin toward position',key:'Ctrl+X',keywords:'world origin axes direction aim face align',run:aimOrigin,available:active},
  {label:'Brush',key:'Shift+X',keywords:'world paint cube sphere geometry recursive unit',run:openBrush},
+ {label:view?.hierarchyIsolated?'Show all hierarchies':'Hide nodes outside active hierarchy',key:'Shift+V',keywords:'isolate hierarchy visibility hide show branch',run:()=>view?.toggleHierarchyIsolation()},
  {label:'Coordinates',key:'C',keywords:'world cursor brush coordinates xy xyz readout labels',run:()=>view?.toggleCoordinates()},
  {label:'Position User',key:'P',keywords:'world camera node axis reference origin focus align',run:focusSelection,available:true},
  {label:'View from first node',keywords:'world camera perspective occupy endpoint depth z',run:()=>{if(relation)enterNodePerspective(relation.ends[0]);},available:!!relation},
@@ -727,8 +734,13 @@ shortcuts.subscribe(()=>{for(const control of document.querySelectorAll<HTMLElem
 element('empty').querySelector('span')!.textContent=worldBinding('W')||'Create nodes';
 refresh();
 
-// The shortcut catalog reads the renderer reference, so check defaults only after the initial refresh.
-{const actions=worldShortcutActions(true),aim=actions.find(action=>action.defaultKey==='Ctrl+X');if(aim&&shortcuts.getSnapshot().Omnium?.[aim.id]===undefined){const catalog=actions.map(action=>({category:'Omnium' as const,id:action.id,label:action.label,defaultKey:action.defaultKey,scope:action.scope})),definition=catalog.find(item=>item.id===aim.id)!;let available=false;try{available=!shortcuts.plan(definition,'Ctrl+X',catalog).conflicts.length;}catch{/* Invalid duplicate bindings also leave the new default unassigned. */}if(!available){shortcuts.assign(definition,'',catalog);feedback('Ctrl+X is already assigned; bind Aim origin in Shortcuts.');}}}
+// The catalog reads the renderer reference; reserve new defaults only after refresh.
+{const actions=worldShortcutActions(true),catalog=[...actions.map(action=>({category:'Omnium' as const,id:action.id,label:action.label,defaultKey:action.defaultKey,scope:action.scope})),...WORLD_GESTURES,...controlShortcutDefinitions()];
+ for(const [key,candidates,message] of [
+ ['Ctrl+X',['Ctrl+X'],'Ctrl+X is already assigned; bind Aim origin in Shortcuts.'],
+ ['Shift+V',['Shift+V','Ctrl+V','Alt+V'],'Assign Hide nodes outside active hierarchy in Shortcuts.'],
+ ] as const){const definition=catalog.find(item=>item.id===worldShortcutId(key));if(definition&&shortcuts.getSnapshot().Omnium?.[definition.id]===undefined&&!assignAvailableDefault(shortcuts,definition,candidates,catalog))feedback(message);}
+}
 
 // Builds share one draft; production retains its published starting state.
 if(location.hostname==='omnium.nexus'||location.hostname==='omnia-web-bae.pages.dev'||location.hostname.endsWith('.omnia-web-bae.pages.dev')){

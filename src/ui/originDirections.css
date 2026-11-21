@@ -3,3 +3,5 @@
 .origin-direction-axes{position:relative;width:168px;height:168px;margin:auto;touch-action:none;cursor:pointer}.origin-direction-axes>svg{display:block;width:100%;height:100%;pointer-events:none;overflow:visible}
 
 .origin-direction-axes:focus-visible{outline:1px solid currentColor;outline-offset:-3px;border-radius:50%}
+
+.origin-mode-caption{display:block;min-height:1.2em;text-align:center;font-size:.8em;opacity:.8}.origin-mode-example{pointer-events:none}.origin-mode-example .origin-example-site{fill:currentColor;stroke:none;opacity:.3}.origin-mode-example .origin-example-node{fill:var(--omnium-accent,#60ddec);stroke:currentColor;stroke-width:.008}.origin-mode-example .origin-example-cursor{fill:none;stroke:currentColor;stroke-width:.012;opacity:.65}.origin-mode-example .origin-example-snap{stroke-width:.009;stroke-dasharray:.025 .025;opacity:.45}.origin-mode-example[data-valid=false]{color:#ff6677}

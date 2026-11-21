@@ -17,3 +17,14 @@ export function installReleaseShortcuts(accept:(event:KeyboardEvent)=>boolean,pr
  window.addEventListener('keyup',event=>{if(!event.isTrusted||replay.has(event)||!captured.has(identity(event)))return;captured.delete(identity(event));event.preventDefault();event.stopImmediatePropagation();releaseShortcuts.release(event);},true);
  const cancel=()=>{captured.clear();releaseShortcuts.cancel();};window.addEventListener('blur',cancel);document.addEventListener('visibilitychange',()=>{if(document.hidden)cancel();});
 }
+
+/** Held-prefix commands share suppression and release-order behavior. Prefix modifiers
+ * belong to the prefix, so Shift+V then Q remains Q rather than Shift+Q. */
+export function createHeldCommands(queue:ReturnType<typeof createReleaseShortcuts>,read:()=>readonly {binding:string;run:(command:string)=>void}[],commands:()=>readonly {id:string;binding:string}[]){
+ return {match(event:Key){for(const prefix of [...read()].reverse()){if(!prefix.binding||!queue.held(prefix.binding))continue;
+ const mods=prefix.binding.split('+');
+ for(const command of commands()){const own=command.binding.split('+'),strip=(modifier:string)=>mods.includes(modifier)&&!own.includes(modifier),suffix={...event,ctrlKey:event.ctrlKey&&!strip('Ctrl'),metaKey:event.metaKey&&!strip('Cmd')&&!strip('Ctrl'),altKey:event.altKey&&!strip('Alt'),shiftKey:event.shiftKey&&!strip('Shift')};
+ if(matchesShortcut(suffix as KeyboardEvent,command.binding))return {prefix:prefix.binding,run:()=>prefix.run(command.id)};
+ }
+ }return undefined;}};
+}

@@ -22,8 +22,9 @@ export function planarOriginDirections(settings:OriginDirections|undefined,activ
 }
 export function toggleOriginSide(settings:OriginDirections,active:readonly number[],axis:number,sign?:1|-1){
  if(axis!==0&&axis!==1)throw Error('Z is facing-only; placement uses X and Y.');
- const next={...planarOriginDirections(settings,active)},sides=next.sides!,targets=sign?[sideIndex(axis,sign)]:[axis*2,axis*2+1],remove=targets.every(side=>sides.includes(side));
- next.sides=remove?sides.filter(side=>!targets.includes(side)):[...new Set([...sides,...targets])].sort();return next;
+ const next={...planarOriginDirections(settings,active)},sides=next.sides!,pair=[axis*2,axis*2+1],whole=pair.every(side=>sides.includes(side));
+ const clicked=sign===undefined?undefined:sideIndex(axis,sign),enabled=clicked===undefined?(whole?[]:pair):whole?[clicked]:sides.includes(clicked)?[]:pair;
+ next.sides=[...sides.filter(side=>!pair.includes(side)),...enabled].sort();return next;
 }
 export function originAreaMask(settings:OriginDirections,active:readonly number[]=[0,1]){
  const sides=originSides(settings,active),valid=sideAxes(sides).length===2;

@@ -55,3 +55,10 @@ test('native bindings share persistence and capture consumes keys before applica
  const event=key('F11');handlers.get('keydown')(event);assert.equal(event.prevented,true);assert.equal(event.stopped,true);assert.deepEqual(captured,['F11']);handlers.get('keydown')(key('Escape'));assert.equal(captured.at(-1),'cancel');stop();
  }finally{globalThis.window=previous;shortcuts.initialize({getItem:()=>null,setItem(){}});}
 });
+
+test('preferred defaults choose an available fallback without displacing existing bindings',async()=>{
+ const {assignAvailableDefault}=await import('../src/ui/shortcuts.ts'),store=createShortcutStore(),target=definition('Omnium','world:Shift+V','Shift+V'),occupied=definition('Omnium','other','Shift+V'),catalog=[target,occupied];
+ assert.equal(assignAvailableDefault(store,target,['Shift+V','Ctrl+V','Alt+V'],catalog),'Ctrl+V');assert.equal(store.get(occupied),'Shift+V');assert.equal(store.get(target),'Ctrl+V');
+ store.assign(target,'Alt+I',catalog);assert.equal(assignAvailableDefault(store,target,['Shift+V','Ctrl+V','Alt+V'],catalog),'Alt+I');
+ const blocked=createShortcutStore(),all=[target,...['Shift+V','Ctrl+V','Alt+V'].map((binding,i)=>definition('Omnium',`occupied:${i}`,binding))];assert.equal(assignAvailableDefault(blocked,target,['Shift+V','Ctrl+V','Alt+V'],all),'');assert.equal(blocked.get(target),'');
+});

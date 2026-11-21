@@ -11,3 +11,5 @@
 .axis-wheel-drawing [data-preview=true] .axis-wheel-arm{stroke-width:2.4}
 
 .axis-wheel-drawing .axis-wheel-area{fill:currentColor;fill-opacity:.13;stroke:none}.axis-wheel-drawing .axis-wheel-facing{fill:currentColor;stroke:none}.axis-wheel-drawing .axis-wheel-label{fill:currentColor;stroke:none;font-size:.12px;opacity:.28}.axis-wheel-drawing [data-selected=true] .axis-wheel-label{opacity:.95}
+
+.axis-wheel-drawing [data-preview=true][data-selected=false] :is(.axis-wheel-arm,.axis-wheel-tick){opacity:.32}
