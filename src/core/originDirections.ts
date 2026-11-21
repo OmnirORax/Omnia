@@ -22,11 +22,11 @@ function lineSigns(settings:OriginDirections,ring=1){const order=settings.mode==
 /** Gizmos and placement derive directions solely from the activated axes. */
 export function spatialDirectionSlots(settings:OriginDirections,active:readonly number[],ring=1){
  if(!active.length)return [];
- if(active.length===1)return lineSigns(settings,ring).map(sign=>{const direction:Vec3=[0,0,0];direction[active[0]]=sign;return {key:`${settings.mode==='axis'?0:ring-1}:${sign===1?0:1}`,choiceKey:`${settings.mode==='axis'?0:ring-1}:${sign===1?0:1}`,direction};});
- const slots=new Map<string,{key:string;choiceKey:string;direction:Vec3}>();
+ if(active.length===1)return lineSigns(settings,ring).map(sign=>{const direction:Vec3=[0,0,0];direction[active[0]]=sign;return {key:`${settings.mode==='axis'?0:ring-1}:${sign===1?0:1}`,direction};});
+ const slots=new Map<string,{key:string;direction:Vec3}>();
  for(let i=0;i<active.length;i++)for(let j=i+1;j<active.length;j++){
   const a=active[i],b=active[j];
-  for(const slot of selectedSlots(settings,ring)){const direction:Vec3=[0,0,0];direction[a]=slot.x;direction[b]=slot.y;const key=direction.map(n=>Math.round(n*1e7)).join(',');if(!slots.has(key))slots.set(key,{key,choiceKey:slot.key,direction});}
+  for(const slot of selectedSlots(settings,ring)){const direction:Vec3=[0,0,0];direction[a]=slot.x;direction[b]=slot.y;const key=direction.map(n=>Math.round(n*1e7)).join(',');if(!slots.has(key))slots.set(key,{key,direction});}
  }
  return [...slots.values()];
 }

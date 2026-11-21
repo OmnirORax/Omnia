@@ -1,51 +1,38 @@
-import test from 'node:test';import assert from 'node:assert/strict';import * as T from 'three';
-import {createOriginControl,ORIGIN_CONTROL_SIZE} from '../src/world/originAxisControl.ts';
-import {disposeOriginGizmo} from '../src/world/originGizmo.ts';
-import {pickAxisSegment} from '../src/world/axisHit.ts';
-import {DEFAULT_ORIGIN_DIRECTIONS} from '../src/core/originDirections.ts';
-const rect={left:0,top:0,width:ORIGIN_CONTROL_SIZE,height:ORIGIN_CONTROL_SIZE};
-const screen=(object,point,camera)=>{object.updateWorldMatrix(true,false);const p=new T.Vector3(...point).applyMatrix4(object.matrixWorld).project(camera);return {x:(p.x+1)*rect.width/2,y:(1-p.y)*rect.height/2};};
+import test from 'node:test';import assert from 'node:assert/strict';
+import {originAxisLayout} from '../src/ui/originAxisLayout.ts';
+import {AXIS_DIAL,dialPoint,dialSegments,dialTickWidth,pickAxisDial} from '../src/properties/axisDial.ts';
+import {DEFAULT_ORIGIN_DIRECTIONS,directionSlots} from '../src/core/originDirections.ts';
 
-test('the fixed control inherits origin meshes and the scene picker selects all six separated arm ends',()=>{
- const {gizmo,camera}=createOriginControl([0,1],DEFAULT_ORIGIN_DIRECTIONS);
- try{
-  const objects=gizmo.children.filter(o=>o.visible),ends=[];
-  for(const shaft of objects.filter(o=>o.userData.originShaft))for(const end of shaft.userData.axisSegment){
-   const point=screen(shaft,end,camera);ends.push(point);
-   assert.equal(pickAxisSegment(point,objects,camera,rect,8).axisIndex,shaft.userData.axisIndex);
-   assert.equal(shaft.geometry.type,'CylinderGeometry');
-   assert.equal(shaft.material.opacity,shaft.userData.axisIndex===2?.2:1);
+test('all axis combinations and refinements have bounded, separated geometry and retain placement keys',()=>{
+ for(let mask=0;mask<8;mask++)for(let halves=0;halves<=6;halves++){
+  const active=[0,1,2].filter(axis=>mask&(1<<axis)),settings={...DEFAULT_ORIGIN_DIRECTIONS,halves,disabled:['0:1']},{rays,targets}=originAxisLayout(active,settings);
+  assert.equal(rays.filter(r=>r.kind==='axis').length,3);
+  for(const ray of rays){
+   for(const {a,b}of dialSegments(ray)){
+    for(const point of [a,b])assert.ok(Number.isFinite(point.x)&&Number.isFinite(point.y)&&Math.hypot(point.x,point.y)>.15&&Math.hypot(point.x,point.y)<=1);
+    const midpoint={x:(a.x+b.x)/2,y:(a.y+b.y)/2};assert.equal(pickAxisDial(midpoint,rays),ray);
+   }
+   const target=targets.get(ray.id);assert.ok(target);
+   assert.equal(ray.selected,'axis'in target?active.includes(target.axis):!settings.disabled.includes(target.key));
   }
-  for(let i=0;i<ends.length;i++)for(let j=i+1;j<ends.length;j++)assert.ok(Math.hypot(ends[i].x-ends[j].x,ends[i].y-ends[j].y)>30);
- }finally{disposeOriginGizmo(gizmo);}
+  const ticks=rays.filter(r=>r.kind==='direction');
+  assert.equal(ticks.length,active.length===0?0:active.length===1?2:directionSlots(settings).length);
+  assert.equal(new Set(ticks.map(r=>targets.get(r.id).key)).size,ticks.length);
+  assert.equal(pickAxisDial({x:0,y:0},rays),undefined);
+  assert.equal(pickAxisDial({x:2,y:0},rays),undefined);
+ }
 });
-test('axis refinements are actual shared-gizmo rays, and disabled directions stay visible and selectable',()=>{
- const directions={...DEFAULT_ORIGIN_DIRECTIONS,halves:1,disabled:['0:1']},view=createOriginControl([0,1],directions);
- try{
-  const rays=view.gizmo.children.filter(o=>o.userData.directionKey),disabled=rays.find(o=>o.userData.directionKey==='0:1');
-  assert.equal(rays.length,4);assert.ok(rays.every(o=>o instanceof T.Line));assert.equal(disabled.material.opacity,.15);
-  const positions=disabled.geometry.getAttribute('position'),p=new T.Vector3().fromBufferAttribute(positions,1).multiplyScalar(.95);
-  const hit=pickAxisSegment(screen(disabled,p.toArray(),view.camera),view.gizmo.children.filter(o=>o.visible),view.camera,rect,8);
-  assert.equal(hit.axisIndex,disabled.userData.axisIndex);
- }finally{disposeOriginGizmo(view.gizmo);}
+test('dense subdivisions scale their stroke width to keep visible gaps instead of merging into a disc',()=>{
+ for(const count of [2,4,8,16,32,64,128,256]){
+  const width=dialTickWidth(count),spacing=2*Math.PI*.85/count;
+  assert.ok(width>0&&width<spacing*.5);
+  for(const size of [64,144,168,320])assert.ok(width*size/2<spacing*size/2);
+ }
 });
-test('Unit mode retains only the base origin visual and releases all control resources',()=>{
- const {gizmo}=createOriginControl([0,1,2],{...DEFAULT_ORIGIN_DIRECTIONS,mode:'unit',rings:3});
- assert.equal(gizmo.children.some(o=>o.userData.directionKey),false);
- const resources=new Map();gizmo.traverse(o=>{for(const resource of [o.geometry,...[o.material].flat()].filter(Boolean))if(!resources.has(resource)){resources.set(resource,0);resource.addEventListener('dispose',()=>resources.set(resource,resources.get(resource)+1));}});
- disposeOriginGizmo(gizmo);assert.ok([...resources.values()].every(n=>n===1));
-});
-
-test('the flat composer-style rays remain aligned with the existing origin click targets',async()=>{
- const {originControlRays}=await import('../src/world/originAxisControl.ts');
- const directions={...DEFAULT_ORIGIN_DIRECTIONS,halves:1,disabled:['0:1']},{gizmo,camera}=createOriginControl([0,1],directions);
- try{
-  const rays=originControlRays(gizmo,camera,[0,1],directions);
-  assert.equal(rays.length,7);
-  for(const ray of rays.filter(ray=>ray.id.startsWith('axis:'))){
-   const point={x:(ray.point.x+1)*rect.width/2,y:(ray.point.y+1)*rect.height/2};
-   assert.equal(pickAxisSegment(point,gizmo.children.filter(o=>o.visible),camera,rect,8).axisIndex,Number(ray.id.slice(5)));
-  }
-  assert.equal(rays.filter(ray=>!ray.selected).length,2);
- }finally{disposeOriginGizmo(gizmo);}
+test('Unit mode keeps base axis controls without an independent set of direction ticks',()=>{
+ for(const rings of [1,2,3,4]){
+  const {rays,targets}=originAxisLayout([0,2],{...DEFAULT_ORIGIN_DIRECTIONS,mode:'unit',rings});
+  assert.equal(rays.length,3);assert.ok([...targets.values()].every(target=>'axis'in target));
+  for(const ray of rays)for(const sign of [-1,1])assert.equal(pickAxisDial(dialPoint(ray.point,AXIS_DIAL.axisOuter*sign),rays),ray);
+ }
 });

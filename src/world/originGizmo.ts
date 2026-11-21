@@ -4,7 +4,7 @@ import * as T from 'three';
 import {AXIS_COLORS} from './axisReadout.ts';
 import {ORIGIN_RADIUS} from './originMarker.ts';
 /** Shared origin shape for saved references, rotation previews and bindings. */
-export function createOriginGizmo(scale=1,active=true,enabled:readonly number[]=[0,1],directions?:OriginDirections,options:{directionControls?:boolean}={}){
+export function createOriginGizmo(scale=1,active=true,enabled:readonly number[]=[0,1],directions?:OriginDirections){
  const group=new T.Group();group.scale.setScalar(scale);
  for(let i=0;i<3;i++){
   const selected=active&&enabled.includes(i),color=new T.Color(active?AXIS_COLORS[i]:'#888888').multiplyScalar(selected?1.2:.45),material=new T.MeshBasicMaterial({color,transparent:true,opacity:selected?1:.2,depthTest:false,depthWrite:false}),direction=new T.Vector3().setComponent(i,1);
@@ -15,14 +15,7 @@ export function createOriginGizmo(scale=1,active=true,enabled:readonly number[]=
   const arrow=new T.Mesh(new T.ConeGeometry(ORIGIN_RADIUS*.16,ORIGIN_RADIUS*.32,4),material);arrow.position.copy(direction).multiplyScalar(ORIGIN_RADIUS*.84);arrow.quaternion.copy(shaft.quaternion);arrow.visible=active||i===2;arrow.renderOrder=46;arrow.userData={axisIndex:i,directionIndicator:true};group.add(arrow);
   for(const mark of [shaft,dot,arrow])mark.userData.glowIntensity=selected?1.8:0;
  }
- if(active&&directions&&options.directionControls){
-  const all=spatialDirectionSlots({...directions,disabled:[]},enabled).filter(slot=>slot.direction.filter(n=>Math.abs(n)>1e-6).length>1);
-  for(const [index,slot] of all.entries()){
-   const selected=!directions.disabled.includes(slot.choiceKey),color=new T.Color();color.setRGB(0,0,0);slot.direction.forEach((weight,i)=>color.add(new T.Color(AXIS_COLORS[i]).multiplyScalar(Math.abs(weight))));color.multiplyScalar(1/slot.direction.reduce((sum,n)=>sum+Math.abs(n),0));
-   const geometry=new T.BufferGeometry().setFromPoints([new T.Vector3(),new T.Vector3(...slot.direction).multiplyScalar(ORIGIN_RADIUS*1.2)]),material=new T.LineBasicMaterial({color,transparent:true,opacity:selected?.85:.15,depthTest:false,depthWrite:false});
-   const ray=new T.Line(geometry,material);ray.userData={axisIndex:3+index,directionKey:slot.choiceKey};ray.renderOrder=44;group.add(ray);
-  }
- }else if(active&&directions){const positions:number[]=[],colors:number[]=[];for(const slot of spatialDirectionSlots(directions,enabled)){const delta=new T.Vector3(...slot.direction).multiplyScalar(ORIGIN_RADIUS),color=new T.Color(0,0,0);slot.direction.forEach((weight,i)=>color.add(new T.Color(AXIS_COLORS[i]).multiplyScalar(Math.abs(weight))));color.multiplyScalar(1/(Math.abs(slot.direction[0])+Math.abs(slot.direction[1])+Math.abs(slot.direction[2])));positions.push(0,0,0,...delta.toArray());colors.push(...color.toArray(),...color.toArray());}const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.Float32BufferAttribute(positions,3));geometry.setAttribute('color',new T.Float32BufferAttribute(colors,3));const rays=new T.LineSegments(geometry,new T.LineBasicMaterial({vertexColors:true,transparent:true,opacity:.16,depthTest:false,depthWrite:false}));rays.renderOrder=44;group.add(rays);}
+ if(active&&directions){const positions:number[]=[],colors:number[]=[];for(const slot of spatialDirectionSlots(directions,enabled)){const delta=new T.Vector3(...slot.direction).multiplyScalar(ORIGIN_RADIUS),color=new T.Color(0,0,0);slot.direction.forEach((weight,i)=>color.add(new T.Color(AXIS_COLORS[i]).multiplyScalar(Math.abs(weight))));color.multiplyScalar(1/(Math.abs(slot.direction[0])+Math.abs(slot.direction[1])+Math.abs(slot.direction[2])));positions.push(0,0,0,...delta.toArray());colors.push(...color.toArray(),...color.toArray());}const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.Float32BufferAttribute(positions,3));geometry.setAttribute('color',new T.Float32BufferAttribute(colors,3));const rays=new T.LineSegments(geometry,new T.LineBasicMaterial({vertexColors:true,transparent:true,opacity:.16,depthTest:false,depthWrite:false}));rays.renderOrder=44;group.add(rays);}
  return group;
 }
 export function orientOriginGizmo(group:T.Group,camera:T.Camera,rect:{height:number}){
