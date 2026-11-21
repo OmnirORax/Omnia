@@ -686,9 +686,6 @@ function worldShortcutActions(includeUnavailable=false){return [
  ].map(action=>{const defaultKey=action.key&&normalizeShortcut(action.key),id=('id' in action?action.id:undefined)??worldShortcutId(defaultKey??action.key??action.label);return {...action,id,scope:'scope' in action?String(action.scope):undefined,defaultKey:defaultKey??'',execute:action.run,run:()=>runWorldAction(id),key:shortcuts.get({category:'Omnium',id,label:action.label,defaultKey:defaultKey??''})};});}
 installContextActions();
 registerControlShortcutCatalog(()=>worldShortcutActions(true).map(action=>({category:'Omnium',id:action.id,label:action.label,defaultKey:action.defaultKey,scope:action.scope})));
-// Preserve an existing world assignment instead of silently stealing Ctrl+X.
-{const actions=worldShortcutActions(true),aim=actions.find(action=>action.defaultKey==='Ctrl+X');if(aim&&shortcuts.getSnapshot().Omnium?.[aim.id]===undefined){const catalog=actions.map(action=>({category:'Omnium' as const,id:action.id,label:action.label,defaultKey:action.defaultKey,scope:action.scope})),definition=catalog.find(item=>item.id===aim.id)!;let available=false;try{available=!shortcuts.plan(definition,'Ctrl+X',catalog).conflicts.length;}catch{/* Invalid duplicate bindings also leave the new default unassigned. */}if(!available){shortcuts.assign(definition,'',catalog);feedback('Ctrl+X is already assigned; bind Aim origin in Shortcuts.');}}}
-
 registerContextActions({label:'Omnium',owns:element=>!!element.closest('#world,header'),read:()=>{
  const mode=view?.inputContext;
  if(mode==='rotate')return [{label:'Confirm rotation',key:'MB3',run:()=>view?.confirmRotation()},{label:'Aim at node',key:'MB3 on node'},{label:'Rotate preview',key:'Move mouse'},{label:'Step settings · math dial',key:'Shift'},{label:'Cancel',key:'Esc',run:()=>view?.cancel()}];
@@ -729,6 +726,9 @@ installHistoryBindings({undo:()=>travelHistory('undo'),redo:()=>travelHistory('r
 shortcuts.subscribe(()=>{for(const control of document.querySelectorAll<HTMLElement>('[data-world-shortcut]'))shortcutCaption(control,control.dataset.shortcutLabel!,control.dataset.worldShortcut);refreshContextActions();element('empty').querySelector('span')!.textContent=worldBinding('W')||'Create nodes';for(const control of document.querySelectorAll<HTMLButtonElement>('[data-immersive-mode]'))control.textContent=immersiveLabel();});
 element('empty').querySelector('span')!.textContent=worldBinding('W')||'Create nodes';
 refresh();
+
+// The shortcut catalog reads the renderer reference, so check defaults only after the initial refresh.
+{const actions=worldShortcutActions(true),aim=actions.find(action=>action.defaultKey==='Ctrl+X');if(aim&&shortcuts.getSnapshot().Omnium?.[aim.id]===undefined){const catalog=actions.map(action=>({category:'Omnium' as const,id:action.id,label:action.label,defaultKey:action.defaultKey,scope:action.scope})),definition=catalog.find(item=>item.id===aim.id)!;let available=false;try{available=!shortcuts.plan(definition,'Ctrl+X',catalog).conflicts.length;}catch{/* Invalid duplicate bindings also leave the new default unassigned. */}if(!available){shortcuts.assign(definition,'',catalog);feedback('Ctrl+X is already assigned; bind Aim origin in Shortcuts.');}}}
 
 // Builds share one draft; production retains its published starting state.
 if(location.hostname==='omnium.nexus'||location.hostname==='omnia-web-bae.pages.dev'||location.hostname.endsWith('.omnia-web-bae.pages.dev')){
