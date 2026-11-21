@@ -10,12 +10,13 @@ export function hierarchyAction(world:World,roots:readonly Origin[],nextOnly=fal
 
 /** Transient branch filter. Saved hidden/collapsed flags remain owned by the world. */
 export function createHierarchyIsolation(){
- let roots:Origin[]=[],cachedWorld:World|undefined,cached:Set<string>|undefined;
- function set(next:readonly Origin[]){roots=structuredClone([...next]);cachedWorld=undefined;cached=undefined;}
- return {get active(){return roots.length>0;},get roots(){return roots as readonly Origin[];},
- toggle(next:readonly Origin[]){if(roots.length)set([]);else if(next.length)set(next);else throw Error('Point at or select a hierarchy first.');},
+ let active=false,roots:Origin[]=[],cachedWorld:World|undefined,cached:Set<string>|undefined;
+ function set(next:readonly Origin[],enabled=true){active=enabled;roots=structuredClone([...next]);cachedWorld=undefined;cached=undefined;}
+ return {get active(){return active;},get roots(){return roots as readonly Origin[];},
+ toggle(next:readonly Origin[]){const ids=new Set(roots.map(address));if(active&&next.length===roots.length&&next.every(origin=>ids.has(address(origin))))set([],false);else set(next);},
  ensure(next:readonly Origin[]){if(next.length)set(next);else if(!roots.length)throw Error('Point at or select a hierarchy first.');},
- visible(world:World){if(!roots.length)return undefined;if(cachedWorld===world)return cached;
+ visible(world:World){if(!active)return undefined;if(cachedWorld===world)return cached;
+ if(!roots.length){cachedWorld=world;cached=new Set();return cached;}
  const scope=hierarchyScope(world,roots),byId=new Map(world.nodes.map(n=>[address(n.origin),n])),ids=new Set(scope.nodes.map(n=>address(n.origin)));
  const seen=new Set<string>();for(const root of scope.roots){let parent=root.parent;while(parent){const id=address(parent);if(seen.has(id))break;seen.add(id);ids.add(id);parent=byId.get(id)?.parent;}}
  cachedWorld=world;cached=ids;return ids;}

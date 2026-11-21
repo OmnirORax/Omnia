@@ -1,3 +1,4 @@
+import {nodeVisible} from './world/nodeVisibility.ts';
 import {createHierarchyIsolation} from './core/hierarchy.ts';
 import {createRenderScheduler} from './world/renderScheduler.ts';
 import {hasOriginDirections} from './core/originDirections.ts';
@@ -266,7 +267,10 @@ export function createWorld(host: HTMLElement, input: Input) {
     for (const child of edges.children) if (child.userData.edge) picks.push(child);
   }
   function hoverPresentation(){const edgeKey=selectedEdges[0]?JSON.stringify(selectedEdges[0]):undefined;for(const connector of connectors){const active=edgeKey===connector.key;if(connector.line.userData.highlighted!==active){connector.line.userData.highlighted=active;connector.line.material.opacity=active?1:connector.line.userData.baseOpacity;connector.line.material.color.set(active?'#ffb000':connector.line.userData.baseColor);}}request();}
+  let movementVisible=false;
+  function refreshNodeVisibility(){movementVisible=drive.active||relocating.size>0;for(const visual of visuals.values())visual.group.visible=visibility(visual.node);}
   function presentation() {
+    if(movementVisible!==(drive.active||relocating.size>0)){refreshNodeVisibility();connections();}
     for (const [id,v] of visuals) {
       const chosen=selectedKeys.has(id),show=nodeContentVisible(retained,id,world.settings?.names,chosen,hover===id,relocating.has(id)||drive.owns(id));
       v.text.visible=!!v.caption.trim()&&show&&v.actual.visual?.showText!==false;
@@ -312,13 +316,7 @@ export function createWorld(host: HTMLElement, input: Input) {
     for(const [id,cached]of edgeCaptions)if(cached.mesh.parent!==edges){disposeLabel(cached.mesh);edgeCaptions.delete(id);}
   }
   function visibility(node: Structure) {
-    if (pointOfView&&sameOrigin(node.origin,pointOfView))return false;
-    if (isolation.visible(world)?.has(key(node.origin))===false)return false;
-    if (node.hidden || filter && !filter.has(key(node.origin))) return false;
-    if (node.variantOf && !variants.has(key(node.variantOf))) return false;
-    let parent = node.parent && visuals.get(key(node.parent))?.node, depth = 0;
-    while (parent && depth++ < 500) { if (parent.hidden || parent.collapsed && !node.variantOf) return false; parent = parent.parent && visuals.get(key(parent.parent))?.node; }
-    return true;
+    return nodeVisible(node,{parent:origin=>visuals.get(key(origin))?.node,variants,pointOfView,reveal:movementVisible,isolation:movementVisible?undefined:isolation.visible(world),filter});
   }
   function styleVisual(visual:Visual,actual:Structure,textPaint:Paint){
     visual.actual=actual;updateLabelPaint(visual.text,textPaint);
@@ -374,7 +372,7 @@ export function createWorld(host: HTMLElement, input: Input) {
       visual.group.visible=true;
     }
     if(!sameValue(next.camera,seenCamera)){seenCamera=next.camera;restoreCamera(next.camera);}
-    for (const visual of visuals.values()) visual.group.visible=visibility(visual.node);
+    refreshNodeVisibility();
     if(!input.picking()){connectionSource=undefined;connectionLine.visible=false;}connections();presentation();session.update(next,selection[0]);drive.refresh();
   }
   const navigatorOffset = new T.Vector3();
@@ -389,14 +387,14 @@ export function createWorld(host: HTMLElement, input: Input) {
     drivingOrigins=[...origins];
     const position=drive.begin(doc,key(origin),1,scale,[...(prepareTranslation(operationWorld(),origins)([0,0,0])?.keys()??[key(origin)])]).add(visuals.get(key(origin))!.host.position);mountedWorld=world;navigator.initialize(position);navigator.position.copy(position);navigator.orientation.copy(camera.quaternion);pointer(p);
     const projected=navigator.project(ray.ray);navigatorOffset.copy(projected?position.clone().sub(projected).applyQuaternion(navigator.orientation.clone().invert()):new T.Vector3());navigatorOffset.z=0;
-    controls.enabled=false;if(origins.length===1)input.pick(origin,false,false);rebuildPicks();input.feedback('Driving · click an empty cell to park · Esc cancels');request();
+    controls.enabled=false;if(origins.length===1)input.pick(origin,false,false);presentation();input.feedback('Driving · click an empty cell to park · Esc cancels');request();
   }
   function placeDrive(target?:Origin){
     if(projectionIssue){input.feedback(projectionIssue);return false;}
     const parent=target&&!drive.owns(key(target))?target:undefined;
     const parked=drive.park(!!parent,parent?(id,position)=>{const source=visuals.get(id)!.node.position,delta=vector(position).map((n,i)=>n/scale-source[i]) as Vec3;input.adopt(drivingOrigins,parent,delta);return geometry(world);}:undefined);
     if(!parked){const rejected=drive.rejection;const name=(id:string)=>visuals.get(id)?.node.label||id;input.feedback(rejected&&'blocker'in rejected?`Cannot place: ${name(rejected.moving!)} overlaps ${name(rejected.blocker!)} at ${[rejected.point!.x,rejected.point!.y,rejected.point!.z].map(n=>Number((n/scale).toFixed(3))).join(', ')}. Hidden nodes and carried children also occupy space.`:`Cannot place: ${rejected?.reason??'placement was rejected'}`);return false;}
-    mountedWorld=undefined;controls.enabled=true;navigatorOffset.set(0,0,0);rebuildPicks();input.feedback('');request();return true;
+    mountedWorld=undefined;controls.enabled=true;navigatorOffset.set(0,0,0);presentation();input.feedback('');request();return true;
   }
   let originSet:{cancel:()=>void;release:()=>void;position:Vec3}|undefined;
   function originTarget(p:Point,center=axisCenter(world,activeAxis())){camera.updateWorldMatrix(true,false);const anchor=pointed(p,undefined,true).origin;pointer(p);return {anchor,position:anchor&&visuals.has(key(anchor))?xyz(displayed(visuals.get(key(anchor))!).clone().divideScalar(scale)):originPlacement(ray.ray,camera.getWorldDirection(new T.Vector3()),center,scale)};}
@@ -538,10 +536,11 @@ export function createWorld(host: HTMLElement, input: Input) {
       if(g.mode==='pickup'&&g.dragged&&g.origin){if(!drive.active)mount(g.origin,g.start,g.origins);aimNavigator(p);return;}
       if(g.dragged&&g.mode==='move'){
         if(activeAxis()&&!activeWorldAxes(activeAxis()!).length){g.groupLanding=undefined;g.landing=undefined;ghost.visible=false;return;}
+        if(!g.moving){g.resolve=prepareTranslation(operationWorld(),g.origins);const carried=g.resolve([0,0,0]);g.moving=new Set(carried?.keys()??g.origins.map(key));for(const id of carried?.keys()??g.origins.map(key))relocating.add(id);relocationPin=g.origin?key(g.origin):undefined;presentation();}
         if(g.group){g.groupLanding=undefined;g.rejection=undefined;try{const destination=xyz((g.project?.(p)??at(p,g.anchor)).divideScalar(scale)),plan=groupTargets(operationWorld(),g.origins,g.group.origin,destination);if(validGroupTargets(world,plan.targets)){g.groupLanding=plan;showTargets(plan.targets);}else ghost.visible=false;}catch(error){g.rejection=error instanceof Error?error.message:String(error);ghost.visible=false;}request();return;}
 
         if(activeAxis()&&!activeWorldAxes(activeAxis()!).length){g.landing=undefined;ghost.visible=false;return;}
-        if(!g.moving){g.resolve=prepareTranslation(operationWorld(),g.origins);const carried=g.resolve([0,0,0]);g.moving=new Set(carried?.keys()??g.origins.map(key));for(const id of carried?.keys()??g.origins.map(key))relocating.add(id);relocationPin=g.origin?key(g.origin):undefined;presentation();}
+
         let delta=(g.project?.(p)??at(p,g.anchor)).sub(g.anchor).divideScalar(scale);
         const original=g.origin&&locatePosition(g.origin);let snap:ReturnType<typeof nearAxis>;g.rejection=undefined;try{snap=original&&nearAxis(p,original.map((n,i)=>n+delta.getComponent(i)) as Vec3);}catch(error){g.landing=undefined;g.rejection=error instanceof Error?error.message:String(error);ghost.visible=false;request();return;}if(snap&&original)delta=new T.Vector3(...snap.point.map((n,i)=>n-original[i]));
         // Same lattice transform used by numerical operation commits; preparation is once per gesture.
@@ -715,7 +714,7 @@ export function createWorld(host: HTMLElement, input: Input) {
     get selectingRange(){return gesture?.mode==='range';},
     toggleContentView(){const group=input.committedSelection();if(group.length>1){const close=group.every(origin=>nodeContentVisible(retained,key(origin),world.settings?.names,false,false));for(const origin of group){const id=key(origin);if(close){retained.open.delete(id);retained.closed.add(id);}else{retained.closed.delete(id);retained.open.add(id);}}presentation();return;}const origin=gesture?.mode!=='range'&&pointerInside&&lastPoint?pointed(lastPoint).origin:undefined;if(origin){const id=key(origin),visible=nodeContentVisible(retained,id,world.settings?.names,false,false);if(visible){retained.open.delete(id);retained.closed.add(id);}else{retained.closed.delete(id);retained.open.add(id);}presentation();return;}retained.open.clear();retained.closed.clear();contentViewChanging=true;try{input.toggleAllContent();}finally{contentViewChanging=false;}if(gesture?.mode==='range')previewRange(gesture);},
     get hoveredOrigin(){return pointerInside&&lastPoint?pointed(lastPoint).origin:undefined;},
-    toggleHierarchyIsolation(){const origin=pointerInside&&lastPoint?pointed(lastPoint).origin:undefined;isolation.toggle(origin?[origin]:input.committedSelection());update(world,selected,filter,selectedEdges);},
+    toggleHierarchyIsolation(){const origin=pointerInside&&lastPoint?pointed(lastPoint).origin:undefined;isolation.toggle(origin?[origin]:pointerInside?[]:isolation.active?isolation.roots:input.committedSelection());update(world,selected,filter,selectedEdges);},
     get hierarchyIsolated(){return isolation.active;},
     toggleHierarchy(nextOnly=false,content=false,isolate=false){const origin=pointerInside&&lastPoint?pointed(lastPoint).origin:undefined,group=input.committedSelection(),roots=origin?[origin]:isolate&&group.length?[...group]:isolation.active?[...isolation.roots]:[];if(isolate)isolation.ensure(roots);const visible=new Map(world.nodes.map(n=>[key(n.origin),nodeContentVisible(retained,key(n.origin),world.settings?.names,false,false)])),affected=input.hierarchy(roots,nextOnly,content);if(content){const close=affected.length>0&&affected.every(id=>visible.get(key(id)));for(const id of affected){if(close){retained.open.delete(key(id));retained.closed.add(key(id));}else{retained.closed.delete(key(id));retained.open.add(key(id));}}}if(isolate)update(world,selected,filter,selectedEdges);else presentation();},
     get inputContext(){return boundRotation.active?'rotate':alignment?'align':originPick?'origin':axisPicking?(axisPicking.first?'axis-second':'axis-first'):creating?'create':'world';},
