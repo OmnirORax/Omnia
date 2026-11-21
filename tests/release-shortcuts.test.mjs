@@ -15,7 +15,18 @@ test('installed gateway dispatches a command only on physical release and cancel
  const physical=()=>({isTrusted:true,...key('n'),target,preventDefault(){},stopImmediatePropagation(){this.stopped=true;}});
  try{let inspections=0;installReleaseShortcuts(event=>{inspections++;return event.key==='n';});for(const type of ['keydown','keyup'])listeners.get(type).push(event=>{if(!event.isTrusted)seen.push(type);});emit('keydown',physical());emit('keydown',physical());assert.equal(inspections,1,'held-key repeats must not rebuild command metadata');assert.deepEqual(seen,[]);emit('keyup',physical());assert.deepEqual(seen,['keydown','keyup']);seen.length=0;
  emit('keydown',physical());const input=new Element();input.editing=true;document.activeElement=input;emit('keyup',physical());assert.deepEqual(seen,[]);document.activeElement=target;emit('keydown',physical());emit('blur');emit('keyup',physical());assert.deepEqual(seen,[]);
+
+ let starts=0,commits=0,cancels=0;installReleaseShortcuts(event=>event.key==='x',()=>[],()=>{starts++;return {release:()=>commits++,cancel:()=>cancels++};});const originKey=()=>({...physical(),key:'x',code:'KeyX'});
+ emit('keydown',originKey());assert.equal(starts,1);assert.equal(commits,0);emit('keyup',originKey());assert.equal(commits,1);
+ emit('keydown',originKey());document.activeElement=input;emit('keyup',originKey());assert.equal(commits,1);assert.equal(cancels,1);document.activeElement=target;
+ emit('keydown',originKey());emit('blur');emit('keyup',originKey());assert.equal(commits,1);assert.equal(cancels,2);
  }finally{releaseShortcuts.cancel();Object.assign(globalThis,saved);}
 });
 
 test('a released cancel command suppresses other still-held pending commands',()=>{const queue=createReleaseShortcuts();let changed=false;queue.press(key('x'),()=>changed=true);queue.press(key('Escape'),()=>queue.cancel());queue.release(key('Escape'));queue.release(key('x'));assert.equal(changed,false);});
+
+test('consuming an origin chord cancels its press session immediately and release cannot author it later',()=>{
+ const queue=createReleaseShortcuts();let cancelled=0,committed=0;queue.press(key('x'),()=>committed++,[],()=>cancelled++);queue.consume('X');assert.equal(cancelled,1);queue.release(key('x'));assert.equal(committed,0);assert.equal(cancelled,1);
+ queue.press(key('x'),()=>committed++,[],()=>cancelled++);queue.cancel();queue.release(key('x'));assert.equal(committed,0);assert.equal(cancelled,2);
+ queue.press(key('x'),()=>committed++,[],()=>cancelled++);queue.release(key('x'));assert.equal(committed,1);assert.equal(cancelled,2);
+});

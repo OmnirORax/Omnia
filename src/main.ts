@@ -1,6 +1,6 @@
 import {bindColorSession} from './ui/colorSession.ts';
 import {SYSTEM_MESSAGE} from './ui/systemMessage.ts';
-import {DEFAULT_ORIGIN_DIRECTIONS,type OriginDirections} from './core/originDirections.ts';
+import {DEFAULT_ORIGIN_DIRECTIONS,planarOriginDirections,sideAxes,toggleOriginSide,type OriginDirections} from './core/originDirections.ts';
 import {ARROW_NUDGES} from './world/axisNudge.ts';
 import {selectionLatch} from './ui/selectionLatch.ts';
 import {capturingShortcut} from './ui/shortcuts.ts';
@@ -14,7 +14,7 @@ import {shortcuts,installShortcutCapture,normalizeShortcut,shortcutEvent,worldBi
 import {shortcutWindow} from './ui/shortcutWindow';
 import {selectionCenter,applyGroupTargets} from './core/groupPlacement';
 import {controlShortcutDefinitions,registerControlShortcutCatalog,shortcutContextFor,assignedShortcuts,installContextActions,registerContextActions,refreshContextActions} from './ui/contextActions';
-import {aimFrame,axisCenter,activeWorldAxes,createAxis,toggleWorldAxis,shiftAxisOrigin,setSpatialOrigin,slotNode} from './core/axes.ts';
+import {aimFrame,aimFramePoint,axisCenter,activeWorldAxes,createAxis,shiftAxisOrigin,setSpatialOrigin,slotNode} from './core/axes.ts';
 import {parseBrush,brushShape,SINGLE_BRUSH,type Brush} from './core/brush.ts';
 import {handleContentViewShortcut} from './ui/contentViewShortcut.ts';
 import {createImmersiveMode,handleImmersiveShortcut,type KeyboardLock} from './ui/immersiveMode.ts';
@@ -87,7 +87,7 @@ installReleaseShortcuts(event=>{
  if(omnic&&!typing&&event.key.length===1&&event.key!==' ')return true;
  const keys=[...(!editor&&!omnic?worldShortcutActions(true).map(action=>({key:action.key??'',category:'Omnium' as const})):[]),...assignedShortcuts().filter(action=>editor?action.context==='Document':omnic?action.context==='Omnic':action.context==='Omnium').map(action=>({key:action.key,category:action.context==='Document'?'Document' as const:'Omnium' as const})),...(!editor?['V','Esc','.','F11','Ctrl+Z','Ctrl+Y','Ctrl+Shift+Z','Enter']:['F11']).map(key=>({key:worldBinding(key),category:'Omnium' as const}))];
  return keys.some(action=>matchesShortcut(event,action.key,action.category));
-},event=>(matchesShortcut(event,worldBinding('Q'))||matchesShortcut(event,worldBinding('Shift+Q')))&&releaseShortcuts.held(worldBinding('V'))?[worldBinding('V')]:[]);
+},event=>(matchesShortcut(event,worldBinding('Q'))||matchesShortcut(event,worldBinding('Shift+Q')))&&releaseShortcuts.held(worldBinding('V'))?[worldBinding('V')]:[],event=>{const element=event.target instanceof Element?event.target:undefined;if(!matchesShortcut(event,originShortcutBinding())||element?.closest('input,textarea,select,[contenteditable],[data-input-owner],.cm-editor')||element&&shortcutContextFor(element)==='Omnic')return;return view?.beginOriginSet()??{release:()=>feedback('Point inside the world to set its origin.'),cancel:()=>{}};});
 installShortcutCapture();
 installPrimaryClickGate();
 installBrowserShortcutGuard();
@@ -127,6 +127,7 @@ const view = (() => {
     return createWorld(element('world'), {
       toggleAllContent(){store.change(world=>{world.settings??={latticeScale:1,names:'selection'};world.settings.names=world.settings.names==='all'?'selection':'all';});},
       cameraChanged:state=>store.setCamera(state),
+      placeOrigin(plan){attempt(()=>store.change(world=>{const reference=view!.reference,directions=planarOriginDirections(reference.directions,activeWorldAxes(reference)),frame=setSpatialOrigin(world,plan.anchor,plan.position,plan.right,plan.up,'camera');frame.directions=structuredClone(directions);frame.activeAxes=sideAxes(directions.sides!);delete frame.packing;if(plan.aim)aimFramePoint(world,frame.id,plan.aim);}));},
       originChord(){if(pointerActivation()==='gesture:origin-rotation'){releaseShortcuts.consume(originShortcutBinding());return true;}const binding=originShortcutBinding();if(!releaseShortcuts.held(binding))return false;releaseShortcuts.consume(binding);return true;},
       committedSelection:()=>selection.committed.filter(isNode),
       hover(origin,edge){selection.hover(edge??origin);return selectedOrigins();},
@@ -146,7 +147,6 @@ const view = (() => {
       selectionOrigin(ids,position){assignOrigin(ids[0],position);},
       nodeOrigin(origin){assignOrigin(origin,locate(store.world,origin)!.position);},
       origin(id,position){const frame=store.world.axes?.find(frame=>frame.id===id)??view?.reference;if(frame)assignOrigin(frame.ends[0],position);},
-      aimOrigin(target){aimOrigin(target);},
       axis(first,second,up){store.change(world=>{createAxis(world,first,second,up);});selection.clear();refresh();},
       slot(origins,axis,point){store.change(world=>{slotNode(view!.operationWorld(world),origins[0],axis,point,origins);});},
       focusAxis(id){selection.clear();store.change(world=>{world.activeAxis=id;});},
@@ -208,8 +208,13 @@ function positionMenu() {
     tools.style.top = `${Math.max(8, Math.min(menuPoint.y, innerHeight - tools.offsetHeight - 8))}px`;
   });
 }
+function shortcutCaption(control:HTMLElement,label:string){
+ const match=/^(.*?) \(([^)]+)\)$/.exec(label),key=match&&normalizeShortcut(match[2]);
+ if(!match||!key){control.textContent=label;return;}control.dataset.shortcutCaption=label;
+ const binding=worldShortcutActions(true).find(action=>action.defaultKey===key)?.key??worldBinding(key);control.textContent=binding?`${match[1]} (${binding})`:match[1];
+}
 function button(label: string, action: () => void, parent = tools) {
-  const b = document.createElement('button'); b.textContent = label; b.onclick = () => attempt(action); parent.append(b); return b;
+  const b = document.createElement('button'); shortcutCaption(b,label); b.onclick = () => attempt(action); parent.append(b); return b;
 }
 const editCapability=defineMenu('capability',(capabilityKey: string)=>{
   const origins = [...selectedOrigins()], first = locate(store.world, origins[0]); if (!first) return;
@@ -238,9 +243,9 @@ const editCapability=defineMenu('capability',(capabilityKey: string)=>{
   watchFields(form,inputs.map((input,index)=>({input,read:()=>{const node=locate(store.world,origins[0]);if(!node)return undefined;if(capabilityKey==='move'&&origins.length>1)return node.position[index]-start[index];return capabilities(resolveNodeSettings(store.world,inherited(node,store.world))).find(c=>c.key===capabilityKey)?.properties[index].read();}})));
   tools.append(form); positionMenu(); inputs[0].focus(); if (inputs[0].type === 'text') inputs[0].select();
 });
-function toggleOriginAxis(axis:number){const frame=view?.reference;if(!frame)return;if(view?.toggleReferenceAxis(frame.id,axis))return;store.change(world=>toggleWorldAxis(world,frame.id,axis));}
-function changeOriginDirections(next:OriginDirections){store.change(world=>{const frame=view?.reference;if(!frame)return;const saved=world.axes?.find(f=>f.id===frame.id);if(saved)saved.directions=structuredClone(next);else world.userDirections=structuredClone(next);});}
-const openOriginDirections=defineMenu('origin-directions',()=>{if(!view)return;open('Origin directions');const host=document.createElement('div');tools.append(host);void loadEditor(()=>import('./ui/originDirections.tsx')).then(({mountOriginDirections})=>{if(!host.isConnected)return;disposeTools=mountOriginDirections(host,()=>view!.reference,store.subscribe,changeOriginDirections,()=>store.world,axis=>attempt(()=>toggleOriginAxis(axis)));positionMenu();}).catch(error=>feedback(String(error)));positionMenu();},false,false);
+function toggleOriginAxis(axis:number,sign?:1|-1){const frame=view?.reference;if(!frame)return;changeOriginDirections(toggleOriginSide(frame.directions??DEFAULT_ORIGIN_DIRECTIONS,activeWorldAxes(frame),axis,sign));}
+function changeOriginDirections(next:OriginDirections){store.change(world=>{const frame=view?.reference;if(!frame)return;const saved=world.axes?.find(f=>f.id===frame.id);if(saved){saved.directions=structuredClone(next);saved.activeAxes=sideAxes(next.sides??[]);}else world.userDirections=structuredClone(next);});}
+const openOriginDirections=defineMenu('origin-directions',()=>{if(!view)return;open('Origin directions');const host=document.createElement('div');tools.append(host);void loadEditor(()=>import('./ui/originDirections.tsx')).then(({mountOriginDirections})=>{if(!host.isConnected)return;disposeTools=mountOriginDirections(host,()=>view!.reference,store.subscribe,changeOriginDirections,()=>store.world,(axis,sign)=>attempt(()=>toggleOriginAxis(axis,sign)));positionMenu();}).catch(error=>feedback(String(error)));positionMenu();},false,false);
 function toggleOriginSymmetry(){if(!view)return;const directions=view.reference.directions??DEFAULT_ORIGIN_DIRECTIONS;changeOriginDirections({...directions,symmetry:!directions.symmetry});openOriginDirections();}
 function editLabel(){
  const edge=selection.targets.find((target):target is Edge=>!isNode(target));if(edge){edgeContext(edge);const input=tools.querySelector<HTMLInputElement>('form input[type=text]');input?.focus();input?.select();return;}
@@ -277,7 +282,7 @@ function relationFrame(origin?:Origin){
 function enterNodePerspective(origin:Origin){
  const relation=relationFrame(origin);if(!view||!relation)return;view.enterNode(origin,relation.id);
 }
-function aimOrigin(target?:Origin){let id=store.world.activeAxis;if(!id&&view){const reference=view.reference,basis=view.frameBasis();store.change(world=>{const frame=setSpatialOrigin(world,undefined,axisCenter(world,reference),basis.right,basis.up);frame.activeAxes=[...activeWorldAxes(reference)];});id=store.world.activeAxis;}if(!id)return;const aim=(node:Origin)=>store.change(world=>aimFrame(world,id!,node));if(target){attempt(()=>aim(target));return;}requestNode(aim);}
+function aimOrigin(target?:Origin|Vec3){const point=target??view?.originAimPoint();let id=store.world.activeAxis;if(!id&&view){const reference=view.reference,basis=view.frameBasis();store.change(world=>{const frame=setSpatialOrigin(world,undefined,axisCenter(world,reference),basis.right,basis.up);frame.directions=structuredClone(reference.directions);frame.activeAxes=[...activeWorldAxes(reference)];});id=store.world.activeAxis;}if(!id)return;if(point){store.change(world=>Array.isArray(point)?aimFramePoint(world,id!,point as Vec3):aimFrame(world,id!,point));return;}requestNode(node=>store.change(world=>aimFrame(world,id!,node)));}
 
 const openBrush=defineMenu('brush',()=>{
  open('Brush');let unit:Brush|undefined=store.world.brush?.unit;
@@ -414,14 +419,14 @@ type SearchAction={label:string;keywords:string;run:()=>void;available?:boolean}
 function spaceActions():SearchAction[]{
  const relation=relationFrame(),frame=view?.reference,active=!!store.world.activeAxis;
  return [
- {label:'Face origin toward node (Alt+Right click)',keywords:'world origin axes direction aim face align',run:aimOrigin,available:active},
+ {label:'Face origin toward position (Ctrl+X)',keywords:'world origin axes direction aim face align',run:aimOrigin,available:active},
  {label:'Brush (Shift+X)',keywords:'world paint cube sphere geometry recursive unit',run:openBrush},
  {label:'Coordinates (C)',keywords:'world cursor brush coordinates xy xyz readout labels',run:()=>view?.toggleCoordinates()},
  {label:'Position User (P)',keywords:'world camera node axis reference origin focus align',run:focusSelection,available:true},
  {label:'View from first node',keywords:'world camera perspective occupy endpoint depth z',run:()=>{if(relation)enterNodePerspective(relation.ends[0]);},available:!!relation},
  {label:'View from second node',keywords:'world camera perspective occupy endpoint depth z',run:()=>{if(relation?.ends[1])enterNodePerspective(relation.ends[1]);},available:!!relation},
  {label:'Return to user view',keywords:'world camera perspective user leave node',run:()=>view?.leaveNode(),available:!!view?.inNodeView},
- ...(frame?[0,1,2].map(axis=>({label:`${activeWorldAxes(frame).includes(axis)?'✓ ':''}${'XYZ'[axis]} axis`,keywords:'world active axes plane line volume constrain',run:()=>toggleOriginAxis(axis)})):[]),
+ ...(frame?[0,1].map(axis=>({label:`${activeWorldAxes(frame).includes(axis)?'✓ ':''}${'XYZ'[axis]} axis`,keywords:'world active axes plane line volume constrain',run:()=>toggleOriginAxis(axis)})):[]),
  ...([{label:`Selection depth · ${view?.selectionDepth??8}`,keywords:'selection volume box depth',run:()=>{const value=prompt('Selection depth',String(view?.selectionDepth??8));if(value!==null)view?.setSelectionDepth(Number(value));}}]),
  {label:'Shift origin…',keywords:'world plane origin elevation level offset xyz',available:active,run:()=>{const value=prompt('Origin shift: X Y Z','0 0 0');if(value===null)return;const offset=value.trim().split(/[ ,]+/).map(Number);if(offset.length!==3||offset.some(n=>!Number.isSafeInteger(n)))throw Error('Use three whole numbers.');store.change(world=>shiftAxisOrigin(world,world.activeAxis!,offset as Vec3));}},
  {label:'Origin directions',keywords:'origin axes symmetry half unit dial placement',run:openOriginDirections},
@@ -473,7 +478,7 @@ function searchRenderer(results:HTMLElement){
  return(query:string)=>{
   const settings=settingsCatalog.all().map(item=>({item,index:searchIndex(item)})),actions=searchActions().map(item=>({item,index:searchIndex(item)}));
   results.replaceChildren();if(!query.trim())return;let count=0;
-  for(const {item,index}of actions)if(searchMatches(index,query)){const control=document.createElement('button');control.type='button';control.textContent=item.label;control.disabled=item.available===false;control.onclick=()=>attempt(item.run);if(item.keywords.includes('keyboard lock'))control.dataset.immersiveMode='';results.append(control);count++;}
+  for(const {item,index}of actions)if(searchMatches(index,query)){const control=document.createElement('button');control.type='button';shortcutCaption(control,item.label);control.disabled=item.available===false;control.onclick=()=>attempt(item.run);if(item.keywords.includes('keyboard lock'))control.dataset.immersiveMode='';results.append(control);count++;}
   for(const {item,index}of settings)if(searchMatches(index,query)){
    appendSetting(results,item,item.label);count++;
   }
@@ -655,7 +660,7 @@ window.addEventListener('keydown',event=>{
   event.preventDefault();event.stopImmediatePropagation();message='';refresh();
 },true);
 function originShortcutBinding(){return shortcuts.get({category:'Omnium',id:worldShortcutId('O'),label:'Set origin',defaultKey:'X'});}
-function runWorldAction(id:string):void{attempt(()=>worldShortcutActions(true).find(action=>action.id===id)?.execute());}
+function runWorldAction(id:string):void{if(id!==worldShortcutId('O'))releaseShortcuts.consume(originShortcutBinding());attempt(()=>worldShortcutActions(true).find(action=>action.id===id)?.execute());}
 function worldShortcutActions(includeUnavailable=false){return [
  ...spaceActions().filter(action=>includeUnavailable||action.available!==false).map(action=>{const match=/^(.*?) \(([^)]+)\)$/.exec(action.label);return {label:match?.[1]??action.label,key:match?.[2],run:action.run};}),
  {id:worldShortcutId('O'),label:'Set origin',gesture:undefined,key:'X',run:()=>view?.pickOrigin()},
@@ -681,10 +686,13 @@ function worldShortcutActions(includeUnavailable=false){return [
  ].map(action=>{const defaultKey=action.key&&normalizeShortcut(action.key),id=('id' in action?action.id:undefined)??worldShortcutId(defaultKey??action.key??action.label);return {...action,id,scope:'scope' in action?String(action.scope):undefined,defaultKey:defaultKey??'',execute:action.run,run:()=>runWorldAction(id),key:shortcuts.get({category:'Omnium',id,label:action.label,defaultKey:defaultKey??''})};});}
 installContextActions();
 registerControlShortcutCatalog(()=>worldShortcutActions(true).map(action=>({category:'Omnium',id:action.id,label:action.label,defaultKey:action.defaultKey,scope:action.scope})));
+// Preserve an existing world assignment instead of silently stealing Ctrl+X.
+{const actions=worldShortcutActions(true),aim=actions.find(action=>action.defaultKey==='Ctrl+X');if(aim&&shortcuts.getSnapshot().Omnium?.[aim.id]===undefined){const catalog=actions.map(action=>({category:'Omnium' as const,id:action.id,label:action.label,defaultKey:action.defaultKey,scope:action.scope})),definition=catalog.find(item=>item.id===aim.id)!;let available=false;try{available=!shortcuts.plan(definition,'Ctrl+X',catalog).conflicts.length;}catch{/* Invalid duplicate bindings also leave the new default unassigned. */}if(!available){shortcuts.assign(definition,'',catalog);feedback('Ctrl+X is already assigned; bind Aim origin in Shortcuts.');}}}
+
 registerContextActions({label:'Omnium',owns:element=>!!element.closest('#world,header'),read:()=>{
  const mode=view?.inputContext;
  if(mode==='rotate')return [{label:'Confirm rotation',key:'MB3',run:()=>view?.confirmRotation()},{label:'Aim at node',key:'MB3 on node'},{label:'Rotate preview',key:'Move mouse'},{label:'Step settings · math dial',key:'Shift'},{label:'Cancel',key:'Esc',run:()=>view?.cancel()}];
- if(mode==='align')return [{label:'Rotate alignment axis',key:'Right drag'},{label:`Gap ${view?.alignmentGap??0} (0 = adjacent)`,key:'0–9'},{label:'Face origin toward node',key:'Alt + right click',run:aimOrigin},{label:'Apply alignment',key:'Enter'},{label:'Cancel',key:'Esc',run:()=>view?.cancel()}];
+ if(mode==='align')return [{label:'Rotate alignment axis',key:'Right drag'},{label:`Gap ${view?.alignmentGap??0} (0 = adjacent)`,key:'0–9'},{label:'Face origin toward node',key:worldBinding('Ctrl+X'),run:aimOrigin},{label:'Apply alignment',key:'Enter'},{label:'Cancel',key:'Esc',run:()=>view?.cancel()}];
  if(mode==='origin')return [{label:'Choose origin slot',key:'Click'},{label:'Cancel origin picker',key:'X / Esc'}];
  if(mode==='axis-first'||mode==='axis-second')return [{label:mode==='axis-first'?'Choose first axis node':'Choose second axis node',key:'Click'},{label:'Cancel axis picker',key:'Esc'}];
  if(mode==='create')return [{label:'Expand/collapse hierarchy',key:worldBinding('Q')},{label:'Pick up / place',key:'Click'},{label:'Rotate camera',key:'Shift + right drag'},{label:'Place nodes',key:'Click'},{label:'Paint nodes',key:'W, then Alt'},{label:'Toggle painting',key:'W, then Alt'},{label:'Exit creation',key:'W / Esc',run:()=>view?.toggleCreation()}];
@@ -718,7 +726,7 @@ viewHistory.factory('scene',spec=>openScene((spec.args as SceneTab[])[0],spec));
 viewHistory.factory('document',spec=>openDocument((spec.args as Origin[])[0],spec));
 viewHistory.factory('composer',spec=>openComposer((spec.args as Origin[])[0],spec));
 installHistoryBindings({undo:()=>travelHistory('undo'),redo:()=>travelHistory('redo'),configure:openHistory,flush:flushLiveForms});
-shortcuts.subscribe(()=>{refreshContextActions();element('empty').querySelector('span')!.textContent=worldBinding('W')||'Create nodes';for(const control of document.querySelectorAll<HTMLButtonElement>('[data-immersive-mode]'))control.textContent=immersiveLabel();});
+shortcuts.subscribe(()=>{for(const control of document.querySelectorAll<HTMLElement>('[data-shortcut-caption]'))shortcutCaption(control,control.dataset.shortcutCaption!);refreshContextActions();element('empty').querySelector('span')!.textContent=worldBinding('W')||'Create nodes';for(const control of document.querySelectorAll<HTMLButtonElement>('[data-immersive-mode]'))control.textContent=immersiveLabel();});
 element('empty').querySelector('span')!.textContent=worldBinding('W')||'Create nodes';
 refresh();
 
