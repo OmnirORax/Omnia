@@ -1,7 +1,0 @@
-.axis-wheel-visual{fill:none;stroke:currentColor}
-.axis-wheel-visual .axis-wheel-arm,.axis-wheel-visual .axis-wheel-arrow{stroke:currentColor;stroke-width:.7;opacity:.45}
-.axis-wheel-visual .dof-axis-threshold{stroke-width:1.3;opacity:.75}
-.axis-wheel-visual .axis-wheel-arm[data-selected=true],.axis-wheel-visual .axis-wheel-arrow[data-selected=true]{stroke:currentColor;stroke-width:2;opacity:1;filter:drop-shadow(0 0 1px currentColor)}
-.axis-wheel-visual .axis-wheel-arm[data-preview=true],.axis-wheel-visual .axis-wheel-arrow[data-preview=true]{stroke:currentColor;stroke-width:3.5;opacity:1;filter:drop-shadow(0 0 2px currentColor)}
-.axis-wheel-visual .axis-wheel-hit{stroke:transparent;stroke-width:14;pointer-events:stroke;cursor:pointer}
-.axis-wheel-visual g[role=button]:focus-visible{outline:none}.axis-wheel-visual g[role=button]:focus-visible .axis-wheel-hit{stroke:#ffffff30}
