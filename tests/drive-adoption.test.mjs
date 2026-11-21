@@ -22,3 +22,9 @@ test('adopting a node onto its descendant rejects the write and retains the reve
  drive.begin(geometry(store.world),address(a),1,1,[address(a)]);drive.move(new T.Vector3(0,4,0));assert.throws(()=>drive.park(true,()=>{store.change(world=>adoptNodes(world,[a],child,[0,4,0]));return geometry(store.world);}),/own branch/);
  assert.equal(store.world,before);assert.equal(drive.active,true);drive.cancel();assert.equal(drive.active,false);
 });
+
+test('a rejected placement constraint invalidates a drive without throwing, committing or blocking the next valid move',()=>{
+ const {store,hosts,a}=fixture();let commits=0;const drive=createNavigatorDrive({hosts:()=>hosts,commit:()=>{commits++;return geometry(store.world);},constrain:(_id,p)=>{if(p.x<0)throw Error('Point is outside the active area.');return p;}});
+ drive.begin(geometry(store.world),address(a),1,1,false);assert.equal(drive.move(new T.Vector3(-3,0,0)),false);assert.match(drive.rejection.reason,/outside the active area/);assert.equal(drive.park(),null);assert.equal(commits,0);assert.equal(drive.active,true);
+ assert.equal(drive.move(new T.Vector3(0,4,0)),true);assert.equal(drive.rejection,undefined);drive.cancel();assert.deepEqual(hosts.get(address(a)).group.position.toArray(),[0,0,0]);assert.equal(commits,0);
+});
