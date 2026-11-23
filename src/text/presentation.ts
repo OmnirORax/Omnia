@@ -29,8 +29,9 @@ export function documentPresentation(read: () => World) {
       if (update.transactions.some(tr=>tr.effects.some(effect=>effect.is(refreshDocumentGlyphs))) || update.docChanged || update.selectionSet || update.viewportChanged || syntaxTree(update.startState) !== syntaxTree(update.state)) this.decorations = this.build(update.view);
     }
     build(view: EditorView) {
-      const world=read();if(world!==this.world){this.world=world;this.nodes=new Map(world.nodes.map(node=>[JSON.stringify(node.origin),node]));this.assets=new Map((world.assets??[]).map(asset=>[asset.id,asset]));}
-      const glyphs=createGlyphPresentation(world),allGlyphs=view.state.field(glyphField),tree=syntaxTree(view.state),selectedLines=view.state.selection.ranges.map(r=>({from:view.state.doc.lineAt(r.from).from,to:view.state.doc.lineAt(r.to).to}));
+      const world=read();if(world!==this.world){this.world=undefined;this.nodes.clear();this.assets.clear();}
+      let glyphs:ReturnType<typeof createGlyphPresentation>|undefined;
+      const allGlyphs=view.state.field(glyphField),tree=syntaxTree(view.state),selectedLines=view.state.selection.ranges.map(r=>({from:view.state.doc.lineAt(r.from).from,to:view.state.doc.lineAt(r.to).to}));
       const ranges: import('@codemirror/state').Range<Decoration>[] = [];
       for (const visible of view.visibleRanges) {
         tree.iterate({ from: visible.from, to: visible.to, enter: node => {
@@ -47,6 +48,8 @@ export function documentPresentation(read: () => World) {
           }
         } });
         for(let i=glyphIndexAt(allGlyphs,visible.from);i<allGlyphs.length&&allGlyphs[i].at<visible.to;i++){
+          if(this.world!==world){this.world=world;this.nodes=new Map(world.nodes.map(node=>[JSON.stringify(node.origin),node]));this.assets=new Map((world.assets??[]).map(asset=>[asset.id,asset]));}
+          glyphs??=createGlyphPresentation(world);
           const glyph=allGlyphs[i],node=this.nodes.get(glyph.part.glyph),asset=(node&&glyphs(node)?.asset)??(node?.visual?.assetId?this.assets.get(node.visual.assetId):undefined);
           ranges.push(Decoration.replace({ widget: new GlyphWidget(glyph.part,node,asset,glyphs) }).range(glyph.at,glyph.at+1));
         }
