@@ -3,7 +3,7 @@ import {packedTextureGlow,packGlowCoverage,updateTextureGlowColor} from '../text
 import {imageHull} from './contentEnvelope.ts';
 import * as THREE from 'three';
 import {labelLines,labelSize} from '../composer/runtime/graph/labels.ts';
-import {fontFamily, TEXT_DEFAULTS,renderedTextPaint,type Paint} from '../properties/visual.ts';
+import {fontFamily,fontSizeScale, TEXT_DEFAULTS,renderedTextPaint,type Paint} from '../properties/visual.ts';
 import {isImportedFont} from '../properties/importedFont.ts';
 type FontId=string;
 const canvasFont=(id:FontId)=>`${id==='electric'||isImportedFont(id)?400:500} 36px ${fontFamily(id)}`;
@@ -125,6 +125,7 @@ export function textSprite(value: string, color: string, selected = false, node 
 export const labelGeometryKey=(paint:Paint={},revision=0)=>JSON.stringify([paint.font??TEXT_DEFAULTS.font,revision]);
 export function updateLabelPaint(mesh:ReturnType<typeof textSprite>,paint:Paint={}){
  const style={...TEXT_DEFAULTS,...paint},rendered=renderedTextPaint(style);
+ const nextScale=fontSizeScale(style),oldScale=mesh.userData.labelFontScale??1;if(nextScale!==oldScale){mesh.scale.multiplyScalar(nextScale/oldScale);mesh.userData.labelFontScale=nextScale;}
  mesh.userData.setTextStyle(rendered.color,rendered.color,style.glow,style.glowSpread);
  updateTextureGlowColor(mesh.material,rendered.glowColor);mesh.userData.glowColor=style.glowColor===undefined?undefined:rendered.glowColor;
  mesh.material.opacity=1;

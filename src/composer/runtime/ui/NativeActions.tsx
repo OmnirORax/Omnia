@@ -110,7 +110,7 @@ button[data-ui-auto-action][data-ui-native-icon]::before{content:var(--ui-native
 button[data-ui-auto-action][data-ui-native-geometry="circle"]{border-radius:50%!important}
 button[data-ui-auto-action][data-ui-native-geometry="square"]{border-radius:4px!important}
 button[data-ui-auto-action][data-ui-native-geometry="triangle"]{border-radius:0!important;clip-path:polygon(50% 0,100% 100%,0 100%)}
-button[data-ui-auto-action][data-ui-native-shortcut]:not([data-ui-caption])::after{content:" (" attr(data-ui-native-shortcut) ")";font:11px/1 system-ui;pointer-events:none}
+button[data-ui-auto-action][data-ui-native-shortcut]:not([data-ui-caption])::after{content:" (" attr(data-ui-native-shortcut) ")";font:calc(11px * var(--visual-text-scale, 1))/1 system-ui;pointer-events:none}
 `;
 /** One adapter covers ordinary buttons in every current/future frame. Registered controls
  * retain their existing behavior. Recovery and the customizer itself stay outside discovery. */

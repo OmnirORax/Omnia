@@ -38,7 +38,7 @@ function unresolvedPaint(world: World, target: VisualTarget, origin?: Origin): N
  if(target==='text')return resolvedTextPaint(world.appearance?.text);
  const node=origin&&locate(world,origin),actual=node&&inherited(node,world);
  if(target==='nodes')return nodePaint(world,actual);
- return resolvedTextPaint({...world.appearance?.text,...actual?.textAppearance});
+ const local=actual?.textAppearance;return resolvedTextPaint({...world.appearance?.text,...local,...(local?.font!==undefined?{fontName:local.fontName}:{})});
 }
 export function readPaint(world:World,target:VisualTarget,origin?:Origin):NodePaint{const paint=unresolvedPaint(world,target,origin);return {...paint,glowColor:paint.glowColor??paint.color};}
 export function writePaint(world: World, target: VisualTarget, origins: readonly Origin[], patch: NodePaint) {

@@ -40,7 +40,7 @@ export function visualObject(
   const fallback = () => {
     if (!group.userData.disposed) {
       const label = makeText("?");
-      label.scale.set(1, 1, 1);
+      label.scale.set(1, 1, 1).multiplyScalar(label.userData.labelFontScale??1);
       group.add(label); styleText(label);
       group.userData.assetError = true;group.userData.contourVersion=(group.userData.contourVersion??0)+1;
       requestRender();
@@ -49,7 +49,7 @@ export function visualObject(
   if (visual.character) {
     const label = makeText(visual.character);
     if (label instanceof THREE.Mesh) label.material.opacity = appearance.opacity ?? 1;
-    label.scale.set(Math.min(3, label.userData.aspect), 1, 1);
+    label.scale.set(Math.min(3, label.userData.aspect), 1, 1).multiplyScalar(label.userData.labelFontScale??1);
     group.add(label); styleText(label);
   } else if (asset?.kind === "image") {
     new THREE.TextureLoader().load(
