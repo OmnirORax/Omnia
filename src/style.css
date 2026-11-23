@@ -138,3 +138,6 @@ input[type="number"]:enabled:not([readonly]), input[inputmode="numeric"]:enabled
 .shortcut-window .shortcut-key:hover{background:transparent}
 .bound-rotation-controls{display:block;overflow:visible;padding:0;background:transparent;border:0;border-radius:0;box-shadow:none}
 .node-document-panel .cm-editor .cm-foldPlaceholder { color:inherit; background:transparent; border:1px solid currentColor; border-radius:3px; padding:0 3px; }
+
+.node-document-panel .cm-editor .cm-panels-bottom { background:transparent; color:inherit; border:0; }
+.node-document-panel .document-word-count { padding:2px 0; font-size:11px; text-align:right; }
