@@ -1,3 +1,4 @@
+import {compactDocumentPaste} from './clipboard.ts';
 import {travelGlobalHistory} from '../core/universalHistory';
 import {registerContextActions} from '../ui/contextActions';
 import {shortcuts,shortcutBinding} from '../ui/shortcuts';
@@ -87,7 +88,7 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
   const effectiveBindings=bindings.map(binding=>binding.key==='Mod-z'?{...binding,run:()=>{travelGlobalHistory('undo');return true;}}:binding.key==='Mod-y'||binding.key==='Mod-Shift-z'?{...binding,run:()=>{travelGlobalHistory('redo');return true;}}:binding);
   const shortcutMap=new Compartment();
   editor = new EditorView({ parent:host, state:EditorState.create({ doc:source.text, extensions:[
-    EditorState.allowMultipleSelections.of(true), glyphField.init(() => source.glyphs), glyphHistory, history(),documentBrackets,lexiconAnnotations(read),
+    EditorState.allowMultipleSelections.of(true), glyphField.init(() => source.glyphs), glyphHistory, history(),compactDocumentPaste,documentBrackets,lexiconAnnotations(read),
     EditorView.clickAddsSelectionRange.of(event => event.altKey), documentMouseSelection(), drawSelection({drawRangeCursor:true,cursorBlinkRate:1000}), EditorView.lineWrapping, scrollPastEnd(),
     markdown({ extensions:[Strikethrough,TaskList],addKeymap:false }), documentPresentation(read),
     syntaxHighlighting(HighlightStyle.define([
