@@ -204,5 +204,18 @@ test('Ctrl+4 uppercases only highlighted text and keeps glyphs, selection direct
  e.run(undo);assert.deepEqual(e.text().content,['straße ',glyph,' mixed untouched']);
  e.run(redo);assert.deepEqual(e.text().content,['STRASSE ',glyph,' MIXED untouched']);
  const multi=editor(['one two three'],[[0,3],[8,13]]);multi.run(uppercaseSelection);assert.equal(multi.state.doc.toString(),'ONE two THREE');
- const cursor=editor(['leave alone'],[[3,3]]);cursor.run(uppercaseSelection);assert.equal(cursor.state.doc.toString(),'leave alone');
+ const cursor=editor(['leave alone'],[[3,3]]);cursor.run(uppercaseSelection);assert.equal(cursor.state.doc.toString(),'LEAVE alone');assert.equal(cursor.state.selection.main.head,3);
+});
+
+test('Ctrl+3 skips leading signs, punctuation and checkbox markers while preserving symbols',()=>{
+ const text='= decompose to separated components\n→ expand the structure\n> **quoted sentence**\n• [x] finished. \"next\"\n12) numbered: → next';
+ const e=editor([text],[[0,text.length]]);e.run(capitalizeSentence);
+ assert.equal(e.state.doc.toString(),'= Decompose to separated components\n→ Expand the structure\n> **Quoted sentence**\n• [x] Finished. \"Next\"\n12) Numbered: → Next');
+ e.run(undo);assert.equal(e.state.doc.toString(),text);
+});
+test('Ctrl+4 resolves words at multiple carets, deduplicates targets and maps Unicode expansion',()=>{
+ const e=editor(['straße second'],[[3,3],[5,5],[10,10]]);e.run(uppercaseSelection);
+ assert.equal(e.state.doc.toString(),'STRASSE SECOND');assert.deepEqual(e.state.selection.ranges.map(r=>r.head),[3,6,11]);
+ e.run(undo);assert.equal(e.state.doc.toString(),'straße second');assert.deepEqual(e.state.selection.ranges.map(r=>r.head),[3,5,10]);
+ const blank=editor(['  '],[[1,1]]);blank.run(uppercaseSelection);assert.equal(blank.state.doc.toString(),'  ');
 });
