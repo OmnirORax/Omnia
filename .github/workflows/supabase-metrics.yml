@@ -6,6 +6,9 @@ on:
       - 'supabase/migrations/20261104000*_*.sql'
       - 'scripts/deploy-metrics.mjs'
       - 'scripts/export-metrics-migrations.mjs'
+      - 'scripts/migration-sql.mjs'
+      - 'scripts/disposable-postgres.mjs'
+      - 'scripts/test-metrics-db.mjs'
       - '.github/workflows/supabase-metrics.yml'
   workflow_dispatch:
     inputs:

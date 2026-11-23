@@ -2,10 +2,10 @@ name: Account cloud backend
 on:
   pull_request:
     branches: [master]
-    paths: ['src/backend/**', 'src/core/**', 'supabase/**', 'scripts/*cloud*', 'scripts/*account-functions*', 'scripts/migration-sql.mjs', '.github/workflows/supabase-cloud.yml']
+    paths: ['src/backend/**', 'src/core/**', 'supabase/**', 'scripts/*cloud*', 'scripts/*account-functions*', 'scripts/migration-sql.mjs', 'scripts/disposable-postgres.mjs', '.github/workflows/supabase-cloud.yml']
   push:
     branches: [master]
-    paths: ['src/**', 'supabase/**', 'scripts/*cloud*', 'scripts/*account-functions*', 'scripts/migration-sql.mjs', '.github/workflows/supabase-cloud.yml']
+    paths: ['src/**', 'supabase/**', 'scripts/*cloud*', 'scripts/*account-functions*', 'scripts/migration-sql.mjs', 'scripts/disposable-postgres.mjs', '.github/workflows/supabase-cloud.yml']
   workflow_dispatch:
     inputs:
       mode:
