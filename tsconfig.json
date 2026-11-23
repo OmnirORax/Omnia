@@ -17,12 +17,10 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "types": [
-      "vite/client",
-      "node"
+      "vite/client"
     ],
     "jsx": "react-jsx",
-    "resolveJsonModule": true,
-    "skipLibCheck": true
+    "resolveJsonModule": true
   },
   "include": [
     "src",
