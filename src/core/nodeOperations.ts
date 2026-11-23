@@ -1,4 +1,3 @@
-import {materializedAlu} from '../simulation/design.ts';
 import {createRelationNode} from './relationNode.ts';
 import {createOccupancy} from '../graph/occupancy.ts';
 import { addStructure, bind, locate, sameOrigin, type Origin, type Structure, type Vec3, type World } from './model.ts';
@@ -33,7 +32,6 @@ export function branch(world: World, roots: readonly Origin[]) {
 export function copyNode(world: World, source: Structure, position: Vec3, occupied?:ReturnType<typeof createOccupancy>) {
   const actual = inherited(source, world), node = addStructure(world, position,Date.now(),occupied);
   for (const key of ['brightness','orientation','label','colorOverride','color','text','visual','opacity','glow','glowColor','translucency','translucencyRadius','parts','scene','textAppearance','catalog'] as const) if (actual[key] !== undefined) Object.assign(node, { [key]: structuredClone(actual[key]) });
-  const alu=materializedAlu(source,world);if(alu)node.alu=alu;
   if(actual.variantOf&&actual.overrides?.includes('color'))node.colorOverride=true;
   if(actual.omnic)node.visual={size:actual.visual?.size,showText:actual.visual?.showText,omnicEntityId:JSON.stringify(source.origin)};
   return node;
@@ -49,7 +47,6 @@ export function childNode(world: World, owner: Origin, variant = false, position
 export function detachNode(world: World, origin: Origin) {
   const node = locate(world, origin); if (!node) return;
   const parent = node.parent && locate(world, node.parent);
-  const alu=materializedAlu(node,world);if(alu)node.alu=alu;
   if (node.variantOf) Object.assign(node, structuredClone(inherited(node, world)));
   delete node.parent; delete node.variantOf; delete node.overrides; delete node.omnicEdits;delete node.omnicRevision;
   if (parent) parent.parts = parent.parts.filter(binding => binding.mode !== 'follow' || !sameOrigin(binding.origin, origin));

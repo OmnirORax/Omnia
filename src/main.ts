@@ -1,5 +1,4 @@
 import {selectedDocumentText} from './text/export.ts';
-import {hasAlu} from './simulation/design.ts';
 import {bindColorSession} from './ui/colorSession.ts';
 import {SYSTEM_MESSAGE} from './ui/systemMessage.ts';
 import {DEFAULT_ORIGIN_DIRECTIONS,planarOriginDirections,originSides,sideAxes,toggleOriginSide,type OriginDirections} from './core/originDirections.ts';
@@ -128,7 +127,6 @@ function defineMenu<Args extends unknown[]>(kind:string,render:(...args:Args)=>v
  return(...args:Args)=>{if(viewHistory.rendering){render(...args);return;}if(atCursor)menuPoint={...cursorPosition()};viewHistory.menu({kind,args,dismissOnOutside,point:{...menuPoint},selection:selection.targets as Target[]});};
 }
 function pick(origin: Origin, extend = false, toggle = false) { universalHistory.activeContext=`node:${key(origin)}`;universalHistory.contextPath=['omnium',universalHistory.activeContext]; selection.pick(origin, extend, toggle);followSelectionOrigin();refresh(); }
-function revealAndPick(origin:Origin){const node=locate(store.world,origin);if(node?.variantOf)view?.variants(node.variantOf,true);pick(origin);}
 function selectedNodes(world: World) { const ids=new Set(selectedOrigins().map(key));return world.nodes.filter(node=>ids.has(key(node.origin))); }
 const view = (() => {
   try {
@@ -346,7 +344,7 @@ function openComposer(origin?:Origin,restore?:ViewSpec){
  for(const composer of composers)if(!composer.root.isConnected)composers.delete(composer);
  const existing=[...composers].find(c=>origin&&c.origin?sameOrigin(origin,c.origin):!origin&&!c.origin);if(existing){close();existing.root.focus();return;}
  const id=origin?key(origin):'new';if(openingComposers.has(id))return;openingComposers.add(id);const epoch=documentEpoch,actionId=universalHistory.currentActionId;
- void loadEditor(()=>import('./omnic/editor.ts')).then(({composerPanel})=>{if(epoch!==documentEpoch||origin&&!locate(store.world,origin)||restore&&!viewHistory.wants(restore))return;viewHistory.perform(()=>{if(!restore){const point=cursorPosition();updateNativeLayout(layout=>({...layout,windows:{...layout.windows,'omnic-composer':{...(layout.windows['omnic-composer']??{width:360,height:360,collapsed:false,pinned:false}),x:point.x,y:point.y,closed:false}}}));}const spec=restore??viewHistory.reserve({kind:'composer'});const composer=composerPanel({historyScope:`window:${spec.instance}`,restorePlacement:true,library:openLibrary,surface:surface=>view?.editOmnic(surface)??(()=>{}),redraw:()=>view?.request(),read:()=>store.world,change:store.change,select:revealAndPick,feedback,subscribe:store.subscribe},origin);composers.add(composer);viewHistory.adopt(`composer:${key(composer.origin!)}`,{...spec,args:[composer.origin]},composer,restore);},actionId);}).catch(error=>{viewHistory.failed(restore,error);feedback(String(error));}).finally(()=>openingComposers.delete(id));
+ void loadEditor(()=>import('./omnic/editor.ts')).then(({composerPanel})=>{if(epoch!==documentEpoch||origin&&!locate(store.world,origin)||restore&&!viewHistory.wants(restore))return;viewHistory.perform(()=>{if(!restore){const point=cursorPosition();updateNativeLayout(layout=>({...layout,windows:{...layout.windows,'omnic-composer':{...(layout.windows['omnic-composer']??{width:360,height:360,collapsed:false,pinned:false}),x:point.x,y:point.y,closed:false}}}));}const spec=restore??viewHistory.reserve({kind:'composer'});const composer=composerPanel({historyScope:`window:${spec.instance}`,restorePlacement:true,library:openLibrary,surface:surface=>view?.editOmnic(surface)??(()=>{}),redraw:()=>view?.request(),read:()=>store.world,change:store.change,select:origin=>{const node=locate(store.world,origin);if(node?.variantOf)view?.variants(node.variantOf,true);pick(origin);},feedback,subscribe:store.subscribe},origin);composers.add(composer);viewHistory.adopt(`composer:${key(composer.origin!)}`,{...spec,args:[composer.origin]},composer,restore);},actionId);}).catch(error=>{viewHistory.failed(restore,error);feedback(String(error));}).finally(()=>openingComposers.delete(id));
 }
 let library:ReturnType<typeof libraryPanel>|undefined,openingLibrary=false;
 function openLibrary(restore?:ViewSpec){renderClose();if(library?.root.isConnected){close();library.root.focus();return;}if(openingLibrary)return;openingLibrary=true;const epoch=documentEpoch,actionId=universalHistory.currentActionId;
@@ -365,7 +363,6 @@ const context=defineMenu('context',(_position: Vec3|undefined,origin?:Origin,edg
     const shortcut = button(`👁 ${capability.label}`, () => editCapability(capability.key)); shortcut.dataset.searchOnly = 'true'; shortcut.dataset.keywords = capability.properties.map(p => p.property.label).join(' ');
   }
   if (selectedOrigins().length === 1) { const shortcut = button('👁 Visual', visuals); shortcut.dataset.searchOnly = 'true'; shortcut.dataset.keywords = 'image SVG GLB character size text'; }
-  if(selectedOrigins().length===1&&hasAlu(node,store.world))button('Simulation',()=>openSimulation(node.origin));
   if (selectedOrigins().length === 1) { button('Omnic',()=>openComposer(selectedOrigins()[0])); button('Library · Atlas',openLibrary); button('Composition', parts); button('Document', openDocument,tools,'D'); button('Node tools…', nodeTools); }
   button('Include…', chooseReference);
   button(node.invariant ? '⚬ Release invariant' : '⚬ Activate invariant', () => {
@@ -540,18 +537,6 @@ function openScene(tab:SceneTab='image',restore?:ViewSpec) {
 }
 const documents = new Map<string, ReturnType<typeof editDocument>>(), openingDocuments = new Set<string>();
 let documentEpoch = 0;
-const simulations=new Map<string,ReturnType<typeof panel>>(),openingSimulations=new Set<string>();
-store.subscribeReplace(()=>{for(const simulation of [...simulations.values()])simulation.close();});
-function openSimulation(origin:Origin,restore?:ViewSpec){
- const id=key(origin),existing=simulations.get(id);if(existing?.root.isConnected){existing.root.focus();return;}if(openingSimulations.has(id))return;
- const epoch=documentEpoch;openingSimulations.add(id);renderClose();
- void loadEditor(()=>import('./simulation/editor.ts')).then(({simulationPanel})=>{
-  if(epoch!==documentEpoch||!locate(store.world,origin)||restore&&!viewHistory.wants(restore))return;
-  viewHistory.perform(()=>{const spec=restore??viewHistory.reserve({kind:'simulation',args:[origin]});const simulation=simulationPanel(origin,{read:()=>store.world,change:edit=>store.change(edit),subscribe:store.subscribe,open:next=>{revealAndPick(next);openSimulation(next);},feedback});
-   simulations.set(id,simulation);simulation.root.addEventListener('omnium:window-close',()=>simulations.delete(id),{once:true});viewHistory.adopt(`simulation:${id}`,spec,simulation,restore);
-  });
- }).catch(error=>{viewHistory.failed(restore,error);feedback(String(error));}).finally(()=>openingSimulations.delete(id));
-}
 function openDocument(requested?:Origin,restore?:ViewSpec) {
   const origin = requested??selectedOrigins()[0]; if (!origin) return; renderClose();
   const id = key(origin), existing = documents.get(id);
@@ -754,7 +739,6 @@ viewHistory.factory('workspace',spec=>openWorkspace(spec));
 viewHistory.factory('library',spec=>openLibrary(spec));
 viewHistory.factory('scene',spec=>openScene((spec.args as SceneTab[])[0],spec));
 viewHistory.factory('document',spec=>openDocument((spec.args as Origin[])[0],spec));
-viewHistory.factory('simulation',spec=>openSimulation((spec.args as Origin[])[0],spec));
 viewHistory.factory('composer',spec=>openComposer((spec.args as Origin[])[0],spec));
 installHistoryBindings({undo:()=>travelHistory('undo'),redo:()=>travelHistory('redo'),configure:openHistory,flush:flushLiveForms});
 shortcuts.subscribe(()=>{for(const control of document.querySelectorAll<HTMLElement>('[data-world-shortcut]'))shortcutCaption(control,control.dataset.shortcutLabel!,control.dataset.worldShortcut);refreshContextActions();element('empty').querySelector('span')!.textContent=worldBinding('W')||'Create nodes';for(const control of document.querySelectorAll<HTMLButtonElement>('[data-immersive-mode]'))control.textContent=immersiveLabel();});

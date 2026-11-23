@@ -1,4 +1,3 @@
-import {validateAlu,type AluDesign} from '../simulation/design.ts';
 import {validateOriginDirections,type OriginDirections} from './originDirections.ts';
 import {validateWorkspaceSession,type WorkspaceSession} from './workspaceSession.ts';
 import type {createOccupancy} from '../graph/occupancy.ts';
@@ -31,7 +30,7 @@ export type Binding =
 export type Structure = { origin: Origin; label: string; position: Vec3; color: string; colorOverride?: boolean; invariant: boolean; parts: Binding[];
   parent?: Origin; variantOf?: Origin; overrides?: string[]; hidden?: boolean; collapsed?: boolean;
   omnic?:Recipe;omnicDraft?:Recipe;omnicEdits?:RecipeEdit[];omnicRevision?:number;omnicHistory?:Recipe[];catalog?:Catalog;lexiconWords?:string[];
-  alu?:AluDesign; orientation?: Rotation; text?: NodeText; textAppearance?: Paint; visual?: Visual; scene?: string | null;
+  orientation?: Rotation; text?: NodeText; textAppearance?: Paint; visual?: Visual; scene?: string | null;
   brightness?: number; opacity?: number; glow?: number; glowColor?:string; translucency?: number; translucencyRadius?: number;
 };
 export type Relationship = { from: Binding; to: Binding; label: string; kind: string };
@@ -158,7 +157,6 @@ export function validateWorld(value: unknown): World {
       size+=new TextEncoder().encode(JSON.stringify([node.omnic,node.omnicDraft,node.omnicEdits,node.omnicHistory,node.catalog,node.lexiconWords])).length;if(size>3500000)throw Error('Definition library exceeds storage budget.');
     }
     if(node.orientation!==undefined){const q=node.orientation;if(!q||!['x','y','z','w'].every(key=>typeof q[key as 'x']==='number'&&Number.isFinite(q[key as 'x']))||Math.abs(Math.hypot(q.x,q.y,q.z,q.w)-1)>.001)throw Error('Invalid node orientation.');}
-    validateAlu(node.alu);
     retireTextChannels(node.textAppearance);validatePaint(node.textAppearance,true);
     if (node.text) validateNodeText(node.text, glyphs);
     validateVisual(node.visual, assets);
@@ -169,7 +167,6 @@ export function validateWorld(value: unknown): World {
       if (size > 2e6) throw new Error('World exceeds the initial storage budget.');
     }
   }
-  if(w.nodes.reduce((bytes,node)=>bytes+(node.alu?JSON.stringify(node.alu).length:0),0)>1200000)throw Error('ALU designs exceed the workspace storage budget.');
   const byOrigin = new Map(w.nodes.map(node => [JSON.stringify(node.origin), node]));
   for (const relation of ['parent', 'variantOf'] as const) for (const node of w.nodes) {
     const chain = new Set<Structure>(); let current: Structure | undefined = node;
