@@ -47,6 +47,11 @@ export function prepareWorld(world: World) {
   const anchors = new Map(world.nodes.map(node => [JSON.stringify(node.origin), node]));
   const positions = new Map(world.nodes.map(node => [JSON.stringify(node.position), node]));
   const cached = new Map<Structure, string>(), active = new Set<Structure>();
+  const definitions=new Map<Structure,Recipe|undefined>(),programSpecs=new Map<Recipe,string>();
+  const definition=(node:Structure)=>{if(!definitions.has(node))definitions.set(node,definitionRecipe(node,world));return definitions.get(node);};
+  // Bound extra normalized-string storage independently of the number of variants.
+  let programSpecCharacters=0;
+  const programSpec=(program:Recipe)=>{let value=programSpecs.get(program);if(value===undefined){value=recipeSpecification(program);if(programSpecCharacters+value.length<=256_000){programSpecs.set(program,value);programSpecCharacters+=value.length;}}return value;};
   const target = (binding: Exclude<Binding, { mode: 'structure' }>) => binding.mode === 'follow'
     ? anchors.get(JSON.stringify(binding.origin)) : positions.get(JSON.stringify(binding.at));
   function signature(node: Structure): string {
@@ -54,13 +59,13 @@ export function prepareWorld(world: World) {
     const known = cached.get(node); if (known) return known;
     active.add(node);
     const base = node.variantOf && anchors.get(JSON.stringify(node.variantOf));
-    const program=definitionRecipe(node,world);
+    const program=definition(node);
     const composition = program ? JSON.stringify(['composition',...(function parts(current:Structure,seen=new Set<Structure>()):Binding[]{if(seen.has(current))throw Error('Circular Omnic inheritance.');seen.add(current);const parent=current.variantOf&&anchors.get(JSON.stringify(current.variantOf));return [...(parent?parts(parent,seen):[]),...current.parts];})(node).map(binding=>{if(binding.mode==='structure')return binding.specification;const child=target(binding);return child?signature(child):['unresolved',binding];})]) : base && !node.parts.length ? signature(base) : JSON.stringify(node.parts.length ? ['composition', ...(base ? [signature(base)] : []), ...node.parts.map(binding => {
       if (binding.mode === 'structure') return binding.specification;
       const child = target(binding);
       return child ? signature(child) : ['unresolved', binding];
     })] : ['unit']);
-    const value=program?JSON.stringify([composition,recipeSpecification(program)]):composition;
+    const value=program?JSON.stringify([composition,programSpec(program)]):composition;
     active.delete(node);
     if (value.length > 16000) throw new Error('Composition exceeds the initial structural budget.');
     cached.set(node, value); return value;
@@ -69,7 +74,7 @@ export function prepareWorld(world: World) {
   for (const node of world.nodes) if (node.invariant) {
     const value = signature(node),group=shared.get(value);if(group)group.push(node);else shared.set(value,[node]);
   }
-  return { specification: signature, resolve: (binding: Binding): Structure[] => {
+  return { definition, specification: signature, resolve: (binding: Binding): Structure[] => {
     if (binding.mode === 'structure') return shared.get(binding.specification) ?? [];
     const node = target(binding); return node ? [node] : [];
   } };
@@ -83,11 +88,11 @@ export function resolve(binding: Binding, world: World): Structure[] {
   return prepareWorld(world).resolve(binding);
 }
 
-export function bind(node: Structure, mode: Binding['mode'], world: World): Binding {
+export function bind(node: Structure, mode: Binding['mode'], world: World, prepared?:ReturnType<typeof prepareWorld>): Binding {
   if (mode === 'follow') return { mode, origin: structuredClone(node.origin) };
   if (mode === 'position') return { mode, at: [...node.position] };
   if (!node.invariant) throw new Error('Activate the target as an invariant first.');
-  return { mode, specification: specification(node, world) };
+  return { mode, specification: prepared?prepared.specification(node):specification(node, world) };
 }
 
 export function addStructure(world: World, position: Vec3, born = Date.now(), occupied?:ReturnType<typeof createOccupancy>): Structure {
@@ -201,7 +206,7 @@ export function validateWorld(value: unknown): World {
     if (node.invariant) invariants.add(key);
     visit(node);
   }
-  const definitions=new Map(w.nodes.map(node=>[node,definitionRecipe(node,w)]));
+  const definitions=new Map(w.nodes.map(node=>[node,prepared.definition(node)]));
   const programs=new Set<Recipe>(),stack=new Set<Recipe>();
   function checkProgram(recipe:Recipe,depth=0){
     if(stack.has(recipe)||depth>12)throw Error('Circular or excessively deep Omnic reference.');

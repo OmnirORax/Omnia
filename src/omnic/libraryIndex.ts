@@ -56,14 +56,14 @@ export function matchesLibrary(entity:Entity,item:LibraryItem|undefined,entry:In
 }
 
 import type {World,Structure} from '../core/model.ts';
-import {definitionRecipe} from './definition.ts';
+import {prepareWorld} from '../core/model.ts';
 import {atlasRecipeResolver} from './bindings.ts';
 const contexts=new WeakMap<World,ReturnType<typeof indexContext>>();
 let priorStamp='',prior:ReturnType<typeof createLibraryIndex>|undefined;
 function indexContext(world:World){
  const stamp=JSON.stringify(world.nodes.map(node=>[node.origin,node.position,node.invariant,node.parts,node.variantOf,node.omnic,node.omnicEdits,node.omnicHistory]));
  const index=prior&&stamp===priorStamp?prior:createLibraryIndex();priorStamp=stamp;prior=index;
- const resolveBinding=atlasRecipeResolver(world),definitions=new Map(world.nodes.map(node=>[JSON.stringify(node.origin),definitionRecipe(node,world)]));
+ const prepared=prepareWorld(world),resolveBinding=atlasRecipeResolver(world,prepared),definitions=new Map(world.nodes.map(node=>[JSON.stringify(node.origin),prepared.definition(node)]));
  const resolve:Resolver=(id,revision)=>definitions.has(id)&&revision===undefined?definitions.get(id):resolveBinding(id,revision);
  const entries=new Map<string,IndexEntry>();
  return {entry:(node:Structure)=>{const id=JSON.stringify(node.origin),known=entries.get(id);if(known)return known;const result=index.update({id,label:node.label,aliases:node.lexiconWords??[],omnic:definitions.get(id)},resolve);entries.set(id,result);return result;}};
