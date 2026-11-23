@@ -1,7 +1,7 @@
 import {NODE_VISUAL_DEFAULTS,validateNodePaint,type NodePaint} from '../properties/nodeVisuals.ts';
 import {brightHex} from '../composer/runtime/appearance/resolve.ts';
 import { locate, type Origin, type World, type Structure } from './model.ts';
-import { inherited } from './lattice.ts';
+import { inherited,createInheritanceReader } from './lattice.ts';
 import { capabilities } from './capabilities.ts';
 import { BACKGROUND_DEFAULTS, resolvedTextPaint, validatePaint } from '../properties/visual.ts';
 import { SPHERE_VISUAL_DEFAULTS } from '../properties/sphereVisualDefaults.ts';
@@ -17,9 +17,13 @@ export function nodePaint(world:World,node?:Structure):NodePaint {
   translucency:node.translucency??base.translucency,translucencyRadius:node.translucencyRadius??base.translucencyRadius,glowColor:node.glowColor??base.glowColor,glow:node.glow??base.glow};
 }
 /** Outgoing connections share their source's resolved visual channels. */
-export function connectorPaint(world:World,source:Structure) {
- const paint=nodePaint(world,inherited(source,world));
+export function connectorPaint(world:World,source:Structure,actual=inherited(source,world)) {
+ const paint=nodePaint(world,actual);
  return {color:brightHex(paint.color!,paint.brightness!),opacity:translucentOpacity(paint.opacity!,paint.translucency),glow:paint.glow!,...(paint.glowColor?{glowColor:paint.glowColor}:{})};
+}
+/** A fresh reader per render/preview pass avoids repeating inheritance per edge. */
+export function connectorPaintReader(world:World){
+ const inherit=createInheritanceReader(world),paints=new Map<Structure,ReturnType<typeof connectorPaint>>();return (source:Structure)=>{let paint=paints.get(source);if(!paint){paint=connectorPaint(world,source,inherit(source));paints.set(source,paint);}return paint;};
 }
 export function resolveNodeSettings(world:World,node:Structure):Structure {
  if(!world.appearance?.nodes&&node.brightness===undefined)return node;
