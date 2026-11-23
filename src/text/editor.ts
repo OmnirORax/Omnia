@@ -98,7 +98,7 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
       { tag:tags.monospace,fontFamily:'ui-monospace, monospace',backgroundColor:'#ffffff08' },
       { tag:tags.heading1,fontSize:'1.7em',fontWeight:'bold' }, { tag:tags.heading2,fontSize:'1.5em',fontWeight:'bold' },
       { tag:tags.heading3,fontSize:'1.3em',fontWeight:'bold' }, { tag:tags.heading4,fontSize:'1.15em',fontWeight:'bold' },
-      { tag:tags.heading5,fontWeight:'bold' }, { tag:tags.heading6,fontWeight:'bold' }, { tag:tags.processingInstruction,color:'#89927f' },
+      { tag:tags.heading5,fontWeight:'bold' }, { tag:tags.heading6,fontWeight:'bold' }, { tag:tags.processingInstruction,color:'inherit' },
     ])),
     search({ top:true }),
     shortcutMap.of(Prec.highest(keymap.of(remapDocumentBindings(effectiveBindings)))),

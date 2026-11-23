@@ -17,7 +17,15 @@ export function linePrefix(transform: (line: string, index: number) => { remove:
       const line = state.doc.line(n), { remove, prefix } = transform(line.text, i);
       return { from: line.from, to: line.from + remove, insert: literal(prefix) };
     });
-    dispatch(sourceTransaction(state, edits)); return true;
+    const changes=state.changes(edits.map(edit=>({from:edit.from,to:edit.to,insert:edit.insert.text})));
+    const prefixes=new Map(edits.map(edit=>[edit.from,edit]));
+    const ranges=state.selection.ranges.map(range=>{
+      if(!range.empty)return range.map(changes);
+      const prefix=prefixes.get(state.doc.lineAt(range.head).from);
+      const at=prefix&&range.head<=prefix.to?changes.mapPos(prefix.from,-1)+prefix.insert.text.length:changes.mapPos(range.head,1);
+      return EditorSelection.cursor(at);
+    });
+    dispatch(sourceTransaction(state, edits,ranges)); return true;
   };
 }
 export const heading = (level: number) => linePrefix(line => ({ remove: /^#{1,6}\s+/.exec(line)?.[0].length ?? 0, prefix: level ? '#'.repeat(level) + ' ' : '' }));

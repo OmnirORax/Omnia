@@ -181,3 +181,13 @@ test('bold at a caret inside a phrase removes its enclosing markers',()=>{
  const code=editor(['`**abc edf**`'],[[6,6]]);code.run(wrap('**'));
  assert.notEqual(code.state.doc.toString(),'`abc edf`');
 });
+
+test('list and heading prefixes place collapsed carets after the marker and preserve undo',()=>{
+ for(const [command,offset] of [[list('bullet'),2],[list('numbered'),3],[heading(2),3]]){
+  const e=editor(['one\ntwo'],[[0,0],[4,4]]);e.run(command);
+  assert.deepEqual(e.state.selection.ranges.map(r=>r.head),[offset,4+2*offset]);
+  e.run(undo);assert.equal(e.state.doc.toString(),'one\ntwo');assert.deepEqual(e.state.selection.ranges.map(r=>r.head),[0,4]);
+ }
+ const e=editor(['- item'],[[0,0]]);e.run(list('numbered'));assert.equal(e.state.selection.main.head,3);
+ e.run(list('numbered'));assert.equal(e.state.doc.toString(),'item');assert.equal(e.state.selection.main.head,0);
+});
