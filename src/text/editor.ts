@@ -19,7 +19,7 @@ import { textStyle } from '../ui/appearance.ts';
 import { emboldenStrokeEm } from '../properties/embolden.ts';
 import { panel } from '../ui/panel.ts';
 import { TEXT_CLIPBOARD } from './dom.ts';
-import { normalizeText, validateNodeText, type NodeText, type TextPart } from './model.ts';
+import { normalizeText, plainNodeText, validateNodeText, type NodeText, type TextPart } from './model.ts';
 import type { Origin, World } from '../core/model.ts';
 import { inherited } from '../core/lattice.ts';
 import { locate } from '../core/model.ts';
@@ -63,13 +63,12 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
     const q = getSearchQuery(editor.state); editor.dispatch({ effects: setSearchQuery.of(new SearchQuery({ search:q.search,replace:q.replace,caseSensitive:q.caseSensitive,regexp:true })) });
     return openSearchPanel(editor);
   };
-  function plain(text: NodeText) { return text.content.map(part => typeof part === 'string' ? part : part.word ?? read().nodes.find(n => JSON.stringify(n.origin) === part.glyph)?.label ?? '•').join(''); }
   const copy = (event: ClipboardEvent, cut: boolean) => {
     if (!editor || !event.clipboardData) return false;
     const parts: TextPart[] = []; let ranges: {from:number;to:number}[] = editor.state.selection.ranges.filter(r => !r.empty);
     if (!ranges.length) { const seen = new Set<number>(); ranges = editor.state.selection.ranges.flatMap(r => { const line = editor!.state.doc.lineAt(r.head); if (seen.has(line.number)) return []; seen.add(line.number); return [{from:line.from,to:Math.min(editor!.state.doc.length,line.to+1)}]; }); }
     for (const range of ranges) { if (parts.length && !String(parts.at(-1)).endsWith('\n')) parts.push('\n'); parts.push(...fromSource(sliceSource(editor.state, range.from, range.to)).content); }
-    const text = normalizeText(parts); event.clipboardData.setData(TEXT_CLIPBOARD, JSON.stringify(text)); event.clipboardData.setData('text/plain', plain(text)); event.preventDefault();
+    const text = normalizeText(parts); event.clipboardData.setData(TEXT_CLIPBOARD, JSON.stringify(text)); const labels=new Map(read().nodes.map(node=>[JSON.stringify(node.origin),node.label]));event.clipboardData.setData('text/plain', plainNodeText(text,id=>labels.get(id))); event.preventDefault();
     if (cut) editor.dispatch(sourceTransaction(editor.state, ranges.map(r => ({ from:r.from,to:r.to,insert:toSource({version:1,content:[]}) }))));
     return true;
   };

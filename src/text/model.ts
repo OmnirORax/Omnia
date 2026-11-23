@@ -16,6 +16,10 @@ export function normalizeText(parts: readonly TextPart[]): NodeText {
   }
   return { version: 1, content };
 }
+/** Plain clipboard/export text shares the native glyph fallback semantics. */
+export function plainNodeText(text:NodeText,label:(id:string)=>string|undefined){
+ return text.content.map(part=>typeof part==='string'?part:part.word??label(part.glyph)??'•').join('');
+}
 export function validateNodeText(input: unknown, objects: ReadonlySet<string>): asserts input is NodeText {
   const value = input as NodeText | null;
   if (!value || value.version !== 1 || !Array.isArray(value.content) || value.content.length > TEXT_LIMIT)

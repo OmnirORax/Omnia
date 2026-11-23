@@ -1,3 +1,4 @@
+import {selectedDocumentText} from './text/export.ts';
 import {hasAlu} from './simulation/design.ts';
 import {bindColorSession} from './ui/colorSession.ts';
 import {SYSTEM_MESSAGE} from './ui/systemMessage.ts';
@@ -676,9 +677,17 @@ window.addEventListener('keydown',event=>{
 },true);
 function originShortcutBinding(){return shortcuts.get({category:'Omnium',id:worldShortcutId('O'),label:'Set origin',defaultKey:'X'});}
 function runWorldAction(id:string):void{attempt(()=>worldShortcutActions(true).find(action=>action.id===id)?.execute());}
+async function copySelectedDocuments(){
+ try{
+  flushLiveForms();const origins=selection.committed.filter(isNode),text=selectedDocumentText(store.world,origins);
+  if(!navigator.clipboard?.writeText)throw Error('Clipboard writing is unavailable in this browser.');
+  await navigator.clipboard.writeText(text);feedback(`Copied ${origins.length} node document${origins.length===1?'':'s'} in hierarchy order.`);
+ }catch(error){feedback(error instanceof Error?error.message:String(error));}
+}
 function worldShortcutActions(includeUnavailable=false){return [
  ...spaceActions().filter(action=>includeUnavailable||action.available!==false).map(action=>({label:action.label,key:action.key,run:action.run})),
  {id:worldShortcutId('O'),label:'Set origin',gesture:undefined,key:'X',run:()=>view?.pickOrigin()},
+ {label:'Copy selected node documents',key:'Ctrl+Shift+C',run:()=>{void copySelectedDocuments();}},
  {label:'Toggle origin symmetry',key:'+',run:toggleOriginSymmetry},
  {label:'Expand/collapse hierarchy',key:'Q',run:()=>hierarchyShortcut()},
  {label:'Expand/collapse next level',key:'Shift+Q',run:()=>hierarchyShortcut(true)},
