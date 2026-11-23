@@ -1,0 +1,30 @@
+-- Disposable database only. Never execute this fixture against a hosted project.
+create role anon;create role authenticated;create role service_role bypassrls;
+create schema auth;create table auth.users(id uuid primary key);
+create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
+grant usage on schema auth to authenticated,anon,service_role;grant execute on function auth.uid() to authenticated,anon,service_role;
+create schema storage;create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);
+create table storage.objects(id uuid primary key default gen_random_uuid(),bucket_id text,name text,metadata jsonb);
+alter table storage.objects enable row level security;
+grant usage on schema storage to authenticated,anon,service_role;grant select,insert on storage.objects to authenticated;grant all on storage.objects,storage.buckets to service_role;
+insert into auth.users values('00000000-0000-0000-0000-000000000001'),('00000000-0000-0000-0000-000000000002'),('00000000-0000-0000-0000-000000000003');
+-- MIGRATION
+create function public.test_assert(ok boolean) returns void language plpgsql as $$begin if ok is not true then raise exception 'Assertion failed';end if;end$$;
+set role authenticated;select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000000001',false);
+select set_config('test.workspace',(public.create_workspace('Private test','10000000-0000-0000-0000-000000000001')).id::text,false);
+select public.set_workspace_member(current_setting('test.workspace')::uuid,'00000000-0000-0000-0000-000000000002','viewer');
+reset role;
+insert into public.assets(id,workspace_id,created_by,name,media_type,byte_size,state) values('20000000-0000-0000-0000-000000000001',current_setting('test.workspace')::uuid,'00000000-0000-0000-0000-000000000001','image','image/png',1,'ready');
+select set_config('test.snapshot','{"format":"omnium-v2-private-workspace","version":1,"world":{"format":"omnium-world","version":2,"nodes":[]},"images":[{"sceneId":"scene","assetId":"20000000-0000-0000-0000-000000000001"}]}',false);
+set role service_role;
+select public.test_assert((public.save_account_workspace(current_setting('test.workspace')::uuid,'00000000-0000-0000-0000-000000000001',0,'30000000-0000-0000-0000-000000000001',current_setting('test.snapshot')::jsonb)).revision=1);
+select public.test_assert((public.save_account_workspace(current_setting('test.workspace')::uuid,'00000000-0000-0000-0000-000000000001',0,'30000000-0000-0000-0000-000000000001',current_setting('test.snapshot')::jsonb)).revision=1);
+do $$begin perform public.save_account_workspace(current_setting('test.workspace')::uuid,'00000000-0000-0000-0000-000000000001',0,gen_random_uuid(),current_setting('test.snapshot')::jsonb);raise exception 'Stale write accepted';exception when unique_violation then null;end$$;
+do $$begin perform public.save_account_workspace(current_setting('test.workspace')::uuid,'00000000-0000-0000-0000-000000000002',1,gen_random_uuid(),current_setting('test.snapshot')::jsonb);raise exception 'Viewer write accepted';exception when insufficient_privilege then null;end$$;
+reset role;set role authenticated;select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000000002',false);
+select public.test_assert((select count(*)=1 from public.omnium_account_workspaces));
+do $$begin perform public.save_account_workspace(current_setting('test.workspace')::uuid,'00000000-0000-0000-0000-000000000001',1,gen_random_uuid(),current_setting('test.snapshot')::jsonb);raise exception 'Forged actor accepted';exception when insufficient_privilege then null;end$$;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000000003',false);select public.test_assert((select count(*)=0 from public.omnium_account_workspaces));
+reset role;
+do $$begin update public.assets set state='deleting' where id='20000000-0000-0000-0000-000000000001';raise exception 'Referenced scene deletion allowed';exception when foreign_key_violation then null;end$$;
+select public.test_assert((select state='ready' from public.assets where id='20000000-0000-0000-0000-000000000001'));

@@ -1,8 +1,9 @@
+import {withWorkspaceImages} from '../core/workspaceImages.ts';
 import { panel } from './panel.ts';
-import { checkedWorld, sceneReferences, encodeBytes, decodeScene, rebindScenes, TRANSFER_BYTES } from '../core/transfer.ts';
+import { checkedWorld, decodeScene, rebindScenes, TRANSFER_BYTES } from '../core/transfer.ts';
 import { availableChoice, createPartsFile, fullChoice, hasChoice, parsePartsFile, preparePartsImport, scenesForChoice, type PartsFile, type TransferChoice } from '../core/transferParts.ts';
 import type { World } from '../core/model.ts';
-import { listLocalScenes, localSceneBlob, prepareLocalScene, saveLocalScenes, downloadScene, deleteLocalScene, type StoredScene } from '../scene/library.ts';
+import { listLocalScenes, prepareLocalScene, saveLocalScenes, downloadScene, deleteLocalScene, type StoredScene } from '../scene/library.ts';
 
 type Host = { omnic?:()=>void;atlas?:()=>void;draft?: HTMLButtonElement; read: () => World; replace: (world: World) => void; recover: () => void; beforeReplace: () => void; selected?: () => string[] };
 export function workspacePanel(host: Host) {
@@ -60,14 +61,7 @@ export function workspacePanel(host: Host) {
   if(host.omnic)button('Omnic',host.omnic);if(host.atlas)button('Atlas',host.atlas);
   button('Export', () => void run(async () => {
     if (source) throw Error('Choose New export first.');
-    const file = createPartsFile(structuredClone(checkedWorld(host.read())), choice), references = sceneReferences(file.world);
-    const metadata = new Map((references.size ? await listLocalScenes() : []).map(item => [item.id, item]));
-    // Encode each referenced original once; no normalized cache or device credentials.
-    for (const id of references) {
-      const item = metadata.get(id); if (!item) throw Error('A scene image is missing. Restore or clear it before exporting.');
-      const blob = await localSceneBlob(id);
-      file.scenes.push({ id, name: item.name, type: item.type, data: encodeBytes(new Uint8Array(await blob.arrayBuffer())) });
-    }
+    const file = await withWorkspaceImages(createPartsFile(structuredClone(checkedWorld(host.read())), choice));
     const blob = new Blob([JSON.stringify(file)], { type: 'application/json' });
     if (blob.size > TRANSFER_BYTES) throw Error('Workspace file exceeds 145 MiB.');
     downloadScene(blob, `${filename.value.trim().replace(/[^a-zA-Z0-9 _.-]/g, '_').replace(/\.json$/i, '') || 'omnium-workspace'}.json`); output.textContent = 'Exported';

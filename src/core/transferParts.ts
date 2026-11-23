@@ -45,15 +45,16 @@ export function createPartsFile(world: World, choice: TransferChoice): PartsFile
   const subset = subsetWorld(world, choice);
   return { format: 'omnium-v2-workspace', version: 1, world: subset, scenes: [], parts: { ...structuredClone(choice), complete: choice.nodes.length === world.nodes.length } };
 }
+export function checkedTransferParts(world:World,value:unknown):NonNullable<PartsFile['parts']>{
+  const parts=value as NonNullable<PartsFile['parts']>;checkChoice(world,parts);
+  if(typeof parts.complete!=='boolean')throw Error('Invalid complete-workspace marker.');
+  const normalized={nodes:parts.nodes,settings:parts.settings,scene:parts.scene,appearance:parts.appearance,complete:parts.complete};
+  if(subsetWorld(world,normalized).nodes.length!==world.nodes.length)throw Error('Transfer contains unrelated nodes.');
+  return normalized;
+}
 export function parsePartsFile(text: string): PartsFile {
-  const file = parseWorkspaceFile(text) as PartsFile, raw = file;
-  if (raw.parts !== undefined) {
-    checkChoice(file.world, raw.parts);
-    if (typeof raw.parts.complete !== 'boolean') throw Error('Invalid complete-workspace marker.');
-    file.parts = { nodes: raw.parts.nodes, settings: raw.parts.settings, scene: raw.parts.scene, appearance: raw.parts.appearance, complete: raw.parts.complete };
-    const subset = subsetWorld(file.world, file.parts);
-    if (subset.nodes.length !== file.world.nodes.length) throw Error('Transfer contains unrelated nodes.');
-  }
+  const file=parseWorkspaceFile(text) as PartsFile;
+  if(file.parts!==undefined)file.parts=checkedTransferParts(file.world,file.parts);
   return file;
 }
 export function preparePartsImport(current: World, file: PartsFile, choice: TransferChoice, replace: boolean): World {

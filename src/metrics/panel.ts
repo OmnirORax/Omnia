@@ -3,7 +3,8 @@ import {infinitySystem,formatTime,clicksPerSecond} from './index.ts';
 import type {QuestData,Benchmark} from './cloud.ts';
 let active:{show:()=>void;select:(tab:string)=>void}|undefined;
 function reuse(tab:string){if(!active)return false;active.show();active.select(tab);return true;}
-export async function openInfinityPanel(initial='Account'){
+export async function openInfinityPanel(initial='Score tracker',openAccount:()=>void=()=>{void import('../backend/panel.ts').then(module=>module.openAccountPanel());}){
+ if(initial==='Account'){openAccount();return;}
  if(reuse(initial))return;
  const system=await infinitySystem();await system.ready;
  if(reuse(initial))return;
@@ -19,12 +20,7 @@ export async function openInfinityPanel(initial='Account'){
  function field(parent:HTMLElement,label:string,type:string,value=''){const row=document.createElement('label'),input=document.createElement('input');row.append(document.createTextNode(label),input);input.type=type;input.value=value;parent.append(row);return input;}
  function text(parent:HTMLElement,value:string){const row=document.createElement('div');row.textContent=value;parent.append(row);}
  function update(){const s=system.tracker.getSnapshot();readout.textContent=`${s.phase} · ${formatTime(s.options.mode==='countdown'?Math.max(0,s.options.durationSeconds*1000-s.elapsedMs):s.elapsedMs)} · ${s.clicks} clicks · ${clicksPerSecond(s.clicks,s.elapsedMs).toFixed(2)}/s`;}
- function select(next:string){tab=next;generation++;body.replaceChildren();for(const b of tabs.querySelectorAll('button'))b.setAttribute('aria-pressed',String(b.textContent===tab));status.textContent='';
-  if(tab==='Account'){
-   if(system.account){text(body,'Signed in');button(body,'Sign out',async()=>{await system.signOut();select('Account');});return;}
-   const form=document.createElement('form');body.append(form);const email=field(form,'Email','email'),password=field(form,'Password','password');email.autocomplete='username';password.autocomplete='current-password';email.required=password.required=true;
-   const submit=document.createElement('button');submit.type='submit';submit.textContent='Sign in';form.append(submit);form.onsubmit=event=>{event.preventDefault();void action(async()=>{try{await system.signIn(email.value,password.value);select('Account');}finally{password.value='';}});};return;
-  }
+ function select(next:string){if(next==='Account'){openAccount();return;}tab=next;generation++;body.replaceChildren();for(const b of tabs.querySelectorAll('button'))b.setAttribute('aria-pressed',String(b.textContent===tab));status.textContent='';
   if(tab==='Score tracker'){
    const preferences=system.tracker.getSnapshot().options,mode=document.createElement('select');for(const value of ['stopwatch','countdown']){const option=document.createElement('option');option.value=value;option.textContent=value;mode.append(option);}mode.value=preferences.mode;body.append(mode);
    const seconds=field(body,'Seconds','number',String(preferences.durationSeconds));seconds.min='1';seconds.max='86400';seconds.step='1';
@@ -50,8 +46,8 @@ export async function openInfinityPanel(initial='Account'){
   if(local){try{show(system.localBoard());}catch(error){status.textContent=String(error);}}
   else void system.board().then(show).catch(error=>{if(version===generation&&!closed)status.textContent=String(error);});
  }
- for(const name of ['Account','Score tracker','Questboard','Leaderboard'])button(tabs,name,()=>select(name));
- stop=system.subscribe(()=>{if(closed)return;update();if(system.tracker.getSnapshot().phase==='running'&&!tick||system.tracker.getSnapshot().phase!=='running'&&tick)clock();if(account!==system.account){account=system.account;select(tab);}const result=system.tracker.getSnapshot().results[0];if(result&&result.number!==lastResult){lastResult=result.number;if(result.actorId===system.account&&result.attemptId&&!result.interrupted&&result.reason==='timeout')void system.submit(result).then(()=>{if(!closed)status.textContent='Score submitted';}).catch(error=>{if(!closed)status.textContent=String(error);});}});
+ for(const name of ['Score tracker','Questboard','Online quests','Leaderboard','Account'])button(tabs,name,()=>select(name));
+ stop=system.subscribe(()=>{if(closed)return;update();if((system.tracker.getSnapshot().phase==='running'&&!tick||system.tracker.getSnapshot().phase!=='running'&&tick))clock();if(account!==system.account){account=system.account;select(tab);}const result=system.tracker.getSnapshot().results[0];if(result&&result.number!==lastResult){lastResult=result.number;if(result.actorId===system.account&&result.attemptId&&!result.interrupted&&result.reason==='timeout')void system.submit(result).then(()=>{if(!closed)status.textContent='Score submitted';}).catch(error=>{if(!closed)status.textContent=String(error);});}});
  document.addEventListener('visibilitychange',clock);clock();
  active={show:window.show,select};update();select(initial);
 }
