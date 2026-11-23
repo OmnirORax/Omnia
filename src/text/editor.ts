@@ -1,3 +1,4 @@
+import {documentFoldBindings} from './folding.ts';
 import {compactDocumentPaste} from './clipboard.ts';
 import {travelGlobalHistory} from '../core/universalHistory';
 import {registerContextActions} from '../ui/contextActions';
@@ -11,7 +12,7 @@ import { EditorView, drawSelection, keymap, scrollPastEnd } from '@codemirror/vi
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { markdown, markdownKeymap } from '@codemirror/lang-markdown';
 import { Strikethrough, TaskList } from '@lezer/markdown';
-import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
+import { HighlightStyle, syntaxHighlighting, codeFolding } from '@codemirror/language';
 import { tags } from '@lezer/highlight';
 import { closeSearchPanel, getSearchQuery, openSearchPanel, search, searchKeymap, SearchQuery, setSearchQuery } from '@codemirror/search';
 import { readPaint } from '../core/appearance.ts';
@@ -74,6 +75,7 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
   };
   const bindings: import('@codemirror/view').KeyBinding[] = [
       { key:'Escape',run: v => { if (headingMenu) { headingMenu.remove(); headingMenu=undefined; return true; } if (closeSearchPanel(v) || singleCursor(v)) return true; view.close(); return true; } },
+      ...documentFoldBindings,
       { key:'Mod-b',run:wrap('**') }, { key:'Mod-i',run:wrap('*') },
       { key:'Mod-ArrowUp',run:moveLines(-1) }, { key:'Mod-ArrowDown',run:moveLines(1) },
       { key:'Alt-Delete',run:deleteLines }, { key:'Mod-Delete',run:heading(0) },
@@ -89,7 +91,7 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
   editor = new EditorView({ parent:host, state:EditorState.create({ doc:source.text, extensions:[
     EditorState.allowMultipleSelections.of(true), glyphField.init(() => source.glyphs), glyphHistory, history(),compactDocumentPaste,documentBrackets,lexiconAnnotations(read),
     EditorView.clickAddsSelectionRange.of(event => event.altKey), documentMouseSelection(), drawSelection({drawRangeCursor:true,cursorBlinkRate:1000}), EditorView.lineWrapping, scrollPastEnd(),
-    markdown({ extensions:[Strikethrough,TaskList],addKeymap:false }), documentPresentation(read),
+    markdown({ extensions:[Strikethrough,TaskList],addKeymap:false }), codeFolding(), documentPresentation(read),
     syntaxHighlighting(HighlightStyle.define([
       { tag:tags.strong,fontWeight:'bold',fontSynthesis:'weight',WebkitTextStroke:'var(--visual-text-bold-stroke, 0em currentColor)' }, { tag:tags.emphasis,fontStyle:'italic' }, { tag:tags.strikethrough,textDecoration:'line-through' },
       { tag:tags.monospace,fontFamily:'ui-monospace, monospace',backgroundColor:'#ffffff08' },
@@ -146,7 +148,7 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
   refreshAppearance();queueMicrotask(()=>{if(view.root.isConnected)editor?.dispatch({effects:refreshLexicon.of()});});editor.focus(); return {...view,refreshAppearance,previewAppearance(world:World){const paint=readPaint(world,'nodeText',origin);Object.assign(host.style,textStyle(paint));}};
 }
 
-const DOCUMENT_SHORTCUT_LABELS:Record<string,string>={'Mod-b':'Bold','Mod-i':'Italic','Mod-ArrowUp':'Move line up','Mod-ArrowDown':'Move line down','Alt-Delete':'Delete line','Mod-Delete':'Remove heading','Mod-F7':'Choose heading','Mod-1':'Numbered list','Mod-2':'Bullet list','Mod-Shift-3':'Cycle list','Mod-Shift-4':'Strikethrough','Mod-5':'Inline code','Alt-Mod-1':'Code block','Mod-3':'Capitalize','Alt-ArrowRight':'Regex search','Mod-PageUp':'Increase font size','Mod-PageDown':'Decrease font size','Escape':'Close / cancel'};
+const DOCUMENT_SHORTCUT_LABELS:Record<string,string>={'Alt-1':'Fold heading / section','Alt-2':'Unfold heading / section','Mod-b':'Bold','Mod-i':'Italic','Mod-ArrowUp':'Move line up','Mod-ArrowDown':'Move line down','Alt-Delete':'Delete line','Mod-Delete':'Remove heading','Mod-F7':'Choose heading','Mod-1':'Numbered list','Mod-2':'Bullet list','Mod-Shift-3':'Cycle list','Mod-Shift-4':'Strikethrough','Mod-5':'Inline code','Alt-Mod-1':'Code block','Mod-3':'Capitalize','Alt-ArrowRight':'Regex search','Mod-PageUp':'Increase font size','Mod-PageDown':'Decrease font size','Escape':'Close / cancel'};
 export function documentShortcutCatalog(){
  const custom=Object.entries(DOCUMENT_SHORTCUT_LABELS).map(([key,label])=>({key,run:Object.assign(()=>true,{shortcutLabel:label})}));
  const headings=[1,2,3,4,5,6].map(n=>({key:`Mod-F${n}`,run:Object.assign(()=>true,{shortcutLabel:`Heading ${n}`})}));
