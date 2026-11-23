@@ -8,10 +8,12 @@ export async function withWorkspaceImages<T extends WorkspaceFile>(file:T):Promi
 }
 /** Imported backups may use legacy scene aliases. Normalize through the same
  * image validator/identity owner as native imports before reusing cloud bytes. */
-export async function canonicalWorkspaceImages<T extends WorkspaceFile>(file:T):Promise<T>{
+export async function prepareWorkspaceImages<T extends WorkspaceFile>(file:T,retainPrepared=true){
  const {prepareLocalScene}=await import('../scene/prepareImage.ts');
  const {decodeScene,rebindScenes}=await import('./transfer.ts');
- const aliases=new Map<string,string>(),scenes=new Map<string,WorkspaceFile['scenes'][number]>();
- for(const image of file.scenes){const stored=await prepareLocalScene(new File([decodeScene(image) as Uint8Array<ArrayBuffer>],image.name,{type:image.type}),null);aliases.set(image.id,stored.id);if(!scenes.has(stored.id))scenes.set(stored.id,{...image,id:stored.id,type:stored.type});}
- return {...file,world:rebindScenes(file.world,aliases),scenes:[...scenes.values()]};
+ const aliases=new Map<string,string>(),scenes=new Map<string,WorkspaceFile['scenes'][number]>(),prepared=new Map<string,import('../scene/library.ts').StoredScene>();
+ for(const image of file.scenes){const stored=await prepareLocalScene(new File([decodeScene(image) as Uint8Array<ArrayBuffer>],image.name,{type:image.type}),null);aliases.set(image.id,stored.id);if(retainPrepared)prepared.set(stored.id,stored);if(!scenes.has(stored.id))scenes.set(stored.id,{...image,id:stored.id,type:stored.type});}
+ return {file:{...file,world:rebindScenes(file.world,aliases),scenes:[...scenes.values()]},prepared:[...prepared.values()]};
 }
+
+export async function canonicalWorkspaceImages<T extends WorkspaceFile>(file:T):Promise<T>{return (await prepareWorkspaceImages(file,false)).file;}

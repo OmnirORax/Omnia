@@ -452,17 +452,17 @@ const openShortcuts=defineMenu('shortcuts',()=>{
  defaults=doc.documentShortcutCatalog();omnicDefaults=()=>features.FEATURE_ACTIONS.filter(action=>!action.id.startsWith('document.')&&!action.id.startsWith('world.')).flatMap(action=>{const key=normalizeShortcut(workspace.shortcutBinding(action.id,{})),current=normalizeShortcut(workspace.shortcutBinding(action.id,shortcuts.getSnapshot().Omnic??{}));return key||current?[{category:'Omnic' as const,id:action.id,label:action.label,defaultKey:key??'',currentKey:current??'',scope:action.scope}]:[];});ready=true;
  if(root.isConnected)window.refresh();}).catch(error=>feedback(String(error)));
 });
-function openAccount(){void import('./backend/panel.ts').then(module=>module.openAccountPanel({read:()=>store.world,importWorkspace:async file=>{openWorkspace();await workspaceView?.stage(file);}})).catch(error=>feedback(String(error)));}
+function openAccount(){void import('./backend/panel.ts').then(module=>module.openAccountPanel()).catch(error=>feedback(String(error)));}
 function searchActions():SearchAction[]{return [
- {label:'Account / Cloud',keywords:'account login sign in sign out cloud workspaces permissions private files upload download backup',run:openAccount},
+ {label:'Account / Cloud',keywords:'account login sign in sign out cloud permissions members',run:openAccount},
  ...['Score tracker','Questboard','Leaderboard'].map(tab=>({label:`♾️ · ${tab}`,keywords:`infinity ∞ metrics timer score quests stars leaderboard ${tab}`,run:()=>{void import('./metrics/panel.ts').then(module=>module.openInfinityPanel(tab,openAccount)).catch(error=>feedback(String(error)));}})),
  {label:'Shortcuts',keywords:'keyboard shortcuts hotkeys keybindings controls bindings',run:openShortcuts},
  immersiveAction(),
  ...spaceActions(),
- ...SCENE_TABS.map(([tab,label])=>({label:`Scene · ${label}`,keywords:`scene ${tab} ${tab==='audio'?'system audio sound connect code import':tab==='image'?'wallpaper background import paste download library':tab==='normalization'?'normalization correction thresholds':''}`,run:()=>openScene(tab)})),
+ ...SCENE_TABS.map(([tab,label])=>({label:`Scene · ${label}`,keywords:`scene ${tab} ${tab==='audio'?'system audio sound connect code import':tab==='image'?'wallpaper background import paste download library private cloud files upload':tab==='normalization'?'normalization correction thresholds':tab==='prompt'?'cloud generate generation history':''}`,run:()=>openScene(tab)})),
  ...VISUAL_TARGETS.map(([target,label])=>({label:`Visuals · ${label}`,keywords:`eye appearance visuals ${target==='nodeDefaults'?'global node sphere body':target==='text'?'font import typeface':target==='background'?'background ui surfaces':''}`,run:()=>openVisualSettings(target,[...selectedOrigins()],label),available:(target!=='nodes'&&target!=='nodeText')||!!selectedOrigins().length})),
  ...CAMERA_ACTIONS.map(([id,label])=>({label:`Camera · ${label}`,keywords:`camera navigation ${id}`,run:()=>view?.camera(id)})),
- {label:'Workspace · import / export / restore',keywords:'workspace file json backup download upload everything',run:openWorkspace},
+ {label:'Workspace · import / export / restore',keywords:'workspace file json backup download upload everything cloud private shared draft save load',run:openWorkspace},
  {label:'Omnic composer',keywords:'node object composition create edit',run:()=>openComposer(selectedOrigins()[0])},
  {label:'Library · Atlas',keywords:'library atlas objects presets',run:openLibrary},
  {label:'Appearance · Visuals',keywords:'eye visuals colour color text nodes sphere body backgrounds font typeface',run:appearance},
@@ -516,13 +516,13 @@ window.addEventListener('keydown',event=>{
  if(capturingShortcut()||event.isComposing||event.defaultPrevented||!matchesShortcut(event,worldBinding('Ctrl+S')))return;
  event.preventDefault();event.stopImmediatePropagation();if(!event.repeat)runWorldAction(worldShortcutId('Ctrl+S'));
 },true);
-let draftControl:HTMLButtonElement|undefined;
+let draftControl:HTMLElement|undefined;
 let saveSharedDraft:(()=>Promise<void>)|undefined;
 let workspaceView: ReturnType<typeof workspacePanel> | undefined;
 function openWorkspace(restore?:ViewSpec) {
   if(!viewHistory.performing){viewHistory.perform(()=>openWorkspace(restore));return;}
   renderClose(); if (workspaceView?.root.isConnected) { close();workspaceView.root.focus(); return; }
-  workspaceView = workspacePanel({ omnic:()=>openComposer(),atlas:openLibrary,draft:draftControl, selected: () => selectedOrigins().map(origin => JSON.stringify(origin)), read: () => store.world, replace: world => { store.replace(world); selection.clear(); search.value = ''; refresh(); }, recover: () => { store.recover(); selection.clear(); search.value = ''; refresh(); }, beforeReplace: () => {
+  workspaceView = workspacePanel({ account:openAccount, omnic:()=>openComposer(),atlas:openLibrary,draft:draftControl, selected: () => selectedOrigins().map(origin => JSON.stringify(origin)), read: () => store.world, replace: world => { store.replace(world); selection.clear(); search.value = ''; refresh(); }, recover: () => { store.recover(); selection.clear(); search.value = ''; refresh(); }, beforeReplace: () => {
     for(const composer of composers.values())composer.close(); library?.close();
     documentEpoch++; view?.cancel(); close(); selection.cancel(); sceneView?.close();
     for (const document of documents.values()) document?.close();
@@ -534,7 +534,7 @@ let sceneView: ReturnType<typeof scenePanel> | undefined;
 function openScene(tab:SceneTab='image',restore?:ViewSpec) {
   if(!viewHistory.performing){viewHistory.perform(()=>openScene(tab,restore));return;}
   renderClose(); if (!view) return; sceneView?.close();
-  sceneView = scenePanel({ subscribe:store.subscribe, read: () => store.world, selected: ()=>restore?.selection as Origin[]??selectedOrigins(), change: (edit, group) => store.change(edit, group), preview: candidate => view.session.update(candidate, selectedOrigins()[0]), session: view.session, feedback },tab);
+  sceneView = scenePanel({account:openAccount, subscribe:store.subscribe, read: () => store.world, selected: ()=>restore?.selection as Origin[]??selectedOrigins(), change: (edit, group) => store.change(edit, group), preview: candidate => view.session.update(candidate, selectedOrigins()[0]), session: view.session, feedback },tab);
   viewHistory.adopt('scene',{kind:'scene',args:[tab],selection:[...selectedOrigins()]},sceneView,restore);
 }
 const documents = new Map<string, ReturnType<typeof editDocument>>(), openingDocuments = new Set<string>();
@@ -757,8 +757,7 @@ refresh();
 
 // Builds share one draft; production retains its published starting state.
 if(location.hostname==='omnium.nexus'||location.hostname==='omnia-web-bae.pages.dev'||location.hostname.endsWith('.omnia-web-bae.pages.dev')){
- const api=createDraftClient(),indicator=document.createElement('button');indicator.type='button';indicator.setAttribute('aria-label','Shared draft');draftControl=indicator;
- let draftView:ReturnType<typeof panel>|undefined;
+ const api=createDraftClient(),indicator=document.createElement('button');indicator.type='button';indicator.setAttribute('aria-label','Shared draft');const draftRoot=document.createElement('div'),draftDetails=document.createElement('div');draftDetails.hidden=true;draftRoot.append(indicator,draftDetails);draftControl=draftRoot;
  let issue='',hasLocal=true;try{hasLocal=!!(localStorage.getItem('omnium.v2.world.3')??localStorage.getItem('omnium.v2.world.2')??localStorage.getItem('omnium.v2.world.1'));}catch{/* Preserve recovery mode. */}
  const sync=createDraftSync({
   read:()=>store.world,hasLocal,autoLoad:location.hostname.endsWith('.omnia-web-bae.pages.dev'),
@@ -771,14 +770,13 @@ if(location.hostname==='omnium.nexus'||location.hostname==='omnia-web-bae.pages.
  saveSharedDraft=sync.save;
  store.subscribe(sync.changed);store.subscribeCamera(sync.changed);
  function renderDraftDetails(){
-  const view=draftView;if(!view?.root.isConnected)return;
-  const output=document.createElement('output');output.setAttribute('aria-live','polite');output.textContent=issue||sync.phase;view.body.replaceChildren(output);
+  const output=document.createElement('output');output.setAttribute('aria-live','polite');output.textContent=issue||sync.phase;draftDetails.replaceChildren(output);
   if(sync.phase==='Loading'||sync.phase==='Saving')return;
-  if(sync.phase==='Failed'){const retry=document.createElement('button');retry.textContent='Retry';retry.onclick=()=>{void sync.load();};view.body.append(retry);return;}
-  for(const [label,choice] of [['Pull','remote'],['Push','local']] as const){const button=document.createElement('button');button.textContent=label;button.onclick=()=>{void sync.load(choice);};view.body.append(button);}
+  if(sync.phase==='Failed'){const retry=document.createElement('button');retry.textContent='Retry';retry.onclick=()=>{void sync.load();};draftDetails.append(retry);return;}
+  for(const [label,choice] of [['Pull','remote'],['Push','local']] as const){const button=document.createElement('button');button.textContent=label;button.onclick=()=>{void sync.load(choice);};draftDetails.append(button);}
  }
- const openDraft=viewHistory.defineWindow('sharedDraft',()=>{const view=panel('Shared draft');draftView=view;renderDraftDetails();return view;});
- indicator.onclick=()=>{if(draftView?.root.isConnected){draftView.root.focus();return;}openDraft();};
+ viewHistory.factory('sharedDraft',()=>{openWorkspace();draftDetails.hidden=false;});
+ indicator.onclick=()=>{draftDetails.hidden=!draftDetails.hidden;renderDraftDetails();};
  window.addEventListener('online',()=>{if(sync.phase==='Failed')void sync.load();});
  document.addEventListener('visibilitychange',()=>{if(document.hidden)void sync.save();});
  void sync.load().finally(restoreWorkspaceSession);
