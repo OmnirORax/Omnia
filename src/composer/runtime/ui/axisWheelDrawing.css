@@ -1,0 +1,15 @@
+.axis-wheel-surface{max-width:none;clip-path:circle(50%);touch-action:none;user-select:none;color:var(--omnium-accent,#60ddec);background:transparent;box-shadow:none}
+.radial-menu-rims.axis-wheel-drawing{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;fill:none;stroke:currentColor;stroke-width:.012;opacity:1;filter:none}
+.axis-wheel-drawing .axis-wheel-rim{opacity:.24}.axis-wheel-drawing .axis-wheel-hub{opacity:.35}
+.axis-wheel-drawing .axis-wheel-arm{stroke-width:1.6;stroke-linecap:round;opacity:.18}
+.axis-wheel-drawing .axis-wheel-tick{stroke-linecap:butt;opacity:.18}
+.axis-wheel-drawing [data-selected=true] :is(.axis-wheel-arm,.axis-wheel-tick){opacity:.9}
+.axis-wheel-drawing [data-preview=true] :is(.axis-wheel-arm,.axis-wheel-tick){opacity:1}
+.axis-wheel-drawing .axis-wheel-needle{stroke-width:1.6;stroke-linecap:round;opacity:.85}
+.axis-wheel-drawing [data-preview=true] .axis-wheel-needle{stroke-width:2;opacity:1}
+
+.axis-wheel-drawing [data-preview=true] .axis-wheel-arm{stroke-width:2.4}
+
+.axis-wheel-drawing .axis-wheel-area{fill:currentColor;fill-opacity:.13;stroke:none}.axis-wheel-drawing .axis-wheel-facing{fill:currentColor;stroke:none}.axis-wheel-drawing .axis-wheel-label{fill:currentColor;stroke:none;font-size:.12px;opacity:.28}.axis-wheel-drawing [data-selected=true] .axis-wheel-label{opacity:.95}
+
+.axis-wheel-drawing [data-preview=true][data-selected=false] :is(.axis-wheel-arm,.axis-wheel-tick){opacity:.32}
