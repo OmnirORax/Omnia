@@ -26,7 +26,7 @@ import type { Origin, World } from '../core/model.ts';
 import { inherited } from '../core/lattice.ts';
 import { locate } from '../core/model.ts';
 import { fromSource, glyphField, glyphHistory, sliceSource, sourceTransaction, sourceRefreshSpec, toSource, type Edit } from './source.ts';
-import { capitalizeSentence, codeBlock, deleteLines, heading, list, moveLines, singleCursor, wrap } from './commands.ts';
+import { capitalizeSentence, uppercaseSelection, codeBlock, deleteLines, heading, list, moveLines, singleCursor, wrap } from './commands.ts';
 import { documentMouseSelection } from './mouse.ts';
 import {createGlyphPresentation} from '../omnic/presentation.ts';
 import { documentPresentation,refreshDocumentGlyphs } from './presentation.ts';
@@ -83,7 +83,7 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
       ...[1,2,3,4,5,6].map(n => ({ key:`Mod-F${n}`,run:heading(n) })), { key:'Mod-F7',run:chooseHeading },
       { key:'Mod-1',run:list('numbered') }, { key:'Mod-2',run:list('bullet') }, { key:'Mod-Shift-3',run:list('cycle') },
       { key:'Mod-Shift-4',run:wrap('~~') }, { key:'Mod-5',run:wrap('`') }, { key:'Alt-Mod-1',run:codeBlock },
-      { key:'Mod-3',run:capitalizeSentence }, { key:'Alt-ArrowRight',run:regex },
+      { key:'Mod-3',run:capitalizeSentence }, { key:'Mod-4',run:uppercaseSelection }, { key:'Alt-ArrowRight',run:regex },
       { key:'Mod-PageUp',run:font(1) }, { key:'Mod-PageDown',run:font(-1) },
       ...markdownKeymap, ...historyKeymap, ...searchKeymap, indentWithTab, ...defaultKeymap,
   ];
@@ -98,7 +98,7 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
       { tag:tags.monospace,fontFamily:'ui-monospace, monospace',backgroundColor:'#ffffff08' },
       { tag:tags.heading1,fontSize:'1.7em',fontWeight:'bold' }, { tag:tags.heading2,fontSize:'1.5em',fontWeight:'bold' },
       { tag:tags.heading3,fontSize:'1.3em',fontWeight:'bold' }, { tag:tags.heading4,fontSize:'1.15em',fontWeight:'bold' },
-      { tag:tags.heading5,fontWeight:'bold' }, { tag:tags.heading6,fontWeight:'bold' }, { tag:tags.processingInstruction,color:'inherit' },
+      { tag:tags.heading5,fontWeight:'bold' }, { tag:tags.heading6,fontWeight:'bold' }, { tag:tags.processingInstruction,color:'var(--document-text-color)',textShadow:'var(--document-text-shadow)' },
     ])),
     search({ top:true }),
     shortcutMap.of(Prec.highest(keymap.of(remapDocumentBindings(effectiveBindings)))),
@@ -142,14 +142,20 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
     const dictionary=workspaceLexicon(read());if(dictionary!==previousLexicon){previousLexicon=dictionary;queueMicrotask(()=>{if(view.root.isConnected)editor?.dispatch({effects:refreshLexicon.of()});});}
     const glyphs=createGlyphPresentation(read());if(glyphs!==previousGlyphs){previousGlyphs=glyphs;queueMicrotask(()=>{if(view.root.isConnected)editor?.dispatch({effects:refreshDocumentGlyphs.of()});});}
     const paint=readPaint(read(),'nodeText',origin),key=JSON.stringify(paint);if(key===previousPaint)return;previousPaint=key;
-    Object.assign(host.style,textStyle(paint));
-    host.style.setProperty('--visual-text-bold-stroke',`${emboldenStrokeEm(paint.embolden)}em currentColor`);
+    applyDocumentPaint(paint);
     editor?.requestMeasure();
   }
-  refreshAppearance();queueMicrotask(()=>{if(view.root.isConnected)editor?.dispatch({effects:refreshLexicon.of()});});editor.focus(); return {...view,refreshAppearance,previewAppearance(world:World){const paint=readPaint(world,'nodeText',origin);Object.assign(host.style,textStyle(paint));}};
+  function applyDocumentPaint(paint:ReturnType<typeof readPaint>){
+    const style=textStyle(paint);
+    Object.assign(host.style,style);
+    host.style.setProperty('--document-text-color',style.color);
+    host.style.setProperty('--document-text-shadow',style.textShadow);
+    host.style.setProperty('--visual-text-bold-stroke',`${emboldenStrokeEm(paint.embolden)}em currentColor`);
+  }
+  refreshAppearance();queueMicrotask(()=>{if(view.root.isConnected)editor?.dispatch({effects:refreshLexicon.of()});});editor.focus(); return {...view,refreshAppearance,previewAppearance(world:World){applyDocumentPaint(readPaint(world,'nodeText',origin));}};
 }
 
-const DOCUMENT_SHORTCUT_LABELS:Record<string,string>={'Alt-1':'Fold all headings','Alt-2':'Unfold all headings','Mod-b':'Bold','Mod-i':'Italic','Mod-ArrowUp':'Move line up','Mod-ArrowDown':'Move line down','Alt-Delete':'Delete line','Mod-Delete':'Remove heading','Mod-F7':'Choose heading','Mod-1':'Numbered list','Mod-2':'Bullet list','Mod-Shift-3':'Cycle list','Mod-Shift-4':'Strikethrough','Mod-5':'Inline code','Alt-Mod-1':'Code block','Mod-3':'Capitalize','Alt-ArrowRight':'Regex search','Mod-PageUp':'Increase font size','Mod-PageDown':'Decrease font size','Escape':'Close / cancel'};
+const DOCUMENT_SHORTCUT_LABELS:Record<string,string>={'Alt-1':'Fold all headings','Alt-2':'Unfold all headings','Mod-b':'Bold','Mod-i':'Italic','Mod-ArrowUp':'Move line up','Mod-ArrowDown':'Move line down','Alt-Delete':'Delete line','Mod-Delete':'Remove heading','Mod-F7':'Choose heading','Mod-1':'Numbered list','Mod-2':'Bullet list','Mod-Shift-3':'Cycle list','Mod-Shift-4':'Strikethrough','Mod-5':'Inline code','Alt-Mod-1':'Code block','Mod-3':'Capitalize','Mod-4':'Uppercase selection','Alt-ArrowRight':'Regex search','Mod-PageUp':'Increase font size','Mod-PageDown':'Decrease font size','Escape':'Close / cancel'};
 export function documentShortcutCatalog(){
  const custom=Object.entries(DOCUMENT_SHORTCUT_LABELS).map(([key,label])=>({key,run:Object.assign(()=>true,{shortcutLabel:label})}));
  const headings=[1,2,3,4,5,6].map(n=>({key:`Mod-F${n}`,run:Object.assign(()=>true,{shortcutLabel:`Heading ${n}`})}));

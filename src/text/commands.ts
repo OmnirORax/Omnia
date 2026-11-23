@@ -65,6 +65,27 @@ export const wrap = (mark: string, end = mark): StateCommand => ({ state, dispat
   }
   dispatch(sourceTransaction(state, edits, destinations)); return true;
 };
+/** Change only highlighted letters, leaving glyph references and other source intact. */
+export const uppercaseSelection: StateCommand = ({state,dispatch})=>{
+  const edits:Edit[]=[];
+  for(const range of state.selection.ranges){
+    if(range.empty)continue;
+    for(const match of state.sliceDoc(range.from,range.to).matchAll(/\p{L}+/gu)){
+      const text=match[0].toLocaleUpperCase();if(text===match[0])continue;
+      const from=range.from+match.index!;edits.push({from,to:from+match[0].length,insert:literal(text)});
+    }
+  }
+  if(edits.length){
+    const changes=state.changes(edits.map(edit=>({from:edit.from,to:edit.to,insert:edit.insert.text})));
+    const ranges=state.selection.ranges.map(range=>{
+      if(range.empty){const at=changes.mapPos(range.head,1);return {anchor:at,head:at};}
+      const from=changes.mapPos(range.from,-1),to=changes.mapPos(range.to,1);
+      return range.anchor<=range.head?{anchor:from,head:to}:{anchor:to,head:from};
+    });
+    dispatch(sourceTransaction(state,edits,ranges));
+  }
+  return true;
+};
 export const codeBlock = wrap('```\n', '\n```');
 export const capitalizeSentence: StateCommand = ({ state, dispatch }) => {
   const edits: Edit[] = []; const seen = new Set<string>();

@@ -7,7 +7,7 @@ import { history, undo, redo } from '@codemirror/commands';
 import { markdown, markdownKeymap } from '@codemirror/lang-markdown';
 import { Strikethrough, TaskList } from '@lezer/markdown';
 import { fromSource, toSource, glyphField, glyphHistory, sliceSource, sourceTransaction, sourceRefreshSpec } from '../src/text/source.ts';
-import { wrap, heading, list, moveLines, deleteLines, deleteParagraph, capitalizeSentence, codeBlock, singleCursor } from '../src/text/commands.ts';
+import { wrap, heading, list, moveLines, deleteLines, deleteParagraph, capitalizeSentence, uppercaseSelection, codeBlock, singleCursor } from '../src/text/commands.ts';
 
 const glyph={glyph:'{"born":1,"at":[0,0,0]}',word:'shape'};
 function editor(content, ranges=[[0,0]]) {
@@ -190,4 +190,15 @@ test('list and heading prefixes place collapsed carets after the marker and pres
  }
  const e=editor(['- item'],[[0,0]]);e.run(list('numbered'));assert.equal(e.state.selection.main.head,3);
  e.run(list('numbered'));assert.equal(e.state.doc.toString(),'item');assert.equal(e.state.selection.main.head,0);
+});
+
+
+test('Ctrl+4 uppercases only highlighted text and keeps glyphs, selection direction and undo',()=>{
+ const e=editor(['straße ',glyph,' mixed untouched'],[[14,0]]);e.run(uppercaseSelection);
+ assert.deepEqual(e.text().content,['STRASSE ',glyph,' MIXED untouched']);
+ assert.deepEqual([e.state.selection.main.anchor,e.state.selection.main.head],[15,0]);
+ e.run(undo);assert.deepEqual(e.text().content,['straße ',glyph,' mixed untouched']);
+ e.run(redo);assert.deepEqual(e.text().content,['STRASSE ',glyph,' MIXED untouched']);
+ const multi=editor(['one two three'],[[0,3],[8,13]]);multi.run(uppercaseSelection);assert.equal(multi.state.doc.toString(),'ONE two THREE');
+ const cursor=editor(['leave alone'],[[3,3]]);cursor.run(uppercaseSelection);assert.equal(cursor.state.doc.toString(),'leave alone');
 });
