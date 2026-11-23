@@ -126,7 +126,7 @@ part(
   "ui.windows",
   "Background",
   {
-    selector: ".floating-window:not(.is-collapsed) > .floating-window-content,.ui-panel-body,.ui-contour,.toolbar,.sidebar,.ui-inline-group > .property-node-contents,.ui-structured-frame:not(.collapsed) > .ui-frame-root",
+    selector: ".panel,.floating-window:not(.is-collapsed) > .floating-window-content,.ui-panel-body,.ui-contour,.toolbar,.sidebar,.ui-inline-group > .property-node-contents,.ui-structured-frame:not(.collapsed) > .ui-frame-root",
     css: "background-color",
     legacy: "windowBackground",
   },
