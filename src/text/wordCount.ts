@@ -1,5 +1,5 @@
 import {StateField,type EditorState,type Text} from '@codemirror/state';
-import {showPanel,type EditorView,type ViewUpdate} from '@codemirror/view';
+import {ViewPlugin,type ViewUpdate} from '@codemirror/view';
 
 /** Shared counting rule for both the document and selected fragments. */
 export function countWords(text:string):number {
@@ -30,10 +30,10 @@ export function documentWordCount(state:EditorState):{count:number;selected:bool
  const ranges=state.selection.ranges.filter(range=>!range.empty);
  return ranges.length?{count:ranges.reduce((sum,range)=>sum+countWords(state.sliceDoc(range.from,range.to)),0),selected:true}:{count:state.field(documentWordTotal),selected:false};
 }
-function wordCountPanel(view:EditorView){
- const dom=document.createElement('div');dom.className='document-word-count';
- const render=()=>{const {count,selected}=documentWordCount(view.state);const label=`${count} ${selected?'selected ':''}${count===1?'word':'words'}`;if(dom.textContent!==label)dom.textContent=label;};
- render();
- return {dom,update(update:ViewUpdate){if(update.docChanged||update.selectionSet)render();}};
+export function documentWordCounter(display:(text:string)=>void){
+ return [documentWordTotal,ViewPlugin.define(view=>{
+  const render=()=>display(`${documentWordCount(view.state).count}w`);
+  render();
+  return {update(update:ViewUpdate){if(update.docChanged||update.selectionSet)render();}};
+ })];
 }
-export const documentWordCounter=[documentWordTotal,showPanel.of(wordCountPanel)];
