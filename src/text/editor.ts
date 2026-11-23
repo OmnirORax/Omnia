@@ -1,3 +1,4 @@
+import {documentListLayout} from './listLayout.ts';
 import {documentWordCounter} from './wordCount.ts';
 import {documentFoldBindings} from './folding.ts';
 import {compactDocumentPaste} from './clipboard.ts';
@@ -91,7 +92,7 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
   editor = new EditorView({ parent:host, state:EditorState.create({ doc:source.text, extensions:[
     EditorState.allowMultipleSelections.of(true), glyphField.init(() => source.glyphs), glyphHistory, history(),compactDocumentPaste,documentBrackets,lexiconAnnotations(read),
     EditorView.clickAddsSelectionRange.of(event => event.altKey), documentMouseSelection(), drawSelection({drawRangeCursor:true,cursorBlinkRate:1000}), EditorView.lineWrapping, scrollPastEnd(),
-    markdown({ extensions:[Strikethrough,TaskList],addKeymap:false }), codeFolding(), documentWordCounter(view.setTitleDetail), documentPresentation(read),
+    markdown({ extensions:[Strikethrough,TaskList],addKeymap:false }), codeFolding(), documentListLayout, documentWordCounter(view.setTitleDetail), documentPresentation(read),
     syntaxHighlighting(HighlightStyle.define([
       { tag:tags.strong,fontWeight:'bold',fontSynthesis:'weight',WebkitTextStroke:'var(--visual-text-bold-stroke, 0em currentColor)' }, { tag:tags.emphasis,fontStyle:'italic' }, { tag:tags.strikethrough,textDecoration:'line-through' },
       { tag:tags.monospace,fontFamily:'ui-monospace, monospace',backgroundColor:'#ffffff08' },

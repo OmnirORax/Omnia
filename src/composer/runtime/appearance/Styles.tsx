@@ -139,17 +139,6 @@ export function AppearanceStyles() {
       const root=target.instance.owner==='app'?':root[data-omnium-theme]':':root[data-omnium-theme] body';
       rules.push(`${root} ${partSelector(target.instance)}{--omnium-pattern-text:none;-webkit-text-fill-color:currentColor !important;-webkit-text-stroke:0 !important;background-image:var(--omnium-pattern-surface,none) !important;background-clip:padding-box !important}`);
     }
-    const thumb = targets.find((t) => t.id === "ui.scrollbars.thumb")!,
-      track = targets.find((t) => t.id === "ui.scrollbars.track")!;
-    if (state.values[thumb.id] || state.values[track.id]) {
-      const ink = (t: typeof thumb) =>
-        tint(
-          read(t, "color") as string,
-          Number(read(t, "brightness")),
-          translucentOpacity(Number(read(t, "opacity")),Number(read(t,"translucency"))),
-        );
-      rules.push(`:root[data-omnium-theme] *{scrollbar-color:${ink(thumb)} ${ink(track)}}`);
-    }
     return rules.join("\n");
   }, [context?.legacyBase, context?.state.values, context?.state.disconnected, context?.targets, context?.safe,context?.pattern,context?.state.locks]);
   return <><style data-appearance-registry>{css}</style><ScopedTextAppearance /></>;

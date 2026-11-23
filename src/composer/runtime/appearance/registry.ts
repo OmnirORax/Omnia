@@ -267,17 +267,7 @@ part("ui.lists.selection", "ui.lists", "Selected item", {
   css: "background-color",
   legacy: "accent",
 });
-branch("ui.scrollbars", "ui.contents", "Scrollbars");
-part("ui.scrollbars.thumb", "ui.scrollbars", "Thumb", { legacy: "accent" }, [
-  "color",
-  "brightness",
-  "opacity",
-]);
-part("ui.scrollbars.track", "ui.scrollbars", "Track", { legacy: "background" }, [
-  "color",
-  "brightness",
-  "opacity",
-]);
+// Scrollbars inherit native text ink and the underlying window surface.
 branch("ui.popups", "ui", "Menus / tooltips / notices");
 part("ui.popups.background", "ui.popups", "Background", {
   selector:
