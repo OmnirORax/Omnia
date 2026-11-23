@@ -6,9 +6,9 @@ function fixture(options={}){
  const host={keyboard:{lock:async keys=>{calls.push(['lock',keys]);if(options.denied)throw Error('Permission denied');},unlock:()=>calls.push('unlock')},fullscreen:()=>full,enter:async()=>{calls.push('fullscreen');full=true;},exit:async()=>{calls.push('exit');full=false;},changed:()=>{},...options};
  return {mode:createImmersiveMode(host),host,calls,setFull:value=>{full=value;}};
 }
-test('fullscreen entry locks F4, F11 and Escape; leaving releases the keyboard lock',async()=>{
+test('fullscreen entry locks all browser-supported keys; leaving releases the keyboard lock',async()=>{
  const f=fixture();assert.equal(f.mode.phase,'off');assert.deepEqual(f.calls,[]);
- await f.mode.enter();assert.equal(f.mode.phase,'active');assert.deepEqual(f.calls,['fullscreen',['lock',['F4','F11','Escape']]]);
+ await f.mode.enter();assert.equal(f.mode.phase,'active');assert.deepEqual(f.calls,['fullscreen',['lock',undefined]]);
  await f.mode.leave();assert.equal(f.mode.phase,'off');assert.deepEqual(f.calls.slice(-2),['unlock','exit']);
 });
 test('permission rejection exits fullscreen and leaves normal mode usable',async()=>{

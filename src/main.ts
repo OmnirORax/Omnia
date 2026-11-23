@@ -385,7 +385,6 @@ document.addEventListener('fullscreenchange',()=>immersive.fullscreenChanged());
 window.addEventListener('pagehide',()=>{void immersive.leave().catch(()=>{});});
 // Capture F11 before local handlers; locked Escape keeps its normal app handlers.
 window.addEventListener('keydown',event=>{if(immersive.supported&&!browserShortcutsEnabled())handleImmersiveShortcut(event,()=>immersiveAction().run(),worldBinding('F11'));},true);
-window.addEventListener('keydown',event=>{if(immersive.phase==='active'&&event.code==='F4'&&(event.ctrlKey||event.metaKey)&&!browserShortcutsEnabled()){event.preventDefault();event.stopImmediatePropagation();}},true);
 const settingsCatalog=createSettingsCatalog<SearchSetting>();
 const worldSettings=settingsCatalog.define('world',()=>[
     {label:'Lattice scale',keywords:'world lattice',definition:{key:'latticeScale',label:'Lattice scale',kind:'number' as const,min:1e-9},read:()=>store.world.settings?.latticeScale??1,write:(world:World,value:string|number|boolean)=>{world.settings??={latticeScale:1,names:'expanded'};world.settings.latticeScale=Number(value);}},

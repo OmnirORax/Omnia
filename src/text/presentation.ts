@@ -29,16 +29,26 @@ export function documentPresentation(read: () => World) {
       const glyphs=createGlyphPresentation(read());
       const ranges: import('@codemirror/state').Range<Decoration>[] = [],listLines=new Set<number>();
       for (const visible of view.visibleRanges) {
-        syntaxTree(view.state).iterate({ from: visible.from, to: visible.to, enter: node => {
-          if(node.name==='ListMark'){
-            const line=view.state.doc.lineAt(node.from);
-            if(!listLines.has(line.from)){
-              listLines.add(line.from);
-              const separator=/^[ \t]+(?:\[[ xX]\][ \t]+)?/.exec(view.state.sliceDoc(node.to,line.to))?.[0]??'';
-              const columns=countColumn(view.state.sliceDoc(line.from,node.to)+separator,view.state.tabSize);
-              ranges.push(Decoration.line({attributes:{style:`padding-left:calc(2px + ${columns}ch);text-indent:-${columns}ch`}}).range(line.from));
-            }
-          }
+        const tree=syntaxTree(view.state);
+        for(let pos=view.state.doc.lineAt(visible.from).from;pos<=visible.to;){
+          const line=view.state.doc.lineAt(pos);pos=line.to+1;
+          if(listLines.has(line.from))continue;listLines.add(line.from);
+          const leading=/^[ \t]*/.exec(line.text)![0];
+          let item=tree.resolveInner(line.from+leading.length,1);
+          while(item&&item.name!=='ListItem')item=item.parent!;
+          const marker=item?.getChild('ListMark');
+          if(!marker)continue;
+          const first=view.state.doc.lineAt(marker.from);
+          const separator=/^[ \t]+(?:\[[ xX]\][ \t]+)?/.exec(view.state.sliceDoc(marker.to,first.to))?.[0]??'';
+          const itemColumns=countColumn(view.state.sliceDoc(first.from,marker.to)+separator,view.state.tabSize);
+          const leadingColumns=countColumn(leading,view.state.tabSize);
+          const columns=line.from===first.from?itemColumns:Math.max(itemColumns,leadingColumns);
+          // Explicit continuation lines may omit indentation in Markdown. They
+          // inherit the owning item's text column just like soft-wrapped rows.
+          const firstOffset=line.from===first.from?columns:leadingColumns;
+          ranges.push(Decoration.line({attributes:{style:`padding-left:calc(2px + ${columns}ch);text-indent:-${firstOffset}ch`}}).range(line.from));
+        }
+        tree.iterate({ from: visible.from, to: visible.to, enter: node => {
           const active = view.state.selection.ranges.some(r => view.state.doc.lineAt(r.from).from <= node.to && view.state.doc.lineAt(r.to).to >= node.from);
           if (!active && /^(EmphasisMark|StrikethroughMark|HeaderMark|CodeMark)$/.test(node.name) && node.to > node.from) {
             let to=node.to;

@@ -5,7 +5,6 @@ import {travelGlobalHistory} from '../core/universalHistory';
 import {registerContextActions} from '../ui/contextActions';
 import {shortcuts,shortcutBinding} from '../ui/shortcuts';
 import {documentBindings,remapDocumentBindings} from './shortcutBindings';
-import {blockBrowserShortcut} from '../ui/browserShortcuts.ts';
 import {documentBrackets} from './brackets.ts';
 import {lexiconAnnotations,workspaceLexicon,refreshLexicon} from './lexicon.ts';
 import { EditorState, Transaction, Prec, Compartment, type StateCommand } from '@codemirror/state';
@@ -49,7 +48,7 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
     } catch (error) { failed = true; feedback(error instanceof Error ? error.message : String(error)); }
   }
   const host = document.createElement('div');host.className = 'document-content';view.body.append(host);
-  host.addEventListener('keydown',event => {blockBrowserShortcut(event);event.stopPropagation();});
+  host.addEventListener('keydown',event => {event.stopPropagation();});
   host.addEventListener('keydown',event=>{if(event.key==='Escape'&&event.repeat){event.preventDefault();event.stopImmediatePropagation();}},true);
   const run = (command: StateCommand) => { if (editor) { command(editor); editor.focus(); } };
   let headingMenu: HTMLElement | undefined;
