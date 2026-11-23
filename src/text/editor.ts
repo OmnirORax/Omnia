@@ -1,3 +1,4 @@
+import {documentHistoryBindings} from './historyBindings.ts';
 import {documentListLayout} from './listLayout.ts';
 import {documentWordCounter} from './wordCount.ts';
 import {documentFoldBindings} from './folding.ts';
@@ -87,7 +88,7 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
       { key:'Mod-PageUp',run:font(1) }, { key:'Mod-PageDown',run:font(-1) },
       ...markdownKeymap, ...historyKeymap, ...searchKeymap, indentWithTab, ...defaultKeymap,
   ];
-  const effectiveBindings=bindings.map(binding=>binding.key==='Mod-z'?{...binding,run:()=>{travelGlobalHistory('undo');return true;}}:binding.key==='Mod-y'||binding.key==='Mod-Shift-z'?{...binding,run:()=>{travelGlobalHistory('redo');return true;}}:binding);
+  const effectiveBindings=documentHistoryBindings(bindings,travelGlobalHistory);
   const shortcutMap=new Compartment();
   editor = new EditorView({ parent:host, state:EditorState.create({ doc:source.text, extensions:[
     EditorState.allowMultipleSelections.of(true), glyphField.init(() => source.glyphs), glyphHistory, history(),compactDocumentPaste,documentBrackets,lexiconAnnotations(read),
