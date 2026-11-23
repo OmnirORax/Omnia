@@ -1,3 +1,4 @@
+import {indexHierarchy} from './hierarchy.ts';
 import {createRelationNode} from './relationNode.ts';
 import {createOccupancy} from '../graph/occupancy.ts';
 import { addStructure, bind, locate, sameOrigin, type Origin, type Structure, type Vec3, type World } from './model.ts';
@@ -25,8 +26,8 @@ export function adoptNodes(world: World, origins: readonly Origin[], owner: Orig
 }
 
 export function branch(world: World, roots: readonly Origin[]) {
-  const values = [...roots]; let added = true;
-  while (added) { added = false; for (const node of world.nodes) if (node.parent && values.some(origin => sameOrigin(origin, node.parent!)) && !values.some(origin => sameOrigin(origin, node.origin))) { values.push(node.origin); added = true; } }
+  const {children}=indexHierarchy(world,true),values=[...roots],seen=new Set(roots.map(address));
+  for(let i=0;i<values.length;i++)for(const node of children.get(address(values[i]))??[]){const id=address(node.origin);if(!seen.has(id)){seen.add(id);values.push(node.origin);}}
   return values;
 }
 export function copyNode(world: World, source: Structure, position: Vec3, occupied?:ReturnType<typeof createOccupancy>) {

@@ -1,8 +1,14 @@
 import {type World,type Origin,type Structure} from './model.ts';
 import {address} from './lattice.ts';
+/** Short-lived adjacency shared by hierarchy operations; never cache mutable worlds. */
+export function indexHierarchy(world:World,includeAll=false){
+ const nodes=includeAll?world.nodes:world.nodes.filter(n=>!n.hidden&&!n.variantOf),byId=new Map(nodes.map(n=>[address(n.origin),n])),children=new Map<string,Structure[]>();
+ for(const node of nodes)if(node.parent){const id=address(node.parent),list=children.get(id);if(list)list.push(node);else children.set(id,[node]);}
+ return {nodes,byId,children,roots:nodes.filter(n=>!n.parent||!byId.has(address(n.parent)))};
+}
 export function hierarchyScope(world:World,roots:readonly Origin[],nextOnly=false,includeAll=false){
- const eligible=includeAll?world.nodes:world.nodes.filter(n=>!n.hidden&&!n.variantOf),byId=new Map(eligible.map(n=>[address(n.origin),n])),start=roots.length?roots.map(id=>byId.get(address(id))).filter((n):n is Structure=>!!n):eligible.filter(n=>!n.parent||!byId.has(address(n.parent)));
- const children=new Map<string,Structure[]>();for(const n of eligible)if(n.parent){const id=address(n.parent),list=children.get(id)??[];list.push(n);children.set(id,list);}const result=[...start],seen=new Set(start.map(n=>address(n.origin)));for(let i=0;i<result.length;i++){if(nextOnly&&i>=start.length)break;for(const child of children.get(address(result[i].origin))??[])if(!seen.has(address(child.origin))){seen.add(address(child.origin));result.push(child);}}return {roots:start,nodes:result,children};
+ const {byId,children,roots:allRoots}=indexHierarchy(world,includeAll),start=roots.length?roots.map(id=>byId.get(address(id))).filter((n):n is Structure=>!!n):allRoots;
+ const result=[...start],seen=new Set(start.map(n=>address(n.origin)));for(let i=0;i<result.length;i++){if(nextOnly&&i>=start.length)break;for(const child of children.get(address(result[i].origin))??[])if(!seen.has(address(child.origin))){seen.add(address(child.origin));result.push(child);}}return {roots:start,nodes:result,children};
 }
 export function toggleHierarchies(world:World,roots:readonly Origin[],nextOnly=false){const scope=hierarchyScope(world,roots,nextOnly),parents=(nextOnly?scope.roots:scope.nodes).filter(n=>scope.children.has(address(n.origin))),collapse=parents.length>0&&parents.every(n=>!n.collapsed);for(const n of parents)n.collapsed=collapse;if(nextOnly&&!collapse)for(const root of scope.roots)for(const child of scope.children.get(address(root.origin))??[])child.collapsed=true;return scope.nodes.map(n=>n.origin);}
 

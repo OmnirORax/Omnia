@@ -1,5 +1,5 @@
 import type {OmnicSurface} from './surface.ts';
-import {locate,type Structure,type World} from '../core/model.ts';
+import {prepareWorld,locate,type Structure,type World} from '../core/model.ts';
 import type {VisualAsset} from '../graph/assets.ts';
 import {RENDER_BUDGET} from '../renderBudget.ts';
 import {definitionRecipe} from './definition.ts';
@@ -10,9 +10,9 @@ import {atomnicViewBounds} from './atomnicSettings.ts';
 import {glyphVectorPlan,rememberVectorAsset,rememberGlyphFeature} from './vectorPlan.ts';
 /** Bounded, transient render artifacts. Definitions and references remain in the atlas. */
 function buildGlyphPresentation(world:World,previewDrafts:boolean){
- const resolve=atlasRecipeResolver(world),cache=new Map<string,{asset:VisualAsset;motion:boolean;key:string;recipe:NonNullable<ReturnType<typeof definitionRecipe>>;bucket:number;selection:string}>();let serial=0;
+ const prepared=prepareWorld(world),resolve=atlasRecipeResolver(world,prepared),cache=new Map<string,{asset:VisualAsset;motion:boolean;key:string;recipe:NonNullable<ReturnType<typeof definitionRecipe>>;bucket:number;selection:string}>();let serial=0;
  const recipes=new Map<string,ReturnType<typeof definitionRecipe>>();
- for(const node of world.nodes)if(node.omnic||node.variantOf||node.omnicDraft)recipes.set(JSON.stringify(node.origin),previewDrafts?(node.omnicDraft??definitionRecipe(node,world)):definitionRecipe(node,world));
+ for(const node of world.nodes)if(node.omnic||node.variantOf||node.omnicDraft)recipes.set(JSON.stringify(node.origin),previewDrafts?(node.omnicDraft??prepared.definition(node)):prepared.definition(node));
  const animated=new Set<string>();
  return (node:Structure,time=0,preview?:OmnicSurface['preview'])=>{
   const owner=node.visual?.omnicEntityId??JSON.stringify(node.origin),recipe=preview?.recipe??recipes.get(owner);

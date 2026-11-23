@@ -1,3 +1,4 @@
+import {indexHierarchy} from './hierarchy.ts';
 import {activeWorldAxes,axisPoint,operationSlot} from './axes.ts';
 import {createOccupancy} from '../graph/occupancy.ts';
 import {definitionRecipe} from '../omnic/definition.ts';
@@ -39,16 +40,14 @@ export function moveBranch(world: World, origin: Origin, desired: Vec3) {
 }
 export function prepareTranslation(world: World, origins: readonly Origin[],constrainActive=true) {
   const index = lattice(world), moving = new Set(origins.map(address));
-  const carried=new Set<string>();
-  let changed=true;
-  while(changed){const count=moving.size;
-    for(const node of world.nodes)if(moving.has(address(node.origin))&&node.collapsed)carried.add(address(node.origin));
-    for(const node of world.nodes)if(node.parent&&(carried.has(address(node.parent))||node.hidden&&moving.has(address(node.parent)))){carried.add(address(node.origin));moving.add(address(node.origin));}
-    changed=count!==moving.size;
+  const {byId,children}=indexHierarchy(world,true),carried=new Set<string>(),pending=[...moving];
+  for(let i=0;i<pending.length;i++){
+    const id=pending[i],carry=carried.has(id)||byId.get(id)?.collapsed;
+    for(const child of children.get(id)??[])if(carry||child.hidden){const childId=address(child.origin);moving.add(childId);if(!carried.has(childId)){carried.add(childId);pending.push(childId);}}
   }
   const occupied=createOccupancy(world.nodes.filter(node=>!moving.has(address(node.origin))).map(node=>[address(node.origin),point(node.position)] as const));
   return (delta: Vec3): Map<string, Vec3> | undefined => {
-    const frame=constrainActive?world.axes?.find(frame=>frame.id===world.activeAxis):undefined,root=world.nodes.find(node=>address(node.origin)===address(origins[0]));
+    const frame=constrainActive?world.axes?.find(frame=>frame.id===world.activeAxis):undefined,root=byId.get(address(origins[0]));
     if(frame&&root&&delta.some(n=>n!==0)){
       if(!activeWorldAxes(frame).length)return;
       const desired=root.position.map((n,i)=>n+delta[i]) as Vec3,target=axisPoint(world,frame,operationSlot(world,frame,desired));delta=target.map((n,i)=>n-root.position[i]) as Vec3;
@@ -63,12 +62,17 @@ export function prepareTranslation(world: World, origins: readonly Origin[],cons
     return result;
   };
 }
-export function inherited(node: Structure, world: World): Structure {
-  const visited = new Set<Structure>();
+/** Scoped batch reader; callers discard it after a render/export pass. */
+export const createInheritanceReader=(world:World)=>inheritanceReader(world,true);
+export function inherited(node:Structure,world:World):Structure{return inheritanceReader(world,false)(node);}
+function inheritanceReader(world:World,indexed:boolean){
+  let nodes:Map<string,Structure>|undefined;
+  const cache=new Map<Structure,Structure>(),visited=new Set<Structure>();
   const read = (current: Structure): Structure => {
+    const known=cache.get(current);if(known)return known;
     if (visited.has(current)) throw Error('Circular variant inheritance.'); visited.add(current);
-    const parent = current.variantOf && world.nodes.find(n => address(n.origin) === address(current.variantOf!));
-    if (!parent) return current;
+    const parent = current.variantOf && (indexed?(nodes??=new Map(world.nodes.map(node=>[address(node.origin),node]))).get(address(current.variantOf)):world.nodes.find(n => address(n.origin) === address(current.variantOf!)));
+    if (!parent){visited.delete(current);cache.set(current,current);return current;}
     const base = read(parent), overrides = new Set(current.overrides ?? []);
     const next = { ...current, parts: [...base.parts, ...current.parts] };
     for (const key of ['brightness','color', 'label', 'text', 'visual', 'opacity', 'glow','glowColor', 'translucency', 'translucencyRadius','scene','textAppearance'] as const) {
@@ -76,6 +80,6 @@ export function inherited(node: Structure, world: World): Structure {
     }
     if(!overrides.has('color'))next.colorOverride=base.colorOverride;
     if(base.omnic||current.omnicEdits){next.omnic=definitionRecipe(current,world);if(current.omnicEdits!==undefined)next.visual={...next.visual,assetId:undefined,character:undefined,omnicEntityId:JSON.stringify(current.origin)};}
-    return next;
-  }; return read(node);
+    visited.delete(current);cache.set(current,next);return next;
+  }; return read;
 }
