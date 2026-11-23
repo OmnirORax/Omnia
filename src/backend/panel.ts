@@ -7,8 +7,8 @@ import {checkedWorld,parseWorkspaceFile,TRANSFER_BYTES,type WorkspaceFile} from 
 import {downloadScene} from '../scene/library.ts';
 import type {World} from '../core/model.ts';
 import type {Session} from '@supabase/supabase-js';
-let active:{show:()=>void}|undefined,host:{read:()=>World}|undefined;
-export async function openAccountPanel(nextHost?:{read:()=>World}){
+let active:{show:()=>void}|undefined,host:{read:()=>World;importWorkspace?:(file:WorkspaceFile)=>void|Promise<void>}|undefined;
+export async function openAccountPanel(nextHost?:{read:()=>World;importWorkspace?:(file:WorkspaceFile)=>void|Promise<void>}){
  if(nextHost)host=nextHost;if(active){active.show();return;}
  const client=backendClient();let session:Session|null=null,epoch=0,closed=false,busy=false,workspaceId='',assetId='',workspaces:Workspace[]=[],members:WorkspaceMember[]=[],assets:Asset[]=[];
  let pendingCreate:{name:string;id:string}|undefined,pendingGeneration:{workspace:string;subject:string;prompt:string;id:string}|undefined;
@@ -52,6 +52,7 @@ export async function openAccountPanel(nextHost?:{read:()=>World}){
   if(host)restricted(button(body,'Save current V2 workspace',async(current)=>{if(!host)return;await save(await withWorkspaceImages({format:'omnium-v2-workspace',version:1,world:structuredClone(checkedWorld(host.read())),scenes:[]}),current);}),canWrite);
   const backup=field(body,'V2 workspace backup','file');backup.accept='.json,application/json';backup.disabled=!canWrite;
   restricted(button(body,'Upload V2 backup',async(current)=>{const file=backup.files?.[0];if(!file)throw Error('Choose a V2 workspace backup.');if(file.size>TRANSFER_BYTES)throw Error('Workspace file exceeds its limit.');await save(parseWorkspaceFile(await file.text()),current);}),canWrite);
+  if(host?.importWorkspace)button(body,'Load V2 workspace',async()=>{const generation=epoch,file=await downloadPrivateWorkspace(client,workspaceId);if(generation===epoch&&!closed)await host?.importWorkspace?.(file);});
   button(body,'Download V2 workspace',async()=>{const generation=epoch,file=await downloadPrivateWorkspace(client,workspaceId);if(generation===epoch)download(new Blob([JSON.stringify(file)],{type:'application/json'}),'omnium-v2-private-workspace.json');});
   const generation=epoch,id=workspaceId;
   void cloud.sceneCapabilities(client,id).then(capabilities=>{if(closed||generation!==epoch||workspaceId!==id||version!==renderVersion||!capabilities.enabled)return;const prior=pendingGeneration?.workspace===id?pendingGeneration:undefined;const subject=field(body,'Scene subject','text',prior?.subject??''),prompt=field(body,'Scene prompt','text',prior?.prompt??'Create a detailed landscape of {{subject}}.');button(body,'Generate private scene',async()=>{if(pendingGeneration?.workspace!==id||pendingGeneration.subject!==subject.value||pendingGeneration.prompt!==prompt.value)pendingGeneration={workspace:id,subject:subject.value,prompt:prompt.value,id:crypto.randomUUID()};const result=await cloud.generateScene(client,{operation:'scene.generate',workspaceId:id,requestId:pendingGeneration.id,prompt:prompt.value,variable:'subject',source:'label',node:{id:'account-cloud',label:subject.value,notes:''}});if(generation===epoch&&result.state==='ready')pendingGeneration=undefined;await refresh();});}).catch(error=>{if(generation===epoch&&!closed)status.textContent=String(error);});

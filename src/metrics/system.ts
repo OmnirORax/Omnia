@@ -74,7 +74,7 @@ export function createInfinitySystem(client:SupabaseClient,now:()=>number=()=>pe
   },
   submit,
   async signIn(email:string,password:string){const {error}=await client.auth.signInWithPassword({email,password});if(error)throw error;},
-  async signOut(){const {error}=await client.auth.signOut();if(error)throw error;identity('');},
+  async signOut(){const {error}=await client.auth.signOut({scope:'local'});if(error)throw error;},
   dispose(){disposed=true;epoch++;clearTimeout(deadline);stop();auth.data.subscription.unsubscribe();tracker.pause();listeners.clear();},
  };
 }

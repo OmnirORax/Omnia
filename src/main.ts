@@ -452,7 +452,7 @@ const openShortcuts=defineMenu('shortcuts',()=>{
  defaults=doc.documentShortcutCatalog();omnicDefaults=()=>features.FEATURE_ACTIONS.filter(action=>!action.id.startsWith('document.')&&!action.id.startsWith('world.')).flatMap(action=>{const key=normalizeShortcut(workspace.shortcutBinding(action.id,{})),current=normalizeShortcut(workspace.shortcutBinding(action.id,shortcuts.getSnapshot().Omnic??{}));return key||current?[{category:'Omnic' as const,id:action.id,label:action.label,defaultKey:key??'',currentKey:current??'',scope:action.scope}]:[];});ready=true;
  if(root.isConnected)window.refresh();}).catch(error=>feedback(String(error)));
 });
-function openAccount(){void import('./backend/panel.ts').then(module=>module.openAccountPanel({read:()=>store.world})).catch(error=>feedback(String(error)));}
+function openAccount(){void import('./backend/panel.ts').then(module=>module.openAccountPanel({read:()=>store.world,importWorkspace:async file=>{openWorkspace();await workspaceView?.stage(file);}})).catch(error=>feedback(String(error)));}
 function searchActions():SearchAction[]{return [
  {label:'Account / Cloud',keywords:'account login sign in sign out cloud workspaces permissions private files upload download backup',run:openAccount},
  ...['Score tracker','Questboard','Leaderboard'].map(tab=>({label:`♾️ · ${tab}`,keywords:`infinity ∞ metrics timer score quests stars leaderboard ${tab}`,run:()=>{void import('./metrics/panel.ts').then(module=>module.openInfinityPanel(tab,openAccount)).catch(error=>feedback(String(error)));}})),

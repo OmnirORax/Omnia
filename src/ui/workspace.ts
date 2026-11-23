@@ -1,6 +1,6 @@
 import {withWorkspaceImages} from '../core/workspaceImages.ts';
 import { panel } from './panel.ts';
-import { checkedWorld, decodeScene, rebindScenes, TRANSFER_BYTES } from '../core/transfer.ts';
+import { checkedWorld, decodeScene, rebindScenes, TRANSFER_BYTES, type WorkspaceFile } from '../core/transfer.ts';
 import { availableChoice, createPartsFile, fullChoice, hasChoice, parsePartsFile, preparePartsImport, scenesForChoice, type PartsFile, type TransferChoice } from '../core/transferParts.ts';
 import type { World } from '../core/model.ts';
 import { listLocalScenes, prepareLocalScene, saveLocalScenes, downloadScene, deleteLocalScene, type StoredScene } from '../scene/library.ts';
@@ -72,11 +72,10 @@ export function workspacePanel(host: Host) {
     const file = input.files?.[0]; input.value = ''; if (!file) return;
     void run(async () => {
       if (file.size > TRANSFER_BYTES) throw Error('Workspace file exceeds 145 MiB.');
-      const candidate = parsePartsFile(await file.text());
-      if (!live) return;
-      source = candidate; baseline = host.read(); replace = false; choices(); output.textContent = 'Choose parts, then Import selected';
+      stageText(await file.text());
     });
   };
+  function stageText(text:string){const candidate=parsePartsFile(text);if(!live)return;source=candidate;baseline=host.read();replace=false;choices();output.textContent='Choose parts, then Import selected';}
   button('New export', () => { source = undefined; baseline = undefined; choices(); output.textContent = ''; });
   button('Import selected', () => void run(async () => {
       if (!source || !baseline) throw Error('Open an import file first.');
@@ -106,5 +105,5 @@ export function workspacePanel(host: Host) {
     if (!confirm('Restore the workspace from before the last replacement?')) return;
     host.beforeReplace(); host.recover(); output.textContent = 'Recovered';
   }));
-  return view;
+  return {...view,stage(file:WorkspaceFile){if(busy)throw Error('Another workspace transfer is running.');return run(()=>stageText(JSON.stringify(file)));}};
 }
