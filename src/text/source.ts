@@ -4,6 +4,8 @@ import { normalizeText, type NodeText, type TextPart } from './model.ts';
 
 export type Glyph = { at: number; part: Exclude<TextPart, string> };
 export type Source = { text: string; glyphs: Glyph[] };
+/** First glyph at or after a source position; the field is ordered by position. */
+export function glyphIndexAt(glyphs:readonly Glyph[],at:number){let low=0,high=glyphs.length;while(low<high){const mid=(low+high)>>>1;if(glyphs[mid].at<at)low=mid+1;else high=mid;}return low;}
 export const addGlyphs = StateEffect.define<readonly Glyph[]>({ map: (glyphs, changes) => glyphs.flatMap(g => {
   const at = changes.mapPos(g.at, 1, MapMode.TrackDel); return at === null ? [] : [{ ...g, at }];
 }) });
@@ -51,7 +53,7 @@ export function fromSource(source: Source): NodeText {
   parts.push(source.text.slice(start)); return normalizeText(parts);
 }
 export function sliceSource(state: EditorState, from = 0, to = state.doc.length): Source {
-  return { text: state.sliceDoc(from, to), glyphs: state.field(glyphField).filter(g => g.at >= from && g.at < to).map(g => ({ ...g, at: g.at - from })) };
+  return { text: state.sliceDoc(from, to), glyphs: state.field(glyphField).slice(glyphIndexAt(state.field(glyphField),from),glyphIndexAt(state.field(glyphField),to)).map(g => ({ ...g, at: g.at - from })) };
 }
 export function concatSource(...sources: Source[]): Source {
   const result: Source = { text: '', glyphs: [] };

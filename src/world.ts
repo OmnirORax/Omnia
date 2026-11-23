@@ -54,7 +54,7 @@ import * as T from 'three';
 import {pointerPlane} from './navigation/pointerPlane.ts';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { prepareWorld, sameOrigin, type Origin, type Structure, type Vec3, type World } from './core/model.ts';
-import { geometry, lattice, inherited, prepareTranslation, address as key, point, vector } from './core/lattice.ts';
+import { geometry, lattice, createInheritanceReader,prepareTranslation, address as key, point, vector } from './core/lattice.ts';
 import { cellPoint } from './graph/lattice.ts';
 import { atomicCarrierGeometry, atomicCarrierMaterial, updateAtomicCarrier } from './atomicCarrier.ts';
 import { SPHERE_VISUAL_DEFAULTS as defaults } from './properties/sphereVisualDefaults.ts';
@@ -332,8 +332,9 @@ export function createWorld(host: HTMLElement, input: Input) {
     pendingAppearance=candidate;renderScheduler.request(true);return candidate;
   }
   function applyAppearance(candidate:World){
+    const inherit=createInheritanceReader(candidate);
     const nodes=new Map(candidate.nodes.map(node=>[key(node.origin),node]));
-    for(const [id,visual]of visuals){const node=nodes.get(id);if(!node)continue;const actual=resolveNodeAppearance(candidate,inherited(node,candidate));styleVisual(visual,actual,nodeTextPaint(candidate,actual));}
+    for(const [id,visual]of visuals){const node=nodes.get(id);if(!node)continue;const actual=resolveNodeAppearance(candidate,inherit(node));styleVisual(visual,actual,nodeTextPaint(candidate,actual));}
     for(const cached of edgeCaptions.values())updateLabelPaint(cached.mesh,candidate.appearance?.text);
     const readPaint=connectorPaintReader(candidate);
     for(const connector of connectors){const node=nodes.get(key(connector.source));if(!node)continue;const paint=readPaint(node);for(const mesh of [connector.line,connector.arrow]){mesh.userData.glowColor=paint.glowColor;mesh.userData.glowIntensity=paint.glow;mesh.material.color.set(connector.line.userData.highlighted?'#ffb000':paint.color);} }
@@ -351,8 +352,9 @@ export function createWorld(host: HTMLElement, input: Input) {
     axisView.update(operationWorld(next),scale);
     const present = new Set(next.nodes.map(node => key(node.origin)));
     for (const [id, visual] of visuals) if (!present.has(id)) { scene.remove(visual.host);visual.contour.dispose(); visual.body.material.dispose(); disposeLabel(visual.text); if (visual.object) disposeVisual(visual.object); visuals.delete(id); }
+    const inherit=createInheritanceReader(next);
     for (const node of next.nodes) {
-      const actual = resolveNodeAppearance(next,inherited(node,next)), id=key(node.origin), textPaint=nodeTextPaint(next,actual),textKey=labelGeometryKey(textPaint,fontRevision), caption=`${actual.label || (node.invariant ? '⚬' : '')}${node.parts.some(binding => !prepared.resolve(binding).length) ? ' !' : ''}`;
+      const actual = resolveNodeAppearance(next,inherit(node)), id=key(node.origin), textPaint=nodeTextPaint(next,actual),textKey=labelGeometryKey(textPaint,fontRevision), caption=`${actual.label || (node.invariant ? '⚬' : '')}${node.parts.some(binding => !prepared.resolve(binding).length) ? ' !' : ''}`;
       let visual=visuals.get(id);
       if (!visual) {
         const host=new T.Group(),group=new T.Group(),presentation=new T.Group(),body=new T.Mesh(sphere,atomicCarrierMaterial(actual.color)),slot=new T.Mesh(sphere,slotMaterial),text=label(caption,textPaint);text.userData.requestRender=request;
