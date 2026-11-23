@@ -1,29 +1,18 @@
 import {countColumn,StateEffect,type EditorState} from '@codemirror/state';
 import {Decoration,ViewPlugin,type DecorationSet,type EditorView,type ViewUpdate} from '@codemirror/view';
-import {syntaxTree} from '@codemirror/language';
 
 type Prefix={from:number;to:number;text:string};
-type ListLine={from:number;prefixes:Prefix[];leading:Prefix;hanging:boolean};
+type ListLine={from:number;prefix:Prefix};
 const refreshWidths=StateEffect.define<void>();
 function listLines(state:EditorState,visible:readonly {from:number;to:number}[]):ListLine[]{
- const result:ListLine[]=[],seen=new Set<number>(),tree=syntaxTree(state);
- const prefix=(from:number,to:number):Prefix=>({from,to,text:state.sliceDoc(from,to)});
+ const result:ListLine[]=[],seen=new Set<number>();
  for(const range of visible)for(let pos=state.doc.lineAt(range.from).from;pos<=range.to;){
   const line=state.doc.lineAt(pos);pos=line.to+1;
   if(seen.has(line.from))continue;seen.add(line.from);
-  const leading=/^[ \t\u00a0]*/.exec(line.text)![0];
-  const visiblePrefix=/^[ \t\u00a0]*(?:[-+*•‣◦⁃∙·–—−]|\d+[.)])[ \t\u00a0]+(?:\[[ xX]\][ \t\u00a0]+)?/.exec(line.text)?.[0];
-  let item=tree.resolveInner(line.from+leading.length,1);
-  while(item&&item.name!=='ListItem')item=item.parent!;
-  const marker=item?.getChild('ListMark'),prefixes:Prefix[]=[];
-  if(!marker&&!visiblePrefix)continue;
-  if(marker){
-   const first=state.doc.lineAt(marker.from);
-   const separator=/^[ \t]+(?:\[[ xX]\][ \t]+)?/.exec(state.sliceDoc(marker.to,first.to))?.[0]??'';
-   prefixes.push(prefix(first.from,marker.to+separator.length));
-  }
-  if(visiblePrefix)prefixes.push(prefix(line.from,line.from+visiblePrefix.length));
-  result.push({from:line.from,prefixes,leading:prefix(line.from,line.from+leading.length),hanging:!!visiblePrefix||!!marker&&state.doc.lineAt(marker.from).from===line.from});
+  const text=/^[ \t\u00a0]*(?:[-+*•‣◦⁃∙·–—−]|\d+[.)])[ \t\u00a0]+(?:\[[ xX]\][ \t\u00a0]+)?/.exec(line.text)?.[0];
+  // A physical newline starts an independent row. Only this row's own list
+  // prefix controls its soft wraps, regardless of Markdown's lazy continuation.
+  if(text)result.push({from:line.from,prefix:{from:line.from,to:line.from+text.length,text}});
  }
  return result;
 }
@@ -40,17 +29,17 @@ export const documentListLayout=ViewPlugin.fromClass(class {
  destroy(){this.alive=false;}
  update(update:ViewUpdate){
   const refresh=update.transactions.some(tr=>tr.effects.some(effect=>effect.is(refreshWidths)));
-  if(update.docChanged||update.viewportChanged||refresh||syntaxTree(update.startState)!==syntaxTree(update.state))this.build(update.view);
-  if(update.docChanged||update.viewportChanged||update.geometryChanged||syntaxTree(update.startState)!==syntaxTree(update.state))this.measure(update.view);
+  if(update.docChanged||update.viewportChanged||refresh)this.build(update.view);
+  if(update.docChanged||update.viewportChanged||update.geometryChanged)this.measure(update.view);
  }
  private build(view:EditorView){
   this.lines=listLines(view.state,view.visibleRanges);
-  const needed=new Set(this.lines.flatMap(line=>[...line.prefixes,line.leading].map(prefix=>prefix.text)));
+  const needed=new Set(this.lines.map(line=>line.prefix.text));
   this.widths=new Map([...this.widths].filter(([key])=>needed.has(key)));
   const width=(prefix:Prefix)=>this.widths.get(prefix.text)??countColumn(prefix.text,view.state.tabSize)*view.defaultCharacterWidth;
   this.decorations=Decoration.set(this.lines.map(line=>{
-   const indent=Math.max(...line.prefixes.map(width),line.hanging?0:width(line.leading));
-   const offset=line.hanging?indent:width(line.leading);
+   const indent=width(line.prefix);
+   const offset=indent;
    // Match CodeMirror's native 6px line inset. Offset only the first visual row;
    // all subsequent rows begin at the measured content column.
    return Decoration.line({attributes:{style:`padding-left:calc(6px + ${indent}px);text-indent:-${offset}px`}}).range(line.from);
@@ -62,7 +51,7 @@ export const documentListLayout=ViewPlugin.fromClass(class {
    const style=current.contentDOM?.ownerDocument.defaultView?.getComputedStyle(current.contentDOM);
    const fontKey=[style?.font,style?.letterSpacing,style?.wordSpacing,style?.tabSize,style?.fontFeatureSettings,style?.fontVariationSettings,current.defaultCharacterWidth,current.defaultLineHeight,current.scaleX].join('|');
    const reset=fontKey!==this.fontKey,widths=new Map<string,number>();
-   for(const line of this.lines)for(const prefix of [...line.prefixes,line.leading]){
+   for(const {prefix} of this.lines){
     if(widths.has(prefix.text)||!reset&&this.widths.has(prefix.text))continue;
     if(!prefix.text){widths.set('',0);continue;}
     const start=current.coordsAtPos(prefix.from,1),end=current.coordsAtPos(prefix.to,1);
