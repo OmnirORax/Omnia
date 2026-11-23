@@ -1,4 +1,4 @@
-import {StateEffect} from '@codemirror/state';
+import {StateEffect,countColumn} from '@codemirror/state';
 import {createGlyphPresentation} from '../omnic/presentation.ts';
 export const refreshDocumentGlyphs=StateEffect.define<void>();
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet } from '@codemirror/view';
@@ -27,9 +27,18 @@ export function documentPresentation(read: () => World) {
     }
     build(view: EditorView) {
       const glyphs=createGlyphPresentation(read());
-      const ranges: import('@codemirror/state').Range<Decoration>[] = [];
+      const ranges: import('@codemirror/state').Range<Decoration>[] = [],listLines=new Set<number>();
       for (const visible of view.visibleRanges) {
         syntaxTree(view.state).iterate({ from: visible.from, to: visible.to, enter: node => {
+          if(node.name==='ListMark'){
+            const line=view.state.doc.lineAt(node.from);
+            if(!listLines.has(line.from)){
+              listLines.add(line.from);
+              const separator=/^[ \t]+(?:\[[ xX]\][ \t]+)?/.exec(view.state.sliceDoc(node.to,line.to))?.[0]??'';
+              const columns=countColumn(view.state.sliceDoc(line.from,node.to)+separator,view.state.tabSize);
+              ranges.push(Decoration.line({attributes:{style:`padding-left:calc(2px + ${columns}ch);text-indent:-${columns}ch`}}).range(line.from));
+            }
+          }
           const active = view.state.selection.ranges.some(r => view.state.doc.lineAt(r.from).from <= node.to && view.state.doc.lineAt(r.to).to >= node.from);
           if (!active && /^(EmphasisMark|StrikethroughMark|HeaderMark|CodeMark)$/.test(node.name) && node.to > node.from) {
             let to=node.to;
