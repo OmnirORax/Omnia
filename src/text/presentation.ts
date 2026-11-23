@@ -33,19 +33,22 @@ export function documentPresentation(read: () => World) {
         for(let pos=view.state.doc.lineAt(visible.from).from;pos<=visible.to;){
           const line=view.state.doc.lineAt(pos);pos=line.to+1;
           if(listLines.has(line.from))continue;listLines.add(line.from);
-          const leading=/^[ \t]*/.exec(line.text)![0];
+          const leading=/^[ \t\u00a0]*/.exec(line.text)![0];
+          const visiblePrefix=/^[ \t\u00a0]*(?:[-+*•‣◦⁃∙·–—−]|\d+[.)])[ \t\u00a0]+(?:\[[ xX]\][ \t\u00a0]+)?/.exec(line.text)?.[0];
           let item=tree.resolveInner(line.from+leading.length,1);
           while(item&&item.name!=='ListItem')item=item.parent!;
           const marker=item?.getChild('ListMark');
-          if(!marker)continue;
-          const first=view.state.doc.lineAt(marker.from);
-          const separator=/^[ \t]+(?:\[[ xX]\][ \t]+)?/.exec(view.state.sliceDoc(marker.to,first.to))?.[0]??'';
-          const itemColumns=countColumn(view.state.sliceDoc(first.from,marker.to)+separator,view.state.tabSize);
+          if(!marker&&!visiblePrefix)continue;
+          const first=marker?view.state.doc.lineAt(marker.from):line;
+          const separator=marker?/^[ \t]+(?:\[[ xX]\][ \t]+)?/.exec(view.state.sliceDoc(marker.to,first.to))?.[0]??'':'';
+          // Pasted bullets/nonbreaking spaces can look like list syntax while
+          // parsing as ordinary text. Give their soft wraps the same layout.
+          const itemColumns=Math.max(marker?countColumn(view.state.sliceDoc(first.from,marker.to)+separator,view.state.tabSize):0,visiblePrefix?countColumn(visiblePrefix,view.state.tabSize):0);
           const leadingColumns=countColumn(leading,view.state.tabSize);
           const columns=line.from===first.from?itemColumns:Math.max(itemColumns,leadingColumns);
           // Explicit continuation lines may omit indentation in Markdown. They
           // inherit the owning item's text column just like soft-wrapped rows.
-          const firstOffset=line.from===first.from?columns:leadingColumns;
+          const firstOffset=visiblePrefix||line.from===first.from?columns:leadingColumns;
           ranges.push(Decoration.line({attributes:{style:`padding-left:calc(2px + ${columns}ch);text-indent:-${firstOffset}ch`}}).range(line.from));
         }
         tree.iterate({ from: visible.from, to: visible.to, enter: node => {
