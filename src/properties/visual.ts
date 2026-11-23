@@ -22,7 +22,7 @@ export const glowColor=property({key:'glowColor',label:'Glow color',kind:'color'
 export const textGlow=property({key:'glow',label:'Glow',kind:'number',min:0,max:TEXT_GLOW_MAX,step:.01});
 export const glowSpread=property({key:'glowSpread',label:'Glow spread',kind:'number',min:TEXT_GLOW_SPREAD.min,max:TEXT_GLOW_SPREAD.max,step:TEXT_GLOW_SPREAD.step});
 export const font = property({key:'font',label:'Font',kind:'select',options:FONT_OPTIONS});
-export const embolden = property({key:'embolden',label:'Bold strength',kind:'number',presentation:'slider',min:0,max:10,step:.25});
+export const embolden = property({key:'embolden',label:'Bold strength',kind:'number',min:0,max:10,step:.25});
 export const visualProperties = (text: boolean) => text ? [color,textGlow,glowSpread,glowColor,embolden,font] : [color,translucency];
 export const TEXT_DEFAULTS = {color:'#eeeee8',glow:0,glowSpread:TEXT_GLOW_SPREAD.initial,font:'system',embolden:0};
 export const BACKGROUND_DEFAULTS = {color:'#191c1b',translucency:.04};
