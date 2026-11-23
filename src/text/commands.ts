@@ -90,8 +90,7 @@ export const codeBlock = wrap('```\n', '\n```');
 export const capitalizeSentence: StateCommand = ({ state, dispatch }) => {
   const edits: Edit[] = []; const seen = new Set<string>();
   for (const range of state.selection.ranges) {
-    const word = range.empty ? state.wordAt(range.head) : null;
-    const line = state.doc.lineAt(range.head), from = word?.from ?? (range.empty ? line.from : range.from), to = word?.to ?? (range.empty ? line.to : range.to);
+    const line = state.doc.lineAt(range.head), from = range.empty ? line.from : range.from, to = range.empty ? line.to : range.to;
     const source = state.sliceDoc(from, to), starts = /(^[ \t]*(?:(?:[-+*]|\d+[.)])\s+(?:\[[ xX]\]\s+)?)?|[.!?:]\s*)([\p{L}])/gmu;
     for (const match of source.matchAll(starts)) {
       const at = from + match.index! + match[1].length, text = match[2], key = `${at}:${at+text.length}`;
