@@ -67,7 +67,7 @@ export function prepareWorld(world: World) {
   }
   const shared = new Map<string, Structure[]>();
   for (const node of world.nodes) if (node.invariant) {
-    const value = signature(node); shared.set(value, [...(shared.get(value) ?? []), node]);
+    const value = signature(node),group=shared.get(value);if(group)group.push(node);else shared.set(value,[node]);
   }
   return { specification: signature, resolve: (binding: Binding): Structure[] => {
     if (binding.mode === 'structure') return shared.get(binding.specification) ?? [];

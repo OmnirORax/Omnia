@@ -21,6 +21,10 @@ export function connectorPaint(world:World,source:Structure) {
  const paint=nodePaint(world,inherited(source,world));
  return {color:brightHex(paint.color!,paint.brightness!),opacity:translucentOpacity(paint.opacity!,paint.translucency),glow:paint.glow!,...(paint.glowColor?{glowColor:paint.glowColor}:{})};
 }
+/** A fresh reader per render/preview pass avoids repeating inheritance per edge. */
+export function connectorPaintReader(world:World){
+ const paints=new Map<Structure,ReturnType<typeof connectorPaint>>();return (source:Structure)=>{let paint=paints.get(source);if(!paint){paint=connectorPaint(world,source);paints.set(source,paint);}return paint;};
+}
 export function resolveNodeSettings(world:World,node:Structure):Structure {
  if(!world.appearance?.nodes&&node.brightness===undefined)return node;
  const paint=nodePaint(world,node);return {...node,...paint,color:paint.color!};

@@ -19,9 +19,12 @@ const replaceGlyphs = StateEffect.define<readonly Glyph[]>();
 export const glyphField = StateField.define<readonly Glyph[]>({
   create: () => [],
   update(value, tr) {
+    const added=tr.effects.some(effect=>effect.is(addGlyphs));
+    const replacement=tr.effects.find(effect=>effect.is(replaceGlyphs));if(replacement)return replacement.value;
+    if(!tr.docChanged&&!added)return value;
     const next = tr.docChanged ? mapped(value, tr.changes) : [...value];
     for (const effect of tr.effects) {if (effect.is(addGlyphs)) next.push(...effect.value);else if(effect.is(replaceGlyphs))return effect.value;}
-    return next.sort((a,b) => a.at-b.at);
+    return added?next.sort((a,b) => a.at-b.at):next;
   },
 });
 export const glyphHistory = invertedEffects.of(tr => {

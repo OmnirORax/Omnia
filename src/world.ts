@@ -29,7 +29,7 @@ import {createPaintSession} from './core/painting.ts';
 import {createAxisView} from './world/axisView.ts';
 import {projectionAxis,operationSlot,activeWorldAxes,nodeOriginView,axisCenter,axisPoint,axisAnchor,planAxis,planSlotNode,endpointView,dot,minus,type AxisFrame} from './core/axes.ts';
 import {startsConnector,connectorDragged} from './world/connectorGesture.ts';
-import {resolveNodeAppearance,nodePaint,connectorPaint,nodeTextPaint,paintPreview,type VisualTarget} from './core/appearance.ts';
+import {resolveNodeAppearance,nodePaint,connectorPaintReader,nodeTextPaint,paintPreview,type VisualTarget} from './core/appearance.ts';
 import {brightHex} from './composer/runtime/appearance/resolve.ts';
 import {createContentContour,collectContentHull} from './world/contentContour.ts';
 import {contentEnvelope,convexHull} from './world/contentEnvelope.ts';
@@ -294,12 +294,12 @@ export function createWorld(host: HTMLElement, input: Input) {
       edges.remove(child);
     }
   }
-  function connection(source: Structure, target: Structure, text: string, edge: Edge) {
+  function connection(source: Structure, target: Structure, text: string, edge: Edge,readPaint:ReturnType<typeof connectorPaintReader>) {
     const aVisual = visuals.get(key(source.origin)), bVisual = visuals.get(key(target.origin));
     if (!aVisual?.group.visible || !bVisual?.group.visible) return;
     const active = selectedEdges.some(value => JSON.stringify(value) === JSON.stringify(edge));
     const ac=nodeCenter(aVisual),bc=nodeCenter(bVisual),direction=bc.clone().sub(ac).normalize(),a=nodeEdge(aVisual,bc),b=nodeEdge(bVisual,ac),length=b.clone().sub(a).dot(direction);if(length<1e-6)return;
-    const paint=connectorPaint(world,source);
+    const paint=readPaint(source);
     const material = new T.LineBasicMaterial({ color:active?'#ffb000':paint.color,opacity:active?1:paint.opacity,transparent:true,depthWrite:false,linewidth: active ? 2 : 1 });
     const arrowSize=Math.min(scale*.2,length*.4),side = direction.clone().cross(camera.position.clone().sub(b)).normalize().multiplyScalar(arrowSize*.5), back = b.clone().addScaledVector(direction,-arrowSize);
     const line = new T.Line(new T.BufferGeometry().setFromPoints([a,back]), material);line.userData.edge=edge;line.userData.glowIntensity=paint.glow;edges.add(line);
@@ -312,7 +312,8 @@ export function createWorld(host: HTMLElement, input: Input) {
   }
   function connections() {
     clearEdges();
-    for(const edge of worldConnections(world,prepared))connection(edge.source,edge.target,edge.text,edge.edge);
+    const readPaint=connectorPaintReader(world);
+    for(const edge of worldConnections(world,prepared))connection(edge.source,edge.target,edge.text,edge.edge,readPaint);
     for(const [id,cached]of edgeCaptions)if(cached.mesh.parent!==edges){disposeLabel(cached.mesh);edgeCaptions.delete(id);}
   }
   function visibility(node: Structure) {
@@ -334,7 +335,8 @@ export function createWorld(host: HTMLElement, input: Input) {
     const nodes=new Map(candidate.nodes.map(node=>[key(node.origin),node]));
     for(const [id,visual]of visuals){const node=nodes.get(id);if(!node)continue;const actual=resolveNodeAppearance(candidate,inherited(node,candidate));styleVisual(visual,actual,nodeTextPaint(candidate,actual));}
     for(const cached of edgeCaptions.values())updateLabelPaint(cached.mesh,candidate.appearance?.text);
-    for(const connector of connectors){const node=nodes.get(key(connector.source));if(!node)continue;const paint=connectorPaint(candidate,node);for(const mesh of [connector.line,connector.arrow]){mesh.userData.glowColor=paint.glowColor;mesh.userData.glowIntensity=paint.glow;mesh.material.color.set(connector.line.userData.highlighted?'#ffb000':paint.color);} }
+    const readPaint=connectorPaintReader(candidate);
+    for(const connector of connectors){const node=nodes.get(key(connector.source));if(!node)continue;const paint=readPaint(node);for(const mesh of [connector.line,connector.arrow]){mesh.userData.glowColor=paint.glowColor;mesh.userData.glowIntensity=paint.glow;mesh.material.color.set(connector.line.userData.highlighted?'#ffb000':paint.color);} }
   }
   function update(next: World, selection: readonly Origin[], visible?: ReadonlySet<string>, edgeSelection: readonly Edge[] = []) {
     if(world&&next!==world&&boundRotation.active)boundRotation.cancel();
@@ -343,7 +345,7 @@ export function createWorld(host: HTMLElement, input: Input) {
     if (drive.active && (next !== mountedWorld || !selection.some(origin => key(origin) === drive.id))) cancelDrive();
     if (world !== next) {spaceIndex=createOccupancy(next.nodes.map(node=>[key(node.origin),point(node.position)] as const));cancelOmnic();const sources=createGlyphPresentation(next,true);if(sources!==glyphs)for(const visual of visuals.values())if(visual.object?.userData.omnic)visual.object.userData.glyphKey=undefined;glyphs=sources; prepared = prepareWorld(next); doc = geometry(next); grid = lattice(next); }
     if(selectionGroup&&(selectionGroup.ids.length!==selection.length||selection.some(id=>!selectionGroup!.ids.includes(key(id)))))selectionGroup=undefined;
-    pendingAppearance=undefined;world = next;axisView.update(operationWorld(next),scale); selected = selection;selectedKeys=new Set(selection.map(key)); selectedEdges = edgeSelection; filter = visible;
+    pendingAppearance=undefined;world = next; selected = selection;selectedKeys=new Set(selection.map(key)); selectedEdges = edgeSelection; filter = visible;
     const nextScale = next.settings?.latticeScale ?? 1;
     if (nextScale !== scale) { const shift = controls.target.clone().multiplyScalar(nextScale/scale-1); controls.target.add(shift); camera.position.add(shift); navigator.rescale(nextScale/scale); scale=nextScale; controls.minDistance=Math.min(.2,scale/4); camera.near=Math.max(1e-9,scale*.001); camera.updateProjectionMatrix(); controls.update(); }
     axisView.update(operationWorld(next),scale);
