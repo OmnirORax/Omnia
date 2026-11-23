@@ -140,3 +140,6 @@ input[type="number"]:enabled:not([readonly]), input[inputmode="numeric"]:enabled
 .node-document-panel .cm-editor .cm-foldPlaceholder { color:inherit; background:transparent; border:1px solid currentColor; border-radius:3px; padding:0 3px; }
 /* The window owns the surface; editor wrappers do not add a second sheet. */
 .node-document-panel :is(.document-content,.cm-editor,.cm-scroller,.cm-content) { background:none !important; box-shadow:none !important; }
+.infinity-panel nav { display:flex; flex-wrap:wrap; gap:4px; }
+.infinity-panel nav [aria-pressed=true] { outline:1px solid currentColor; }
+.infinity-panel .infinity-click { display:block; width:100%; min-height:90px; border:1px solid currentColor; margin:6px 0; }

@@ -453,6 +453,7 @@ const openShortcuts=defineMenu('shortcuts',()=>{
  if(root.isConnected)window.refresh();}).catch(error=>feedback(String(error)));
 });
 function searchActions():SearchAction[]{return [
+ ...['Account','Score tracker','Questboard','Leaderboard'].map(tab=>({label:`♾️ · ${tab}`,keywords:`infinity ∞ metrics login sign in timer score quests stars leaderboard ${tab}`,run:()=>{void import('./metrics/panel.ts').then(module=>module.openInfinityPanel(tab)).catch(error=>feedback(String(error)));}})),
  {label:'Shortcuts',keywords:'keyboard shortcuts hotkeys keybindings controls bindings',run:openShortcuts},
  immersiveAction(),
  ...spaceActions(),
