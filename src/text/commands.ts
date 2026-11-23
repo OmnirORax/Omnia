@@ -17,7 +17,15 @@ export function linePrefix(transform: (line: string, index: number) => { remove:
       const line = state.doc.line(n), { remove, prefix } = transform(line.text, i);
       return { from: line.from, to: line.from + remove, insert: literal(prefix) };
     });
-    dispatch(sourceTransaction(state, edits)); return true;
+    const changes=state.changes(edits.map(edit=>({from:edit.from,to:edit.to,insert:edit.insert.text})));
+    const prefixes=new Map(edits.map(edit=>[edit.from,edit]));
+    const ranges=state.selection.ranges.map(range=>{
+      if(!range.empty)return range.map(changes);
+      const prefix=prefixes.get(state.doc.lineAt(range.head).from);
+      const at=prefix&&range.head<=prefix.to?changes.mapPos(prefix.from,-1)+prefix.insert.text.length:changes.mapPos(range.head,1);
+      return EditorSelection.cursor(at);
+    });
+    dispatch(sourceTransaction(state, edits,ranges)); return true;
   };
 }
 export const heading = (level: number) => linePrefix(line => ({ remove: /^#{1,6}\s+/.exec(line)?.[0].length ?? 0, prefix: level ? '#'.repeat(level) + ' ' : '' }));
@@ -57,13 +65,38 @@ export const wrap = (mark: string, end = mark): StateCommand => ({ state, dispat
   }
   dispatch(sourceTransaction(state, edits, destinations)); return true;
 };
+/** Uppercase highlighted text or words at carets, preserving glyph references. */
+export const uppercaseSelection: StateCommand = ({state,dispatch})=>{
+  const edits:Edit[]=[];
+  const targets=state.selection.ranges.flatMap(range=>{if(!range.empty)return [range];const word=state.wordAt(range.head);return word?[word]:[];});
+  if(!targets.length)return true;
+  for(const range of EditorSelection.create(targets).ranges){
+    for(const match of state.sliceDoc(range.from,range.to).matchAll(/\p{L}+/gu)){
+      const text=match[0].toLocaleUpperCase();if(text===match[0])continue;
+      const from=range.from+match.index!;edits.push({from,to:from+match[0].length,insert:literal(text)});
+    }
+  }
+  if(edits.length){
+    const changes=state.changes(edits.map(edit=>({from:edit.from,to:edit.to,insert:edit.insert.text})));
+    const ranges=state.selection.ranges.map(range=>{
+      if(range.empty){
+        const edit=edits.find(edit=>range.head>edit.from&&range.head<edit.to);
+        const at=edit?changes.mapPos(edit.from,-1)+state.sliceDoc(edit.from,range.head).toLocaleUpperCase().length:changes.mapPos(range.head,1);
+        return {anchor:at,head:at};
+      }
+      const from=changes.mapPos(range.from,-1),to=changes.mapPos(range.to,1);
+      return range.anchor<=range.head?{anchor:from,head:to}:{anchor:to,head:from};
+    });
+    dispatch(sourceTransaction(state,edits,ranges));
+  }
+  return true;
+};
 export const codeBlock = wrap('```\n', '\n```');
 export const capitalizeSentence: StateCommand = ({ state, dispatch }) => {
   const edits: Edit[] = []; const seen = new Set<string>();
   for (const range of state.selection.ranges) {
-    const word = range.empty ? state.wordAt(range.head) : null;
-    const line = state.doc.lineAt(range.head), from = word?.from ?? (range.empty ? line.from : range.from), to = word?.to ?? (range.empty ? line.to : range.to);
-    const source = state.sliceDoc(from, to), starts = /(^[ \t]*(?:(?:[-+*]|\d+[.)])\s+(?:\[[ xX]\]\s+)?)?|[.!?:]\s*)([\p{L}])/gmu;
+    const line = state.doc.lineAt(range.head), from = range.empty ? line.from : range.from, to = range.empty ? line.to : range.to;
+    const source = state.sliceDoc(from, to), starts = /(^(?:\[[ xX]\]|[\p{P}\p{S}\p{N}\t ])*|[.!?:](?:\[[ xX]\]|[\p{P}\p{S}\t ])*)(\p{L})/gmu;
     for (const match of source.matchAll(starts)) {
       const at = from + match.index! + match[1].length, text = match[2], key = `${at}:${at+text.length}`;
       if (!seen.has(key)) { seen.add(key); edits.push({ from: at, to: at + text.length, insert: literal(text.toLocaleUpperCase()) }); }

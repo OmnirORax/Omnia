@@ -137,3 +137,6 @@ input[type="number"]:enabled:not([readonly]), input[inputmode="numeric"]:enabled
 
 .shortcut-window .shortcut-key:hover{background:transparent}
 .bound-rotation-controls{display:block;overflow:visible;padding:0;background:transparent;border:0;border-radius:0;box-shadow:none}
+.node-document-panel .cm-editor .cm-foldPlaceholder { color:inherit; background:transparent; border:1px solid currentColor; border-radius:3px; padding:0 3px; }
+/* The window owns the surface; editor wrappers do not add a second sheet. */
+.node-document-panel :is(.document-content,.cm-editor,.cm-scroller,.cm-content) { background:none !important; box-shadow:none !important; }

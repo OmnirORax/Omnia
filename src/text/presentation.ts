@@ -29,9 +29,18 @@ export function documentPresentation(read: () => World) {
       const glyphs=createGlyphPresentation(read());
       const ranges: import('@codemirror/state').Range<Decoration>[] = [];
       for (const visible of view.visibleRanges) {
-        syntaxTree(view.state).iterate({ from: visible.from, to: visible.to, enter: node => {
+        const tree=syntaxTree(view.state);
+        tree.iterate({ from: visible.from, to: visible.to, enter: node => {
           const active = view.state.selection.ranges.some(r => view.state.doc.lineAt(r.from).from <= node.to && view.state.doc.lineAt(r.to).to >= node.from);
-          if (!active && /^(EmphasisMark|StrikethroughMark|HeaderMark|CodeMark)$/.test(node.name) && node.to > node.from) ranges.push(Decoration.replace({}).range(node.from, node.to));
+          if (!active && /^(EmphasisMark|StrikethroughMark|HeaderMark|CodeMark)$/.test(node.name) && node.to > node.from) {
+            let to=node.to;
+            // The separator belongs to an opening heading marker, not its visible text.
+            if(node.name==='HeaderMark'&&node.from===view.state.doc.lineAt(node.from).from){
+              const line=view.state.doc.lineAt(node.from);
+              to+=/^[ \t]*/.exec(view.state.sliceDoc(to,line.to))![0].length;
+            }
+            ranges.push(Decoration.replace({}).range(node.from,to));
+          }
         } });
         for (const glyph of view.state.field(glyphField)) {
           if (glyph.at < visible.from) continue; if (glyph.at >= visible.to) break;

@@ -14,7 +14,7 @@ export function panel(title: string, onClose?: () => void | boolean, placement:'
   root.dataset.inputOwner = '';
   const heading = document.createElement('header'), caption = document.createElement('span'), body = document.createElement('div');
   if(chrome==='edge'){root.classList.add('edge-panel');heading.classList.add('panel-edge');}
-  caption.textContent = title; body.className = 'panel-body';
+  const titleText=document.createTextNode(title),titleDetail=document.createTextNode('');caption.append(titleText,titleDetail); body.className = 'panel-body';
   let stopHistory:(()=>void)|undefined;
   const recordGeometry=(before:string)=>{if(root.dataset.historyWindow){root.dispatchEvent(new Event(VIEW_GEOMETRY));return;}stopHistory??=universalHistory.register(owner,{read:()=>root.style.cssText,write:value=>{root.style.cssText=value;}});universalHistory.record(owner,before,root.style.cssText,['ui'],['omnium',owner]);};
   let stopWindow=()=>{};
@@ -50,5 +50,5 @@ export function panel(title: string, onClose?: () => void | boolean, placement:'
   });
   windowDrag(root,heading,recordGeometry);
 
-  return { root, body, close: dispose, setTitle(next:string){if(next===title)return;title=next;caption.textContent=next;root.setAttribute('aria-label',next);}, show(){if(!root.isConnected){document.body.append(root);stopWindow=registerWindow(root,dispose);}} };
+  return { root, body, close: dispose, setTitle(next:string){if(next===title)return;title=next;titleText.data=next;root.setAttribute('aria-label',next);}, setTitleDetail(text:string){const next=text?` ${text}`:'';if(titleDetail.data!==next)titleDetail.data=next;}, show(){if(!root.isConnected){document.body.append(root);stopWindow=registerWindow(root,dispose);}} };
 }

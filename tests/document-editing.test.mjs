@@ -7,7 +7,7 @@ import { history, undo, redo } from '@codemirror/commands';
 import { markdown, markdownKeymap } from '@codemirror/lang-markdown';
 import { Strikethrough, TaskList } from '@lezer/markdown';
 import { fromSource, toSource, glyphField, glyphHistory, sliceSource, sourceTransaction, sourceRefreshSpec } from '../src/text/source.ts';
-import { wrap, heading, list, moveLines, deleteLines, deleteParagraph, capitalizeSentence, codeBlock, singleCursor } from '../src/text/commands.ts';
+import { wrap, heading, list, moveLines, deleteLines, deleteParagraph, capitalizeSentence, uppercaseSelection, codeBlock, singleCursor } from '../src/text/commands.ts';
 
 const glyph={glyph:'{"born":1,"at":[0,0,0]}',word:'shape'};
 function editor(content, ranges=[[0,0]]) {
@@ -158,12 +158,16 @@ test('document parentheses and square brackets pair, skip closers and delete as 
  }
 });
 
-test('Ctrl+3 at an unselected word capitalizes that word without needing a highlight',()=>{
- const e=editor(['first example here'],[[9,9]]);e.run(capitalizeSentence);
- assert.equal(e.state.doc.toString(),'first Example here');assert.equal(e.state.selection.main.head,9);
- e.run(undo);assert.equal(e.state.doc.toString(),'first example here');
- const multi=editor(['one two three'],[[1,1],[5,5],[11,11]]);multi.run(capitalizeSentence);
- assert.equal(multi.state.doc.toString(),'One Two Three');
+test('Ctrl+3 uses the whole current row at every caret position and deduplicates multiple carets',()=>{
+ const text='first example: next. again';
+ for(let at=0;at<=text.length;at++){
+  const e=editor([text],[[at,at]]);e.run(capitalizeSentence);
+  assert.equal(e.state.doc.toString(),'First example: Next. Again');assert.equal(e.state.selection.main.head,at);
+  e.run(undo);assert.equal(e.state.doc.toString(),text);
+ }
+ const multi=editor(['one two three\nfour: five'],[[1,1],[5,5],[11,11],[18,18]]);multi.run(capitalizeSentence);
+ assert.equal(multi.state.doc.toString(),'One two three\nFour: Five');
+ const selected=editor(['first example here'],[[6,13]]);selected.run(capitalizeSentence);assert.equal(selected.state.doc.toString(),'first Example here');
 });
 
 
@@ -180,4 +184,38 @@ test('bold at a caret inside a phrase removes its enclosing markers',()=>{
  }
  const code=editor(['`**abc edf**`'],[[6,6]]);code.run(wrap('**'));
  assert.notEqual(code.state.doc.toString(),'`abc edf`');
+});
+
+test('list and heading prefixes place collapsed carets after the marker and preserve undo',()=>{
+ for(const [command,offset] of [[list('bullet'),2],[list('numbered'),3],[heading(2),3]]){
+  const e=editor(['one\ntwo'],[[0,0],[4,4]]);e.run(command);
+  assert.deepEqual(e.state.selection.ranges.map(r=>r.head),[offset,4+2*offset]);
+  e.run(undo);assert.equal(e.state.doc.toString(),'one\ntwo');assert.deepEqual(e.state.selection.ranges.map(r=>r.head),[0,4]);
+ }
+ const e=editor(['- item'],[[0,0]]);e.run(list('numbered'));assert.equal(e.state.selection.main.head,3);
+ e.run(list('numbered'));assert.equal(e.state.doc.toString(),'item');assert.equal(e.state.selection.main.head,0);
+});
+
+
+test('Ctrl+4 uppercases only highlighted text and keeps glyphs, selection direction and undo',()=>{
+ const e=editor(['straße ',glyph,' mixed untouched'],[[14,0]]);e.run(uppercaseSelection);
+ assert.deepEqual(e.text().content,['STRASSE ',glyph,' MIXED untouched']);
+ assert.deepEqual([e.state.selection.main.anchor,e.state.selection.main.head],[15,0]);
+ e.run(undo);assert.deepEqual(e.text().content,['straße ',glyph,' mixed untouched']);
+ e.run(redo);assert.deepEqual(e.text().content,['STRASSE ',glyph,' MIXED untouched']);
+ const multi=editor(['one two three'],[[0,3],[8,13]]);multi.run(uppercaseSelection);assert.equal(multi.state.doc.toString(),'ONE two THREE');
+ const cursor=editor(['leave alone'],[[3,3]]);cursor.run(uppercaseSelection);assert.equal(cursor.state.doc.toString(),'LEAVE alone');assert.equal(cursor.state.selection.main.head,3);
+});
+
+test('Ctrl+3 skips leading signs, punctuation and checkbox markers while preserving symbols',()=>{
+ const text='= decompose to separated components\n→ expand the structure\n> **quoted sentence**\n• [x] finished. \"next\"\n12) numbered: → next';
+ const e=editor([text],[[0,text.length]]);e.run(capitalizeSentence);
+ assert.equal(e.state.doc.toString(),'= Decompose to separated components\n→ Expand the structure\n> **Quoted sentence**\n• [x] Finished. \"Next\"\n12) Numbered: → Next');
+ e.run(undo);assert.equal(e.state.doc.toString(),text);
+});
+test('Ctrl+4 resolves words at multiple carets, deduplicates targets and maps Unicode expansion',()=>{
+ const e=editor(['straße second'],[[3,3],[5,5],[10,10]]);e.run(uppercaseSelection);
+ assert.equal(e.state.doc.toString(),'STRASSE SECOND');assert.deepEqual(e.state.selection.ranges.map(r=>r.head),[3,6,11]);
+ e.run(undo);assert.equal(e.state.doc.toString(),'straße second');assert.deepEqual(e.state.selection.ranges.map(r=>r.head),[3,5,10]);
+ const blank=editor(['  '],[[1,1]]);blank.run(uppercaseSelection);assert.equal(blank.state.doc.toString(),'  ');
 });

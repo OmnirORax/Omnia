@@ -1,8 +1,11 @@
+import {documentListLayout} from './listLayout.ts';
+import {documentWordCounter} from './wordCount.ts';
+import {documentFoldBindings} from './folding.ts';
+import {compactDocumentPaste} from './clipboard.ts';
 import {travelGlobalHistory} from '../core/universalHistory';
 import {registerContextActions} from '../ui/contextActions';
 import {shortcuts,shortcutBinding} from '../ui/shortcuts';
 import {documentBindings,remapDocumentBindings} from './shortcutBindings';
-import {blockBrowserShortcut} from '../ui/browserShortcuts.ts';
 import {documentBrackets} from './brackets.ts';
 import {lexiconAnnotations,workspaceLexicon,refreshLexicon} from './lexicon.ts';
 import { EditorState, Transaction, Prec, Compartment, type StateCommand } from '@codemirror/state';
@@ -10,7 +13,7 @@ import { EditorView, drawSelection, keymap, scrollPastEnd } from '@codemirror/vi
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { markdown, markdownKeymap } from '@codemirror/lang-markdown';
 import { Strikethrough, TaskList } from '@lezer/markdown';
-import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
+import { HighlightStyle, syntaxHighlighting, codeFolding } from '@codemirror/language';
 import { tags } from '@lezer/highlight';
 import { closeSearchPanel, getSearchQuery, openSearchPanel, search, searchKeymap, SearchQuery, setSearchQuery } from '@codemirror/search';
 import { readPaint } from '../core/appearance.ts';
@@ -18,12 +21,12 @@ import { textStyle } from '../ui/appearance.ts';
 import { emboldenStrokeEm } from '../properties/embolden.ts';
 import { panel } from '../ui/panel.ts';
 import { TEXT_CLIPBOARD } from './dom.ts';
-import { normalizeText, validateNodeText, type NodeText, type TextPart } from './model.ts';
+import { normalizeText, plainNodeText, validateNodeText, type NodeText, type TextPart } from './model.ts';
 import type { Origin, World } from '../core/model.ts';
 import { inherited } from '../core/lattice.ts';
 import { locate } from '../core/model.ts';
 import { fromSource, glyphField, glyphHistory, sliceSource, sourceTransaction, sourceRefreshSpec, toSource, type Edit } from './source.ts';
-import { capitalizeSentence, codeBlock, deleteLines, heading, list, moveLines, singleCursor, wrap } from './commands.ts';
+import { capitalizeSentence, uppercaseSelection, codeBlock, deleteLines, heading, list, moveLines, singleCursor, wrap } from './commands.ts';
 import { documentMouseSelection } from './mouse.ts';
 import {createGlyphPresentation} from '../omnic/presentation.ts';
 import { documentPresentation,refreshDocumentGlyphs } from './presentation.ts';
@@ -46,7 +49,7 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
     } catch (error) { failed = true; feedback(error instanceof Error ? error.message : String(error)); }
   }
   const host = document.createElement('div');host.className = 'document-content';view.body.append(host);
-  host.addEventListener('keydown',event => {blockBrowserShortcut(event);event.stopPropagation();});
+  host.addEventListener('keydown',event => {event.stopPropagation();});
   host.addEventListener('keydown',event=>{if(event.key==='Escape'&&event.repeat){event.preventDefault();event.stopImmediatePropagation();}},true);
   const run = (command: StateCommand) => { if (editor) { command(editor); editor.focus(); } };
   let headingMenu: HTMLElement | undefined;
@@ -62,40 +65,40 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
     const q = getSearchQuery(editor.state); editor.dispatch({ effects: setSearchQuery.of(new SearchQuery({ search:q.search,replace:q.replace,caseSensitive:q.caseSensitive,regexp:true })) });
     return openSearchPanel(editor);
   };
-  function plain(text: NodeText) { return text.content.map(part => typeof part === 'string' ? part : part.word ?? read().nodes.find(n => JSON.stringify(n.origin) === part.glyph)?.label ?? '•').join(''); }
   const copy = (event: ClipboardEvent, cut: boolean) => {
     if (!editor || !event.clipboardData) return false;
     const parts: TextPart[] = []; let ranges: {from:number;to:number}[] = editor.state.selection.ranges.filter(r => !r.empty);
     if (!ranges.length) { const seen = new Set<number>(); ranges = editor.state.selection.ranges.flatMap(r => { const line = editor!.state.doc.lineAt(r.head); if (seen.has(line.number)) return []; seen.add(line.number); return [{from:line.from,to:Math.min(editor!.state.doc.length,line.to+1)}]; }); }
     for (const range of ranges) { if (parts.length && !String(parts.at(-1)).endsWith('\n')) parts.push('\n'); parts.push(...fromSource(sliceSource(editor.state, range.from, range.to)).content); }
-    const text = normalizeText(parts); event.clipboardData.setData(TEXT_CLIPBOARD, JSON.stringify(text)); event.clipboardData.setData('text/plain', plain(text)); event.preventDefault();
+    const text = normalizeText(parts); event.clipboardData.setData(TEXT_CLIPBOARD, JSON.stringify(text)); const labels=new Map(read().nodes.map(node=>[JSON.stringify(node.origin),node.label]));event.clipboardData.setData('text/plain', plainNodeText(text,id=>labels.get(id))); event.preventDefault();
     if (cut) editor.dispatch(sourceTransaction(editor.state, ranges.map(r => ({ from:r.from,to:r.to,insert:toSource({version:1,content:[]}) }))));
     return true;
   };
   const bindings: import('@codemirror/view').KeyBinding[] = [
       { key:'Escape',run: v => { if (headingMenu) { headingMenu.remove(); headingMenu=undefined; return true; } if (closeSearchPanel(v) || singleCursor(v)) return true; view.close(); return true; } },
+      ...documentFoldBindings,
       { key:'Mod-b',run:wrap('**') }, { key:'Mod-i',run:wrap('*') },
       { key:'Mod-ArrowUp',run:moveLines(-1) }, { key:'Mod-ArrowDown',run:moveLines(1) },
       { key:'Alt-Delete',run:deleteLines }, { key:'Mod-Delete',run:heading(0) },
       ...[1,2,3,4,5,6].map(n => ({ key:`Mod-F${n}`,run:heading(n) })), { key:'Mod-F7',run:chooseHeading },
       { key:'Mod-1',run:list('numbered') }, { key:'Mod-2',run:list('bullet') }, { key:'Mod-Shift-3',run:list('cycle') },
       { key:'Mod-Shift-4',run:wrap('~~') }, { key:'Mod-5',run:wrap('`') }, { key:'Alt-Mod-1',run:codeBlock },
-      { key:'Mod-3',run:capitalizeSentence }, { key:'Alt-ArrowRight',run:regex },
+      { key:'Mod-3',run:capitalizeSentence }, { key:'Mod-4',run:uppercaseSelection }, { key:'Alt-ArrowRight',run:regex },
       { key:'Mod-PageUp',run:font(1) }, { key:'Mod-PageDown',run:font(-1) },
       ...markdownKeymap, ...historyKeymap, ...searchKeymap, indentWithTab, ...defaultKeymap,
   ];
   const effectiveBindings=bindings.map(binding=>binding.key==='Mod-z'?{...binding,run:()=>{travelGlobalHistory('undo');return true;}}:binding.key==='Mod-y'||binding.key==='Mod-Shift-z'?{...binding,run:()=>{travelGlobalHistory('redo');return true;}}:binding);
   const shortcutMap=new Compartment();
   editor = new EditorView({ parent:host, state:EditorState.create({ doc:source.text, extensions:[
-    EditorState.allowMultipleSelections.of(true), glyphField.init(() => source.glyphs), glyphHistory, history(),documentBrackets,lexiconAnnotations(read),
+    EditorState.allowMultipleSelections.of(true), glyphField.init(() => source.glyphs), glyphHistory, history(),compactDocumentPaste,documentBrackets,lexiconAnnotations(read),
     EditorView.clickAddsSelectionRange.of(event => event.altKey), documentMouseSelection(), drawSelection({drawRangeCursor:true,cursorBlinkRate:1000}), EditorView.lineWrapping, scrollPastEnd(),
-    markdown({ extensions:[Strikethrough,TaskList],addKeymap:false }), documentPresentation(read),
+    markdown({ extensions:[Strikethrough,TaskList],addKeymap:false }), codeFolding(), documentListLayout, documentWordCounter(view.setTitleDetail), documentPresentation(read),
     syntaxHighlighting(HighlightStyle.define([
       { tag:tags.strong,fontWeight:'bold',fontSynthesis:'weight',WebkitTextStroke:'var(--visual-text-bold-stroke, 0em currentColor)' }, { tag:tags.emphasis,fontStyle:'italic' }, { tag:tags.strikethrough,textDecoration:'line-through' },
       { tag:tags.monospace,fontFamily:'ui-monospace, monospace',backgroundColor:'#ffffff08' },
       { tag:tags.heading1,fontSize:'1.7em',fontWeight:'bold' }, { tag:tags.heading2,fontSize:'1.5em',fontWeight:'bold' },
       { tag:tags.heading3,fontSize:'1.3em',fontWeight:'bold' }, { tag:tags.heading4,fontSize:'1.15em',fontWeight:'bold' },
-      { tag:tags.heading5,fontWeight:'bold' }, { tag:tags.heading6,fontWeight:'bold' }, { tag:tags.processingInstruction,color:'#89927f' },
+      { tag:tags.heading5,fontWeight:'bold' }, { tag:tags.heading6,fontWeight:'bold' }, { tag:tags.processingInstruction,color:'var(--document-text-color)',textShadow:'var(--document-text-shadow)' },
     ])),
     search({ top:true }),
     shortcutMap.of(Prec.highest(keymap.of(remapDocumentBindings(effectiveBindings)))),
@@ -139,14 +142,20 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
     const dictionary=workspaceLexicon(read());if(dictionary!==previousLexicon){previousLexicon=dictionary;queueMicrotask(()=>{if(view.root.isConnected)editor?.dispatch({effects:refreshLexicon.of()});});}
     const glyphs=createGlyphPresentation(read());if(glyphs!==previousGlyphs){previousGlyphs=glyphs;queueMicrotask(()=>{if(view.root.isConnected)editor?.dispatch({effects:refreshDocumentGlyphs.of()});});}
     const paint=readPaint(read(),'nodeText',origin),key=JSON.stringify(paint);if(key===previousPaint)return;previousPaint=key;
-    Object.assign(host.style,textStyle(paint));
-    host.style.setProperty('--visual-text-bold-stroke',`${emboldenStrokeEm(paint.embolden)}em currentColor`);
+    applyDocumentPaint(paint);
     editor?.requestMeasure();
   }
-  refreshAppearance();queueMicrotask(()=>{if(view.root.isConnected)editor?.dispatch({effects:refreshLexicon.of()});});editor.focus(); return {...view,refreshAppearance,previewAppearance(world:World){const paint=readPaint(world,'nodeText',origin);Object.assign(host.style,textStyle(paint));}};
+  function applyDocumentPaint(paint:ReturnType<typeof readPaint>){
+    const style=textStyle(paint);
+    Object.assign(host.style,style);
+    host.style.setProperty('--document-text-color',style.color);
+    host.style.setProperty('--document-text-shadow',style.textShadow);
+    host.style.setProperty('--visual-text-bold-stroke',`${emboldenStrokeEm(paint.embolden)}em currentColor`);
+  }
+  refreshAppearance();queueMicrotask(()=>{if(view.root.isConnected)editor?.dispatch({effects:refreshLexicon.of()});});editor.focus(); return {...view,refreshAppearance,previewAppearance(world:World){applyDocumentPaint(readPaint(world,'nodeText',origin));}};
 }
 
-const DOCUMENT_SHORTCUT_LABELS:Record<string,string>={'Mod-b':'Bold','Mod-i':'Italic','Mod-ArrowUp':'Move line up','Mod-ArrowDown':'Move line down','Alt-Delete':'Delete line','Mod-Delete':'Remove heading','Mod-F7':'Choose heading','Mod-1':'Numbered list','Mod-2':'Bullet list','Mod-Shift-3':'Cycle list','Mod-Shift-4':'Strikethrough','Mod-5':'Inline code','Alt-Mod-1':'Code block','Mod-3':'Capitalize','Alt-ArrowRight':'Regex search','Mod-PageUp':'Increase font size','Mod-PageDown':'Decrease font size','Escape':'Close / cancel'};
+const DOCUMENT_SHORTCUT_LABELS:Record<string,string>={'Alt-1':'Fold all headings','Alt-2':'Unfold all headings','Mod-b':'Bold','Mod-i':'Italic','Mod-ArrowUp':'Move line up','Mod-ArrowDown':'Move line down','Alt-Delete':'Delete line','Mod-Delete':'Remove heading','Mod-F7':'Choose heading','Mod-1':'Numbered list','Mod-2':'Bullet list','Mod-Shift-3':'Cycle list','Mod-Shift-4':'Strikethrough','Mod-5':'Inline code','Alt-Mod-1':'Code block','Mod-3':'Capitalize','Mod-4':'Uppercase','Alt-ArrowRight':'Regex search','Mod-PageUp':'Increase font size','Mod-PageDown':'Decrease font size','Escape':'Close / cancel'};
 export function documentShortcutCatalog(){
  const custom=Object.entries(DOCUMENT_SHORTCUT_LABELS).map(([key,label])=>({key,run:Object.assign(()=>true,{shortcutLabel:label})}));
  const headings=[1,2,3,4,5,6].map(n=>({key:`Mod-F${n}`,run:Object.assign(()=>true,{shortcutLabel:`Heading ${n}`})}));

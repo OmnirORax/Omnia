@@ -1,3 +1,4 @@
+import {selectedDocumentText} from './text/export.ts';
 import {bindColorSession} from './ui/colorSession.ts';
 import {SYSTEM_MESSAGE} from './ui/systemMessage.ts';
 import {DEFAULT_ORIGIN_DIRECTIONS,planarOriginDirections,originSides,sideAxes,toggleOriginSide,type OriginDirections} from './core/originDirections.ts';
@@ -384,7 +385,6 @@ document.addEventListener('fullscreenchange',()=>immersive.fullscreenChanged());
 window.addEventListener('pagehide',()=>{void immersive.leave().catch(()=>{});});
 // Capture F11 before local handlers; locked Escape keeps its normal app handlers.
 window.addEventListener('keydown',event=>{if(immersive.supported&&!browserShortcutsEnabled())handleImmersiveShortcut(event,()=>immersiveAction().run(),worldBinding('F11'));},true);
-window.addEventListener('keydown',event=>{if(immersive.phase==='active'&&event.code==='F4'&&(event.ctrlKey||event.metaKey)&&!browserShortcutsEnabled()){event.preventDefault();event.stopImmediatePropagation();}},true);
 const settingsCatalog=createSettingsCatalog<SearchSetting>();
 const worldSettings=settingsCatalog.define('world',()=>[
     {label:'Lattice scale',keywords:'world lattice',definition:{key:'latticeScale',label:'Lattice scale',kind:'number' as const,min:1e-9},read:()=>store.world.settings?.latticeScale??1,write:(world:World,value:string|number|boolean)=>{world.settings??={latticeScale:1,names:'expanded'};world.settings.latticeScale=Number(value);}},
@@ -669,9 +669,18 @@ window.addEventListener('keydown',event=>{
 },true);
 function originShortcutBinding(){return shortcuts.get({category:'Omnium',id:worldShortcutId('O'),label:'Set origin',defaultKey:'X'});}
 function runWorldAction(id:string):void{if(id!==worldShortcutId('O'))releaseShortcuts.consume(originShortcutBinding());attempt(()=>worldShortcutActions(true).find(action=>action.id===id)?.execute());}
+async function copySelectedDocuments(){
+ try{
+  flushLiveForms();const origins=selection.committed.filter(isNode),text=selectedDocumentText(store.world,origins);
+  if(!navigator.clipboard?.writeText)throw Error('Clipboard writing is unavailable in this browser.');
+  await navigator.clipboard.writeText(text);feedback(`Copied ${origins.length} node document${origins.length===1?'':'s'} in hierarchy order.`);
+ }catch(error){feedback(error instanceof Error?error.message:String(error));}
+}
+
 function worldShortcutActions(includeUnavailable=false){return [
  ...spaceActions().filter(action=>includeUnavailable||action.available!==false).map(action=>({label:action.label,key:action.key,run:action.run})),
  {id:worldShortcutId('O'),label:'Set origin',gesture:undefined,key:'X',run:()=>view?.pickOrigin()},
+ {label:'Copy selected node documents',key:'Ctrl+Shift+C',run:()=>{void copySelectedDocuments();}},
  {label:'Toggle origin symmetry',key:'+',run:toggleOriginSymmetry},
  {label:'Expand/collapse hierarchy',key:'Q',run:()=>hierarchyShortcut()},
  {label:'Expand/collapse next level',key:'Shift+Q',run:()=>hierarchyShortcut(true)},

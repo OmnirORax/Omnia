@@ -1,3 +1,4 @@
+import {BROWSER_LOCK_CODES} from './browserShortcuts.ts';
 import {matchesShortcut} from './shortcuts.ts';
 export type KeyboardLock={lock:(keys:string[])=>Promise<void>;unlock:()=>void};
 type Host={keyboard?:KeyboardLock;fullscreen:()=>boolean;enter:()=>Promise<void>;exit:()=>Promise<void>;changed:()=>void};
@@ -18,9 +19,9 @@ export function createImmersiveMode(host:Host){
    try{
     await host.enter();ownsFullscreen=true;
     if(token!==generation){if(host.fullscreen())await host.exit();ownsFullscreen=false;return;}
-    // Deliver short Escape presses to app handlers instead of native fullscreen
-    // exit. Browsers retain their mandatory long-Escape escape hatch.
-    await keyboard.lock(['F4','F11','Escape']);
+    // Reserve browser-command keys without capturing OS modifiers or Tab.
+    // Browsers retain their mandatory long-Escape escape hatch.
+    await keyboard.lock([...BROWSER_LOCK_CODES]);
     if(token!==generation||!host.fullscreen()){release();if(token===generation)update('off');return;}
     update('active');
    }catch(error){
