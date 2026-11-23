@@ -24,10 +24,17 @@ test('shared guard runs after focused handlers even when they stop propagation',
 });
 
 test('global protection covers modified browser commands while preserving native editing',()=>{
- for(const extra of [{key:'4',ctrlKey:true},{key:'i',ctrlKey:true,shiftKey:true},{key:'c',ctrlKey:true,shiftKey:true},{key:'q',metaKey:true},{key:'F7'},{key:'f',altKey:true}]){
+ for(const extra of [{key:'4',ctrlKey:true},{key:'i',ctrlKey:true,shiftKey:true},{key:'c',ctrlKey:true,shiftKey:true},{key:'F7'},{key:'f',altKey:true}]){
   const event=new Event('keydown',{cancelable:true});Object.assign(event,extra);blockBrowserShortcut(event);assert.equal(event.defaultPrevented,true,JSON.stringify(extra));
  }
  for(const extra of [{key:'c',ctrlKey:true},{key:'v',ctrlKey:true,shiftKey:true},{key:'ArrowLeft',ctrlKey:true,shiftKey:true},{key:'Backspace',metaKey:true},{key:'€',ctrlKey:true,altKey:true,getModifierState:key=>key==='AltGraph'}]){
   const event=new Event('keydown',{cancelable:true});Object.assign(event,extra);blockBrowserShortcut(event);assert.equal(event.defaultPrevented,false,JSON.stringify(extra));
  }
+});
+
+test('Windows-key combinations and Alt+Tab remain available while Mac browser shortcuts are guarded',()=>{
+ for(const extra of [{key:'Meta',metaKey:true},{key:'e',metaKey:true},{key:'Tab',altKey:true}]){
+  const event=new Event('keydown',{cancelable:true});Object.assign(event,extra);blockBrowserShortcut(event,false);assert.equal(event.defaultPrevented,false);
+ }
+ const mac=new Event('keydown',{cancelable:true});Object.assign(mac,{key:'q',metaKey:true});blockBrowserShortcut(mac,true);assert.equal(mac.defaultPrevented,true);
 });

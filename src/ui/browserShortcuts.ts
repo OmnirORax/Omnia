@@ -1,10 +1,18 @@
+/** Physical browser-command keys only. Never capture system modifiers or Tab:
+ * Keyboard Lock cannot distinguish Ctrl+Tab from the OS's Alt+Tab. */
+export const BROWSER_LOCK_CODES=Object.freeze([
+ ...Array.from({length:10},(_,i)=>`Digit${i}`),
+ ...Array.from({length:26},(_,i)=>`Key${String.fromCharCode(65+i)}`),
+ ...Array.from({length:12},(_,i)=>`F${i+1}`),
+ 'Escape','Minus','Equal',
+]);
 let enabled=false;
 export const browserShortcutsEnabled=()=>enabled;
 export const enableBrowserShortcuts=(value:boolean)=>{enabled=value;};
 /** Cancel browser defaults after website handlers have had their turn.
  * Reserved browser/OS keys may never reach page JavaScript. */
-export function blockBrowserShortcut(event:KeyboardEvent){
- if(enabled)return;
+export function blockBrowserShortcut(event:KeyboardEvent,mac=typeof navigator!=='undefined'&&/Mac/.test(navigator.platform)){
+ if(enabled||event.metaKey&&!mac)return;
  if(event.isComposing||event.getModifierState?.('AltGraph'))return;
  const key=event.key.toLowerCase(),mod=event.ctrlKey||event.metaKey;
  const editing=!event.altKey&&(
@@ -24,7 +32,7 @@ export function installBrowserShortcutGuard(root:Window=window){
  const capture=(event:KeyboardEvent)=>{
   const target=event.composedPath()[0]??event.target;
   if(!target||guarded.has(target))return;
-  guarded.add(target);target.addEventListener('keydown',blockBrowserShortcut as EventListener);
+  guarded.add(target);target.addEventListener('keydown',event=>blockBrowserShortcut(event as KeyboardEvent));
  };
  root.addEventListener('keydown',capture,true);
 }

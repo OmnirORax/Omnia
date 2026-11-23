@@ -6,9 +6,9 @@ function fixture(options={}){
  const host={keyboard:{lock:async keys=>{calls.push(['lock',keys]);if(options.denied)throw Error('Permission denied');},unlock:()=>calls.push('unlock')},fullscreen:()=>full,enter:async()=>{calls.push('fullscreen');full=true;},exit:async()=>{calls.push('exit');full=false;},changed:()=>{},...options};
  return {mode:createImmersiveMode(host),host,calls,setFull:value=>{full=value;}};
 }
-test('fullscreen entry locks all browser-supported keys; leaving releases the keyboard lock',async()=>{
+test('fullscreen entry locks browser-command keys without capturing system modifiers or Tab',async()=>{
  const f=fixture();assert.equal(f.mode.phase,'off');assert.deepEqual(f.calls,[]);
- await f.mode.enter();assert.equal(f.mode.phase,'active');assert.deepEqual(f.calls,['fullscreen',['lock',undefined]]);
+ await f.mode.enter();assert.equal(f.mode.phase,'active');assert.equal(f.calls[0],'fullscreen');const keys=f.calls[1][1];assert.ok(Array.isArray(keys));for(const key of ['Digit4','F4','F11','Escape'])assert.ok(keys.includes(key),key);for(const key of ['MetaLeft','MetaRight','OSLeft','OSRight','AltLeft','AltRight','Tab'])assert.equal(keys.includes(key),false,key);
  await f.mode.leave();assert.equal(f.mode.phase,'off');assert.deepEqual(f.calls.slice(-2),['unlock','exit']);
 });
 test('permission rejection exits fullscreen and leaves normal mode usable',async()=>{
