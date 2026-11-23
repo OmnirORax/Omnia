@@ -1,6 +1,6 @@
 import {type World,type Origin,type Structure} from '../core/model.ts';
 import {address,inherited} from '../core/lattice.ts';
-import {hierarchyScope} from '../core/nodeOperations.ts';
+import {hierarchyScope} from '../core/hierarchy.ts';
 import {plainNodeText} from './model.ts';
 const headingName=(name:string)=>name.replace(/[\r\n\u2028\u2029]+/g,' ').trim().replace(/[\\`*_[\]<>#~&]/g,'\\$&')||'Untitled';
 /** Export only selected nodes in stable parent-first order. A selected tree root

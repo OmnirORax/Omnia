@@ -46,6 +46,12 @@ export function createShortcutStore(){
   },
  };
 }
+/** Reserve the first free default once; existing user bindings always win. */
+export function assignAvailableDefault(store:ReturnType<typeof createShortcutStore>,target:ShortcutDefinition,candidates:readonly string[],catalog:readonly ShortcutDefinition[]){
+ if(store.getSnapshot()[target.category]?.[target.id]!==undefined)return store.get(target);
+ let binding='';for(const candidate of candidates){try{if(!store.plan(target,candidate,catalog).conflicts.length){binding=candidate;break;}}catch{/* Invalid conflicting assignments cannot be stolen. */}}
+ if(binding!==store.get(target))store.assign(target,binding,catalog);return binding;
+}
 export const shortcuts=createShortcutStore();
 export function shortcutBinding(category:ShortcutCategory,id:string,defaultKey:string){return shortcuts.get({category,id,defaultKey,label:id});}
 export function worldBinding(key:string){return shortcutBinding('Omnium',worldShortcutId(key),key);}

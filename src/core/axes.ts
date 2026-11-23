@@ -10,6 +10,11 @@ export const dot=(a:Vec3,b:Vec3)=>a.reduce((sum,n,i)=>sum+n*b[i],0);
 export const norm=(a:Vec3)=>Math.hypot(...a);
 const cross=(a:Vec3,b:Vec3):Vec3=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
 const unit=(a:Vec3)=>times(a,1/norm(a));
+/** Canonical orthogonal orientation for camera- and node-origin assignments. */
+export function orthogonalBasis(right:Vec3,up:Vec3){
+ const x=unit(right),projected=minus(up,times(x,dot(up,x)));if(![...right,...up].every(Number.isFinite)||norm(right)<1e-7||norm(projected)<1e-7)throw Error('An origin needs two distinct orientation directions.');
+ const y=unit(projected);return {x,y,z:unit(cross(x,y))};
+}
 export function axisAnchor(world:World,frame:AxisFrame){return frame.ends[0]?locate(world,frame.ends[0])!.position:frame.origin!;}
 export function axisCenter(world:World,frame:AxisFrame){return frame.origin??times(plus(axisAnchor(world,frame),locate(world,(frame.ends[1]??frame.ends[0]))!.position),.5);}
 export function axisCoordinates(world:World,frame:AxisFrame,p:Vec3):Vec3{const d=minus(p,axisCenter(world,frame));return [dot(d,frame.x),dot(d,frame.y),dot(d,frame.z)];}
@@ -93,9 +98,9 @@ export function validateAxes(world:World){
 
 export function focusNodeFrame(world:World,origin:Origin,right:Vec3,up:Vec3,orient=false){
  const existing=world.axes?.find(frame=>frame.ends.length===1&&sameOrigin(frame.ends[0],origin));
- if(existing&&(!orient||existing.members.length===1||norm(minus(existing.x,unit(right)))<1e-7&&norm(minus(existing.y,unit(up)))<1e-7)){if(orient){existing.x=unit(right);existing.y=unit(minus(up,times(existing.x,dot(up,existing.x))));existing.z=unit(cross(existing.x,existing.y));}world.activeAxis=existing.id;return existing;}
+ if(existing&&(!orient||existing.members.length===1||norm(minus(existing.x,unit(right)))<1e-7&&norm(minus(existing.y,unit(up)))<1e-7)){if(orient){Object.assign(existing,orthogonalBasis(right,up));}world.activeAxis=existing.id;return existing;}
  if((world.axes?.length??0)>=64)throw Error('Up to 64 reference frames are supported.');
- const x=unit(right),y=unit(minus(up,times(x,dot(up,x)))),z=unit(cross(x,y));
+ const {x,y,z}=orthogonalBasis(right,up);
  const frame:AxisFrame={id:crypto.randomUUID(),ends:[structuredClone(origin)],members:[structuredClone(origin)],x,y,z};
  (world.axes??=[]).push(frame);world.activeAxis=frame.id;return frame;
 }
@@ -125,7 +130,7 @@ export function nodeOriginView(position:Vec3,target:Vec3,up:Vec3){
  return {position:[...position] as Vec3,target:[...target] as Vec3,up:vertical};
 }
 
-export const activeWorldAxes=(frame:AxisFrame)=>frame.activeAxes??[0,2];
+export const activeWorldAxes=(frame:AxisFrame)=>frame.directions?.mode==='area'?[0,1]:frame.activeAxes??[0,2];
 export function toggleWorldAxis(world:World,id:string,axis:number){
  const frame=world.axes?.find(frame=>frame.id===id);if(!frame||!Number.isInteger(axis)||axis<0||axis>2)throw Error('Choose a valid axis.');
  const current=activeWorldAxes(frame);frame.activeAxes=current.includes(axis)?current.filter(n=>n!==axis):[...current,axis].sort();world.activeAxis=id;
@@ -136,7 +141,7 @@ export function shiftAxisOrigin(world:World,id:string,offset:Vec3){
 }
 
 export function operationSlot(world:World,frame:AxisFrame,p:Vec3):Vec3{
- const directional=prepareOriginDirections(world,frame);if(directional){const plan=directional(p,[[0,0,0]]);if(!plan.stamp.length)throw Error('Enable a placement direction.');return axisCoordinates(world,frame,plan.anchor);}
+ const directional=prepareOriginDirections(world,frame);if(directional){const plan=directional(p,[[0,0,0]]);if(!plan.stamp.length)throw Error(plan.rejection??'Enable a placement direction.');return axisCoordinates(world,frame,plan.anchor);}
  const active=activeWorldAxes(frame),coords=axisCoordinates(world,frame,p);
  const slots=snapSlots(coords,active,frame.packing==='hex');
  if(!frame.directed&&!frame.origin&&frame.packing!=='hex')slots[0]+=norm(minus(locate(world,frame.ends[1]??frame.ends[0])!.position,axisAnchor(world,frame)))/2;
@@ -144,21 +149,24 @@ export function operationSlot(world:World,frame:AxisFrame,p:Vec3):Vec3{
 }
 
 /** Aim the spatial frame without transforming its nodes or camera. */
-export function aimFrame(world:World,id:string,target:Origin){
- const frame=world.axes?.find(frame=>frame.id===id),node=locate(world,target);if(!frame||!node)throw Error('Choose an origin and target node.');
- const origin=axisCenter(world,frame),delta=minus(node.position,origin);if(norm(delta)<1e-7)throw Error('Choose a target away from the origin.');
+export function aimFrame(world:World,id:string,target:Origin){const node=locate(world,target);if(!node)throw Error('Choose an origin and target node.');aimFramePoint(world,id,node.position);}
+export function aimFramePoint(world:World,id:string,position:Vec3){
+ if(position.length!==3||position.some(n=>!Number.isFinite(n)))throw Error('Choose a finite target position.');
+ const frame=world.axes?.find(frame=>frame.id===id);if(!frame)throw Error('Choose an origin.');
+ const origin=axisCenter(world,frame),delta=minus(position,origin);if(norm(delta)<1e-7)throw Error('Choose a target away from the origin.');
  const z=unit(delta),projected=minus(frame.y,times(z,dot(frame.y,z))),fallback=Math.abs(z[1])<.9?[0,1,0] as Vec3:[1,0,0] as Vec3;
  const y=unit(norm(projected)>1e-7?projected:minus(fallback,times(z,dot(fallback,z)))),x=unit(cross(y,z));
  frame.origin=[...origin];frame.x=x;frame.y=unit(cross(z,x));frame.z=z;frame.directed=true;
 }
 
 /** All origin assignments share one orientation rule, independent of selection shape. */
-export function setSpatialOrigin(world:World,anchor:Origin|undefined,position:Vec3,right:Vec3,up:Vec3){
+export function setSpatialOrigin(world:World,anchor:Origin|undefined,position:Vec3,right:Vec3,up:Vec3,orientation:'inherit'|'camera'='inherit'){
  const current=world.axes?.find(frame=>frame.id===world.activeAxis),explicit=current&&(current.ends.length===2||current.directed);
  let frame=explicit?current:anchor?focusNodeFrame(world,anchor,right,up,true):current;
- if(!frame){if((world.axes?.length??0)>=64)throw Error('Up to 64 reference frames.');const x=unit(right),y=unit(minus(up,times(x,dot(up,x))));frame={id:crypto.randomUUID(),ends:[],members:[],origin:[...position],x,y,z:unit(cross(x,y))};(world.axes??=[]).push(frame);world.activeAxis=frame.id;}
- if(!explicit&&!anchor){const x=unit(right),y=unit(minus(up,times(x,dot(up,x))));Object.assign(frame,{x,y,z:unit(cross(x,y))});}
+ if(!frame){if((world.axes?.length??0)>=64)throw Error('Up to 64 reference frames.');const {x,y,z}=orthogonalBasis(right,up);frame={id:crypto.randomUUID(),ends:[],members:[],origin:[...position],x,y,z};(world.axes??=[]).push(frame);world.activeAxis=frame.id;}
+ if(!explicit&&!anchor)Object.assign(frame,orthogonalBasis(right,up));
  if(!explicit){delete frame.directed;if(current&&current!==frame)frame.activeAxes=[...activeWorldAxes(current)];else if(!current)frame.activeAxes=[0,1];}
+ if(orientation==='camera')Object.assign(frame,orthogonalBasis(right,up),{directed:true});
  frame.origin=[...position];return frame;
 }
 
@@ -167,4 +175,4 @@ export function insideActivePlane(world:World,frame:AxisFrame,position:Vec3){
  return active.length>0&&coordinates.every((n,i)=>active.includes(i)||Math.abs(n)<=.5+1e-7);
 }
 
-export function projectionAxis(frame:AxisFrame,forward:Vec3){const inactive=[0,1,2].filter(i=>!activeWorldAxes(frame).includes(i)),basis=[frame.x,frame.y,frame.z];return (inactive.length?inactive:[0,1,2]).reduce((a,b)=>Math.abs(dot(basis[a],forward))>=Math.abs(dot(basis[b],forward))?a:b);}
+export function projectionAxis(frame:AxisFrame,forward:Vec3){if(frame.directions?.sides||frame.directions?.mode==='area')return 2;const inactive=[0,1,2].filter(i=>!activeWorldAxes(frame).includes(i)),basis=[frame.x,frame.y,frame.z];return (inactive.length?inactive:[0,1,2]).reduce((a,b)=>Math.abs(dot(basis[a],forward))>=Math.abs(dot(basis[b],forward))?a:b);}
