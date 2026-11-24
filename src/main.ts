@@ -578,7 +578,7 @@ const openVisualSettings=defineMenu('visualSettings',(target:VisualTarget,origin
  if(target==='nodes'||target==='nodeDefaults'){
   const root=document.createElement('div');root.className='node-body-editor';tools.append(root);
   void loadEditor(()=>import('./ui/nodeVisuals.tsx')).then(({nodeVisualEditor})=>{if(!root.isConnected)return;disposeTools=nodeVisualEditor(root,{read:()=>store.world,subscribe:store.subscribe,change:store.change,error:feedback,preview:patch=>previewPaint(target,origins,patch)},target,origins);positionMenu();}).catch(error=>feedback(String(error)));
- }else tools.append(paintForm(target,origins,()=>store.world,(edit,group)=>store.change(edit,group),feedback,patch=>previewPaint(target,origins,patch)));positionMenu();
+ }else{const editor=paintForm(target,origins,()=>store.world,(edit,group)=>store.change(edit,group),feedback,patch=>previewPaint(target,origins,patch));tools.append(editor.root);disposeTools=editor.dispose;}positionMenu();
 });
 const appearance=defineMenu('appearance',()=>{
   open('👁');
