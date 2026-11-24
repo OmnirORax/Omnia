@@ -146,3 +146,5 @@ input[type="number"]:enabled:not([readonly]), input[inputmode="numeric"]:enabled
 
 .cm-image-palette{background-image:var(--document-palette-gradient);background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent;color:var(--document-text-color);text-shadow:none;filter:var(--document-palette-filter,none);box-decoration-break:clone;-webkit-box-decoration-break:clone}
 .cm-image-palette *{text-shadow:none;-webkit-text-fill-color:inherit}
+
+.cm-native-emoji,.cm-native-emoji *{background-image:none;-webkit-text-fill-color:initial!important;-webkit-text-stroke:0!important;text-shadow:none!important;filter:none}
