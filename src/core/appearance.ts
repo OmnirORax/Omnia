@@ -73,13 +73,13 @@ export function paintPreview(world:World,target:VisualTarget,origins:readonly Or
  const candidate={...world,appearance:{...world.appearance},nodes:local?world.nodes.map(node=>selected.has(JSON.stringify(node.origin))?{...node}:node):world.nodes};
  writePaint(candidate,target,origins,patch);return candidate;
 }
-function resolvedNodeTextPaint(world:World,actual?:Structure){
+function resolvedNodeTextPaint(world:World,actual?:Structure,lookup:(origin:Origin)=>Structure|undefined=origin=>locate(world,origin)){
  const local=actual?.textAppearance,paint={...world.appearance?.text,...local,...(local?.font!==undefined?{fontName:local.fontName}:{})},rules=world.appearance?.imageColors,rule=actual&&rules?.[JSON.stringify(actual.origin)];
  if(rules?.default?.enabled){
   const manual=new Set(rule?.manual);let blocked=!!rule&&(rule.enabled||!rule.inherit),parent=actual?.variantOf;const seen=new Set<Structure>();
-  while(parent&&!blocked){const source=locate(world,parent);if(!source||seen.has(source))break;seen.add(source);const inheritedRule=rules[JSON.stringify(source.origin)];if(inheritedRule){blocked=inheritedRule.enabled||!inheritedRule.inherit;for(const channel of inheritedRule.manual)manual.add(channel);}parent=source.variantOf;}
+  while(parent&&!blocked){const source=lookup(parent);if(!source||seen.has(source))break;seen.add(source);const inheritedRule=rules[JSON.stringify(source.origin)];if(inheritedRule){blocked=inheritedRule.enabled||!inheritedRule.inherit;for(const channel of inheritedRule.manual)manual.add(channel);}parent=source.variantOf;}
   if(!blocked)for(const [field,channel]of [['color','text'],['glowColor','textGlow']] as const)if(!manual.has(channel)){const value=world.appearance?.text?.[field];if(value!==undefined)paint[field]=value;}
  }
  return resolvedTextPaint(paint);
 }
-export function nodeTextPaint(world:World,actual:Structure){return {...resolvedNodeTextPaint(world,actual),...((actual.glow??NODE_VISUAL_DEFAULTS.glow)>0?{glow:0}:{})};}
+export function nodeTextPaint(world:World,actual:Structure,lookup?:(origin:Origin)=>Structure|undefined){return {...resolvedNodeTextPaint(world,actual,lookup),...((actual.glow??NODE_VISUAL_DEFAULTS.glow)>0?{glow:0}:{})};}

@@ -334,7 +334,7 @@ export function createWorld(host: HTMLElement, input: Input) {
   function applyAppearance(candidate:World){
     const inherit=createInheritanceReader(candidate);
     const nodes=new Map(candidate.nodes.map(node=>[key(node.origin),node]));
-    for(const [id,visual]of visuals){const node=nodes.get(id);if(!node)continue;const actual=resolveNodeAppearance(candidate,inherit(node));styleVisual(visual,actual,nodeTextPaint(candidate,actual));}
+    for(const [id,visual]of visuals){const node=nodes.get(id);if(!node)continue;const actual=resolveNodeAppearance(candidate,inherit(node));styleVisual(visual,actual,nodeTextPaint(candidate,actual,origin=>nodes.get(key(origin))));}
     for(const cached of edgeCaptions.values())updateLabelPaint(cached.mesh,candidate.appearance?.text);
     const readPaint=connectorPaintReader(candidate);
     for(const connector of connectors){const node=nodes.get(key(connector.source));if(!node)continue;const paint=readPaint(node);for(const mesh of [connector.line,connector.arrow]){mesh.userData.glowColor=paint.glowColor;mesh.userData.glowIntensity=paint.glow;mesh.material.color.set(connector.line.userData.highlighted?'#ffb000':paint.color);} }
@@ -350,11 +350,11 @@ export function createWorld(host: HTMLElement, input: Input) {
     const nextScale = next.settings?.latticeScale ?? 1;
     if (nextScale !== scale) { const shift = controls.target.clone().multiplyScalar(nextScale/scale-1); controls.target.add(shift); camera.position.add(shift); navigator.rescale(nextScale/scale); scale=nextScale; controls.minDistance=Math.min(.2,scale/4); camera.near=Math.max(1e-9,scale*.001); camera.updateProjectionMatrix(); controls.update(); }
     axisView.update(operationWorld(next),scale);
-    const present = new Set(next.nodes.map(node => key(node.origin)));
+    const textNodes=new Map(next.nodes.map(node=>[key(node.origin),node])),present=new Set(textNodes.keys());
     for (const [id, visual] of visuals) if (!present.has(id)) { scene.remove(visual.host);visual.contour.dispose(); visual.body.material.dispose(); disposeLabel(visual.text); if (visual.object) disposeVisual(visual.object); visuals.delete(id); }
     const inherit=createInheritanceReader(next);
     for (const node of next.nodes) {
-      const actual = resolveNodeAppearance(next,inherit(node)), id=key(node.origin), textPaint=nodeTextPaint(next,actual),textKey=labelGeometryKey(textPaint,fontRevision), caption=`${actual.label || (node.invariant ? '⚬' : '')}${node.parts.some(binding => !prepared.resolve(binding).length) ? ' !' : ''}`;
+      const actual = resolveNodeAppearance(next,inherit(node)), id=key(node.origin), textPaint=nodeTextPaint(next,actual,origin=>textNodes.get(key(origin))),textKey=labelGeometryKey(textPaint,fontRevision), caption=`${actual.label || (node.invariant ? '⚬' : '')}${node.parts.some(binding => !prepared.resolve(binding).length) ? ' !' : ''}`;
       let visual=visuals.get(id);
       if (!visual) {
         const host=new T.Group(),group=new T.Group(),presentation=new T.Group(),body=new T.Mesh(sphere,atomicCarrierMaterial(actual.color)),slot=new T.Mesh(sphere,slotMaterial),text=label(caption,textPaint);text.userData.requestRender=request;
