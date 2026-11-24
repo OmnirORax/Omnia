@@ -74,7 +74,7 @@ test('pointer selection transfers Enter ownership from the opening field to its 
  const send=(type,target,extra={})=>{const event={type,target,key:'Enter',ctrlKey:false,metaKey:false,altKey:false,shiftKey:false,preventDefault(){this.prevented=true;},stopImmediatePropagation(){this.stopped=true;},...extra};for(const fn of handlers.get(type)??[]){fn(event);if(event.stopped)break;}return event;};
  const opening=new Element('input'),dial=new Element(),dot=new Element('button',dial),field=new Element('input',dial),box=new Element('input',dial,'button');
  Object.assign(globalThis,{Node:Element,Element,document:{activeElement:opening},window:{addEventListener(type,fn){handlers.set(type,[...(handlers.get(type)??[]),fn]);}}});
- let dispose;
+ let dispose,replacement;
  try{
   dispose=registerWindow(dial,()=>{},1,true,()=>calls++);
   send('pointerdown',dot);assert.equal(document.activeElement,dial,'a prevented dot press must not leave Enter in its opening input');send('keydown',document.activeElement);send('keyup',document.activeElement);assert.equal(calls,1);
@@ -82,5 +82,7 @@ test('pointer selection transfers Enter ownership from the opening field to its 
   send('pointerdown',field);document.activeElement=field;send('focusin',field);send('keydown',field);send('keyup',field);assert.equal(calls,2,'text entry keeps native Enter');
   document.activeElement=box;send('keydown',box);send('keyup',box);assert.equal(calls,3,'a numeric button is a control, not a text-entry field');
   document.activeElement=opening;send('keydown',opening);send('keyup',opening);assert.equal(calls,3);
- }finally{dispose?.();for(const [name,value]of Object.entries(saved))if(value===undefined)delete globalThis[name];else globalThis[name]=value;}
+  dispose();document.activeElement=new Element('body');const next=new Element();replacement=registerWindow(next,()=>{},1,true,()=>calls++);
+  assert.equal(document.activeElement,next,'a replacement dial stage receives keyboard ownership without another pointer click');send('keydown',document.activeElement);send('keyup',document.activeElement);assert.equal(calls,4);
+ }finally{replacement?.();dispose?.();for(const [name,value]of Object.entries(saved))if(value===undefined)delete globalThis[name];else globalThis[name]=value;}
 });

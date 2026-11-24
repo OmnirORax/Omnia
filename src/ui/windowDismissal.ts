@@ -37,6 +37,7 @@ export function createWindowConfirmation(windows:Pick<ReturnType<typeof createWi
   keyup(event:KeyboardEvent){if(event.key!=='Enter'||!pending)return;const confirm=pending;pending=undefined;consume(event);if(enter(event)&&!nativeInput(event.target))confirm();},cancel(){pending=undefined;}};
 }
 const windows = createWindowDismissal();
+const focusConfirmationOwner=(root:HTMLElement)=>{if(!root.hasAttribute('tabindex'))root.tabIndex=-1;root.focus({preventScroll:true});};
 let listening = false;
 export function registerWindow(root: HTMLElement, close: () => unknown, priority = 0, escape = true, confirm?:()=>unknown) {
   if (!listening) {
@@ -48,8 +49,7 @@ export function registerWindow(root: HTMLElement, close: () => unknown, priority
       // Choice controls prevent pointer focus while painting. Give their active
       // confirmation owner keyboard focus instead of leaving it in the opener.
       if(event.type==='pointerdown'&&root&&windows.canConfirm()&&windows.owns(event.target)&&!nativeInput(event.target)&&(!root.contains(document.activeElement)||nativeInput(document.activeElement))){
-        if(!root.hasAttribute('tabindex'))root.tabIndex=-1;
-        root.focus({preventScroll:true});
+        focusConfirmationOwner(root);
       }
     };
     window.addEventListener('pointerdown', activate, true);
@@ -57,7 +57,10 @@ export function registerWindow(root: HTMLElement, close: () => unknown, priority
     const confirmation=createWindowConfirmation(windows,nativeInput);
     window.addEventListener('keydown',confirmation.keydown,true);window.addEventListener('keyup',confirmation.keyup,true);window.addEventListener('blur',confirmation.cancel);
   }
-  return windows.register(root, close, priority, escape,confirm);
+  const dispose=windows.register(root, close, priority, escape,confirm);
+  // Replacing a focused stage must give Enter to the new confirmation owner.
+  if(confirm&&root.isConnected&&windows.owns(root)&&!root.contains(document.activeElement))focusConfirmationOwner(root);
+  return dispose;
 }
 export const closeActiveWindow = () => windows.close();
 

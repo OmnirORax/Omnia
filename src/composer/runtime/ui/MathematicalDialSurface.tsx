@@ -152,6 +152,7 @@ export function MathematicalDialSurface({value,min,max,integer=false,label='Valu
   restore();horizontal?.release(horizontalOwner.current);drag.current=null;setPainting(false);setMarks(emptyMarks());
   if(next==='value'){setBase(valueBase.current);}else{if(scaling==='value')valueBase.current=base;scaleAnchor.current=mathematicalScaleAnchor(next,session.restore(),scaleStart);setBase(1);setSign(1);}setScaling(next);onModeChange?.(next);
  };
+ const toggleBrush=()=>{restore();setBrush(brush==='recursion'?'normal':'recursion');};
  return <div ref={surfaceRef} data-live-dial data-ui-popup-interior className="mathematical-dial" style={{width:extent,height:extent,zoom:scaleDrag.value}} title={`${label}: ${value} (${min}–${max})`} role="group" aria-label={`⠒❉ · ${label}`} aria-disabled={disabled} onMouseLeave={()=>{if(!horizontal?.owns(horizontalOwner.current))restore();}}
   onPointerDownCapture={event=>{
    if(!owns(event.target,event.currentTarget))return;
@@ -179,9 +180,9 @@ export function MathematicalDialSurface({value,min,max,integer=false,label='Valu
   <div ref={ringRef} className="mathematical-dial-ring" style={{width:extent,height:extent}} onContextMenu={event=>{
    event.preventDefault();event.stopPropagation();if(disabled||drag.current)return;
    const slot=event.target instanceof Element?event.target.closest<HTMLElement>('[data-math-slot]'):null;
-   if(slot&&ringRef.current?.contains(slot)){const key=slot.dataset.mathSlot!,erase=marks.selected.includes(key)&&modeAt(marks,key)==='recursion';const next=paintMathematicalSlots(marks,[key],'recursion',erase);commit(next);}
+   if(slot&&ringRef.current?.contains(slot)){const key=slot.dataset.mathSlot!,erase=marks.selected.includes(key)&&modeAt(marks,key)==='recursion';const next=paintMathematicalSlots(marks,[key],'recursion',erase);commit(next);}else toggleBrush();
   }}>
-   <button type="button" disabled={disabled} className="mathematical-dial-base" aria-label="Toggle numeral base" aria-pressed={base===2} onClick={()=>changeBase(base===1?2:1)} onContextMenu={event=>{event.preventDefault();event.stopPropagation();if(!disabled)changeBase(base===1?2:1);}} style={{width:base*minimum.size,height:base*minimum.size}}><span aria-hidden="true"/></button>
+   <button type="button" disabled={disabled} className="mathematical-dial-base" aria-label="Toggle numeral base" aria-pressed={base===2} onClick={()=>changeBase(base===1?2:1)} onContextMenu={event=>{event.preventDefault();event.stopPropagation();if(!disabled)toggleBrush();}} style={{width:base*minimum.size,height:base*minimum.size}}><span aria-hidden="true"/></button>
    <DialDrawing notation={{base,clockwise,marks:displayed}} geometry={geometry}/>
    {rings.map(({order,radius,count})=><span key={order} className="mathematical-dial-order" role="group" aria-label={`Ring ${order+1}, ${count} slots`}>
     <svg className="mathematical-dial-hover-band" width={extent} height={extent} aria-hidden="true"><circle cx={extent/2} cy={extent/2} r={radius} fill="none" stroke="transparent" strokeWidth={minimum.size}/></svg>
@@ -196,12 +197,8 @@ export function MathematicalDialSurface({value,min,max,integer=false,label='Valu
    </span>)}
   </div>
   <div className="mathematical-dial-meta">
-   <div className="mathematical-dial-settings mathematical-dial-arithmetic" role="group" aria-label="Number mode">{(['value','halving','doubling','division'] as const).map(kind=><button key={kind} type="button" disabled={disabled||kind!=='value'&&(!Number.isFinite(scaleStart??session.expected)||(scaleStart??session.expected)===0)} aria-label={kind==='value'?'Set value':kind==='halving'?'Halve starting value':kind==='division'?'Divide starting value':'Double starting value'} aria-pressed={scaling===kind} onClick={()=>changeScaling(scaling===kind&&kind!=='value'?'value':kind)}>{kind==='value'?'=':kind==='halving'?'/2':kind==='division'?'1/x':'×2'}</button>)}<button type="button" disabled={disabled} aria-label="Recursive marks" aria-pressed={brush==='recursion'} onClick={()=>{restore();setBrush(brush==='recursion'?'normal':'recursion');}}>◎</button></div>
-   {limits&&renderValue&&<div className="mathematical-dial-settings mathematical-dial-limits" role="group" aria-label={`${limits.label} limits`}>{(['min','max'] as const).map(kind=><span key={kind}>{renderValue(kind,limits[kind])}</span>)}</div>}
-   <div className="mathematical-dial-result">
-   {renderValue?.('value',sample?total(sample):session.committed)}
-   <output className="mathematical-dial-maximum" aria-label="Maximum value">{scaling==='value'?`max ${max}`:`${scaleAnchor.current} · max ${scaleMaximum}`}</output>
-   </div>
+   <div className="mathematical-dial-settings mathematical-dial-arithmetic" role="group" aria-label="Number mode">{(['value','halving','doubling','division'] as const).map(kind=><button key={kind} type="button" disabled={disabled||kind!=='value'&&(!Number.isFinite(scaleStart??session.expected)||(scaleStart??session.expected)===0)} aria-label={kind==='value'?'Set value':kind==='halving'?'Halve starting value':kind==='division'?'Divide starting value':'Double starting value'} aria-pressed={scaling===kind} onClick={()=>changeScaling(scaling===kind&&kind!=='value'?'value':kind)}>{kind==='value'?'=':kind==='halving'?'/2':kind==='division'?'1/x':'×2'}</button>)}<button type="button" disabled={disabled} aria-label="Recursive marks" aria-pressed={brush==='recursion'} onClick={toggleBrush}>◎</button></div>
+   <div className="mathematical-dial-settings mathematical-dial-limits" role="group" aria-label={`${label} limits`}>{limits&&renderValue?(['min','max'] as const).map(kind=><span key={kind}>{renderValue(kind,limits[kind])}</span>):<output aria-label="Maximum value">⊣ {max}</output>}</div>
    <div className="mathematical-dial-operation">
     {modeControl}
    {rule&&<div className="mathematical-dial-settings" role="group" aria-label="Value generation rule">{rule.choices.map(choice=><button key={choice.id} type="button" disabled={disabled} aria-label={choice.label} title={choice.label} aria-pressed={rule.value===choice.id} onClick={()=>{restore();rule.onChange(choice.id);}}>{choice.icon}</button>)}</div>}

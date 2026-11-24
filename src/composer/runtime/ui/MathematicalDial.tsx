@@ -1,5 +1,4 @@
 import {clearMathCursorReadout} from '../../../ui/mathCursorReadout.ts';
-import {DirectDialEditor} from './DirectDialEditor.tsx';
 import {useId,useLayoutEffect,useRef,useState,useSyncExternalStore} from 'react';
 import {type MathematicalDialProps} from './MathematicalDialSurface.tsx';
 import {createMathematicalDialSource} from './mathematicalDialSource.ts';
@@ -14,7 +13,7 @@ export function MathematicalDial(props:MathematicalDialProps){
  useLayoutEffect(()=>{const unregister=dial.register(id,source);return()=>{unregister();clearMathCursorReadout(id);};},[id,source]);
  useLayoutEffect(()=>{const external=source.receive();if(external&&dial.snapshot().selection?.owner===id)dial.select(id);dial.refresh(id);},[props.value,props.min,props.max,props.integer,props.label,props.limits?.min,props.limits?.max,props.limits?.hardMin,props.limits?.hardMax,props.editing?.amount]);
  const select=(kind:DialField,target:'value'|'snap'='value',count?:number)=>dial.select(id,kind,target,count);
- if(state.host&&state.host!==id)return <MiniMathematicalValue value={source.field('value').value} label={props.label??'Value'} configuration={source.configuration('value')} onClick={event=>select('value',event.shiftKey?'snap':'value')} formatValue={props.formatValue}/>;
+ if(state.host&&state.host!==id)return <MiniMathematicalValue value={source.field('value').value} label={props.label??'Value'} active={state.selection?.owner===id} configuration={source.configuration('value')} onClick={event=>select('value',event.shiftKey?'snap':'value')} formatValue={props.formatValue}/>;
  const selection=state.selection??{owner:id,source,field:'direct' as const,target:'value' as const,generation:0},active=selection.source,p=active.read();
  const renderValue=(kind:'value'|'min'|'max')=>{
   const n=active.field(kind).value;
@@ -22,6 +21,6 @@ export function MathematicalDial(props:MathematicalDialProps){
   return <MiniMathematicalValue value={n} label={active.field(kind).label} configuration={config?.value===n?config:undefined} prefix={kind==='min'?'⊢':kind==='max'?'⊣':''} active={selection.field===kind} formatValue={kind==='value'?p.formatValue:p.limits?.formatValue} onClick={event=>dial.select(active.id,kind,event.shiftKey?'snap':'value')}/>;
  };
  const retarget=(kind:DialField,target:'value'|'snap',count?:number)=>dial.select(active.id,kind,target,count);
- const editor=selection.field!=='direct'?<DialReferenceEditor key={`${selection.owner}:${selection.field}:${selection.generation}`} selection={selection} renderValue={renderValue} onReference={retarget}/>:<DirectDialEditor key={`${selection.owner}:direct:${selection.generation}`} source={active} renderValue={renderValue} onReference={retarget}/>;
+ const editor=<DialReferenceEditor key={`${selection.owner}:${selection.field}:${selection.generation}`} selection={selection} renderValue={renderValue} onReference={retarget}/>;
  return <div data-math-dial-frame className="mathematical-dial-frame">{editor}</div>;
 }

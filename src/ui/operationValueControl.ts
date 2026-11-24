@@ -9,7 +9,7 @@ export function bindOperationValueControl(button:HTMLInputElement,options:{label
  type Session={number:OperationNumber;sliding:boolean;panel?:HTMLElement;unmount?:()=>void;epoch:number;scrub?:ReturnType<OperationNumber['scrub']>;resume?:(accept?:boolean)=>void};
  let session:Session|undefined,disposed=false,retained:{configuration:ConfirmedMathValue;snap?:number;min:number;max:number}|undefined;
  const remember=(active:Session)=>{retained={configuration:active.number.currentConfiguration,snap:active.number.grid?.snap,min:active.number.min,max:active.number.max};};
- const closePanel=(accept=false)=>{const active=session;if(!active)return;if(accept&&active.panel)confirmWindowWithin(active.panel);active.epoch++;active.unmount?.();active.unmount=undefined;active.panel?.remove();active.panel=undefined;};
+ const closePanel=(accept=false)=>{delete button.dataset.mathActive;const active=session;if(!active)return;if(accept&&active.panel)confirmWindowWithin(active.panel);active.epoch++;active.unmount?.();active.unmount=undefined;active.panel?.remove();active.panel=undefined;};
  const end=()=>{if(!session)return;cancelValueDrag(button);if(!session)return;const owner=session.number.readoutOwner;closePanel();session=undefined;clearMathCursorReadout(owner);button.value=String(options.read());options.preview();if(closeActive===end)closeActive=undefined;};
  const start=(sliding:boolean)=>{closeActive?.();const active:Session={sliding,epoch:0,number:undefined!};
   active.number=createOperationNumber({label:options.label,value:options.read(),initialConfiguration:retained?.configuration.value===options.read()?retained.configuration:{mode:'value',base:1,anchor:options.read(),count:0,value:options.read()},gridSnap:retained?.snap??(options.step===1?undefined:options.step),min:options.min,max:options.max,integer:options.integer,reject:options.feedback,apply:(n,phase)=>{
@@ -21,7 +21,7 @@ export function bindOperationValueControl(button:HTMLInputElement,options:{label
   if(active.sliding)active.number.commit(active.number.current,active.number.currentConfiguration);
   // A keyboard-only opener starts directly in configuration, without saving its baseline.
   const bounds=button.getBoundingClientRect(),placement={target:popupControlTarget(button),requested:{x:bounds.left+bounds.width/2,y:bounds.top+bounds.height/2}};
-  const panel=document.createElement('div');panel.className='operation-number-dial';panel.dataset.inputOwner='';Object.assign(panel.style,{position:'fixed',left:`${placement.requested.x}px`,top:`${placement.requested.y}px`,zIndex:'10000'});document.body.append(panel);active.panel=panel;const epoch=++active.epoch;panel.tabIndex=-1;panel.focus();
+  const panel=document.createElement('div');panel.className='operation-number-dial';panel.dataset.inputOwner='';Object.assign(panel.style,{position:'fixed',left:`${placement.requested.x}px`,top:`${placement.requested.y}px`,zIndex:'10000'});document.body.append(panel);active.panel=panel;button.dataset.mathActive='';const epoch=++active.epoch;panel.tabIndex=-1;panel.focus();
   const done=()=>{if(session!==active||active.epoch!==epoch)return;if(active.sliding)active.resume?.(false);else end();};
   try{const module=await options.loadDial();if(!disposed&&session===active&&active.epoch===epoch&&active.panel===panel)active.unmount=module.mountOperationMathDial(panel,active.number,done,undefined,placement);}catch(error){if(session===active&&active.epoch===epoch){options.feedback(String(error));if(active.sliding)active.resume?.(false);else end();}}
  };
