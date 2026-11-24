@@ -10,6 +10,20 @@ test('native text pass uses output pixels, graph depth and restores renderer sta
 });
 test('budgeted graph pass excludes native labels and restores camera layers on failure',()=>{const camera=new T.PerspectiveCamera();camera.layers.enable(WORLD_TEXT_LAYER);const initial=camera.layers.mask;assert.throws(()=>withoutWorldText(camera,()=>{assert.equal(camera.layers.isEnabled(WORLD_TEXT_LAYER),false);assert.equal(camera.layers.isEnabled(0),true);throw Error('fail');}));assert.equal(camera.layers.mask,initial);});
 test('native depth hook retains the existing coverage shader and logarithmic depth conversion',()=>{const material=new T.MeshBasicMaterial();packedTextureGlow(material);nativeTextMaterial(material);const shader={uniforms:{},fragmentShader:T.ShaderLib.basic.fragmentShader};material.onBeforeCompile(shader,{});assert.ok(shader.fragmentShader.includes('float clean=coverage.r'));assert.ok(shader.fragmentShader.includes('USE_LOGARITHMIC_DEPTH_BUFFER'));assert.ok(shader.fragmentShader.includes('log2(vFragDepth)*logDepthBufFC*.5'));assert.ok(shader.fragmentShader.includes('texture2D(worldTextDepth'));assert.ok(shader.fragmentShader.includes('#include <colorspace_fragment>'));material.dispose();});
+test('native text retains authored halo coverage at normal and minified viewing sizes',()=>{
+ const material=new T.MeshBasicMaterial();packedTextureGlow(material);nativeTextMaterial(material);
+ const shader={uniforms:{},fragmentShader:T.ShaderLib.basic.fragmentShader};material.onBeforeCompile(shader,{});
+ try{
+  // Evaluate the shader's actual halo expression. It must depend only on the
+  // filtered texture coverage, without an additional projected-stroke cutoff.
+  const expression=shader.fragmentShader.match(/halo=(.*?),total=/)?.[1];
+  assert.ok(expression);
+  const halo=Function('coverage','clean','max',`return ${expression};`);
+  for(const [clean,combined] of [[0,.8],[.15,.4],[.03,.08],[0,0],[.8,.7]])
+   assert.ok(Math.abs(halo({g:combined},clean,Math.max)-Math.max(0,combined-clean))<1e-9);
+  assert.equal(shader.fragmentShader.includes('zoomGlowScale'),false);
+ }finally{material.dispose();}
+});
 test('world label ink and authored glow match document paint even when its node glows',()=>{const world=emptyWorld(),node=addStructure(world,[0,0,0],1);writePaint(world,'text',[],{color:'#ff2200',glow:1,glowColor:'#7722ff'});node.glow=2;const doc=readPaint(world,'nodeText',node.origin),label=nodeTextPaint(world,node);assert.equal(label.color,doc.color);assert.equal(label.glow,doc.glow);assert.equal(label.glowColor,doc.glowColor);});
 test('final text output stays native within its cap while the graph keeps its lower pixel budget',()=>{assert.equal(sceneOutputPixelRatio(1920,1080,2,true),2);assert.equal(sceneOutputPixelRatio(1920,1080,2,false),2);assert.ok(budgetPixelRatio(1920,1080,2,RENDER_BUDGET.scenePixels,RENDER_BUDGET.maxSceneDpr)<1);});
 test('native text layer remains raycastable when enabled for world picking',()=>{const mesh=new T.Mesh(new T.PlaneGeometry(),new T.MeshBasicMaterial());mesh.layers.set(WORLD_TEXT_LAYER);mesh.updateMatrixWorld();const ray=new T.Raycaster(new T.Vector3(0,0,2),new T.Vector3(0,0,-1));ray.layers.enable(WORLD_TEXT_LAYER);assert.ok(ray.intersectObject(mesh).length);mesh.geometry.dispose();mesh.material.dispose();});
