@@ -22,7 +22,7 @@ export function updateTextureGlowColor(material:T.Material,color:T.ColorRepresen
 const emptyPaletteStops=Array.from({length:PALETTE_STOP_LIMIT},()=>new T.Vector4()),paletteData=new WeakMap<TextPalette,{key:string;stops:ReturnType<typeof textPaletteStops>}>();
 const emptyPattern=new T.DataTexture(new Uint8Array([255,255,255,255]),1,1);emptyPattern.needsUpdate=true;
 const patternTextures=new Map<string,{texture:T.DataTexture;refs:number}>();
-function acquirePattern(p:TextPalette){const focus=isFocusPalette(p),data=focus?focusPattern(p):generatedTextPalette(p);let entry=patternTextures.get(data.key);if(!entry){const texture=new T.DataTexture(data.glow,focus?data.glow.length/4:GENERATED_PALETTE_SIZE,focus?1:GENERATED_PALETTE_SIZE);texture.minFilter=texture.magFilter=focus?T.NearestFilter:T.LinearFilter;texture.wrapS=T.RepeatWrapping;texture.needsUpdate=true;entry={texture,refs:0};patternTextures.set(data.key,entry);}entry.refs++;const owned=entry;return {texture:owned.texture,release(){if(!--owned.refs){owned.texture.dispose();patternTextures.delete(data.key);}}};}
+function acquirePattern(p:TextPalette){const focus=isFocusPalette(p),data=focus?focusPattern(p):generatedTextPalette(p);let entry=patternTextures.get(data.key);if(!entry){const texture=new T.DataTexture(data.glow,focus?data.glow.length/4:GENERATED_PALETTE_SIZE,focus?1:GENERATED_PALETTE_SIZE);texture.minFilter=texture.magFilter=T.LinearFilter;texture.wrapS=T.RepeatWrapping;texture.needsUpdate=true;entry={texture,refs:0};patternTextures.set(data.key,entry);}entry.refs++;const owned=entry;return {texture:owned.texture,release(){if(!--owned.refs){owned.texture.dispose();patternTextures.delete(data.key);}}};}
 export function updateTextureTextPalette(material:T.Material,palette?:TextPalette){
  const state=sizes.get(material);if(!state)return;let data=palette&&paletteData.get(palette);if(palette&&!data){data={key:JSON.stringify(palette),stops:textPaletteStops(palette)};paletteData.set(palette,data);}const key=data?.key??'';if(state.paletteKey===key)return;updateTextureInkProgression(material,palette);state.paletteKey=key;const release=state.releasePattern;state.releasePattern=undefined;state.pattern.value=emptyPattern;state.generated.value=0;state.focus.value=0;state.strength.value=palette?paletteInk(palette):.25;if(palette&&(isFocusPalette(palette)||palette.pattern==='generated')&&palette.colors.length>1){const pattern=acquirePattern(palette);state.pattern.value=pattern.texture;state.releasePattern=pattern.release;state.generated.value=isFocusPalette(palette)?0:1;state.focus.value=isFocusPalette(palette)?1:0;state.period.value=isFocusPalette(palette)?focusPeriod(palette):1;}
  release?.();const stops=data?.stops??[];state.count.value=stops.length;state.layout.value=palette?paletteLayout(palette):0;state.spread.value=palette?paletteSpread(palette):1;
@@ -77,6 +77,6 @@ export function packedTextureGlow(material:T.MeshBasicMaterial){
     ${coverage}
     #endif
    `);
-  };target.customProgramCacheKey=()=>target===material?'omnium.packed-text-glow.base.v10':'omnium.packed-text-glow.mask.v3';
+  };target.customProgramCacheKey=()=>target===material?'omnium.packed-text-glow.base.v11':'omnium.packed-text-glow.mask.v3';
  });
 }

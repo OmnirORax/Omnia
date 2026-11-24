@@ -27,7 +27,7 @@ test('saved ratios, counts and scale reject unbounded or invalid pixel allocatio
 });
 test('world labels consume the canonical pixel cycle and separate screen pixels from DPI',()=>{
  const p={...palette,imageRatio:[1,2],scale:2},material=new T.MeshBasicMaterial();packedTextureGlow(material);updateTextureTextPalette(material,p);const shader={uniforms:{},fragmentShader:T.ShaderLib.basic.fragmentShader};material.onBeforeCompile(shader,{});
- assert.equal(shader.uniforms.textPaletteFocus.value,1);assert.equal(shader.uniforms.textPalettePeriod.value,6);assert.equal(shader.uniforms.textPixelRatio,textPixelRatio);assert.deepEqual(shader.uniforms.textPalettePattern.value.image.data,focusPattern(p).glow);assert.equal(shader.uniforms.textPalettePattern.value.magFilter,T.NearestFilter);material.dispose();
+ assert.equal(shader.uniforms.textPaletteFocus.value,1);assert.equal(shader.uniforms.textPalettePeriod.value,6);assert.equal(shader.uniforms.textPixelRatio,textPixelRatio);assert.deepEqual(shader.uniforms.textPalettePattern.value.image.data,focusPattern(p).glow);assert.equal(shader.uniforms.textPalettePattern.value.magFilter,T.LinearFilter);material.dispose();
 });
 test('focus previews and commits inherit inclusions while retiring old layout deltas',async()=>{
  const {createAutoColors,configureAutoColors}=await import('../src/scene/autoColors.ts'),{focusTheme,setThemeFocus}=await import('../src/scene/themeControls.ts'),{createStore}=await import('../src/core/store.ts'),{readPaint}=await import('../src/core/appearance.ts');

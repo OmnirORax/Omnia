@@ -30,7 +30,7 @@ float inkScanPosition(vec2 uv,vec4 coverage,float pixelRatio){
  float sx=1.0/max(length(vec2(dFdx(uv.x),dFdy(uv.x)))*textInkSize.x*pixelRatio,0.000001);
  float sy=1.0/max(length(vec2(dFdx(uv.y),dFdy(uv.y)))*textInkSize.y*pixelRatio,0.000001);
  float subColumn=floor(fract(nativeX)*sx),rank=floor(coverage.b*max(0.0,column.g-1.0)+0.5);
- float y=floor((rank+fract(nativeY))*sy),up=1.0-step(1.0,mod(floor(column.b*sx)+subColumn,2.0));
- return column.r*sx*sy+subColumn*column.g*sy+mix(y,max(0.0,column.g*sy-1.0-y),up);
+ float y=(rank+fract(nativeY))*sy,up=1.0-step(1.0,mod(floor(column.b*sx)+subColumn,2.0));
+ return column.r*sx*sy+subColumn*column.g*sy+mix(y,max(0.0,column.g*sy-y),up);
 }
 `;
