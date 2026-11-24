@@ -1,3 +1,4 @@
+import {createDocumentPaintSession} from './paintSession.ts';
 import {fontSizeScale} from '../properties/visual.ts';
 import {documentHistoryBindings} from './historyBindings.ts';
 import {documentListLayout} from './listLayout.ts';
@@ -128,7 +129,8 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
   releaseActions=registerContextActions({label:'Document',owns:element=>view.root.contains(element),read:()=>{
     const seen=new Set<string>();return documentBindings(effectiveBindings).flatMap(({definition,binding})=>{if(seen.has(definition.id))return [];seen.add(definition.id);const label=labels.get(definition.id)??definition.label;return [{id:definition.id,defaultKey:definition.defaultKey,label,key:shortcutBinding('Document',definition.id,definition.defaultKey),run:()=>{if(editor){binding.run?.(editor);editor.focus();}}}];});
   }});
-  let previousLexicon=workspaceLexicon(read()),previousPaint='',previousGlyphs=createGlyphPresentation(read());
+  let previousLexicon=workspaceLexicon(read()),previousGlyphs=createGlyphPresentation(read());
+  const paintSession=createDocumentPaintSession(paint=>{applyDocumentPaint(paint);editor?.requestMeasure();});
   function refreshAppearance(){
     if(editor&&!failed&&!syncing){
       const node=locate(read(),origin),latest=node&&inherited(node,read()),text=latest?.text;
@@ -143,11 +145,9 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
     if(!locate(read(),origin))return;
     const dictionary=workspaceLexicon(read());if(dictionary!==previousLexicon){previousLexicon=dictionary;queueMicrotask(()=>{if(view.root.isConnected)editor?.dispatch({effects:refreshLexicon.of()});});}
     const glyphs=createGlyphPresentation(read());if(glyphs!==previousGlyphs){previousGlyphs=glyphs;queueMicrotask(()=>{if(view.root.isConnected)editor?.dispatch({effects:refreshDocumentGlyphs.of()});});}
-    const paint=readPaint(read(),'nodeText',origin),key=JSON.stringify(paint);if(key===previousPaint)return;previousPaint=key;
-    applyDocumentPaint(paint);
-    editor?.requestMeasure();
+    paintSession.render(readPaint(read(),'nodeText',origin));
   }
-  function applyDocumentPaint(paint:ReturnType<typeof readPaint>){
+  function applyDocumentPaint(paint:import('../properties/visual.ts').Paint){
     const style=textStyle(paint);
     Object.assign(host.style,style);
     host.style.fontSize=`${fontSize*fontSizeScale(paint)}px`;
@@ -155,7 +155,7 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
     host.style.setProperty('--document-text-shadow',style.textShadow);
     host.style.setProperty('--visual-text-bold-stroke',`${emboldenStrokeEm(paint.embolden)}em currentColor`);
   }
-  refreshAppearance();queueMicrotask(()=>{if(view.root.isConnected)editor?.dispatch({effects:refreshLexicon.of()});});editor.focus(); return {...view,refreshAppearance,previewAppearance(world:World){applyDocumentPaint(readPaint(world,'nodeText',origin));}};
+  refreshAppearance();queueMicrotask(()=>{if(view.root.isConnected)editor?.dispatch({effects:refreshLexicon.of()});});editor.focus(); return {...view,refreshAppearance,previewAppearance(world:World){paintSession.render(readPaint(world,'nodeText',origin));}};
 }
 
 const DOCUMENT_SHORTCUT_LABELS:Record<string,string>={'Alt-1':'Fold all headings','Alt-2':'Unfold all headings','Mod-b':'Bold','Mod-i':'Italic','Mod-ArrowUp':'Move line up','Mod-ArrowDown':'Move line down','Alt-Delete':'Delete line','Mod-Delete':'Remove heading','Mod-F7':'Choose heading','Mod-1':'Numbered list','Mod-2':'Bullet list','Mod-Shift-3':'Cycle list','Mod-Shift-4':'Strikethrough','Mod-5':'Inline code','Alt-Mod-1':'Code block','Mod-3':'Capitalize','Mod-4':'Uppercase','Alt-ArrowRight':'Regex search','Mod-PageUp':'Increase font size','Mod-PageDown':'Decrease font size','Escape':'Close / cancel'};
