@@ -15,7 +15,7 @@ export function horizontalValue(config:NumberDrag,delta:number){
   return Number.isFinite(next)?Number(next.toPrecision(12)):value;
 }
 export function valueDragDistance(config:NumberDrag,dx:number,dy:number){const axis=config.axis;if(!axis)return dx;const length=Math.hypot(axis.x,axis.y);return length>0?(dx*axis.x+(Number.isFinite(dy)?dy:0)*axis.y)/length:dx;}
-type Adapter={read:()=>NumberDrag|undefined;input:(value:number)=>void;commit:(value:number)=>void;cancel:(value:number)=>void};
+type Adapter={start?:()=>void;read:()=>NumberDrag|undefined;input:(value:number)=>void;commit:(value:number)=>void;cancel:(value:number)=>void};
 const adapters=new WeakMap<HTMLElement,Adapter>();
 export function registerValueDrag(root:HTMLElement,adapter:Adapter){
   adapters.set(root,adapter);root.dataset.valueDrag='';
@@ -49,7 +49,7 @@ export function installValueDrag(){
     if(current.active){suppressClick=!cancel||!current.released;if(cancel)preview.cancel();else preview.commit();}
   };
   const activate=(current:NonNullable<typeof drag>,event:MouseEvent|PointerEvent)=>{
-    current.active=true;stop(event);claimUIPress(current.id,'pointerType' in event?event.pointerType:'mouse',event.buttons);
+    current.adapter.start?.();current.active=true;stop(event);claimUIPress(current.id,'pointerType' in event?event.pointerType:'mouse',event.buttons);
     preview.enter(owner,{start(){},move(x,y){const next=horizontalValue(current.config,valueDragDistance(current.config,x-current.x,(y??current.y)-current.y));if(next!==current.next){current.next=next;current.adapter.input(next);}},commit:()=>current.adapter.commit(current.next),cancel:()=>current.adapter.cancel(current.config.value)},current.x,current.y);
     document.documentElement.classList.add('value-dragging');relative.start(current.root,{x:current.x,y:current.y});
   };

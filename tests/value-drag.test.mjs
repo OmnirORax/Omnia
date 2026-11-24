@@ -68,9 +68,9 @@ test('locked mouse movement keeps editing after release and accepts with a later
  globalThis.Element=ElementStub;globalThis.HTMLInputElement=class extends ElementStub{};globalThis.document=doc;
  globalThis.window={addEventListener(type,fn){const list=handlers.get(type)??[];list.push(fn);handlers.set(type,list);},removeEventListener(){}};
  try{
-  installValueDrag();const root=new ElementStub();registerValueDrag(root,{read:()=>({value:50,min:0,max:100,step:1}),input:value=>values.push(value),commit:value=>commits.push(value),cancel:value=>values.push(value)});
+  installValueDrag();const root=new ElementStub();let starts=0;registerValueDrag(root,{start:()=>{starts++;},read:()=>({value:50,min:0,max:100,step:1}),input:value=>values.push(value),commit:value=>commits.push(value),cancel:value=>values.push(value)});
   const send=(type,extra={})=>{const event={type,target:root,button:0,buttons:1,pointerType:'mouse',pointerId:1,clientX:0,clientY:0,movementX:0,movementY:0,detail:1,preventDefault(){},stopImmediatePropagation(){this.stopped=true;},...extra};for(const fn of handlers.get(type)??[]){fn(event);if(event.stopped)break;}};
-  send('pointerdown');assert.equal(doc.pointerLockElement,root,'click requests lock without movement');send('mousedown');assert.equal(commits.length,0,'activating compatibility mousedown cannot confirm');send('pointermove',{clientX:0,movementX:20});assert.equal(values.at(-1),60);
+  send('pointerdown');assert.equal(starts,1,'the center releases its previous hover owner before shared adjustment starts');assert.equal(doc.pointerLockElement,root,'click requests lock without movement');send('mousedown');assert.equal(commits.length,0,'activating compatibility mousedown cannot confirm');send('pointermove',{clientX:0,movementX:20});assert.equal(values.at(-1),60);
   send('pointercancel');assert.equal(doc.pointerLockElement,root);
   send('pointerup',{buttons:0,clientX:20});send('lostpointercapture');assert.equal(commits.length,0);assert.equal(doc.pointerLockElement,root);
   send('pointermove',{target:{},buttons:0,movementX:10,clientX:20,timeStamp:100});assert.equal(values.at(-1),65,'locked pointer-only movement updates values');
