@@ -1,4 +1,4 @@
-import type {PaletteSettings} from '../properties/textPalette.ts';
+import {retirePaletteRatio,type PaletteSettings} from '../properties/textPalette.ts';
 import {locate,type World,type Origin} from '../core/model.ts';
 import {createInheritanceReader} from '../core/lattice.ts';
 import {readPaint,writePaint} from '../core/appearance.ts';
@@ -8,7 +8,7 @@ export type AutoColorChannel='text'|'textGlow'|'node'|'nodeGlow';
 export type AutoColorRule={enabled:boolean;inherit?:boolean;manual:AutoColorChannel[];mode?:'text';palette?:PaletteSettings};
 const includedSample=(colors:readonly string[])=>imageColorCombo(new Uint8ClampedArray(colors.flatMap(c=>[parseInt(c.slice(1,3),16),parseInt(c.slice(3,5),16),parseInt(c.slice(5,7),16),255])));
 export const autoColorKey=(origin?:Origin)=>origin?JSON.stringify(origin):'default';
-export function configureAutoColors(world:World,origin:Origin|undefined,enabled:boolean,reset=false,settings?:PaletteSettings){const key=autoColorKey(origin),palette={distribution:'balanced' as const,ink:'color' as const,...world.appearance?.imageColors?.[key]?.palette,...settings,...(settings?.match&&settings.distribution===undefined?{distribution:undefined}:{})};for(const k of Object.keys(palette) as (keyof PaletteSettings)[])if(palette[k]===undefined)delete palette[k];world.appearance??={};world.appearance.imageColors={...world.appearance.imageColors,[key]:{enabled,mode:'text',palette,manual:reset?[]:world.appearance.imageColors?.[key]?.manual??[]}};}
+export function configureAutoColors(world:World,origin:Origin|undefined,enabled:boolean,reset=false,settings?:PaletteSettings){const key=autoColorKey(origin),palette={distribution:'balanced' as const,ink:'color' as const,...world.appearance?.imageColors?.[key]?.palette,...settings,...(settings?.match&&settings.distribution===undefined?{distribution:undefined}:{})};retirePaletteRatio(palette);for(const k of Object.keys(palette) as (keyof PaletteSettings)[])if(palette[k]===undefined)delete palette[k];world.appearance??={};world.appearance.imageColors={...world.appearance.imageColors,[key]:{enabled,mode:'text',palette,manual:reset?[]:world.appearance.imageColors?.[key]?.manual??[]}};}
 function autoImageReader(world:World){let nodes:Map<string,World['nodes'][number]>|undefined;let inherit:ReturnType<typeof createInheritanceReader>|undefined;return(key:string)=>{if(key==='default')return world.scene?world.scene.image:DEFAULT_BACKGROUND.id;nodes??=new Map(world.nodes.map(node=>[JSON.stringify(node.origin),node]));const node=nodes.get(key);if(!node)return null;const actual=(inherit??=createInheritanceReader(world))(node);return actual.scene!==undefined?actual.scene:world.scene?world.scene.image:DEFAULT_BACKGROUND.id;};}
 export const autoColorImage=(world:World,key:string)=>autoImageReader(world)(key);
 

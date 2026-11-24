@@ -16,7 +16,7 @@ function deriveImageRatio(weights:readonly number[]){
  const counts=shares.map(w=>Math.max(1,Math.floor(w*(RATIO_BUDGET-shares.length))));return minimumRatio(counts);
 }
 export const isFocusPalette=(p:TextPalette)=>p.distribution!==undefined;
-export function focusRatio(p:TextPalette){return minimumRatio(p.ratio?.length===p.colors.length?p.ratio:p.imageRatio?.length===p.colors.length?p.imageRatio:imageRatio(p.weights??p.colors.map(()=>1)));}
+export function focusRatio(p:TextPalette){return minimumRatio(p.imageRatio?.length===p.colors.length?p.imageRatio:imageRatio(p.weights??p.colors.map(()=>1)));}
 export type FocusPattern={key:string;indices:number[];glow:Uint8Array;ink:Uint8Array;css?:string};
 const patterns=new Map<string,FocusPattern>();
 /** One bounded pixel cycle is shared by DOM text, window contours and world labels. */

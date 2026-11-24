@@ -1,4 +1,4 @@
-import {FOCUS_DISTRIBUTIONS,focusRatio,RATIO_BUDGET} from '../properties/focusPalette.ts';
+import {FOCUS_DISTRIBUTIONS} from '../properties/focusPalette.ts';
 import {bindOperationValueControl} from '../ui/operationValueControl.ts';
 import {readPaint} from '../core/appearance.ts';
 import {varyTheme,focusTheme,setThemeFocus} from './themeControls.ts';
@@ -83,23 +83,22 @@ export function scenePanel(host: Host,initialTab:SceneTab='image') {
     const manual=(delta:PaletteSettings)=>focusTheme(current(),delta);
     function edit(delta:PaletteSettings){host.change(world=>setThemeFocus(world,target,delta));syncTheme();}
     auto.onchange=()=>{host.change(world=>configureAutoColors(world,target,auto.checked));syncTheme();};
-    function select(key:'selection'|'distribution',label:string,options:readonly(readonly[string,string])[]){const row=document.createElement('label'),input=document.createElement('select');row.append(label,input);input.setAttribute('aria-label',label);for(const [id,text]of options){const option=document.createElement('option');option.value=id;option.textContent=text;input.append(option);}input.onchange=()=>edit({...{[key]:input.value},...(key==='selection'?{ratio:undefined}:{})} as PaletteSettings);paletteControls.push(input);body.append(row);numberSync.push(()=>{input.value=(key==='selection'&&current().selection==='pair'?'top-motif':current()[key])??(key==='distribution'?'balanced':'motif');});return row;}
+    function select(key:'selection'|'distribution',label:string,options:readonly(readonly[string,string])[]){const row=document.createElement('label'),input=document.createElement('select');row.append(label,input);input.setAttribute('aria-label',label);for(const [id,text]of options){const option=document.createElement('option');option.value=id;option.textContent=text;input.append(option);}input.onchange=()=>edit({[key]:input.value} as PaletteSettings);paletteControls.push(input);body.append(row);numberSync.push(()=>{input.value=(key==='selection'&&current().selection==='pair'?'top-motif':current()[key])??(key==='distribution'?'balanced':'motif');});return row;}
     select('selection','Focus',PALETTE_SELECTIONS.filter(([id])=>id!=='pair'));
     function numeric(label:string,read:()=>number,min:number,max:()=>number,write:(n:number)=>PaletteSettings,step=1){
       const row=document.createElement('label'),input=document.createElement('input');input.type='button';input.setAttribute('aria-label',label);row.append(label,input);body.append(row);paletteControls.push(input);
       subscriptions.push(bindOperationValueControl(input,{label,min,get max(){return max();},integer:step===1,step,read,preview:n=>host.previewTheme?.(target,n===undefined?undefined:manual(write(n))),commit:n=>edit(write(n)),feedback:host.feedback,loadDial:()=>import('../ui/operationMathDial.tsx')}));
       numberSync.push(()=>{input.value=String(read());input.setAttribute('aria-valuemax',String(max()));});return row;
     }
-    const top=numeric('Top colors',()=>Math.min(current().top??2,resolved()?.available??8),1,()=>resolved()?.available??8,n=>({top:n,ratio:undefined}));
+    const top=numeric('Top colors',()=>Math.min(current().top??2,resolved()?.available??8),1,()=>resolved()?.available??8,n=>({top:n}));
     const maximum=document.createElement('span');top.append(maximum);
-    const ratios=Array.from({length:8},(_,i)=>{const row=numeric(`Ratio ${i+1}`,()=>{const p=resolved();return p?focusRatio(p)[i]??1:1;},1,()=>{const p=resolved(),counts=p?focusRatio(p):[1];return RATIO_BUDGET-counts.reduce((n,c,j)=>n+(j===i?0:c),0);},n=>{const p=resolved(),ratio=p?focusRatio(p):[1];ratio[i]=n;return {ratio};});const swatch=document.createElement('span');row.prepend(swatch);return {row,swatch};});
     select('distribution','Distribution',FOCUS_DISTRIBUTIONS);
     numeric('Scale ×',()=>current().scale??1,1,()=>4096,n=>({scale:n}),.25);
     numeric('Saturation',()=>Math.round((current().saturation??1)*100),0,()=>100,n=>({saturation:n/100}));
     const randomize=button('Macro',()=>{host.change(world=>varyTheme(world,target,'macro'));syncTheme();});
     const micro=button('Micro',()=>{host.change(world=>varyTheme(world,target,'micro'));syncTheme();});
     const generate=button('Generate pattern',()=>{host.change(world=>varyTheme(world,target,'generate'));syncTheme();});
-    function syncTheme(){auto.checked=!!host.read().appearance?.imageColors?.[autoColorKey(target)]?.enabled;for(const input of paletteControls)input.disabled=!auto.checked;randomize.disabled=micro.disabled=generate.disabled=!auto.checked;for(const sync of numberSync)sync();top.hidden=current().selection!=='top'&&current().selection!=='top-motif';maximum.textContent=`max ${resolved()?.available??8}`;const colors=resolved()?.colors??[];for(const [i,{row,swatch}]of ratios.entries()){row.hidden=i>=colors.length;swatch.textContent='■';swatch.style.color=colors[i]??'';}}
+    function syncTheme(){auto.checked=!!host.read().appearance?.imageColors?.[autoColorKey(target)]?.enabled;for(const input of paletteControls)input.disabled=!auto.checked;randomize.disabled=micro.disabled=generate.disabled=!auto.checked;for(const sync of numberSync)sync();top.hidden=current().selection!=='top'&&current().selection!=='top-motif';maximum.textContent=`max ${resolved()?.available??8}`;}
     button('Restore auto colors',()=>{host.change(world=>configureAutoColors(world,target,true,true));syncTheme();});
     syncTheme();let lastTheme='';subscriptions.push(host.subscribe(()=>{const next=JSON.stringify([host.read().appearance?.imageColors?.[autoColorKey(target)],resolved()]);if(next!==lastTheme){lastTheme=next;syncTheme();}}));
     button('Clear background', () => assign(null));
