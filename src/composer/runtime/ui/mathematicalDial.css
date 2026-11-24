@@ -1,6 +1,6 @@
 /* One compact control scale for every canonical dial consumer. */
 .mathematical-dial-frame{position:relative;display:flow-root;width:max-content}
-.mathematical-dial{position:relative;margin:28px 4px 38px;--math-control:22px;--math-control-font:calc(12px * var(--visual-text-scale,1))}
+.mathematical-dial{position:relative;margin:28px 44px 38px 28px;--math-control:22px;--math-control-font:calc(12px * var(--visual-text-scale,1))}
 .mathematical-dial:has(.mathematical-dial-limits){margin-right:60px}
 .mathematical-dial:has(.mathematical-dial-operation button){margin-left:38px}
 .mathematical-dial-settings{position:relative;z-index:1;display:flex;justify-content:center;gap:2px;width:max-content;max-width:224px;flex-wrap:wrap}

@@ -1,3 +1,4 @@
+import {popupControlTarget} from '../composer/runtime/ui/popupPlacement.ts';
 import {createOperationNumber} from './operationNumber.ts';
 import {bindColorSession} from './colorSession.ts';
 import {watchFields} from './formState.ts';
@@ -16,7 +17,7 @@ export function paintForm(target: VisualTarget, origins: readonly Origin[], read
   });
   const sizeInput=inputs.find(input=>input.key==='fontSize');
   if(sizeInput&&sizeInput.entry.input instanceof HTMLInputElement){const button=sizeInput.entry.input;button.type='button';button.onclick=async event=>{
-   const bounds=button.getBoundingClientRect(),placement={target:{x:bounds.left,y:bounds.top,width:bounds.width,height:bounds.height},requested:{x:event.detail?event.clientX:bounds.left+bounds.width/2,y:event.detail?event.clientY:bounds.top+bounds.height/2}};
+   const bounds=button.getBoundingClientRect(),placement={target:popupControlTarget(button),requested:{x:event.detail?event.clientX:bounds.left+bounds.width/2,y:event.detail?event.clientY:bounds.top+bounds.height/2}};
    closeFontDial?.();const host=document.createElement('div');host.className='operation-number-dial';host.dataset.inputOwner='';Object.assign(host.style,{position:'fixed',left:`${placement.requested.x}px`,top:`${placement.requested.y}px`,zIndex:'10000'});document.body.append(host);let dispose:(()=>void)|undefined,closed=false;
    const close=()=>{if(closed)return;closed=true;dispose?.();host.remove();preview?.();if(closeFontDial===close)closeFontDial=undefined;};closeFontDial=close;host.tabIndex=-1;host.focus();host.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();event.stopImmediatePropagation();close();}},true);
    const number=createOperationNumber({label:'Font size',value:Number(readPaint(read(),target,origins[0]).fontSize),min:FONT_SIZE.min,max:FONT_SIZE.max,integer:true,apply:(value,phase)=>{if(phase==='commit'){try{change(world=>writePaint(world,target,origins,{fontSize:value}));button.value=String(value);sizeInput.previous=value;}catch(error){feedback(String(error));}queueMicrotask(close);}else preview?.(phase==='preview'?{fontSize:value}:undefined);},reject:feedback});
