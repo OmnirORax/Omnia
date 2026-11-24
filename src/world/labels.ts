@@ -118,7 +118,7 @@ export function textSprite(value: string, color: string, selected = false, node 
   sprite.userData.lines = lines.length;
   sprite.userData.wrapColumns = columns;
   const size = labelSize(value,columns);
-  sprite.scale.set(size.width, size.height, 1);
+  sprite.scale.set(size.height*(canvas.width/canvas.height), size.height, 1);
   return sprite;
 }
 /** Only typography changes text geometry. Color/opacity/glow reuse the label. */
@@ -141,6 +141,7 @@ export function label(caption:string,paint?:Paint){
    const fresh=textSprite(caption,current.color,false,false,false,current.font,current.glow,current.color,{},true,32,current.glowSpread);
    mesh.material.map?.dispose();mesh.material.dispose();mesh.material=fresh.material;
    for(const name of ['setTextStyle','setSurfaceStyle','setSelected','lightningMask','contentHull'])mesh.userData[name]=fresh.userData[name];
+   mesh.userData.aspect=fresh.userData.aspect;mesh.scale.copy(fresh.scale);mesh.userData.labelFontScale=1;
    updateLabelPaint(mesh,current);fresh.geometry.dispose();mesh.userData.requestRender?.();
  });
  return mesh;
