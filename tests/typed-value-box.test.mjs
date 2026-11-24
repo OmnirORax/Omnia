@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {bindOperationValueControl} from '../src/ui/operationValueControl.ts';
-import {installValueDrag} from '../src/ui/valueDrag.ts';
+import {installValueDrag,registerValueDrag} from '../src/ui/valueDrag.ts';
 import {createOperationNumber} from '../src/ui/operationNumber.ts';
 import {installPointerBindings,POINTER_BINDINGS} from '../src/ui/pointerBindings.ts';
 import {shortcuts} from '../src/ui/shortcuts.ts';
@@ -23,7 +23,7 @@ function environment(routing=false){
   setCustomValidity(message){this.validationMessage=message;}reportValidity(){return !this.validationMessage;}blur(){}
  }
  doc.body=new Element();doc.createElement=()=>new Element();Object.assign(globalThis,{Element,Node:Element,HTMLInputElement:Input,document:doc,window:{addEventListener(type,fn){handlers.set(type,[...(handlers.get(type)??[]),fn]);},removeEventListener(){}}});if(routing)installPointerBindings(()=> 'world');installValueDrag();
- const input=new Input(),send=(type,extra={})=>{const event={type,target:input,button:0,buttons:0,pointerType:'mouse',pointerId:1,clientX:0,clientY:0,movementX:0,movementY:0,detail:1,preventDefault(){this.prevented=true;},stopImmediatePropagation(){this.stopped=true;},...extra};for(const fn of handlers.get(type)??[]){fn(event);if(event.stopped)break;}return event;};
+ const input=new Input(),send=(type,extra={})=>{const event={type,target:input,button:0,buttons:0,pointerType:'mouse',pointerId:1,clientX:0,clientY:0,movementX:0,movementY:0,detail:1,preventDefault(){this.prevented=true;},stopImmediatePropagation(){this.stopped=true;},...extra};for(const fn of handlers.get(type)??[]){fn(event);if(event.stopped)break;}if(type==='keydown'&&extra.key==='Enter'&&!extra.repeat)send('keyup',{key:'Enter'});return event;};
  return {doc,input,send,type:text=>{for(const key of text)send('keydown',{key});},restore(){send('keydown',{key:'Escape'});for(const [name,value]of Object.entries(saved))if(value===undefined)delete globalThis[name];else globalThis[name]=value;}};
 }
 test('clicked value boxes preview typed numbers, ignore movement while typing and apply only on acceptance',()=>{
@@ -88,5 +88,39 @@ test('sliding ignores unlocked cursor drift while waiting for the browser lock',
   f.send('pointerdown');f.send('pointermove',{clientX:5000,clientY:2000,movementX:1000});assert.equal(previews.at(-1),undefined);
   grant();await Promise.resolve();f.send('pointerup');f.send('mousemove',{clientX:5000,clientY:2000,movementX:6,movementY:1000});assert.equal(previews.at(-1),13,'only relative horizontal movement contributes after lock');
   f.send('pointerdown');assert.equal(value,13);assert.equal(f.doc.pointerLockElement,null);
+ }finally{dispose?.();f.restore();}
+});
+
+test('native slide acceptance commits the owned sample even if the field was resynchronized',()=>{
+ const f=environment();f.input.type='number';f.input.min='0';f.input.max='100';f.input.step='1';
+ try{
+  for(const accept of [()=>f.send('pointerdown'),()=>f.send('keydown',{key:'Enter'})]){
+   f.input.value='12';f.send('pointerdown');f.send('pointerup');f.send('mousemove',{movementX:12});assert.equal(f.input.value,'18');
+   f.input.value='12';accept();assert.equal(f.input.value,'18');assert.equal(f.input.events.at(-1),'change');assert.equal(f.doc.pointerLockElement,null);
+  }
+ }finally{f.restore();}
+});
+test('acceptance cannot restore the candidate through configuration teardown',()=>{
+ const f=environment();let value=12,committed,dispose;
+ try{
+  dispose=registerValueDrag(f.input,{read:()=>({value,step:1,pixelsPerStep:6}),input:n=>value=n,commit:()=>committed=value,cancel:n=>value=n,configure:{open(){},close(){value=12;}}});
+  f.send('pointerdown');f.send('pointerup');f.send('mousemove',{movementX:12});assert.equal(value,14);f.send('keydown',{key:'Enter'});assert.equal(committed,14);
+ }finally{dispose?.();f.restore();}
+});
+
+test('the numeric session owns the whole Enter press before general context handlers',()=>{
+ const f=environment();let value=12,dispose;const leaked=[];
+ try{
+  window.addEventListener('keydown',e=>{if(e.key==='Enter')leaked.push(e.type);});window.addEventListener('keyup',e=>{if(e.key==='Enter')leaked.push(e.type);});
+  dispose=bindOperationValueControl(f.input,{label:'Size',min:0,max:100,step:1,read:()=>value,preview(){},commit:n=>value=n,feedback:message=>assert.fail(message),loadDial:async()=>assert.fail('no dial')});
+  f.send('pointerdown');f.send('pointerup');f.send('mousemove',{movementX:12});f.send('keydown',{key:'Enter'});assert.equal(value,14);assert.deepEqual(leaked,[]);
+ }finally{dispose?.();f.restore();}
+});
+
+test('a registered numeric field keeps its declared parameter owner',()=>{
+ const f=environment();f.input.type='number';let committed,dispose;
+ try{
+  dispose=registerValueDrag(f.input,{read:()=>({value:12,step:1,pixelsPerStep:6}),input(){},commit:n=>committed=n,cancel(){}});
+  f.send('pointerdown');f.send('pointerup');f.send('mousemove',{movementX:12});f.send('pointerdown');assert.equal(committed,14);
  }finally{dispose?.();f.restore();}
 });

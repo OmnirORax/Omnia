@@ -73,6 +73,8 @@ import { field } from './ui/fields.ts';
 import { liveForm,flushLiveForms } from './ui/liveForm.ts';
 
 try{shortcuts.initialize(localStorage);}catch{/* Session-only bindings when storage is unavailable. */}
+// An active numeric session gets its inputs before scene and shortcut routing.
+installValueDrag();
 installPointerBindings(()=>view?.inputContext==='rotate'?'world':view?.inputContext??'world');
 const themeShortcutBinding=()=>shortcuts.get(THEME_COLORS_SHORTCUT);
 const hierarchyCommands=createHeldCommands(releaseShortcuts,()=>[
@@ -102,7 +104,6 @@ installReleaseShortcuts(event=>{
 installShortcutCapture();
 installPrimaryClickGate();
 installBrowserShortcutGuard();
-installValueDrag();
 installCursorTracking();
 const element = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const tools = element('tools'), status = element('status'), search = document.createElement('input');
