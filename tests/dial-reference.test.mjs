@@ -47,3 +47,11 @@ test('an external direct-value change invalidates pending marks without moving t
  controller.attachCancel('a','direct',()=>events.push('restore'));controller.select('a');
  assert.deepEqual(events,['restore']);assert.equal(controller.snapshot().host,before.host);assert.ok(controller.snapshot().selection.generation>before.selection.generation);
 });
+test('a center-only two-dot configuration survives confirmation without changing its value and sets the box increment',async()=>{
+ const {createDirectDialDraft}=await import('../src/composer/runtime/ui/mathematicalDialSource.ts'),{createOperationNumber}=await import('../src/ui/operationNumber.ts');
+ const writes=[];let configuration;
+ const number=createOperationNumber({label:'Value',value:10,min:0,max:100,integer:true,apply:(n,phase)=>{if(phase==='commit')writes.push(n);},reject:message=>assert.fail(message)});
+ const source=createMathematicalDialSource('center',()=>({value:number.value,min:0,max:100,integer:true,onConfigurationCommit:next=>configuration=next,onCommit:n=>number.commit(n,configuration)})),draft=createDirectDialDraft(source);
+ draft.configure({mode:'value',base:2,anchor:10,count:0,value:10,notation:{base:2,clockwise:true,marks:{selected:[],modes:{}}}});assert.deepEqual(writes,[]);assert.equal(draft.candidate,10);assert.equal(draft.accept(),true);assert.deepEqual(writes,[10]);
+ assert.equal(source.configuration('value').base,2);assert.equal(number.configuration.notation.base,2);const scrub=number.scrub();assert.equal(scrub.toValue(scrub.value+1),12);
+});

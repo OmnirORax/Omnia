@@ -3,7 +3,7 @@ import {DialDrawing} from './DialDrawing.tsx';
 import {dialDrawingGeometry} from './dialDrawingGeometry.ts';
 import {copyDialNotation} from '../../../properties/dialNotation.ts';
 import type {DialField} from '../../../ui/dialReferenceController.ts';
-import {dialGridValue,type DialValueGrid} from '../../../properties/dialValueGrid.ts';
+import {dialGridValue,dialGridCount,type DialValueGrid} from '../../../properties/dialValueGrid.ts';
 import {mathematicalDialScale} from './radialMenuState';
 import type {ConfirmedMathValue} from '../../../ui/operationNumber.ts';
 import {reportSystemMessage} from '../../../ui/systemMessage.ts';
@@ -91,10 +91,11 @@ export function MathematicalDialSurface({value,min,max,integer=false,label='Valu
   const candidate=paintMathematicalSlots(marks,[key],nextBrush,marks.selected.includes(key)),n=total(candidate);
   if(!candidate.selected.length&&!valid(n)){restore();setSample(candidate);}else if(accepted(n,candidate)){setSample(candidate);previewValue(n);}else{setSample(null);if(session.sampling){const previous=session.restore();if(onCancelPreview)onCancelPreview();else onPreview(previous);}}
  };
- const commit=(next:MathematicalMarks,n=total(next),count=countOf(next),direction=sign,withNotation=true)=>{
+ const configuration=(next:MathematicalMarks,n:number,count:number,direction:1|-1,withNotation:boolean,radix=base):ConfirmedMathValue=>({mode:scaling,base:radix,anchor:scaling==='value'?n:scaleAnchor.current,count:scaling==='value'?(grid?(next.selected.length?numeral(next,radix,direction):dialGridCount(grid,n)):0):count,value:n,...(withNotation?{notation:copyDialNotation({base:radix,clockwise:direction>0,marks:next})}:{}),...(scaling==='value'&&grid?{equilibrium:grid.equilibrium,snap:grid.snap}:{})});
+ const commit=(next:MathematicalMarks,n=total(next),count=countOf(next),direction=sign,withNotation=true,nextBase=base)=>{
   if(disabled)return;
   if(!valid(n)||scaling!=='value'&&count>(scaleMaximum??0)){reject(n,scaling==='value'?undefined:count);return;}
-  hover.current=null;setSample(null);setMarks(next);const configuration:ConfirmedMathValue={mode:scaling,anchor:scaling==='value'?n:scaleAnchor.current,count:scaling==='value'?(grid?(next.selected.length?numeral(next,base,direction):direction*count):0):count,value:n,...(withNotation?{notation:copyDialNotation({base,clockwise:direction>0,marks:next})}:{}),...(scaling==='value'&&grid?{equilibrium:grid.equilibrium,snap:grid.snap}:{})};onConfigurationCommit?.(configuration);onCommit(session.commit(n));
+  hover.current=null;setSample(null);setMarks(next);onConfigurationCommit?.(configuration(next,n,count,direction,withNotation,nextBase));onCommit(session.commit(n));
  };
  useLayoutEffect(()=>{if(typedCount===undefined)return;const n=scaling==='value'?(grid?dialGridValue(grid,sign*typedCount):mathematicalEditValue({anchor:anchor.current,index:sign*typedCount,rule:editing?.kind==='increment'?{kind:'increment',amount:editing.amount}:{kind:'value'}})):mathematicalScaleValue(scaleAnchor.current,typedCount,scaling);commit(emptyMarks(),n,typedCount);},[typedCount,sign]);
  const confirm=useValueConfirmation({owner:ringRef,candidate:()=>sample??undefined,onCommit:next=>{drag.current=null;setPainting(false);commit(next);},disabled,keyboard:!!sample});
@@ -133,7 +134,9 @@ export function MathematicalDialSurface({value,min,max,integer=false,label='Valu
   const g=radialDimensions(2,6,0,next*RADIAL_GEOMETRY.minimumSize);
   if(marks.selected.some(key=>{const [order,index]=key.split(':').map(Number);return index>=radialSlotCapacity(g.radius+order*g.size,g.size);})){onReject('Selected marks do not fit this base.');return;}
   if(marks.selected.length&&!accepted(total(marks,next),marks)){reject(total(marks,next),scaling==='value'?undefined:countOf(marks,next));return;}
-  restore();setBase(next);if(marks.selected.length)commit(marks,total(marks,next));
+  restore();setBase(next);
+  if(marks.selected.length)commit(marks,total(marks,next),countOf(marks,next),sign,true,next);
+  else onConfigurationCommit?.(configuration(marks,session.committed,initialConfiguration?.mode===scaling?initialConfiguration.count:0,sign,true,next));
  };
  const changeSign=()=>{
   const next:1|-1=sign===1?-1:1;
@@ -178,7 +181,7 @@ export function MathematicalDialSurface({value,min,max,integer=false,label='Valu
    const slot=event.target instanceof Element?event.target.closest<HTMLElement>('[data-math-slot]'):null;
    if(slot&&ringRef.current?.contains(slot)){const key=slot.dataset.mathSlot!,erase=marks.selected.includes(key)&&modeAt(marks,key)==='recursion';const next=paintMathematicalSlots(marks,[key],'recursion',erase);commit(next);}
   }}>
-   <button type="button" disabled={disabled} className="mathematical-dial-base" aria-label={grid?`${label} equilibrium`:'Numeral base'} onContextMenu={event=>{event.preventDefault();event.stopPropagation();if(!disabled)grid?commit(emptyMarks(),grid.equilibrium,0):changeBase(base===1?2:1);}} style={{width:base*minimum.size,height:base*minimum.size}}><span aria-hidden="true"/></button>
+   <button type="button" disabled={disabled} className="mathematical-dial-base" aria-label="Toggle numeral base" aria-pressed={base===2} onClick={()=>changeBase(base===1?2:1)} onContextMenu={event=>{event.preventDefault();event.stopPropagation();if(!disabled)changeBase(base===1?2:1);}} style={{width:base*minimum.size,height:base*minimum.size}}><span aria-hidden="true"/></button>
    <DialDrawing notation={{base,clockwise,marks:displayed}} geometry={geometry}/>
    {rings.map(({order,radius,count})=><span key={order} className="mathematical-dial-order" role="group" aria-label={`Ring ${order+1}, ${count} slots`}>
     <svg className="mathematical-dial-hover-band" width={extent} height={extent} aria-hidden="true"><circle cx={extent/2} cy={extent/2} r={radius} fill="none" stroke="transparent" strokeWidth={minimum.size}/></svg>
