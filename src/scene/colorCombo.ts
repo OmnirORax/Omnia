@@ -1,4 +1,4 @@
-import {extractScenePalette,paletteHex,paletteRGB,colorLuminance,type ScenePalette,type SceneTones} from './palette.ts';
+import {extractScenePalette,paletteHex,paletteRGB,colorLuminance,colorHue,type ScenePalette,type SceneTones} from './palette.ts';
 import {paletteInk,type PaletteSettings} from '../properties/textPalette.ts';
 import {writePaint} from '../core/appearance.ts';
 import type {World,Origin} from '../core/model.ts';
@@ -10,13 +10,16 @@ function readableAccent(color:string,ink:number,tones:SceneTones){if(ink<1)retur
 /** Rank defining chromatic accents separately from broad, weakly tinted scenery. */
 export function imageTextPalette(palette:ScenePalette,settings:PaletteSettings={}){
  const ranked=palette.accents.map(c=>{const rgb=paletteRGB(c.meanColor??c.color),hi=Math.max(...rgb),sat=hi?(hi-Math.min(...rgb))/hi:0;return {...c,score:(c.salience??Math.sqrt(c.weight)*sat**1.5)*sat**(4*Math.min(1,c.weight*2))};}).sort((a,b)=>b.score-a.score),best=ranked[0]?.score??0,totalChroma=ranked.reduce((sum,c)=>sum+c.weight,0),diversity=Math.exp(-ranked.reduce((sum,c)=>{const share=c.weight/Math.max(.000001,totalChroma);return sum+share*Math.log(share);},0)),cutoff=best*(.04+.21*((diversity-1)/7)**2);
- const selected=settings.match==='palette'?ranked.filter(c=>c.weight>=.025):ranked.filter(c=>c.score>=cutoff&&c.score>0).slice(0,8);
+ let selected=settings.match==='palette'?ranked.filter(c=>c.weight>=.025):ranked.filter(c=>c.score>=cutoff&&c.score>0).slice(0,8);
+ if(selected.length){const lead=selected[0],hue=(c:typeof lead)=>colorHue(paletteRGB(c.color)),distance=(c:typeof lead)=>{const d=Math.abs(hue(c)-hue(lead));return Math.min(d,360-d);},contrast=[...selected.slice(1)].sort((a,b)=>distance(b)-distance(a))[0]??lead;
+  if(settings.selection==='primary')selected=[lead];else if(settings.selection==='contrast')selected=[contrast];else if(settings.selection==='rare')selected=[[...selected].sort((a,b)=>a.weight-b.weight)[0]];else if(settings.selection==='pair')selected=contrast===lead?[lead]:[lead,contrast];
+ }
  let seed=settings.seed??1;seed=Math.imul(seed^(seed>>>16),0x45d9f3b);seed=Math.imul(seed^(seed>>>16),0x45d9f3b);seed=(seed^(seed>>>16))>>>0;const saturation=settings.saturation??(settings.pattern==='generated'?.4+.6*seed/4294967296:settings.ink==='color'),tones=palette.tones,ink=paletteInk(settings),stops=selected.map(c=>({textGlow:readableAccent(vivid(c.color,saturation),ink,tones),weight:settings.match==='palette'?c.weight:Math.sqrt(c.score)}));
  const white=palette.neutrals.filter(c=>Math.max(...paletteRGB(c.color))>=160).reduce((sum,c)=>sum+c.weight,0);
- const neutral=settings.match==='dark'?'#000000':settings.match==='light'?'#ffffff':white>.025?'#ffffff':undefined;
+ const neutral=settings.match==='dark'?'#000000':settings.match==='light'?'#ffffff':settings.match==='accents'?undefined:white>.025?'#ffffff':undefined;
  if(neutral&&stops.length<8)stops.push({textGlow:readableAccent(neutral,ink,tones),weight:stops.reduce((sum,c)=>sum+c.weight,0)*.3||1});
- if(tones.darkSupport&&settings.match!=='light'&&settings.match!=='dark'&&stops.length<8)stops.push({textGlow:readableAccent('#000000',ink,tones),weight:stops.reduce((sum,c)=>sum+c.weight,0)*.3||1});
- if(!stops.length)stops.push({textGlow:'#ffffff',weight:1});const total=stops.reduce((sum,c)=>sum+c.weight,0);
+ if(tones.darkSupport&&settings.match!=='light'&&settings.match!=='dark'&&settings.match!=='accents'&&stops.length<8)stops.push({textGlow:readableAccent('#000000',ink,tones),weight:stops.reduce((sum,c)=>sum+c.weight,0)*.3||1});
+ if(!stops.length)stops.push({textGlow:'#ffffff',weight:1});if(settings.balance!==undefined&&stops.length>1){const remainder=stops.slice(1).reduce((n,c)=>n+c.weight,0);stops[0].weight=settings.balance;for(const c of stops.slice(1))c.weight=(1-settings.balance)*c.weight/remainder;}const total=stops.reduce((sum,c)=>sum+c.weight,0);
  return stops.slice(0,8).map(c=>({...c,strength:ink,darkSupport:tones.darkSupport,weight:c.weight/total,text:paletteHex(paletteRGB(c.textGlow).map(v=>255*(1-ink)+v*ink))}));
 }
 export function matchedImageColors(combo:ImageColorCombo,settings:PaletteSettings={}){

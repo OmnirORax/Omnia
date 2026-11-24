@@ -16,7 +16,7 @@ export function generatedTextPalette(p:TextPalette){
  // Equalize the field before mapping palette weights: midpoints cannot swallow the image.
  const histogram=new Uint32Array(256),quantiles=new Float32Array(256),bin=(n:number)=>Math.max(0,Math.min(255,Math.floor((n-low)/Math.max(.000001,high-low)*255)));for(const n of field)histogram[bin(n)]++;
  let covered=0;for(let i=0;i<256;i++){quantiles[i]=(covered+histogram[i]*.5)/count;covered+=histogram[i];}
- const colors=p.colors.map(c=>paletteRGB(c).map(v=>v/255)),mass=p.colors.map((_,i)=>p.weights?.[i]??1),massTotal=mass.reduce((a,b)=>a+b,0),edges:number[]=[];let cumulative=0;for(const w of mass){cumulative+=w/massTotal;edges.push(cumulative);}const softness=.04+random()*.18;
+ const colors=p.colors.map(c=>paletteRGB(c).map(v=>v/255)),mass=p.colors.map((_,i)=>p.weights?.[i]??1),massTotal=mass.reduce((a,b)=>a+b,0),edges:number[]=[];let cumulative=0;for(const w of mass){cumulative+=w/massTotal;edges.push(cumulative);}const softness=p.softness??(.04+random()*.18);
  for(let i=0;i<count;i++){const at=i*4,t=quantiles[bin(field[i])];let chosen=edges.findIndex(edge=>t<edge);if(chosen<0)chosen=colors.length-1;let rgb=colors[chosen];for(let j=0;j<colors.length-1;j++){const half=Math.min(mass[j],mass[j+1])/massTotal*softness;if(Math.abs(t-edges[j])<half){const blend=(t-edges[j]+half)/(2*half);rgb=colors[j].map((v,k)=>v+(colors[j+1][k]-v)*blend);break;}}
   for(let c=0;c<3;c++){glow[at+c]=Math.round(rgb[c]*255);ink[at+c]=Math.round(255*(1-strength+strength*rgb[c]));}glow[at+3]=ink[at+3]=255;
  }

@@ -1,3 +1,4 @@
+import {TEXT_EMISSION_THRESHOLD} from './properties/textGlow.ts';
 import {generatedTextPalette,GENERATED_PALETTE_SIZE} from './properties/generatedTextPalette.ts';
 import {textPaletteStops,paletteLayout,paletteSpread,paletteInk,PALETTE_STOP_LIMIT,type TextPalette} from './properties/textPalette.ts';
 import * as T from 'three';
@@ -55,6 +56,7 @@ export function packedTextureGlow(material:T.MeshBasicMaterial){
     float clean=coverage.r,halo=max(0.0,coverage.g-clean),total=clean+halo;
     vec3 ink=diffuseColor.rgb,glow=glowInkColor;
     if(textPaletteCount>1&&total>0.0){vec3 hue=paletteGlow(vMapUv);ink=paletteLinear(mix(vec3(1.0),hue,textPaletteInk));glow=paletteLinear(hue);}
+    halo*=step(${TEXT_EMISSION_THRESHOLD},max(glow.r,max(glow.g,glow.b)));total=clean+halo;
     diffuseColor.rgb=(ink*clean+glow*halo)/max(total,.00001);
     diffuseColor.a*=total;
    `:'diffuseColor.a*=coverage.r;';
@@ -67,6 +69,6 @@ export function packedTextureGlow(material:T.MeshBasicMaterial){
     ${coverage}
     #endif
    `);
-  };target.customProgramCacheKey=()=>target===material?'omnium.packed-text-glow.base.v7':'omnium.packed-text-glow.mask.v3';
+  };target.customProgramCacheKey=()=>target===material?'omnium.packed-text-glow.base.v8':'omnium.packed-text-glow.mask.v3';
  });
 }

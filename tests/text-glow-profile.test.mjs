@@ -21,3 +21,6 @@ test('neon changes halo strength without whitening ink; retired text alpha is ig
  assert.equal(high.textShadow.match(/#00aaffff/g).length,3);
  assert.equal(textStyle({...paint,glow:2,opacity:0}).textShadow.match(/#00aaffff/g).length,3);
 });
+test('black ink keeps its color but has no blurred black light halo',()=>{
+ for(const color of ['#000000','#000000ff','#000','black','rgba(0, 0, 0, 1)','rgb(0 0 0 / 50%)'])assert.equal(textGlowShadow(2,color,6),'none');const paint=textStyle({color:'#000000',glowColor:'#000000',glow:2});assert.equal(paint.color,'#000000ff');assert.equal(paint.textShadow,'none');assert.notEqual(textGlowShadow(2,'#ff0000',6),'none');assert.notEqual(textStyle({color:'#000000',glowColor:'#00ffff',glow:2}).textShadow,'none');
+});
