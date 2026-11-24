@@ -1,7 +1,7 @@
 import {setTextPaint} from '../properties/textPaint.ts';
 import {WORLD_TEXT_LAYER,nativeTextMaterial} from './textPass.ts';
 import {textGlowLayers} from '../properties/textGlow.ts';
-import {packedTextureGlow,packGlowCoverage,updateTextureGlowColor} from '../textureGlow.ts';
+import {packedTextureGlow,packGlowCoverage,updateTextureGlowColor,updateTextureTextPalette} from '../textureGlow.ts';
 import {imageHull} from './contentEnvelope.ts';
 import * as THREE from 'three';
 import {labelLines,labelSize} from '../composer/runtime/graph/labels.ts';
@@ -129,6 +129,7 @@ export function updateLabelPaint(mesh:ReturnType<typeof textSprite>,paint:Paint=
  const style={...TEXT_DEFAULTS,...paint};
  const nextScale=fontSizeScale(style),oldScale=mesh.userData.labelFontScale??1;if(nextScale!==oldScale){mesh.scale.multiplyScalar(nextScale/oldScale);mesh.userData.labelFontScale=nextScale;}
  const rendered=setTextPaint({setColor:color=>{mesh.material.color.set(color);mesh.userData.textColor=color;},setGlow:(color,strength,spread)=>{const ink=mesh.userData.textColor as string;mesh.userData.setTextStyle(ink,ink,strength,spread);updateTextureGlowColor(mesh.material,color);}},paint);
+ updateTextureTextPalette(mesh.material,paint.palette);
  mesh.userData.glowColor=style.glowColor===undefined?undefined:rendered.glowColor;
  mesh.material.opacity=1;
  mesh.userData.labelPaint=style;mesh.userData.textColor=rendered.color;

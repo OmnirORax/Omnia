@@ -1,3 +1,4 @@
+import {documentPalette,showDocumentPalette,createDocumentPalettePaint} from './palettePresentation.ts';
 import {createDocumentPaintSession} from './paintSession.ts';
 import {fontSizeScale} from '../properties/visual.ts';
 import {documentHistoryBindings} from './historyBindings.ts';
@@ -37,12 +38,12 @@ import { documentPresentation,refreshDocumentGlyphs } from './presentation.ts';
 export function editDocument(origin: Origin, read: () => World, commit: (text: NodeText) => void, feedback: (message: string) => void, closed?: () => void) {
   const current = locate(read(), origin); if (!current) return;
   let releaseActions:(()=>void)|undefined;
-  let releaseShortcuts:(()=>void)|undefined;
+  let releaseShortcuts:(()=>void)|undefined,releasePalette:(()=>void)|undefined;
   let syncing=false,failed = false, editor: EditorView | undefined;
   const actual = inherited(current, read()), source = toSource(actual.text ?? { version: 1, content: [] });
   const view = panel(actual.label || 'Document', () => {
     if (failed) { save(); if (failed && !confirm('These document changes could not be saved. Close and discard them?')) return false; }
-    releaseActions?.();releaseShortcuts?.();editor?.destroy(); closed?.();
+    releaseActions?.();releaseShortcuts?.();releasePalette?.();editor?.destroy(); closed?.();
   },'default','edge');
   view.root.classList.add('node-document-panel');
   function save() {
@@ -51,7 +52,7 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
       const text = fromSource(sliceSource(editor.state));syncing=true;try{commit(text);failed=false;}finally{syncing=false;}
     } catch (error) { failed = true; feedback(error instanceof Error ? error.message : String(error)); }
   }
-  const host = document.createElement('div');host.className = 'document-content';view.body.append(host);
+  const host = document.createElement('div');host.className = 'document-content';view.body.append(host);const palettePaint=createDocumentPalettePaint(host);releasePalette=palettePaint.dispose;
   host.addEventListener('keydown',event => {event.stopPropagation();});
   host.addEventListener('keydown',event=>{if(event.key==='Escape'&&event.repeat){event.preventDefault();event.stopImmediatePropagation();}},true);
   const run = (command: StateCommand) => { if (editor) { command(editor); editor.focus(); } };
@@ -95,7 +96,7 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
   editor = new EditorView({ parent:host, state:EditorState.create({ doc:source.text, extensions:[
     EditorState.allowMultipleSelections.of(true), glyphField.init(() => source.glyphs), glyphHistory, history(),compactDocumentPaste,documentBrackets,lexiconAnnotations(read),
     EditorView.clickAddsSelectionRange.of(event => event.altKey), documentMouseSelection(), drawSelection({drawRangeCursor:true,cursorBlinkRate:1000}), EditorView.lineWrapping, scrollPastEnd(),
-    markdown({ extensions:[Strikethrough,TaskList],addKeymap:false }), codeFolding(), documentListLayout, documentWordCounter(view.setTitleDetail), documentPresentation(read),
+    markdown({ extensions:[Strikethrough,TaskList],addKeymap:false }), codeFolding(), documentListLayout, documentWordCounter(view.setTitleDetail), documentPresentation(read),documentPalette,
     syntaxHighlighting(HighlightStyle.define([
       { tag:tags.strong,fontWeight:'bold',fontSynthesis:'weight',WebkitTextStroke:'var(--visual-text-bold-stroke, 0em currentColor)' }, { tag:tags.emphasis,fontStyle:'italic' }, { tag:tags.strikethrough,textDecoration:'line-through' },
       { tag:tags.monospace,fontFamily:'ui-monospace, monospace',backgroundColor:'#ffffff08' },
@@ -148,7 +149,7 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
     paintSession.render(readPaint(read(),'nodeText',origin));
   }
   function applyDocumentPaint(paint:import('../properties/visual.ts').Paint){
-    setDOMTextPaint(host.style,paint);
+    setDOMTextPaint(host.style,paint);if(palettePaint.render(paint))editor?.dispatch({effects:showDocumentPalette.of(paint.palette?.mode==='text'&&paint.palette.colors.length>1)});
     host.style.fontSize=`${fontSize*fontSizeScale(paint)}px`;
     host.style.setProperty('--document-text-color',host.style.color);
     host.style.setProperty('--document-text-shadow',host.style.textShadow);

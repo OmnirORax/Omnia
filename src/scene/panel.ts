@@ -72,8 +72,9 @@ export function scenePanel(host: Host,initialTab:SceneTab='image') {
       throw Error('No image found on the clipboard.');
     }).disabled=!library.writable();
     const autoRow=document.createElement('label'),auto=document.createElement('input');auto.type='checkbox';auto.checked=!!host.read().appearance?.imageColors?.[autoColorKey(target)]?.enabled;autoRow.append(document.createTextNode('Auto image colors'),auto);body.append(autoRow);
-    auto.onchange=()=>host.change(world=>configureAutoColors(world,target,auto.checked));
-    button('Restore auto colors',()=>{host.change(world=>configureAutoColors(world,target,true,true));auto.checked=true;});
+    auto.onchange=()=>{paletteMode.disabled=!auto.checked;host.change(world=>configureAutoColors(world,target,auto.checked));};
+    const paletteMode=document.createElement('select');paletteMode.setAttribute('aria-label','Image color distribution');for(const [value,label]of [['text','Within text'],['nodes','Across nodes']]){const option=document.createElement('option');option.value=value;option.textContent=label;paletteMode.append(option);}paletteMode.disabled=!auto.checked;paletteMode.value=host.read().appearance?.imageColors?.[autoColorKey(target)]?.mode??'text';paletteMode.onchange=()=>host.change(world=>configureAutoColors(world,target,auto.checked,false,paletteMode.value==='nodes'?'nodes':'text'));body.append(paletteMode);
+    button('Restore auto colors',()=>{host.change(world=>configureAutoColors(world,target,true,true));auto.checked=true;paletteMode.disabled=false;});
     button('Clear background', () => assign(null));
     if (target) button('Use default background', () => host.change(world => { const node = locate(world, target!); if (node) delete node.scene; }));
     const list = document.createElement('div'); body.append(list);

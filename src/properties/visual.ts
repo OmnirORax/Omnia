@@ -1,3 +1,4 @@
+import {validTextPalette,type TextPalette} from './textPalette.ts';
 import {RETIRED_TEXT_CHANNELS,retireTextChannels} from './textChannels.ts';
 export {retireTextChannels} from './textChannels.ts';
 import {TEXT_GLOW_MAX,TEXT_GLOW_SPREAD} from './textGlow.ts';
@@ -14,7 +15,8 @@ export const FONT_OPTIONS = [
   { id:'mono',label:'Monospace',family:'ui-monospace, SFMono-Regular, Consolas, monospace' },
   { id:'electric',label:'Rubik Glitch',family:"'Rubik Glitch', system-ui, sans-serif" },
 ] as const;
-export type Paint = { color?: string; brightness?:number; brightnessEnabled?:boolean; opacity?:number; glowColor?:string; translucency?: number; glow?: number; glowSpread?:number; font?: string; fontName?:string; fontSize?:number; embolden?: number };
+export type Paint = { color?: string; brightness?:number; brightnessEnabled?:boolean; opacity?:number; glowColor?:string; translucency?: number; glow?: number; glowSpread?:number; font?: string; fontName?:string; fontSize?:number; palette?:TextPalette; embolden?: number };
+export type PaintField=Exclude<keyof Paint,'palette'>;
 export type Appearance = { imageColors?:Record<string,import('../scene/autoColors.ts').AutoColorRule>; text?: Paint; background?: Paint; nodes?: NodePaint };
 export const color = property({key:'color',label:'Color',kind:'color'});
 export const translucency = property({key:'translucency',label:'Translucency',kind:'number',min:0,max:1,step:.01});
@@ -41,6 +43,7 @@ export function validatePaint(paint: Paint | undefined, text: boolean) {
     paint.glow!==undefined&&(!Number.isFinite(paint.glow)||paint.glow<0||paint.glow>TEXT_GLOW_MAX) ||
     paint.glowSpread!==undefined&&(!text||!Number.isFinite(paint.glowSpread)||paint.glowSpread<TEXT_GLOW_SPREAD.min||paint.glowSpread>TEXT_GLOW_SPREAD.max) ||
     paint.brightness!==undefined&&(!Number.isFinite(paint.brightness)||paint.brightness<0||paint.brightness>1) ||
+    paint.palette!==undefined&&(!text||!validTextPalette(paint.palette)) ||
     paint.fontSize!==undefined&&(!text||!Number.isInteger(paint.fontSize)||paint.fontSize<FONT_SIZE.min||paint.fontSize>FONT_SIZE.max) ||
     paint.fontName!==undefined&&(!text||typeof paint.fontName!=='string'||!paint.fontName.trim()||paint.fontName.length>160) ||
     paint.font!==undefined&&(!text||!FONT_OPTIONS.some(font=>font.id===paint.font)&&!isImportedFont(paint.font)) ||
@@ -49,7 +52,7 @@ export function validatePaint(paint: Paint | undefined, text: boolean) {
 export function validateAppearance(value: Appearance | undefined) {
   if(value===undefined)return;
   if(!value||typeof value!=='object'||Array.isArray(value))throw Error('Invalid appearance.');
-  if(value.imageColors!==undefined){if(!value.imageColors||typeof value.imageColors!=='object'||Array.isArray(value.imageColors)||Object.keys(value.imageColors).length>1000)throw Error('Invalid image colour rules.');for(const [key,rule]of Object.entries(value.imageColors)){if(key.length>200||!rule||typeof rule.enabled!=='boolean'||rule.inherit!==undefined&&typeof rule.inherit!=='boolean'||!Array.isArray(rule.manual)||rule.manual.length>4||rule.manual.some(channel=>!['text','textGlow','node','nodeGlow'].includes(channel)))throw Error('Invalid image colour rule.');if(key!=='default'){try{const origin=JSON.parse(key);if(!Number.isFinite(origin.born)||!Array.isArray(origin.at)||origin.at.length!==3||origin.at.some((v:unknown)=>typeof v!=='number'||!Number.isFinite(v)))throw Error();}catch{throw Error('Invalid image colour target.');}}}}
+  if(value.imageColors!==undefined){if(!value.imageColors||typeof value.imageColors!=='object'||Array.isArray(value.imageColors)||Object.keys(value.imageColors).length>1000)throw Error('Invalid image colour rules.');for(const [key,rule]of Object.entries(value.imageColors)){if(key.length>200||!rule||rule.mode!==undefined&&!['text','nodes'].includes(rule.mode)||typeof rule.enabled!=='boolean'||rule.inherit!==undefined&&typeof rule.inherit!=='boolean'||!Array.isArray(rule.manual)||rule.manual.length>4||rule.manual.some(channel=>!['text','textGlow','node','nodeGlow'].includes(channel)))throw Error('Invalid image colour rule.');if(key!=='default'){try{const origin=JSON.parse(key);if(!Number.isFinite(origin.born)||!Array.isArray(origin.at)||origin.at.length!==3||origin.at.some((v:unknown)=>typeof v!=='number'||!Number.isFinite(v)))throw Error();}catch{throw Error('Invalid image colour target.');}}}}
   retireTextChannels(value.text);if(value.background){delete value.background.glow;delete value.background.glowColor;}validatePaint(value.text,true);validatePaint(value.background,false);validateNodePaint(value.nodes);
   delete (value as Appearance&{animations?:unknown}).animations;
 }

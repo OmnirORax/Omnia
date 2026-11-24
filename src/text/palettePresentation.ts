@@ -1,0 +1,34 @@
+import {StateEffect} from '@codemirror/state';
+import {Decoration,ViewPlugin,type EditorView,type ViewUpdate,type DecorationSet} from '@codemirror/view';
+import {glyphField,glyphIndexAt} from './source.ts';
+import {textPaletteCSS} from '../properties/textPalette.ts';
+import {textGlowLayers} from '../properties/textGlow.ts';
+import type {Paint} from '../properties/visual.ts';
+export const showDocumentPalette=StateEffect.define<boolean>();
+/** Only visible text runs are decorated; glyph widgets remain separate presentations. */
+export const documentPalette=ViewPlugin.fromClass(class{
+ enabled=false;decorations:DecorationSet=Decoration.none;
+ update(update:ViewUpdate){let changed=false;for(const tr of update.transactions)for(const effect of tr.effects)if(effect.is(showDocumentPalette)){this.enabled=effect.value;changed=true;}
+  if(changed||update.docChanged||update.viewportChanged)this.decorations=this.build(update.view);
+ }
+ build(view:EditorView){if(!this.enabled)return Decoration.none;const ranges=[],glyphs=view.state.field(glyphField),mark=Decoration.mark({class:'cm-image-palette'});
+  for(const visible of view.visibleRanges){let at=visible.from;while(at<visible.to){const line=view.state.doc.lineAt(at),end=Math.min(line.to,visible.to);let start=at;for(let i=glyphIndexAt(glyphs,at);i<glyphs.length&&glyphs[i].at<end;i++){if(glyphs[i].at>start)ranges.push(mark.range(start,glyphs[i].at));start=glyphs[i].at+1;}if(start<end)ranges.push(mark.range(start,end));at=line.to+1;}}
+  return Decoration.set(ranges,true);
+ }
+},{decorations:plugin=>plugin.decorations});
+let sequence=0;
+/** One filter per document, updated on paint changes, with the existing neon profile. */
+export function createDocumentPalettePaint(host:HTMLElement){
+ const id=`document-palette-${++sequence}`;let svg:SVGSVGElement|undefined,filter:SVGElement|undefined,key='',enabled=false;
+ const element=(name:string,attributes:Record<string,string|number>)=>{const node=document.createElementNS('http://www.w3.org/2000/svg',name);for(const [key,value]of Object.entries(attributes))node.setAttribute(key,String(value));return node;};
+ return {render(paint:Paint){const active=paint.palette?.mode==='text'&&paint.palette.colors.length>1,changed=active!==enabled;enabled=active;
+  if(active){host.style.setProperty('--document-palette-gradient',textPaletteCSS(paint.palette!));const layers=textGlowLayers(paint.glow??0,paint.glowSpread),next=JSON.stringify(layers);
+   if(next!==key&&layers.length){key=next;if(!svg){svg=element('svg',{width:0,height:0,'aria-hidden':'true'}) as SVGSVGElement;svg.style.position='absolute';svg.style.pointerEvents='none';filter=element('filter',{id,x:'-50%',y:'-200%',width:'200%',height:'500%','color-interpolation-filters':'sRGB'});svg.append(filter);document.body.append(svg);}
+    filter!.replaceChildren();const transfer=element('feComponentTransfer',{in:'SourceGraphic',result:'glowColor'});for(const channel of ['R','G','B'])transfer.append(element(`feFunc${channel}`,{type:'linear',slope:4,intercept:-3}));filter!.append(transfer);
+    const merge=element('feMerge',{});for(const [i,layer]of layers.entries()){filter!.append(element('feGaussianBlur',{in:'glowColor',stdDeviation:layer.blur/2,result:`blur${i}`}));const opacity=element('feComponentTransfer',{in:`blur${i}`,result:`halo${i}`});opacity.append(element('feFuncA',{type:'linear',slope:layer.opacity}));filter!.append(opacity);merge.append(element('feMergeNode',{in:`halo${i}`}));}merge.append(element('feMergeNode',{in:'SourceGraphic'}));filter!.append(merge);
+   }
+   host.style.setProperty('--document-palette-filter',layers.length?`url(#${id})`:'none');
+  }else{host.style.removeProperty('--document-palette-gradient');host.style.removeProperty('--document-palette-filter');}
+  return changed;
+ },dispose(){svg?.remove();}};
+}

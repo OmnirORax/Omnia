@@ -1,3 +1,4 @@
+import {paletteProjection,textPalettePair} from '../properties/textPalette.ts';
 import {NODE_VISUAL_DEFAULTS,validateNodePaint,type NodePaint} from '../properties/nodeVisuals.ts';
 import {brightHex} from '../composer/runtime/appearance/resolve.ts';
 import { locate, type Origin, type World, type Structure } from './model.ts';
@@ -44,17 +45,18 @@ export function readPaint(world:World,target:VisualTarget,origin?:Origin):NodePa
 export function writePaint(world: World, target: VisualTarget, origins: readonly Origin[], patch: NodePaint,mode:'manual'|'automatic'='manual') {
   if(target==='nodes'||target==='nodeDefaults')validateNodePaint(patch);else validatePaint(patch,target==='nodeText'||target==='text');
   if(mode==='manual'&&target!=='background')for(const origin of target==='nodes'||target==='nodeText'?origins:[undefined]){const key=origin?JSON.stringify(origin):'default',existing=world.appearance?.imageColors?.[key],rule=existing??(origin&&world.appearance?.imageColors?.default?.enabled?{enabled:false,inherit:true,manual:[]}:undefined);if(!rule?.enabled&&!rule?.inherit)continue;const text=target==='text'||target==='nodeText',manual=[...new Set([...rule.manual,...(patch.color!==undefined?[text?'text' as const:'node' as const]:[]),...(patch.glowColor!==undefined?[text?'textGlow' as const:'nodeGlow' as const]:[])])];world.appearance={...world.appearance,imageColors:{...world.appearance!.imageColors,[key]:{...rule,manual}}};}
+  const clearPalette=(target==='text'||target==='nodeText')&&patch.palette===undefined&&('palette' in patch||mode==='manual'&&(patch.color!==undefined||patch.glowColor!==undefined));
   if(target==='nodes'||target==='nodeText')for(const origin of origins){
     const node=locate(world,origin);if(!node)continue;
     if(target==='nodes'){
       const bindings=capabilities(node).flatMap(capability=>capability.properties);
-      for(const [key,value] of Object.entries(patch))if(typeof value!=='boolean')bindings.find(binding=>binding.property.key===key)?.write(value);
+      for(const [key,value] of Object.entries(patch))if(typeof value==='number'||typeof value==='string')bindings.find(binding=>binding.property.key===key)?.write(value);
     }else{
-      node.textAppearance={...inherited(node,world).textAppearance,...patch};
+      node.textAppearance={...inherited(node,world).textAppearance,...patch};if(clearPalette)delete node.textAppearance.palette;
       if(node.variantOf)node.overrides=[...new Set([...(node.overrides??[]),'textAppearance'])];
     }
   }
-  else {world.appearance??={};const key=target==='nodeDefaults'?'nodes':target==='text'?'text':'background';world.appearance[key]={...world.appearance[key],...patch};}
+  else {world.appearance??={};const key=target==='nodeDefaults'?'nodes':target==='text'?'text':'background';world.appearance[key]={...world.appearance[key],...patch};if(clearPalette)delete world.appearance[key]!.palette;}
 }
 export function resetPaint(world: World,target: VisualTarget,origins: readonly Origin[]) {
   if(target==='nodes'||target==='nodeText')for(const origin of origins){
@@ -73,13 +75,20 @@ export function paintPreview(world:World,target:VisualTarget,origins:readonly Or
  const candidate={...world,appearance:{...world.appearance},nodes:local?world.nodes.map(node=>selected.has(JSON.stringify(node.origin))?{...node}:node):world.nodes};
  writePaint(candidate,target,origins,patch);return candidate;
 }
+export function invalidateTextPaletteProjection(world:World){projections.delete(world);}
+const projections=new WeakMap<World,ReturnType<typeof paletteProjection>>();
+function projection(world:World){let read=projections.get(world);if(!read){read=paletteProjection(world.nodes);projections.set(world,read);}return read;}
 function resolvedNodeTextPaint(world:World,actual?:Structure,lookup:(origin:Origin)=>Structure|undefined=origin=>locate(world,origin)){
  const local=actual?.textAppearance,paint={...world.appearance?.text,...local,...(local?.font!==undefined?{fontName:local.fontName}:{})},rules=world.appearance?.imageColors,rule=actual&&rules?.[JSON.stringify(actual.origin)];
  if(rules?.default?.enabled){
   const manual=new Set(rule?.manual);let blocked=!!rule&&(rule.enabled||!rule.inherit),parent=actual?.variantOf;const seen=new Set<Structure>();
   while(parent&&!blocked){const source=lookup(parent);if(!source||seen.has(source))break;seen.add(source);const inheritedRule=rules[JSON.stringify(source.origin)];if(inheritedRule){blocked=inheritedRule.enabled||!inheritedRule.inherit;for(const channel of inheritedRule.manual)manual.add(channel);}parent=source.variantOf;}
+  if(blocked&&local?.palette===undefined&&(local?.color!==undefined||local?.glowColor!==undefined))paint.palette=undefined;
+  if(!blocked){paint.palette=manual.has('text')||manual.has('textGlow')?undefined:world.appearance?.text?.palette;}
   if(!blocked)for(const [field,channel]of [['color','text'],['glowColor','textGlow']] as const)if(!manual.has(channel)){const value=world.appearance?.text?.[field];if(value!==undefined)paint[field]=value;}
  }
+ if(!rules?.default?.enabled&&local?.palette===undefined&&(local?.color!==undefined||local?.glowColor!==undefined))paint.palette=undefined;
+ if(paint.palette?.mode==='nodes'&&actual)Object.assign(paint,textPalettePair(paint.palette,projection(world)(actual.position)));
  return resolvedTextPaint(paint);
 }
 export function nodeTextPaint(world:World,actual:Structure,lookup?:(origin:Origin)=>Structure|undefined){return resolvedNodeTextPaint(world,actual,lookup);}
