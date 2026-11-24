@@ -7,7 +7,7 @@ export type AutoColorChannel='text'|'textGlow'|'node'|'nodeGlow';
 export type AutoColorRule={enabled:boolean;manual:AutoColorChannel[]};
 export const autoColorKey=(origin?:Origin)=>origin?JSON.stringify(origin):'default';
 export function configureAutoColors(world:World,origin:Origin|undefined,enabled:boolean,reset=false){const key=autoColorKey(origin);world.appearance??={};world.appearance.imageColors={...world.appearance.imageColors,[key]:{enabled,manual:reset?[]:world.appearance.imageColors?.[key]?.manual??[]}};}
-function autoImageReader(world:World){let nodes:Map<string,World['nodes'][number]>|undefined;const inherit=createInheritanceReader(world);return(key:string)=>{if(key==='default')return world.scene?world.scene.image:DEFAULT_BACKGROUND.id;nodes??=new Map(world.nodes.map(node=>[JSON.stringify(node.origin),node]));const node=nodes.get(key);if(!node)return null;const actual=inherit(node);return actual.scene!==undefined?actual.scene:world.scene?world.scene.image:DEFAULT_BACKGROUND.id;};}
+function autoImageReader(world:World){let nodes:Map<string,World['nodes'][number]>|undefined;let inherit:ReturnType<typeof createInheritanceReader>|undefined;return(key:string)=>{if(key==='default')return world.scene?world.scene.image:DEFAULT_BACKGROUND.id;nodes??=new Map(world.nodes.map(node=>[JSON.stringify(node.origin),node]));const node=nodes.get(key);if(!node)return null;const actual=(inherit??=createInheritanceReader(world))(node);return actual.scene!==undefined?actual.scene:world.scene?world.scene.image:DEFAULT_BACKGROUND.id;};}
 export const autoColorImage=(world:World,key:string)=>autoImageReader(world)(key);
 
 /** One serial analysis queue, cached by source image; results are checked again before applying. */
