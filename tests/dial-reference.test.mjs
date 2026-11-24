@@ -31,3 +31,19 @@ test('source fields preserve one accepted number and its exact notation across p
  props.max=8;assert.equal(source.receive(),true);assert.equal(source.configuration('min').value,2);assert.equal(source.configuration('value').value,4);
  props.value=6;assert.equal(source.receive(),true);assert.equal(source.configuration('value'),undefined);assert.equal(source.field('value').value,6);
 });
+
+test('direct dot selections add in preview and write once only on explicit confirmation',async()=>{
+ const {createDirectDialDraft}=await import('../src/composer/runtime/ui/mathematicalDialSource.ts');
+ const writes=[],previews=[],props={value:0,min:0,max:100,onPreview:n=>previews.push(n),onCommit:n=>writes.push(n)};
+ const source=createMathematicalDialSource('direct',()=>props),draft=createDirectDialDraft(source);
+ draft.configure({mode:'value',anchor:6,count:0,value:6,notation:{base:2,clockwise:true,marks:{selected:['0:0','0:1'],modes:{}}}});
+ draft.choose(2);draft.choose(6);assert.deepEqual(writes,[]);assert.equal(source.field('value').value,0);assert.equal(draft.candidate,6);
+ draft.hover(8);draft.restorePreview();assert.equal(previews.at(-1),6);assert.equal(draft.accept(),true);assert.deepEqual(writes,[6]);assert.deepEqual(source.configuration('value').notation.marks.selected,['0:0','0:1']);
+ const cancelled=createDirectDialDraft(source);cancelled.choose(12);cancelled.cancel();assert.deepEqual(writes,[6]);assert.equal(previews.at(-1),6);
+});
+
+test('an external direct-value change invalidates pending marks without moving the dial host',()=>{
+ const controller=createDialReferenceController(),source={},events=[];controller.register('a',source);const before=controller.snapshot();
+ controller.attachCancel('a','direct',()=>events.push('restore'));controller.select('a');
+ assert.deepEqual(events,['restore']);assert.equal(controller.snapshot().host,before.host);assert.ok(controller.snapshot().selection.generation>before.selection.generation);
+});
