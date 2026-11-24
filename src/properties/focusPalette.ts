@@ -17,7 +17,7 @@ function deriveImageRatio(weights:readonly number[]){
 }
 export const isFocusPalette=(p:TextPalette)=>p.distribution!==undefined;
 export function focusRatio(p:TextPalette){return minimumRatio(p.imageRatio?.length===p.colors.length?p.imageRatio:imageRatio(p.weights??p.colors.map(()=>1)));}
-export type FocusPattern={key:string;indices:number[];glow:Uint8Array;ink:Uint8Array;css?:string};
+export type FocusPattern={key:string;indices:number[];glow:Uint8Array;ink:Uint8Array;css?:string;verticalCSS?:string};
 const patterns=new Map<string,FocusPattern>();
 /** Every arrangement owns only order; the image-derived integer counts stay fixed. */
 export function focusSequence(ratio:readonly number[],distribution:TextPalette['distribution']='balanced'){
@@ -48,5 +48,7 @@ export function focusPattern(p:TextPalette){
  for(let i=0;i<indices.length;i++){for(let c=0;c<3;c++){glow[i*4+c]=colors[indices[i]][c];ink[i*4+c]=Math.round(255*(1-strength)+glow[i*4+c]*strength);}glow[i*4+3]=ink[i*4+3]=255;}
  found={key,indices,glow,ink};patterns.set(key,found);if(patterns.size>16)patterns.delete(patterns.keys().next().value!);return found;
 }
-export function focusPaletteCSS(p:TextPalette){const pattern=focusPattern(p);if(!pattern.css){const canvas=document.createElement('canvas');canvas.width=pattern.indices.length;canvas.height=1;const ctx=canvas.getContext('2d')!,pixels=ctx.createImageData(canvas.width,1);pixels.data.set(pattern.ink);ctx.putImageData(pixels,0,0);pattern.css=`url("${canvas.toDataURL('image/png')}")`;}return pattern.css;}
+export const focusPaletteAxis=(p:TextPalette)=>p.distributionAxis==='vertical'?1:0;
+export function focusPaletteCSS(p:TextPalette){const pattern=focusPattern(p),vertical=focusPaletteAxis(p)===1,key=vertical?'verticalCSS':'css';if(!pattern[key]){const canvas=document.createElement('canvas');canvas.width=vertical?1:pattern.indices.length;canvas.height=vertical?pattern.indices.length:1;const ctx=canvas.getContext('2d')!,pixels=ctx.createImageData(canvas.width,canvas.height);pixels.data.set(pattern.ink);ctx.putImageData(pixels,0,0);pattern[key]=`url("${canvas.toDataURL('image/png')}")`;}return pattern[key]!;}
+export function focusPaletteGeometry(p:TextPalette){const period=focusPeriod(p);return focusPaletteAxis(p)===1?{size:`100% ${period}px`,repeat:'repeat-y'}:{size:`${period}px 100%`,repeat:'repeat-x'};}
 export const focusPeriod=(p:TextPalette)=>focusPattern(p).indices.length*(p.scale??1);
