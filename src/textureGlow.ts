@@ -29,10 +29,13 @@ export function packedTextureGlow(material:T.MeshBasicMaterial){
    `:'diffuseColor.a*=coverage.r;';
    shader.fragmentShader='uniform vec3 glowInkColor;\n'+shader.fragmentShader.replace('#include <map_fragment>',`
     #ifdef USE_MAP
-    vec4 coverage=texture2D(map,vMapUv);
+    // Keep text's fine strokes instead of blending too early into a coarser
+    // mip. Half a level retains minification filtering without enlarging the
+    // texture, adding taps or sharpening the authored coverage itself.
+    vec4 coverage=texture2D(map,vMapUv,${target===material?'-0.5':'0.0'});
     ${coverage}
     #endif
    `);
-  };target.customProgramCacheKey=()=>target===material?'omnium.packed-text-glow.base.v3':'omnium.packed-text-glow.mask.v2';
+  };target.customProgramCacheKey=()=>target===material?'omnium.packed-text-glow.base.v4':'omnium.packed-text-glow.mask.v3';
  });
 }
