@@ -59,7 +59,7 @@ export function installValueDrag(){
   const activate=(current:NonNullable<typeof drag>,event:MouseEvent|PointerEvent)=>{
     current.adapter.start?.();activeOwners.set(current.root,()=>{while(drag&&drag!==current&&suspended.includes(current))finish(true);if(drag===current)finish(true);});current.active=true;stop(event);claimUIPress(current.id,'pointerType' in event?event.pointerType:'mouse',event.buttons);
     current.preview.enter(current.owner,{start(){},move(x,y){const next=horizontalValue(current.config,valueDragDistance(current.config,x-current.x,(y??current.y)-current.y));if(next!==current.next){current.next=next;current.adapter.input(next);}},commit:()=>current.adapter.commit(current.next),cancel:()=>current.adapter.cancel(current.baseline)},current.x,current.y);
-    document.documentElement.classList.add('value-dragging');relative.start(current.root,{x:current.x,y:current.y});
+    document.documentElement.classList.add('value-dragging');relative.start(current.root,{x:current.x,y:current.y},{requireLock:true});
   };
   window.addEventListener('pointerdown',event=>{
     if(event.button!==0||event.pointerType==='touch')return;
@@ -72,9 +72,9 @@ export function installValueDrag(){
     if(config.activation!=='drag')activate(drag,event);
   },true);
   const move=(event:MouseEvent|PointerEvent)=>{
-    const current=drag;if(!current||current.configuring||current.text!==undefined||!relative.locked&&'pointerId' in event&&current.id!==event.pointerId)return;
+    const current=drag;if(!current||current.configuring||current.text!==undefined||current.active&&!relative.locked)return;
     if(!current.root.isConnected){finish(true);return;}
-    if(!current.active){if(Math.abs(valueDragDistance(current.config,event.clientX-current.x,event.clientY-current.y))<4)return;activate(current,event);}
+    if(!current.active){if(Math.abs(valueDragDistance(current.config,event.clientX-current.x,event.clientY-current.y))<4)return;activate(current,event);if(!relative.locked)return;}
     stop(event);const point=relative.sample(event);lastPoint={x:event.clientX,y:event.clientY};current.preview.move(point.x,point.y);
   };
   relative.observeMove(move);
@@ -84,7 +84,7 @@ export function installValueDrag(){
   window.addEventListener('dragstart',event=>{if(drag)stop(event);},true);
   window.addEventListener('pointercancel',event=>{if(drag?.id===event.pointerId&&!drag.configuring&&!relative.active)finish(true);},true);
   window.addEventListener('lostpointercapture',event=>{if(drag?.id===event.pointerId&&!drag.active)finish(true);},true);
-  const resume=(accept=true)=>{const current=drag;if(!current?.configuring)return;current.configuring=false;current.adapter.configure?.close(accept);const config=current.adapter.read();if(!config){finish(true);return;}current.config=config;current.next=config.value;current.released=true;current.x=lastPoint.x;current.y=lastPoint.y;suppressClick=false;document.documentElement.classList.add('value-dragging');relative.start(current.root,lastPoint);};
+  const resume=(accept=true)=>{const current=drag;if(!current?.configuring)return;current.configuring=false;current.adapter.configure?.close(accept);const config=current.adapter.read();if(!config){finish(true);return;}current.config=config;current.next=config.value;current.released=true;current.x=lastPoint.x;current.y=lastPoint.y;suppressClick=false;document.documentElement.classList.add('value-dragging');relative.start(current.root,lastPoint,{requireLock:true});};
   window.addEventListener('keydown',event=>{
    if(event.key==='Shift'&&!event.repeat&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&suspended.length){stop(event);selectionLatch.use();finish();resume();return;}
    const current=drag;if(!current?.active)return;

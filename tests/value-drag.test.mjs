@@ -18,7 +18,7 @@ test('numeric dragging honors fractional steps and unbounded signed values witho
 test('numeric inputs and registered readouts share release, click, and cancellation ownership',()=>{
  const originals=Object.fromEntries(['window','document','HTMLInputElement','Element'].map(key=>[key,globalThis[key]]));
  const handlers=new Map(),classes=new Set(),inputs=[],changes=[];
- class FakeElement {isConnected=true;dataset={};capture=false;closest(selector){return selector==='[data-value-drag]'?this:null;}hasPointerCapture(){return this.capture;}setPointerCapture(){this.capture=true;}releasePointerCapture(){this.capture=false;}}
+ class FakeElement {isConnected=true;dataset={};capture=false;get ownerDocument(){return globalThis.document;}requestPointerLock(){document.pointerLockElement=this;document.dispatchEvent(new Event('pointerlockchange'));}closest(selector){return selector==='[data-value-drag]'?this:null;}hasPointerCapture(){return this.capture;}setPointerCapture(){this.capture=true;}releasePointerCapture(){this.capture=false;}}
  class FakeInput extends FakeElement {
   type='number';inputMode='';disabled=false;readOnly=false;min='0';max='100';step='1';text='50';blurred=false;
   get value(){return this.text;}set value(next){this.text=next;}
@@ -29,16 +29,16 @@ test('numeric inputs and registered readouts share release, click, and cancellat
  }
  globalThis.Element=FakeElement;globalThis.HTMLInputElement=FakeInput;
  globalThis.window={addEventListener(type,handler){const list=handlers.get(type)??[];list.push(handler);handlers.set(type,list);}};
- globalThis.document={hidden:false,documentElement:{classList:{add:value=>classes.add(value),remove:value=>classes.delete(value)}},addEventListener:()=>{}};
+ const doc=new EventTarget();Object.assign(doc,{hidden:false,pointerLockElement:null,documentElement:{classList:{add:value=>classes.add(value),remove:value=>classes.delete(value)}},exitPointerLock(){this.pointerLockElement=null;this.dispatchEvent(new Event('pointerlockchange'));}});globalThis.document=doc;
  try{
   installValueDrag();const input=new FakeInput();
-  const send=(type,x=0,extra={})=>{const event={type,target:input,button:0,buttons:1,pointerType:'mouse',pointerId:1,clientX:x,clientY:0,detail:1,preventDefault(){this.prevented=true;},stopImmediatePropagation(){this.stopped=true;},...extra};for(const fn of handlers.get(type)??[]){fn(event);if(event.stopped)break;}return event;};
+  let previousX=0;const send=(type,x=0,extra={})=>{const movementX=type==='pointermove'?x-previousX:0;if(type==='pointermove'||type==='pointerdown')previousX=x;const event={type,target:input,button:0,buttons:1,pointerType:'mouse',pointerId:1,clientX:x,clientY:0,movementX,movementY:0,detail:1,preventDefault(){this.prevented=true;},stopImmediatePropagation(){this.stopped=true;},...extra};for(const fn of handlers.get(type)??[]){fn(event);if(event.stopped)break;}return event;};
   send('pointerdown',10);assert.equal(classes.has('value-dragging'),true,'click arms immediately');assert.equal(input.value,'50');assert.equal(send('pointerup',10).prevented,true);assert.equal(changes.length,0);send('keydown',10,{key:'Escape'});changes.length=0;
   send('pointerdown',10);send('pointermove',30);assert.equal(input.value,'60');assert.equal(classes.has('value-dragging'),true);
   send('pointermove',-10);assert.equal(input.value,'40');send('pointerup',-10);assert.equal(input.blurred,false);assert.deepEqual(changes,[]);send('pointermove',-20,{buttons:0});assert.equal(input.value,'35');send('pointerdown',-20);assert.equal(input.blurred,true);assert.deepEqual(changes,['35']);assert.equal(classes.size,0);
   assert.equal(send('click').prevented,true);assert.equal(send('click').prevented,undefined);
   send('pointerdown',0);send('pointermove',40);assert.equal(input.value,'55');assert.equal(send('keydown',0,{key:'Escape'}).prevented,true);assert.equal(input.value,'35');assert.equal(input.capture,false);
-  send('pointerdown',0);send('pointermove',-20);assert.equal(input.value,'25');send('pointercancel');assert.equal(input.value,'35');
+  send('pointerdown',0);send('pointermove',-20);assert.equal(input.value,'25');doc.exitPointerLock();assert.equal(input.value,'35');
   input.dataset.valuePixelsPerStep='1';input.max='255';input.value='128';
   send('pointerdown',100);send('pointermove',101);assert.equal(input.value,'129');send('pointermove',102);assert.equal(input.value,'130');send('pointerup',102);send('pointerdown',102);delete input.dataset.valuePixelsPerStep;
   input.type='range';send('pointerdown',0);assert.equal(classes.has('value-dragging'),true);send('pointerup',0);send('pointermove',2,{target:new FakeElement(),buttons:0});assert.equal(input.value,'133');send('keydown',2,{key:'Escape'});assert.equal(input.value,'130');input.type='number';

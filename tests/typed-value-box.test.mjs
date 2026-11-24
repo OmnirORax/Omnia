@@ -3,10 +3,12 @@ import assert from 'node:assert/strict';
 import {bindOperationValueControl} from '../src/ui/operationValueControl.ts';
 import {installValueDrag} from '../src/ui/valueDrag.ts';
 import {createOperationNumber} from '../src/ui/operationNumber.ts';
+import {installPointerBindings,POINTER_BINDINGS} from '../src/ui/pointerBindings.ts';
+import {shortcuts} from '../src/ui/shortcuts.ts';
 
-function environment(){
+function environment(routing=false){
  const names=['window','document','Element','Node','HTMLInputElement'],saved=Object.fromEntries(names.map(name=>[name,globalThis[name]])),handlers=new Map(),doc=new EventTarget();
- doc.pointerLockElement=null;doc.hidden=false;doc.documentElement={classList:{add(){},remove(){}}};doc.exitPointerLock=()=>{doc.pointerLockElement=null;doc.dispatchEvent(new Event('pointerlockchange'));};
+ const classes=new Set();doc.pointerLockElement=null;doc.hidden=false;doc.documentElement={classList:{add:key=>classes.add(key),remove:key=>classes.delete(key),contains:key=>classes.has(key)}};doc.exitPointerLock=()=>{doc.pointerLockElement=null;doc.dispatchEvent(new Event('pointerlockchange'));};
  class Element{
   isConnected=true;dataset={};style={};children=[];ownerDocument=doc;
   closest(selector){return selector==='[data-value-drag]'&&this.dataset.valueDrag!==undefined?this:null;}
@@ -20,7 +22,7 @@ function environment(){
   dispatchEvent(event){this.events??=[];this.events.push(event.type);return true;}
   setCustomValidity(message){this.validationMessage=message;}reportValidity(){return !this.validationMessage;}blur(){}
  }
- doc.body=new Element();doc.createElement=()=>new Element();Object.assign(globalThis,{Element,Node:Element,HTMLInputElement:Input,document:doc,window:{addEventListener(type,fn){handlers.set(type,[...(handlers.get(type)??[]),fn]);},removeEventListener(){}}});installValueDrag();
+ doc.body=new Element();doc.createElement=()=>new Element();Object.assign(globalThis,{Element,Node:Element,HTMLInputElement:Input,document:doc,window:{addEventListener(type,fn){handlers.set(type,[...(handlers.get(type)??[]),fn]);},removeEventListener(){}}});if(routing)installPointerBindings(()=> 'world');installValueDrag();
  const input=new Input(),send=(type,extra={})=>{const event={type,target:input,button:0,buttons:0,pointerType:'mouse',pointerId:1,clientX:0,clientY:0,movementX:0,movementY:0,detail:1,preventDefault(){this.prevented=true;},stopImmediatePropagation(){this.stopped=true;},...extra};for(const fn of handlers.get(type)??[]){fn(event);if(event.stopped)break;}return event;};
  return {doc,input,send,type:text=>{for(const key of text)send('keydown',{key});},restore(){send('keydown',{key:'Escape'});for(const [name,value]of Object.entries(saved))if(value===undefined)delete globalThis[name];else globalThis[name]=value;}};
 }
@@ -28,9 +30,9 @@ test('clicked value boxes preview typed numbers, ignore movement while typing an
  const f=environment(),writes=[],previews=[],errors=[];let value=12,dispose;
  try{
   dispose=bindOperationValueControl(f.input,{label:'Size',min:6,max:72,integer:true,step:1,read:()=>value,preview:n=>previews.push(n),commit:n=>{value=n;writes.push(n);},feedback:error=>errors.push(error),loadDial:async()=>assert.fail('typing must not open a dial')});
-  f.send('pointerdown');f.send('pointerup');f.send('mousemove',{movementY:-12});assert.equal(previews.at(-1),14);
+  f.send('pointerdown');f.send('pointerup');f.send('mousemove',{movementY:-600});assert.equal(previews.at(-1),undefined,'vertical motion does not adjust a value box');f.send('mousemove',{movementX:12});assert.equal(previews.at(-1),14);
   f.type('18');assert.equal(f.input.value,'18');assert.equal(previews.at(-1),18);assert.equal(value,12);assert.deepEqual(errors,[]);
-  f.send('mousemove',{movementY:-600});assert.equal(previews.at(-1),18);f.send('keydown',{key:'Enter'});assert.deepEqual(writes,[18]);assert.equal(f.doc.pointerLockElement,null);
+  f.send('mousemove',{movementX:600});assert.equal(previews.at(-1),18);f.send('keydown',{key:'Enter'});assert.deepEqual(writes,[18]);assert.equal(f.doc.pointerLockElement,null);
   f.send('pointerdown');f.type('25');f.send('pointerdown');assert.deepEqual(writes,[18,25]);
   f.send('pointerdown');f.type('30');f.send('keydown',{key:'Escape'});assert.equal(value,25);assert.equal(f.input.value,'25');assert.equal(previews.at(-1),undefined);
  }finally{dispose?.();f.restore();}
@@ -65,6 +67,26 @@ test('typed values hand off through Shift configuration and resume sliding witho
   dispose=bindOperationValueControl(f.input,{label:'Size',min:6,max:72,integer:true,step:1,read:()=>value,preview:n=>previews.push(n),commit:n=>value=n,feedback:error=>assert.fail(error),loadDial:async()=>({mountOperationMathDial(_host,parameter){number=parameter;return()=>parameter.restore();}})});
   f.send('pointerdown');f.send('pointerup');f.type('18');f.send('keydown',{key:'Shift'});await Promise.resolve();assert.equal(number.value,18);assert.equal(value,12);assert.equal(f.doc.pointerLockElement,null);
   f.send('keydown',{key:'Shift'});assert.equal(f.doc.pointerLockElement,f.input);assert.equal(previews.at(-1),18);
-  f.send('mousemove',{movementY:-6});assert.equal(previews.at(-1),19);f.send('keydown',{key:'Enter'});assert.equal(value,19);
+  f.send('mousemove',{movementX:6});assert.equal(previews.at(-1),19);f.send('keydown',{key:'Enter'});assert.equal(value,19);
+ }finally{dispose?.();f.restore();}
+});
+test('slide confirmation is accepted outside the box before world activation bindings can reject it',()=>{
+ const saved=shortcuts.getSnapshot(),f=environment(true);let value=12,dispose;
+ try{
+  shortcuts.initialize({getItem:()=>null,setItem(){}});shortcuts.assign(POINTER_BINDINGS.find(item=>item.id==='gesture:move'),'',POINTER_BINDINGS);
+  dispose=bindOperationValueControl(f.input,{label:'Size',min:6,max:72,integer:true,step:1,read:()=>value,preview(){},commit:n=>value=n,feedback:error=>assert.fail(error),loadDial:async()=>assert.fail('no dial')});
+  f.send('pointerdown');f.send('pointerup');f.send('mousemove',{movementX:12});
+  const outside=new Element();outside.closest=selector=>selector==='#world,.cm-content'?outside:null;
+  const click=f.send('pointerdown',{target:outside,clientX:5000,clientY:-1000});assert.equal(click.prevented,true);assert.equal(value,14);assert.equal(f.doc.pointerLockElement,null);
+ }finally{dispose?.();f.restore();shortcuts.restore(saved);}
+});
+test('sliding ignores unlocked cursor drift while waiting for the browser lock',async()=>{
+ const f=environment(),previews=[];let grant,value=12,dispose;
+ try{
+  f.input.requestPointerLock=()=>new Promise(resolve=>{grant=()=>{f.doc.pointerLockElement=f.input;f.doc.dispatchEvent(new Event('pointerlockchange'));resolve();};});
+  dispose=bindOperationValueControl(f.input,{label:'Size',min:6,max:72,integer:true,step:1,read:()=>value,preview:n=>previews.push(n),commit:n=>value=n,feedback:error=>assert.fail(error),loadDial:async()=>assert.fail('no dial')});
+  f.send('pointerdown');f.send('pointermove',{clientX:5000,clientY:2000,movementX:1000});assert.equal(previews.at(-1),undefined);
+  grant();await Promise.resolve();f.send('pointerup');f.send('mousemove',{clientX:5000,clientY:2000,movementX:6,movementY:1000});assert.equal(previews.at(-1),13,'only relative horizontal movement contributes after lock');
+  f.send('pointerdown');assert.equal(value,13);assert.equal(f.doc.pointerLockElement,null);
  }finally{dispose?.();f.restore();}
 });

@@ -6,6 +6,13 @@ test('native Escape/focus loss cancels the owner once, while intentional release
 test('a cancelled asynchronous request cannot leave the browser locked after its owner ends',async()=>{for(const promise of [false,true]){const b=browser(promise),p=createRelativePointer();p.start(b.element,{x:0,y:0});p.stop();b.lock();await Promise.resolve();assert.equal(b.doc.pointerLockElement,null);assert.equal(p.active,false);}});
 test('unsupported or refused pointer lock keeps regular pointer input usable',()=>{const p=createRelativePointer();assert.equal(p.start({}, {x:3,y:4}),false);assert.deepEqual(p.sample({clientX:10,clientY:20}),{x:10,y:20});const b=browser();p.start(b.element,{x:1,y:2});b.doc.dispatchEvent(new Event('pointerlockerror'));assert.equal(p.active,false);assert.deepEqual(p.sample({clientX:11,clientY:21}),{x:11,y:21});});
 test('a refusal explains the failed continuous-input request while retaining normal coordinates',()=>{const b=browser(),messages=[],p=createRelativePointer(()=>{},message=>messages.push(message));p.start(b.element,{x:1,y:2});b.doc.dispatchEvent(new Event('pointerlockerror'));assert.match(messages[0],/refused by the browser/);assert.deepEqual(p.sample({clientX:30,clientY:40}),{x:30,y:40});});
+test('required lock retains the press origin until the browser freezes the cursor and refuses invisible absolute fallback',()=>{
+ const b=browser(),messages=[];let cancelled=0;const p=createRelativePointer(()=>cancelled++,message=>messages.push(message));
+ p.start(b.element,{x:10,y:20},{requireLock:true});assert.deepEqual(p.sample({clientX:1800,clientY:900,movementX:100,movementY:100}),{x:10,y:20});
+ b.lock();assert.deepEqual(p.sample({clientX:1800,clientY:900,movementX:6,movementY:0}),{x:16,y:20});p.stop();assert.equal(cancelled,0);
+ p.start(b.element,{x:10,y:20},{requireLock:true});b.doc.dispatchEvent(new Event('pointerlockerror'));assert.equal(cancelled,1);assert.equal(p.active,false);assert.match(messages.at(-1),/refused/);
+ assert.equal(p.start({}, {x:10,y:20},{requireLock:true}),false);assert.equal(cancelled,2);assert.match(messages.at(-1),/cannot hold/);
+});
 
 test('locked movement accepts pointer-only and mouse-only streams and removes only matching companions',()=>{
  const old=globalThis.window,handlers=new Map();globalThis.window={addEventListener(type,fn){handlers.set(type,fn);},removeEventListener(type){handlers.delete(type);}};
