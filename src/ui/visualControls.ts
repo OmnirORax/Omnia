@@ -15,11 +15,12 @@ export function paintForm(target: VisualTarget, origins: readonly Origin[], read
     const key=definition.key as keyof Paint,entry=field(definition,initial[key]!);form.append(entry.row);return {key,entry,previous:entry.value()};
   });
   const sizeInput=inputs.find(input=>input.key==='fontSize');
-  if(sizeInput&&sizeInput.entry.input instanceof HTMLInputElement){const button=sizeInput.entry.input;button.type='button';button.onclick=async()=>{
-   closeFontDial?.();const host=document.createElement('div');host.className='operation-number-dial';host.dataset.inputOwner='';Object.assign(host.style,{position:'fixed',left:'12px',bottom:'12px',zIndex:'10000'});document.body.append(host);let dispose:(()=>void)|undefined,closed=false;
+  if(sizeInput&&sizeInput.entry.input instanceof HTMLInputElement){const button=sizeInput.entry.input;button.type='button';button.onclick=async event=>{
+   const bounds=button.getBoundingClientRect(),placement={target:{x:bounds.left,y:bounds.top,width:bounds.width,height:bounds.height},requested:{x:event.detail?event.clientX:bounds.left+bounds.width/2,y:event.detail?event.clientY:bounds.top+bounds.height/2}};
+   closeFontDial?.();const host=document.createElement('div');host.className='operation-number-dial';host.dataset.inputOwner='';Object.assign(host.style,{position:'fixed',left:`${placement.requested.x}px`,top:`${placement.requested.y}px`,zIndex:'10000'});document.body.append(host);let dispose:(()=>void)|undefined,closed=false;
    const close=()=>{if(closed)return;closed=true;dispose?.();host.remove();preview?.();if(closeFontDial===close)closeFontDial=undefined;};closeFontDial=close;host.tabIndex=-1;host.focus();host.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();event.stopImmediatePropagation();close();}},true);
    const number=createOperationNumber({label:'Font size',value:Number(readPaint(read(),target,origins[0]).fontSize),min:FONT_SIZE.min,max:FONT_SIZE.max,integer:true,apply:(value,phase)=>{if(phase==='commit'){try{change(world=>writePaint(world,target,origins,{fontSize:value}));button.value=String(value);sizeInput.previous=value;}catch(error){feedback(String(error));}queueMicrotask(close);}else preview?.(phase==='preview'?{fontSize:value}:undefined);},reject:feedback});
-   try{const module=await import('./operationMathDial.tsx');if(!closed)dispose=module.mountOperationMathDial(host,number,close);}catch(error){close();feedback(String(error));}
+   try{const module=await import('./operationMathDial.tsx');if(!closed)dispose=module.mountOperationMathDial(host,number,close,undefined,placement);}catch(error){close();feedback(String(error));}
   };}
   if(preview)for(const input of inputs)if(input.entry.input instanceof HTMLInputElement&&input.entry.input.type==='color')bindColorSession(input.entry.input,{
    read:()=>String(readPaint(read(),target,origins[0])[input.key]),preview:value=>preview({[input.key]:value}),cancel:()=>preview(),

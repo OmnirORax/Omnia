@@ -219,3 +219,14 @@ test('Ctrl+4 resolves words at multiple carets, deduplicates targets and maps Un
  e.run(undo);assert.equal(e.state.doc.toString(),'straße second');assert.deepEqual(e.state.selection.ranges.map(r=>r.head),[3,5,10]);
  const blank=editor(['  '],[[1,1]]);blank.run(uppercaseSelection);assert.equal(blank.state.doc.toString(),'  ');
 });
+
+test('Ctrl+3 lowercases existing capitals after sentence starts and preserves glyphs, prefixes and undo',()=>{
+ const original='kjhdsfkjahafd HUH aoisdfjaoijdf';
+ for(const selection of [[[0,original.length]],[[5,5]]]){const e=editor([original],selection);e.run(capitalizeSentence);assert.equal(e.state.doc.toString(),'Kjhdsfkjahafd huh aoisdfjaoijdf');e.run(undo);assert.equal(e.state.doc.toString(),original);}
+ const text='- [X] HELLO NASA. NEXT: LOUD! AGAIN? YES\n  + MIXED Case ',e=editor([text,glyph,' KEEP ME'],[[0,text.length+9]]);e.run(capitalizeSentence);
+ assert.deepEqual(e.text().content,['- [X] Hello nasa. Next: Loud! Again? Yes\n  + Mixed case ',glyph,' keep me']);e.run(undo);assert.deepEqual(e.text().content,[text,glyph,' KEEP ME']);
+ const partial=editor(['LEAVE ME / CHANGE THIS / ALSO LEAVE'],[[11,22]]);partial.run(capitalizeSentence);assert.equal(partial.state.doc.toString(),'LEAVE ME / Change this / ALSO LEAVE');
+});
+test('Ctrl+3 merges a row caret with a partial selection and handles Unicode case expansion',()=>{
+ const e=editor(['ßETA ΟΣ UPPER'],[[0,2],[8,8]]);e.run(capitalizeSentence);assert.equal(e.state.doc.toString(),'SSeta ος upper');e.run(undo);assert.equal(e.state.doc.toString(),'ßETA ΟΣ UPPER');
+});
