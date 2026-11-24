@@ -8,7 +8,7 @@ export type NumberDrag = {value:number;min?:number;max?:number;step?:number;pixe
 /** Horizontal relative movement; bounds and declared increments remain authoritative. */
 export function horizontalValue(config:NumberDrag,delta:number){
   const {value,min,max,step}=config;
-  if(!Number.isFinite(delta))return value;
+  if(!Number.isFinite(delta)||delta===0)return value;
   const bounded=min!==undefined&&max!==undefined&&Number.isFinite(max-min)&&max>min;
   const unit=config.pixelsPerStep&&step?step/config.pixelsPerStep:bounded?(max-min)/200:step&&step>0?step/6:Math.max(1,Math.abs(value))/100;
   let next=value+delta*unit;

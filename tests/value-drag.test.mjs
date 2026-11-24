@@ -59,6 +59,10 @@ test('diagonal size handles inherit scalar dragging while preserving horizontal 
  const {valueDragDistance}=await import('../src/ui/valueDrag.ts');
  assert.equal(valueDragDistance({value:1},10,30),10);assert.ok(Math.abs(valueDragDistance({value:1,axis:{x:1,y:1}},10,10)-Math.sqrt(200))<1e-9);
  assert.ok(valueDragDistance({value:1,axis:{x:1,y:1}},-10,-10)<0);assert.equal(valueDragDistance({value:1,axis:{x:1,y:1}},10,-10),0);
+ // An accepted value need not lie on a new two-dot/snap lattice. Perpendicular
+ // movement must not round that baseline before any horizontal input exists.
+ const config={value:-13.5,min:-16,max:16,step:1,pixelsPerStep:6,axis:{x:1,y:0}};
+ assert.equal(horizontalValue(config,valueDragDistance(config,0,1000)),-13.5);
 });
 
 test('locked mouse movement keeps editing after release and accepts with a later click',()=>{
