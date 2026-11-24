@@ -12,7 +12,7 @@ export function paintForm(target: VisualTarget, origins: readonly Origin[], read
   let disposed=false;
   const form=document.createElement('form'),initial=readPaint(read(),target,origins[0]);
   const inputs=visualProperties(target==='nodeText'||target==='text',initial).map(definition=>{
-    const key=definition.key as keyof Omit<Paint,'gradient'>,entry=field(definition,initial[key]!);form.append(entry.row);return {key,entry,previous:entry.value()};
+    const key=definition.key as keyof Paint,entry=field(definition,initial[key]!);form.append(entry.row);return {key,entry,previous:entry.value()};
   });
   const sizeInput=inputs.find(input=>input.key==='fontSize');
   const stopValue=sizeInput&&sizeInput.entry.input instanceof HTMLInputElement?bindOperationValueControl(sizeInput.entry.input,{label:'Font size',min:FONT_SIZE.min,max:FONT_SIZE.max,integer:true,step:1,read:()=>Number(readPaint(read(),target,origins[0]).fontSize),preview:n=>preview?.(n===undefined?undefined:{fontSize:n}),commit:value=>{if(disposed)return;try{change(world=>writePaint(world,target,origins,{fontSize:value}));sizeInput.entry.input.value=String(value);sizeInput.previous=value;}catch(error){feedback(String(error));}},feedback,loadDial}):undefined;

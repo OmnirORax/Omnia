@@ -3,10 +3,9 @@ import {textGlowShadow} from '../properties/textGlow.ts';
 import {UI_BORDER_SELECTOR,UI_SURFACE_SELECTOR,UI_DECORATION} from '../composer/runtime/appearance/registry.ts';
 import { BACKGROUND_DEFAULTS, renderedTextPaint, fontFamily,fontSizeScale, paintColor, type Appearance, type Paint } from '../properties/visual.ts';
 import { emboldenStrokeEm } from '../properties/embolden.ts';
-import {setDOMTextGradient} from './textGradient.ts';
 
-export function setDOMTextPaint(target:{color:string;fontFamily:string;textShadow:string},paint:Paint={},owner?:HTMLElement){
- const value=setTextPaint({setColor:color=>{target.color=paintColor({color});},setGlow:(color,strength,spread)=>{target.textShadow=textGlowShadow(strength,paintColor({color}),spread);},setGradient:(gradient,strength,spread)=>{if(owner){setDOMTextGradient(owner,gradient,strength,spread);if(gradient)target.textShadow='none';}}},paint);
+export function setDOMTextPaint(target:{color:string;fontFamily:string;textShadow:string},paint:Paint={}){
+ const value=setTextPaint({setColor:color=>{target.color=paintColor({color});},setGlow:(color,strength,spread)=>{target.textShadow=textGlowShadow(strength,paintColor({color}),spread);}},paint);
  target.fontFamily=fontFamily(value.font);return value;
 }
 export function textStyle(paint?:Paint){const style={color:'',fontFamily:'',textShadow:''};setDOMTextPaint(style,paint);return style;}

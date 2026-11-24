@@ -148,8 +148,8 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
     paintSession.render(readPaint(read(),'nodeText',origin));
   }
   function applyDocumentPaint(paint:import('../properties/visual.ts').Paint){
+    setDOMTextPaint(host.style,paint);
     host.style.fontSize=`${fontSize*fontSizeScale(paint)}px`;
-    setDOMTextPaint(host.style,paint,host);
     host.style.setProperty('--document-text-color',host.style.color);
     host.style.setProperty('--document-text-shadow',host.style.textShadow);
     host.style.setProperty('--visual-text-bold-stroke',`${emboldenStrokeEm(paint.embolden)}em currentColor`);

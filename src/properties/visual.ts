@@ -5,7 +5,6 @@ import {validateNodePaint,type NodePaint} from './nodeVisuals.ts';
 import {isImportedFont,importedFontFamily} from './importedFont.ts';
 import { property } from './pool.ts';
 import { translucentOpacity } from './translucency.ts';
-import {validateTextGradient,type TextGradient} from './textGradient.ts';
 
 /** Native font families reused from V1; presentation never changes authored text. */
 export const FONT_OPTIONS = [
@@ -15,7 +14,7 @@ export const FONT_OPTIONS = [
   { id:'mono',label:'Monospace',family:'ui-monospace, SFMono-Regular, Consolas, monospace' },
   { id:'electric',label:'Rubik Glitch',family:"'Rubik Glitch', system-ui, sans-serif" },
 ] as const;
-export type Paint = { gradient?:TextGradient|null; color?: string; brightness?:number; brightnessEnabled?:boolean; opacity?:number; glowColor?:string; translucency?: number; glow?: number; glowSpread?:number; font?: string; fontName?:string; fontSize?:number; embolden?: number };
+export type Paint = { color?: string; brightness?:number; brightnessEnabled?:boolean; opacity?:number; glowColor?:string; translucency?: number; glow?: number; glowSpread?:number; font?: string; fontName?:string; fontSize?:number; embolden?: number };
 export type Appearance = { imageColors?:Record<string,import('../scene/autoColors.ts').AutoColorRule>; text?: Paint; background?: Paint; nodes?: NodePaint };
 export const color = property({key:'color',label:'Color',kind:'color'});
 export const translucency = property({key:'translucency',label:'Translucency',kind:'number',min:0,max:1,step:.01});
@@ -34,7 +33,6 @@ export const fontFamily = (id?: string) => (id&&isImportedFont(id)?importedFontF
 export const paintColor = (paint: Paint) => `${paint.color}${Math.round(translucentOpacity(paint.opacity??1,paint.translucency)*255).toString(16).padStart(2,'0')}`;
 export function validatePaint(paint: Paint | undefined, text: boolean) {
   if(paint===undefined)return;
-  if(paint?.gradient!==undefined){if(!text)throw Error('Invalid text gradient.');if(paint.gradient!==null)validateTextGradient(paint.gradient);}
   if(!paint || typeof paint!=='object' || Array.isArray(paint) ||
     text&&RETIRED_TEXT_CHANNELS.some(key=>paint[key]!==undefined) ||
     !text&&(paint.glow!==undefined||paint.glowColor!==undefined) ||

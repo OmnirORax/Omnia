@@ -128,11 +128,10 @@ test('document and world adapters receive identical text and glow through the sh
  const {setDOMTextPaint}=await import('../src/ui/appearance.ts'),{imageColorCombo}=await import('../src/scene/colorCombo.ts');
  const combo=imageColorCombo(new Uint8ClampedArray([10,30,200,255,10,30,200,255,255,120,20,255,180,30,200,255]));
  const mesh=label('Shared setter'),doc={color:'',fontFamily:'',textShadow:''},shader={uniforms:{},fragmentShader:'#include <map_fragment>\n#include <logdepthbuf_fragment>'};mesh.material.onBeforeCompile(shader,{});
- try{for(const paint of [{color:combo.text,glowColor:combo.textGlow,gradient:combo.gradient,glow:1.4,glowSpread:8},{color:'#22aa66',glow:1,glowSpread:3},{color:'#0044ff',glowColor:'#ff7700',glow:2,glowSpread:10},{}]){
+ try{for(const paint of [{color:combo.text,glowColor:combo.textGlow,glow:1.4,glowSpread:8},{color:'#22aa66',glow:1,glowSpread:3},{color:'#0044ff',glowColor:'#ff7700',glow:2,glowSpread:10},{}]){
   const assigned=setDOMTextPaint(doc,paint);updateLabelPaint(mesh,paint);
   assert.equal(mesh.material.color.getHexString(),doc.color.slice(1,7));assert.equal(shader.uniforms.glowInkColor.value.getHexString(),assigned.glowColor.slice(1));
   assert.equal(mesh.userData.labelPaint.glow,assigned.glow);assert.equal(mesh.userData.labelPaint.glowSpread,assigned.glowSpread);
-  assert.equal(shader.uniforms.textGradientEnabled.value,paint.gradient?1:0);assert.deepEqual(mesh.userData.labelPaint.gradient,assigned.gradient);
   if(assigned.glow)assert.ok(doc.textShadow.includes(assigned.glowColor+'ff'));else assert.equal(doc.textShadow,'none');
  }}finally{disposeLabel(mesh);}
 });

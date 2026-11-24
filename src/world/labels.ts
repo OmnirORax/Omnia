@@ -1,7 +1,7 @@
 import {setTextPaint} from '../properties/textPaint.ts';
 import {WORLD_TEXT_LAYER,nativeTextMaterial} from './textPass.ts';
 import {textGlowLayers} from '../properties/textGlow.ts';
-import {packedTextureGlow,packGlowCoverage,updateTextureGlowColor,updateTextureGradient} from '../textureGlow.ts';
+import {packedTextureGlow,packGlowCoverage,updateTextureGlowColor} from '../textureGlow.ts';
 import {imageHull} from './contentEnvelope.ts';
 import * as THREE from 'three';
 import {labelLines,labelSize} from '../composer/runtime/graph/labels.ts';
@@ -58,8 +58,8 @@ export function textSprite(value: string, color: string, selected = false, node 
     drawInk(ctx,contentOnly?"#ffffff":ink,glow,spread);
     if(contentOnly){
       const combined=ctx.getImageData(0,0,canvas.width,canvas.height);
-      if(glow>0){const clean=sharpTextContext(canvas.width,canvas.height);drawInk(clean,"#ffffff",0,spread);packGlowCoverage(clean.getImageData(0,0,canvas.width,canvas.height).data,combined.data,canvas.width);}
-      else packGlowCoverage(combined.data,combined.data,canvas.width);
+      if(glow>0){const clean=sharpTextContext(canvas.width,canvas.height);drawInk(clean,"#ffffff",0,spread);packGlowCoverage(clean.getImageData(0,0,canvas.width,canvas.height).data,combined.data);}
+      else packGlowCoverage(combined.data,combined.data);
       ctx.putImageData(combined,0,0);
     }
   };
@@ -128,7 +128,7 @@ export const labelGeometryKey=(paint:Paint={},revision=0)=>JSON.stringify([paint
 export function updateLabelPaint(mesh:ReturnType<typeof textSprite>,paint:Paint={}){
  const style={...TEXT_DEFAULTS,...paint};
  const nextScale=fontSizeScale(style),oldScale=mesh.userData.labelFontScale??1;if(nextScale!==oldScale){mesh.scale.multiplyScalar(nextScale/oldScale);mesh.userData.labelFontScale=nextScale;}
- const rendered=setTextPaint({setColor:color=>{mesh.material.color.set(color);mesh.userData.textColor=color;},setGlow:(color,strength,spread)=>{const ink=mesh.userData.textColor as string;mesh.userData.setTextStyle(ink,ink,strength,spread);updateTextureGlowColor(mesh.material,color);},setGradient:gradient=>updateTextureGradient(mesh.material,gradient)},paint);
+ const rendered=setTextPaint({setColor:color=>{mesh.material.color.set(color);mesh.userData.textColor=color;},setGlow:(color,strength,spread)=>{const ink=mesh.userData.textColor as string;mesh.userData.setTextStyle(ink,ink,strength,spread);updateTextureGlowColor(mesh.material,color);}},paint);
  mesh.userData.glowColor=style.glowColor===undefined?undefined:rendered.glowColor;
  mesh.material.opacity=1;
  mesh.userData.labelPaint=style;mesh.userData.textColor=rendered.color;

@@ -62,15 +62,6 @@ header button { width: 28px; height: 28px; font-size: calc(18px * var(--visual-t
 /* Allow weight synthesis only for marked Bold content. The root explicitly disables it.
    A small optional stroke adds strength without swallowing glyph counters. */
 .document-content strong { font-synthesis: weight; -webkit-text-stroke: var(--visual-text-bold-stroke, 0em currentColor); }
-.document-content[data-image-text] .cm-line {
-  background-image:var(--image-text-gradient);
-  background-clip:text;
-  -webkit-background-clip:text;
-  -webkit-text-fill-color:transparent;
-  text-shadow:none;
-  filter:var(--image-text-filter);
-}
-.document-content[data-image-text] .cm-line * { -webkit-text-fill-color:inherit; text-shadow:none; }
 .document-content ul,.document-content ol { margin:.4em 0; padding-left:1.7em; white-space:normal; }
 .document-content h1,.document-content h2,.document-content h3 { margin:.6em 0 .3em; line-height:1.2; }
 .document-content [data-node-glyph] { display:inline-block; }
