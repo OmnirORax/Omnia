@@ -15,7 +15,7 @@ export const FONT_OPTIONS = [
   { id:'electric',label:'Rubik Glitch',family:"'Rubik Glitch', system-ui, sans-serif" },
 ] as const;
 export type Paint = { color?: string; brightness?:number; brightnessEnabled?:boolean; opacity?:number; glowColor?:string; translucency?: number; glow?: number; glowSpread?:number; font?: string; fontName?:string; fontSize?:number; embolden?: number };
-export type Appearance = { text?: Paint; background?: Paint; nodes?: NodePaint };
+export type Appearance = { imageColors?:Record<string,import('../scene/autoColors.ts').AutoColorRule>; text?: Paint; background?: Paint; nodes?: NodePaint };
 export const color = property({key:'color',label:'Color',kind:'color'});
 export const translucency = property({key:'translucency',label:'Translucency',kind:'number',min:0,max:1,step:.01});
 export const glowColor=property({key:'glowColor',label:'Glow color',kind:'color'});
@@ -49,6 +49,7 @@ export function validatePaint(paint: Paint | undefined, text: boolean) {
 export function validateAppearance(value: Appearance | undefined) {
   if(value===undefined)return;
   if(!value||typeof value!=='object'||Array.isArray(value))throw Error('Invalid appearance.');
+  if(value.imageColors!==undefined){if(!value.imageColors||typeof value.imageColors!=='object'||Array.isArray(value.imageColors)||Object.keys(value.imageColors).length>1000)throw Error('Invalid image colour rules.');for(const [key,rule]of Object.entries(value.imageColors)){if(key.length>200||!rule||typeof rule.enabled!=='boolean'||!Array.isArray(rule.manual)||rule.manual.length>4||rule.manual.some(channel=>!['text','textGlow','node','nodeGlow'].includes(channel)))throw Error('Invalid image colour rule.');if(key!=='default'){try{const origin=JSON.parse(key);if(!Number.isFinite(origin.born)||!Array.isArray(origin.at)||origin.at.length!==3||origin.at.some((v:unknown)=>typeof v!=='number'||!Number.isFinite(v)))throw Error();}catch{throw Error('Invalid image colour target.');}}}}
   retireTextChannels(value.text);if(value.background){delete value.background.glow;delete value.background.glowColor;}validatePaint(value.text,true);validatePaint(value.background,false);validateNodePaint(value.nodes);
   delete (value as Appearance&{animations?:unknown}).animations;
 }

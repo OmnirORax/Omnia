@@ -41,8 +41,9 @@ function unresolvedPaint(world: World, target: VisualTarget, origin?: Origin): N
  const local=actual?.textAppearance;return resolvedTextPaint({...world.appearance?.text,...local,...(local?.font!==undefined?{fontName:local.fontName}:{})});
 }
 export function readPaint(world:World,target:VisualTarget,origin?:Origin):NodePaint{const paint=unresolvedPaint(world,target,origin);return {...paint,glowColor:paint.glowColor??paint.color};}
-export function writePaint(world: World, target: VisualTarget, origins: readonly Origin[], patch: NodePaint) {
+export function writePaint(world: World, target: VisualTarget, origins: readonly Origin[], patch: NodePaint,mode:'manual'|'automatic'='manual') {
   if(target==='nodes'||target==='nodeDefaults')validateNodePaint(patch);else validatePaint(patch,target==='nodeText'||target==='text');
+  if(mode==='manual'&&target!=='background')for(const origin of target==='nodes'||target==='nodeText'?origins:[undefined]){const key=origin?JSON.stringify(origin):'default',rule=world.appearance?.imageColors?.[key];if(!rule?.enabled)continue;const text=target==='text'||target==='nodeText',manual=[...new Set([...rule.manual,...(patch.color!==undefined?[text?'text' as const:'node' as const]:[]),...(patch.glowColor!==undefined?[text?'textGlow' as const:'nodeGlow' as const]:[])])];world.appearance={...world.appearance,imageColors:{...world.appearance!.imageColors,[key]:{...rule,manual}}};}
   if(target==='nodes'||target==='nodeText')for(const origin of origins){
     const node=locate(world,origin);if(!node)continue;
     if(target==='nodes'){

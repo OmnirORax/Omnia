@@ -1,3 +1,4 @@
+import {configureAutoColors,autoColorKey} from './autoColors.ts';
 import {localSceneStorage,type SceneStorage,type SceneImage} from './storage.ts';
 import {watchFields} from '../ui/formState.ts';
 import {VIEW_ROUTE} from '../ui/viewHistory.ts';
@@ -20,18 +21,17 @@ import { resolveScenePrompt } from './contracts.ts';
 import { locate, sameOrigin, type Origin, type World } from '../core/model.ts';
 import type { createSceneSession } from './session.ts';
 
-type Host = { previewColors?:(world:World)=>void; account?:()=>void; subscribe:(listener:()=>void)=>()=>void; read: () => World; selected: () => readonly Origin[]; change: (edit: (world: World) => void, group?: string) => void; preview: (world: World) => void; session: ReturnType<typeof createSceneSession>; feedback: (text: string) => void };
+type Host = { account?:()=>void; subscribe:(listener:()=>void)=>()=>void; read: () => World; selected: () => readonly Origin[]; change: (edit: (world: World) => void, group?: string) => void; preview: (world: World) => void; session: ReturnType<typeof createSceneSession>; feedback: (text: string) => void };
 export const SCENE_TABS=[['image','Image'],['waves','Waves'],['pulse','Pulse'],['audio','Audio'],['normalization','Normalize'],['prompt','Prompt']]as const;
 export type SceneTab=typeof SCENE_TABS[number][0];
 export function scenePanel(host: Host,initialTab:SceneTab='image') {
   let live = true, imageVersion=0;let storage:SceneStorage=localSceneStorage,accountImages=false;const materialized=new Map<string,string>(),generationRetry:import('../backend/sceneGenerationControls.ts').GenerationRetry={}; let target: Origin | undefined = host.selected()[0];
-  let cancelCombo=()=>{};
   const subscriptions: (() => void)[] = [];
-  const view = panel('Scene', () => { live = false;cancelCombo(); for (const stop of subscriptions.splice(0)) stop(); host.preview(host.read()); });
+  const view = panel('Scene', () => { live = false; for (const stop of subscriptions.splice(0)) stop(); host.preview(host.read()); });
   const navigation = document.createElement('nav'), body = document.createElement('div'); navigation.className = 'scene-tabs'; body.className = 'scene-content'; view.body.append(navigation, body);
   function attempt(action: () => void | Promise<void>) { try{void Promise.resolve(action()).catch(error => host.feedback(error instanceof Error ? error.message : String(error)));}catch(error){host.feedback(error instanceof Error ? error.message : String(error));} }
   function button(label: string, action: () => void | Promise<void>, parent: HTMLElement = body) { const b = document.createElement('button'); b.textContent = label; b.onclick = () => attempt(action); parent.append(b); return b; }
-  function clear() { cancelCombo();imageVersion++; for (const stop of subscriptions.splice(0)) stop(); body.replaceChildren(); }
+  function clear() { imageVersion++; for (const stop of subscriptions.splice(0)) stop(); body.replaceChildren(); }
   function update(edit: (settings: SceneSettings) => void, group?: string) { host.change(world => { world.scene ??= defaultScene(); edit(world.scene); }, group); }
   function currentImage() { const w = host.read(), node = target && locate(w, target); return node?.scene !== undefined ? node.scene : w.scene?.image ?? null; }
   function assign(image: string | null) { host.change(world => { if (target) { const node = locate(world, target); if (!node) throw Error('Image destination no longer exists.'); node.scene = image; } else { world.scene ??= defaultScene(); world.scene.image = image; } }); }
@@ -70,22 +70,9 @@ export function scenePanel(host: Host,initialTab:SceneTab='image') {
       for (const item of clipboard) { const type = item.types.find(type => ['image/png','image/jpeg','image/webp'].includes(type)); if (type) { if(library===storage)await receive(new File([await item.getType(type)], 'Pasted scene', { type }), captured, previous); return; } }
       throw Error('No image found on the clipboard.');
     }).disabled=!library.writable();
-    const suggestions=document.createElement('div');body.append(suggestions);
-    const combo=button('Image color suggestions',async()=>{
-      cancelCombo();suggestions.replaceChildren();const baseline=host.read(),captured=target,image=currentImage();if(!image)throw Error('Assign an image first.');combo.disabled=true;
-      try{const [{sceneSourceSample},{localSceneBlob},{imageColorCombos,createImageComboPreview}]=await Promise.all([import('./normalizationCache.ts'),import('./library.ts'),import('./colorCombo.ts')]);
-        const sampled=await sceneSourceSample(await localSceneBlob(image));if(!live||version!==imageVersion)return;
-        if(host.read()!==baseline||currentImage()!==image)throw Error('Workspace changed during colour analysis. Try again.');
-        const {palette,combos}=imageColorCombos(sampled.pixels),swatches=document.createElement('div');
-        for(const item of [...palette.accents,...palette.neutrals]){const swatch=document.createElement('span');swatch.textContent='●';swatch.style.color=item.color;swatch.style.textShadow='none';swatch.setAttribute('aria-label',item.color);swatches.append(swatch);}suggestions.append(swatches);
-        const status=document.createElement('output'),sample=document.createElement('div');suggestions.append(status,sample);
-        const session=createImageComboPreview({read:host.read,change:host.change,preview:world=>host.previewColors?.(world)},combos,captured);
-        const stop=host.subscribe(()=>{if(host.read()!==baseline)cancelCombo();});cancelCombo=()=>{stop();session.cancel();suggestions.replaceChildren();};
-        const show=(index:number)=>{if(!session.show(index))return;const colors=combos[session.index];status.textContent=`${session.index+1} / ${combos.length}`;sample.textContent='Text  ●';sample.style.color=colors.text;sample.style.textShadow=`0 0 4px ${colors.textGlow}`;sample.style.border=`2px solid ${colors.node}`;sample.style.boxShadow=`0 0 5px ${colors.nodeGlow}`;sample.style.padding='6px';};
-        button('Previous',()=>show(session.index-1),suggestions);button('Next',()=>show(session.index+1),suggestions);
-        button('Apply',()=>{session.apply();cancelCombo();},suggestions);button('Cancel',()=>cancelCombo(),suggestions);show(0);
-      }finally{combo.disabled=false;}
-    });
+    const autoRow=document.createElement('label'),auto=document.createElement('input');auto.type='checkbox';auto.checked=!!host.read().appearance?.imageColors?.[autoColorKey(target)]?.enabled;autoRow.append(document.createTextNode('Auto image colors'),auto);body.append(autoRow);
+    auto.onchange=()=>host.change(world=>configureAutoColors(world,target,auto.checked));
+    button('Restore auto colors',()=>{host.change(world=>configureAutoColors(world,target,true,true));auto.checked=true;});
     button('Clear background', () => assign(null));
     if (target) button('Use default background', () => host.change(world => { const node = locate(world, target!); if (node) delete node.scene; }));
     const list = document.createElement('div'); body.append(list);
