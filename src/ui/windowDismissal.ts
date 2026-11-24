@@ -14,6 +14,7 @@ export function createWindowDismissal() {
       // Nested windows own the press before their enclosing window.
       const root = matching.find(root => !matching.some(other => other !== root && root.contains(other as Node)));
       if (root) entries.get(root)!.order = ++sequence;
+      return root;
     },
     owns(target:Node){return !!top()?.[0].contains(target);},
     confirmWithin(root:WindowRoot){const active=top();if(!active?.[1].confirm||!root.contains(active[0] as Node))return false;active[1].confirm();return true;},
@@ -40,10 +41,20 @@ let listening = false;
 export function registerWindow(root: HTMLElement, close: () => unknown, priority = 0, escape = true, confirm?:()=>unknown) {
   if (!listening) {
     listening = true;
-    const activate = (event: Event) => { if (event.target instanceof Node) windows.activate(event.target); };
+    const nativeInput=(target:EventTarget|null)=>target instanceof Element&&!!target.closest('input:not([type="button"]):not([type="submit"]):not([type="reset"]),textarea,select,[contenteditable]:not([contenteditable="false"]),[role="textbox"]');
+    const activate = (event: Event) => {
+      if(!(event.target instanceof Node))return;
+      const root=windows.activate(event.target) as HTMLElement|undefined;
+      // Choice controls prevent pointer focus while painting. Give their active
+      // confirmation owner keyboard focus instead of leaving it in the opener.
+      if(event.type==='pointerdown'&&root&&windows.canConfirm()&&windows.owns(event.target)&&!nativeInput(event.target)&&(!root.contains(document.activeElement)||nativeInput(document.activeElement))){
+        if(!root.hasAttribute('tabindex'))root.tabIndex=-1;
+        root.focus({preventScroll:true});
+      }
+    };
     window.addEventListener('pointerdown', activate, true);
     window.addEventListener('focusin', activate, true);
-    const confirmation=createWindowConfirmation(windows,target=>target instanceof Element&&!!target.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"]),[role="textbox"]'));
+    const confirmation=createWindowConfirmation(windows,nativeInput);
     window.addEventListener('keydown',confirmation.keydown,true);window.addEventListener('keyup',confirmation.keyup,true);window.addEventListener('blur',confirmation.cancel);
   }
   return windows.register(root, close, priority, escape,confirm);

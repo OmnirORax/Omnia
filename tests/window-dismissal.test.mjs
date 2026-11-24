@@ -60,3 +60,27 @@ test('Enter on a focused dial button confirms on release rather than clicking th
  keyboard.keydown(event());keyboard.cancel();keyboard.keyup(event());assert.equal(calls.length,2);
  keyboard.keydown(event());windows.register({isConnected:true,contains:()=>true},()=>{},2,true,()=>calls.push('different'));keyboard.keyup(event());assert.deepEqual(calls,['apply','apply']);
 });
+
+test('pointer selection transfers Enter ownership from the opening field to its active dial',async()=>{
+ const {registerWindow}=await import('../src/ui/windowDismissal.ts'),names=['window','document','Node','Element'],saved=Object.fromEntries(names.map(name=>[name,globalThis[name]])),handlers=new Map();let calls=0;
+ class Element{
+  isConnected=true;tabIndex=0;
+  constructor(kind='div',parent,type='text'){this.kind=kind;this.parent=parent;this.type=type;}
+  contains(node){for(let current=node;current;current=current.parent)if(current===this)return true;return false;}
+  closest(){return this.kind==='input'&&!['button','submit','reset'].includes(this.type)?this:null;}
+  hasAttribute(){return false;}
+  focus(){globalThis.document.activeElement=this;send('focusin',this);}
+ }
+ const send=(type,target,extra={})=>{const event={type,target,key:'Enter',ctrlKey:false,metaKey:false,altKey:false,shiftKey:false,preventDefault(){this.prevented=true;},stopImmediatePropagation(){this.stopped=true;},...extra};for(const fn of handlers.get(type)??[]){fn(event);if(event.stopped)break;}return event;};
+ const opening=new Element('input'),dial=new Element(),dot=new Element('button',dial),field=new Element('input',dial),box=new Element('input',dial,'button');
+ Object.assign(globalThis,{Node:Element,Element,document:{activeElement:opening},window:{addEventListener(type,fn){handlers.set(type,[...(handlers.get(type)??[]),fn]);}}});
+ let dispose;
+ try{
+  dispose=registerWindow(dial,()=>{},1,true,()=>calls++);
+  send('pointerdown',dot);assert.equal(document.activeElement,dial,'a prevented dot press must not leave Enter in its opening input');send('keydown',document.activeElement);send('keyup',document.activeElement);assert.equal(calls,1);
+  document.activeElement=field;send('pointerdown',dot);assert.equal(document.activeElement,dial,'choosing a dot also leaves a typed field inside the dial');send('keydown',dial);send('keyup',dial);assert.equal(calls,2);
+  send('pointerdown',field);document.activeElement=field;send('focusin',field);send('keydown',field);send('keyup',field);assert.equal(calls,2,'text entry keeps native Enter');
+  document.activeElement=box;send('keydown',box);send('keyup',box);assert.equal(calls,3,'a numeric button is a control, not a text-entry field');
+  document.activeElement=opening;send('keydown',opening);send('keyup',opening);assert.equal(calls,3);
+ }finally{dispose?.();for(const [name,value]of Object.entries(saved))if(value===undefined)delete globalThis[name];else globalThis[name]=value;}
+});
