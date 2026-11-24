@@ -1,3 +1,4 @@
+import {PALETTE_LAYOUTS,PALETTE_PATTERNS,PALETTE_SPREADS,type PaletteSettings} from '../properties/textPalette.ts';
 import {configureAutoColors,autoColorKey} from './autoColors.ts';
 import {imageTrash} from './imageTrash.ts';
 import {localSceneStorage,type SceneStorage,type SceneImage} from './storage.ts';
@@ -72,9 +73,12 @@ export function scenePanel(host: Host,initialTab:SceneTab='image') {
       throw Error('No image found on the clipboard.');
     }).disabled=!library.writable();
     const autoRow=document.createElement('label'),auto=document.createElement('input');auto.type='checkbox';auto.checked=!!host.read().appearance?.imageColors?.[autoColorKey(target)]?.enabled;autoRow.append(document.createTextNode('Auto image colors'),auto);body.append(autoRow);
-    auto.onchange=()=>{paletteMode.disabled=!auto.checked;host.change(world=>configureAutoColors(world,target,auto.checked));};
-    const paletteMode=document.createElement('select');paletteMode.setAttribute('aria-label','Image color distribution');for(const [value,label]of [['text','Within text'],['nodes','Across nodes']]){const option=document.createElement('option');option.value=value;option.textContent=label;paletteMode.append(option);}paletteMode.disabled=!auto.checked;paletteMode.value=host.read().appearance?.imageColors?.[autoColorKey(target)]?.mode??'text';paletteMode.onchange=()=>host.change(world=>configureAutoColors(world,target,auto.checked,false,paletteMode.value==='nodes'?'nodes':'text'));body.append(paletteMode);
-    button('Restore auto colors',()=>{host.change(world=>configureAutoColors(world,target,true,true));auto.checked=true;paletteMode.disabled=false;});
+    const paletteControls:HTMLSelectElement[]=[];
+    auto.onchange=()=>{for(const control of paletteControls)control.disabled=!auto.checked;reshuffle.disabled=!auto.checked;host.change(world=>configureAutoColors(world,target,auto.checked));};
+    function paletteSelect(key:'layout'|'pattern'|'spread',label:string,options:readonly(readonly[string,string])[]){const select=document.createElement('select');select.setAttribute('aria-label',label);for(const [value,text]of options){const option=document.createElement('option');option.value=value;option.textContent=text;select.append(option);}select.value=host.read().appearance?.imageColors?.[autoColorKey(target)]?.palette?.[key]??options[0][0];select.disabled=!auto.checked;select.onchange=()=>{if(key==='pattern')reshuffle.hidden=!['shuffle','random'].includes(select.value);host.change(world=>configureAutoColors(world,target,auto.checked,false,{[key]:select.value} as PaletteSettings));};paletteControls.push(select);body.append(select);}
+    paletteSelect('layout','Gradient direction',PALETTE_LAYOUTS);paletteSelect('pattern','Gradient pattern',PALETTE_PATTERNS);paletteSelect('spread','Gradient spread',PALETTE_SPREADS);
+    const reshuffle=button('↻',()=>host.change(world=>configureAutoColors(world,target,auto.checked,false,{seed:((world.appearance?.imageColors?.[autoColorKey(target)]?.palette?.seed??1)+1)>>>0})));reshuffle.setAttribute('aria-label','Reshuffle pattern');reshuffle.disabled=!auto.checked;reshuffle.hidden=!['shuffle','random'].includes(host.read().appearance?.imageColors?.[autoColorKey(target)]?.palette?.pattern??'smooth');
+    button('Restore auto colors',()=>{host.change(world=>configureAutoColors(world,target,true,true));auto.checked=true;for(const control of paletteControls)control.disabled=false;reshuffle.disabled=false;});
     button('Clear background', () => assign(null));
     if (target) button('Use default background', () => host.change(world => { const node = locate(world, target!); if (node) delete node.scene; }));
     const list = document.createElement('div'); body.append(list);

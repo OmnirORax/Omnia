@@ -30,7 +30,7 @@ import {createPaintSession} from './core/painting.ts';
 import {createAxisView} from './world/axisView.ts';
 import {projectionAxis,operationSlot,activeWorldAxes,nodeOriginView,axisCenter,axisPoint,axisAnchor,planAxis,planSlotNode,endpointView,dot,minus,type AxisFrame} from './core/axes.ts';
 import {startsConnector,connectorDragged} from './world/connectorGesture.ts';
-import {resolveNodeAppearance,nodePaint,connectorPaintReader,nodeTextPaint,invalidateTextPaletteProjection,paintPreview,type VisualTarget} from './core/appearance.ts';
+import {resolveNodeAppearance,nodePaint,connectorPaintReader,nodeTextPaint,paintPreview,type VisualTarget} from './core/appearance.ts';
 import {brightHex} from './composer/runtime/appearance/resolve.ts';
 import {createContentContour,collectContentHull} from './world/contentContour.ts';
 import {contentEnvelope,convexHull} from './world/contentEnvelope.ts';
@@ -332,7 +332,7 @@ export function createWorld(host: HTMLElement, input: Input) {
     return previewAppearance(patch?paintPreview(world,target,origins,patch):world);
   }
   function previewAppearance(candidate:World=world){pendingAppearance=candidate;renderScheduler.request(true);return candidate;}
-  function applyAppearance(candidate:World){invalidateTextPaletteProjection(candidate);
+  function applyAppearance(candidate:World){
     const inherit=createInheritanceReader(candidate);
     const nodes=new Map(candidate.nodes.map(node=>[key(node.origin),node]));
     for(const [id,visual]of visuals){const node=nodes.get(id);if(!node)continue;const actual=resolveNodeAppearance(candidate,inherit(node));styleVisual(visual,actual,nodeTextPaint(candidate,actual,origin=>nodes.get(key(origin))));}
@@ -340,7 +340,7 @@ export function createWorld(host: HTMLElement, input: Input) {
     const readPaint=connectorPaintReader(candidate);
     for(const connector of connectors){const node=nodes.get(key(connector.source));if(!node)continue;const paint=readPaint(node);for(const mesh of [connector.line,connector.arrow]){mesh.userData.glowColor=paint.glowColor;mesh.userData.glowIntensity=paint.glow;mesh.material.color.set(connector.line.userData.highlighted?'#ffb000':paint.color);} }
   }
-  function update(next: World, selection: readonly Origin[], visible?: ReadonlySet<string>, edgeSelection: readonly Edge[] = []) {invalidateTextPaletteProjection(next);
+  function update(next: World, selection: readonly Origin[], visible?: ReadonlySet<string>, edgeSelection: readonly Edge[] = []) {
     if(world&&next!==world&&boundRotation.active)boundRotation.cancel();
     if(pointOfView&&world){const old=world.nodes.find(node=>sameOrigin(node.origin,pointOfView!)),current=next.nodes.find(node=>sameOrigin(node.origin,pointOfView!));if(!current){pointOfView=undefined;nodeViewDepth=undefined;if(userView){camera.position.fromArray(userView.position);camera.up.fromArray(userView.up);controls.target.fromArray(userView.target);camera.lookAt(controls.target);userView=undefined;rebind();}}else if(old){const delta=new T.Vector3(...current.position.map((n,i)=>n-old.position[i])).multiplyScalar(scale);camera.position.add(delta);controls.target.add(delta);}}
     if(world&&next!==world){navigation.finish(true);nudging.finish(true);if(gesture&&!contentViewChanging)restore();}

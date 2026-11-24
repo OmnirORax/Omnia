@@ -1,4 +1,4 @@
-import {validTextPalette,type TextPalette} from './textPalette.ts';
+import {validTextPalette,validPaletteSettings,type TextPalette} from './textPalette.ts';
 import {RETIRED_TEXT_CHANNELS,retireTextChannels} from './textChannels.ts';
 export {retireTextChannels} from './textChannels.ts';
 import {TEXT_GLOW_MAX,TEXT_GLOW_SPREAD} from './textGlow.ts';
@@ -35,6 +35,7 @@ export const fontFamily = (id?: string) => (id&&isImportedFont(id)?importedFontF
 export const paintColor = (paint: Paint) => `${paint.color}${Math.round(translucentOpacity(paint.opacity??1,paint.translucency)*255).toString(16).padStart(2,'0')}`;
 export function validatePaint(paint: Paint | undefined, text: boolean) {
   if(paint===undefined)return;
+  if(text&&paint?.palette&&(paint.palette as {mode:string}).mode==='nodes')paint.palette.mode='text';
   if(!paint || typeof paint!=='object' || Array.isArray(paint) ||
     text&&RETIRED_TEXT_CHANNELS.some(key=>paint[key]!==undefined) ||
     !text&&(paint.glow!==undefined||paint.glowColor!==undefined) ||
@@ -52,7 +53,7 @@ export function validatePaint(paint: Paint | undefined, text: boolean) {
 export function validateAppearance(value: Appearance | undefined) {
   if(value===undefined)return;
   if(!value||typeof value!=='object'||Array.isArray(value))throw Error('Invalid appearance.');
-  if(value.imageColors!==undefined){if(!value.imageColors||typeof value.imageColors!=='object'||Array.isArray(value.imageColors)||Object.keys(value.imageColors).length>1000)throw Error('Invalid image colour rules.');for(const [key,rule]of Object.entries(value.imageColors)){if(key.length>200||!rule||rule.mode!==undefined&&!['text','nodes'].includes(rule.mode)||typeof rule.enabled!=='boolean'||rule.inherit!==undefined&&typeof rule.inherit!=='boolean'||!Array.isArray(rule.manual)||rule.manual.length>4||rule.manual.some(channel=>!['text','textGlow','node','nodeGlow'].includes(channel)))throw Error('Invalid image colour rule.');if(key!=='default'){try{const origin=JSON.parse(key);if(!Number.isFinite(origin.born)||!Array.isArray(origin.at)||origin.at.length!==3||origin.at.some((v:unknown)=>typeof v!=='number'||!Number.isFinite(v)))throw Error();}catch{throw Error('Invalid image colour target.');}}}}
+  if(value.imageColors!==undefined){if(!value.imageColors||typeof value.imageColors!=='object'||Array.isArray(value.imageColors)||Object.keys(value.imageColors).length>1000)throw Error('Invalid image colour rules.');for(const [key,rule]of Object.entries(value.imageColors)){if(rule&&(rule as {mode?:string}).mode==='nodes')rule.mode='text';if(key.length>200||!rule||rule.mode!==undefined&&rule.mode!=='text'||rule.palette!==undefined&&(!rule.palette||typeof rule.palette!=='object'||Array.isArray(rule.palette)||!validPaletteSettings(rule.palette))||typeof rule.enabled!=='boolean'||rule.inherit!==undefined&&typeof rule.inherit!=='boolean'||!Array.isArray(rule.manual)||rule.manual.length>4||rule.manual.some(channel=>!['text','textGlow','node','nodeGlow'].includes(channel)))throw Error('Invalid image colour rule.');if(key!=='default'){try{const origin=JSON.parse(key);if(!Number.isFinite(origin.born)||!Array.isArray(origin.at)||origin.at.length!==3||origin.at.some((v:unknown)=>typeof v!=='number'||!Number.isFinite(v)))throw Error();}catch{throw Error('Invalid image colour target.');}}}}
   retireTextChannels(value.text);if(value.background){delete value.background.glow;delete value.background.glowColor;}validatePaint(value.text,true);validatePaint(value.background,false);validateNodePaint(value.nodes);
   delete (value as Appearance&{animations?:unknown}).animations;
 }

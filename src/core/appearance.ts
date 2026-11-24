@@ -1,4 +1,3 @@
-import {paletteProjection,textPalettePair} from '../properties/textPalette.ts';
 import {NODE_VISUAL_DEFAULTS,validateNodePaint,type NodePaint} from '../properties/nodeVisuals.ts';
 import {brightHex} from '../composer/runtime/appearance/resolve.ts';
 import { locate, type Origin, type World, type Structure } from './model.ts';
@@ -75,9 +74,6 @@ export function paintPreview(world:World,target:VisualTarget,origins:readonly Or
  const candidate={...world,appearance:{...world.appearance},nodes:local?world.nodes.map(node=>selected.has(JSON.stringify(node.origin))?{...node}:node):world.nodes};
  writePaint(candidate,target,origins,patch);return candidate;
 }
-export function invalidateTextPaletteProjection(world:World){projections.delete(world);}
-const projections=new WeakMap<World,ReturnType<typeof paletteProjection>>();
-function projection(world:World){let read=projections.get(world);if(!read){read=paletteProjection(world.nodes);projections.set(world,read);}return read;}
 function resolvedNodeTextPaint(world:World,actual?:Structure,lookup:(origin:Origin)=>Structure|undefined=origin=>locate(world,origin)){
  const local=actual?.textAppearance,paint={...world.appearance?.text,...local,...(local?.font!==undefined?{fontName:local.fontName}:{})},rules=world.appearance?.imageColors,rule=actual&&rules?.[JSON.stringify(actual.origin)];
  if(rules?.default?.enabled){
@@ -88,7 +84,6 @@ function resolvedNodeTextPaint(world:World,actual?:Structure,lookup:(origin:Orig
   if(!blocked)for(const [field,channel]of [['color','text'],['glowColor','textGlow']] as const)if(!manual.has(channel)){const value=world.appearance?.text?.[field];if(value!==undefined)paint[field]=value;}
  }
  if(!rules?.default?.enabled&&local?.palette===undefined&&(local?.color!==undefined||local?.glowColor!==undefined))paint.palette=undefined;
- if(paint.palette?.mode==='nodes'&&actual)Object.assign(paint,textPalettePair(paint.palette,projection(world)(actual.position)));
  return resolvedTextPaint(paint);
 }
 export function nodeTextPaint(world:World,actual:Structure,lookup?:(origin:Origin)=>Structure|undefined){return resolvedNodeTextPaint(world,actual,lookup);}

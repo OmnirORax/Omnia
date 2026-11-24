@@ -1,20 +1,24 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {textPalettePair,textPaletteCSS,paletteProjection} from '../src/properties/textPalette.ts';
+import {textPalettePair,textPaletteCSS,textPaletteStops,PALETTE_STOP_LIMIT} from '../src/properties/textPalette.ts';
 import {paletteRGB} from '../src/scene/palette.ts';
 import {emptyWorld,addStructure,validateWorld} from '../src/core/model.ts';
-import {readPaint,writePaint,invalidateTextPaletteProjection} from '../src/core/appearance.ts';
-const palette={mode:'nodes',colors:['#ff0000','#0000ff','#00ff00']};
-test('every interpolated hue stays full brightness with quarter-saturation ink and fully saturated glow',()=>{
- for(let i=0;i<=100;i++){const pair=textPalettePair(palette,i/100),ink=paletteRGB(pair.color),glow=paletteRGB(pair.glowColor);assert.equal(Math.max(...ink),255);assert.equal(Math.max(...glow),255);assert.equal(Math.min(...glow),0);for(let c=0;c<3;c++)assert.ok(Math.abs(ink[c]-(255*.75+glow[c]*.25))<=1);}
- assert.deepEqual(textPalettePair(palette,0),{color:'#ffbfbf',glowColor:'#ff0000'});assert.equal(textPalettePair(palette,.5).glowColor,'#0000ff');assert.equal(textPalettePair(palette,1).glowColor,'#00ff00');assert.match(textPaletteCSS(palette),/in hsl shorter hue/);
+import {readPaint,writePaint} from '../src/core/appearance.ts';
+const palette={mode:'text',colors:['#0080ff','#ff8000'],weights:[.9,.1]};
+test('blue/orange gradients retain brightness and linked ink without inventing green hues',()=>{
+ for(let i=0;i<=1000;i++){const pair=textPalettePair(palette,i/1000),ink=paletteRGB(pair.color),glow=paletteRGB(pair.glowColor);assert.equal(Math.max(...ink),255);assert.equal(Math.max(...glow),255);assert.ok(!(glow[1]>glow[0]+1&&glow[1]>glow[2]+1));for(let c=0;c<3;c++)assert.ok(Math.abs(ink[c]-(255*.75+glow[c]*.25))<=1);}
+ assert.equal(textPalettePair(palette,.8).glowColor,'#0080ff');assert.equal(textPalettePair(palette,1).glowColor,'#ff8000');assert.match(textPaletteCSS(palette),/in srgb/);
 });
-test('across-node paint samples the widest spatial axis and leaves authored values unchanged',()=>{
- const world=emptyWorld(),a=addStructure(world,[0,0,0],1),b=addStructure(world,[0,5,0],2),c=addStructure(world,[0,10,0],3);writePaint(world,'text',[],{color:'#ffbfbf',glowColor:'#ff0000',palette});const before=JSON.stringify(world);
- assert.equal(readPaint(world,'nodeText',a.origin).glowColor,'#ff0000');assert.equal(readPaint(world,'nodeText',b.origin).glowColor,'#0000ff');assert.equal(readPaint(world,'nodeText',c.origin).glowColor,'#00ff00');assert.equal(JSON.stringify(world),before);validateWorld(JSON.parse(before));
- c.position[1]=20;invalidateTextPaletteProjection(world);assert.notEqual(readPaint(world,'nodeText',b.origin).glowColor,'#0000ff');
- const p=paletteProjection([]);assert.equal(p([0,0,0]),0);
+test('band widths follow measured weights and every layout uses a bounded cached stop table',()=>{
+ const p={...palette,pattern:'bands'},stops=textPaletteStops(p);assert.equal(stops[1].at,.9);assert.equal(stops[2].at,.9);assert.equal(textPalettePair(p,.89).glowColor,'#0080ff');assert.equal(textPalettePair(p,.91).glowColor,'#ff8000');
+ for(const pattern of ['smooth','bands','random','shuffle']){const q={mode:'text',colors:Array(8).fill('#ff0000'),pattern};assert.ok(textPaletteStops(q).length<=PALETTE_STOP_LIMIT);assert.equal(textPaletteStops(q),textPaletteStops(q));}
+ assert.match(textPaletteCSS({...palette,layout:'radial',spread:'repeat'}),/^repeating-radial-gradient/);assert.match(textPaletteCSS({...palette,layout:'vertical'}),/180deg/);assert.match(textPaletteCSS({...palette,layout:'diagonal'}),/135deg/);
 });
-test('manual node colors override inherited palette after save/load while within-text mode preserves the palette',()=>{
- const world=emptyWorld(),node=addStructure(world,[0,0,0],1);writePaint(world,'text',[],{color:'#ffbfbf',glowColor:'#ff0000',palette:{...palette,mode:'text'}});assert.equal(readPaint(world,'nodeText',node.origin).palette.mode,'text');writePaint(world,'nodeText',[node.origin],{color:'#112233'});const saved=JSON.parse(JSON.stringify(world));validateWorld(saved);assert.equal(readPaint(saved,'nodeText',node.origin).palette,undefined);assert.equal(readPaint(saved,'nodeText',node.origin).color,'#112233');
+test('random patterns are deterministic, reshuffle with the seed, and use only the retained palette',()=>{
+ assert.notDeepEqual(textPaletteStops({...palette,pattern:'shuffle',seed:1}),textPaletteStops({...palette,pattern:'shuffle',seed:2}));const p={...palette,weights:[1,1],pattern:'random',seed:42};assert.deepEqual(textPaletteStops(p),textPaletteStops({...p}));assert.notDeepEqual(textPaletteStops(p),textPaletteStops({...p,seed:43}));for(const stop of textPaletteStops(p))assert.ok(['#0080ff','#ff8000'].includes('#'+stop.rgb.map(c=>Math.round(c*255).toString(16).padStart(2,'0')).join('')));
 });
-test('palette schema bounds mode, stop count and colors',async()=>{const {validatePaint}=await import('../src/properties/visual.ts');for(const p of [{mode:'bad',colors:['#ff0000']},{mode:'text',colors:[]},{mode:'nodes',colors:Array(9).fill('#ff0000')},{mode:'text',colors:['red']}])assert.throws(()=>validatePaint({palette:p},true));assert.throws(()=>validatePaint({palette},false));});
+test('manual node colors override inherited palette after save/load',()=>{
+ const world=emptyWorld(),node=addStructure(world,[0,0,0],1);writePaint(world,'text',[],{color:'#ffbfbf',glowColor:'#ff0000',palette});writePaint(world,'nodeText',[node.origin],{color:'#112233'});const saved=JSON.parse(JSON.stringify(world));validateWorld(saved);assert.equal(readPaint(saved,'nodeText',node.origin).palette,undefined);assert.equal(readPaint(saved,'nodeText',node.origin).color,'#112233');
+});
+test('palette validation bounds settings, weights and colors; old across-node saves become within-text',async()=>{
+ const {validatePaint}=await import('../src/properties/visual.ts');for(const p of [{...palette,layout:'bad'},{...palette,pattern:'bad'},{...palette,spread:'bad'},{...palette,weights:[1]},{...palette,weights:[1,0]},{...palette,seed:NaN},{mode:'text',colors:[]},{mode:'text',colors:Array(9).fill('#ff0000')},{mode:'text',colors:['red']}])assert.throws(()=>validatePaint({palette:p},true));assert.throws(()=>validatePaint({palette},false));const world=emptyWorld(),node=addStructure(world,[0,0,0],1);world.appearance={text:{palette:{...palette,mode:'nodes'}},imageColors:{default:{enabled:true,manual:[],mode:'nodes'}}};node.textAppearance={palette:{...palette,mode:'nodes'}};validateWorld(world);assert.equal(world.appearance.text.palette.mode,'text');assert.equal(node.textAppearance.palette.mode,'text');assert.equal(world.appearance.imageColors.default.mode,'text');
+});

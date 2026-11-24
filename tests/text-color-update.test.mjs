@@ -139,7 +139,7 @@ test('document and world adapters receive identical text and glow through the sh
 test('spatial palette changes update shared shader uniforms without text rasterization or texture uploads',()=>{
  const mesh=label('Gradient',{color:'#ffbfbf',glowColor:'#ff0000',glow:.5}),before=snapshot(),map=mesh.material.map,version=map.version;
  updateLabelPaint(mesh,{color:'#ffbfbf',glowColor:'#ff0000',glow:.5,palette:{mode:'text',colors:['#ff0000','#0000ff','#00ff00']}});
- const shader={uniforms:{},vertexShader:'',fragmentShader:'#include <map_fragment>'};mesh.material.onBeforeCompile(shader,{});assert.equal(shader.uniforms.textPaletteCount.value,3);assert.equal(shader.uniforms.textPaletteStops.value[1].x,2/3);assert.match(shader.fragmentShader,/paletteGlow\(vMapUv.x\)/);
+ const shader={uniforms:{},vertexShader:'',fragmentShader:'#include <map_fragment>'};mesh.material.onBeforeCompile(shader,{});assert.ok(shader.uniforms.textPaletteCount.value>3);assert.equal(shader.uniforms.textPaletteStops.value[0].x,1);assert.match(shader.fragmentShader,/paletteGlow\(vMapUv\)/);
  assert.equal(mesh.material.map,map);assert.equal(map.version,version);assert.deepEqual(snapshot(),before);
- updateLabelPaint(mesh,{color:'#ffbfbf',glow:.5,palette:{mode:'nodes',colors:['#ff0000','#0000ff']}});assert.equal(shader.uniforms.textPaletteCount.value,0);disposeLabel(mesh);
+ updateLabelPaint(mesh,{color:'#ffbfbf',glow:.5});assert.equal(shader.uniforms.textPaletteCount.value,0);disposeLabel(mesh);
 });

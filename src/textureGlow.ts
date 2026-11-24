@@ -1,4 +1,4 @@
-import {paletteStop,type TextPalette} from './properties/textPalette.ts';
+import {textPaletteStops,paletteLayout,paletteSpread,PALETTE_STOP_LIMIT,type TextPalette} from './properties/textPalette.ts';
 import * as T from 'three';
 import {attachMaterialCoverage,declareGlowDetail} from './materialCoverage.ts';
 export const TEXT_STEM_PIXELS=3;
@@ -8,40 +8,45 @@ export function packGlowCoverage(clean:Uint8ClampedArray,halo:Uint8ClampedArray)
  if(clean.length!==halo.length||clean.length%4)throw Error('Mismatched glow coverage');
  for(let i=0;i<halo.length;i+=4){const shadow=halo[i+3];halo[i]=clean[i+3];halo[i+1]=shadow;halo[i+2]=0;halo[i+3]=255;}
 }
-const sizes=new WeakMap<T.Material,{detail:{value:number};color:{value:T.Color};count:{value:number};stops:{value:T.Vector2[]};paletteKey?:string}>();
+const sizes=new WeakMap<T.Material,{detail:{value:number};color:{value:T.Color};count:{value:number};stops:{value:T.Vector4[]};layout:{value:number};spread:{value:number};paletteKey?:string}>();
 export function updateTextureGlowSize(material:T.MeshBasicMaterial){
  const state=sizes.get(material),image=material.map?.image as {width:number;height:number}|undefined;
  if(state&&image)state.detail.value=TEXT_STEM_PIXELS/Math.max(1,image.height);
 }
 export function updateTextureGlowColor(material:T.Material,color:T.ColorRepresentation){sizes.get(material)?.color.value.set(color);}
-const emptyPaletteStops=Array.from({length:8},()=>new T.Vector2()),paletteData=new WeakMap<TextPalette,{key:string;stops:ReturnType<typeof paletteStop>[]}>();
+const emptyPaletteStops=Array.from({length:PALETTE_STOP_LIMIT},()=>new T.Vector4()),paletteData=new WeakMap<TextPalette,{key:string;stops:ReturnType<typeof textPaletteStops>}>();
 export function updateTextureTextPalette(material:T.Material,palette?:TextPalette){
- const state=sizes.get(material);if(!state)return;let data=palette&&paletteData.get(palette);if(palette&&!data){data={key:JSON.stringify(palette),stops:palette.colors.map(paletteStop)};paletteData.set(palette,data);}const key=data?.key??'';if(state.paletteKey===key)return;state.paletteKey=key;
- const stops=palette?.mode==='text'?data?.stops??[]:[];state.count.value=stops.length;if(!stops.length){state.stops.value=emptyPaletteStops;return;}if(state.stops.value===emptyPaletteStops)state.stops.value=Array.from({length:8},()=>new T.Vector2());for(let i=0;i<8;i++){const stop=stops[i]??stops.at(-1)!;state.stops.value[i].set(stop.hue,stop.saturation);}
+ const state=sizes.get(material);if(!state)return;let data=palette&&paletteData.get(palette);if(palette&&!data){data={key:JSON.stringify(palette),stops:textPaletteStops(palette)};paletteData.set(palette,data);}const key=data?.key??'';if(state.paletteKey===key)return;state.paletteKey=key;
+ const stops=data?.stops??[];state.count.value=stops.length;state.layout.value=palette?paletteLayout(palette):0;state.spread.value=palette?paletteSpread(palette):1;
+ if(!stops.length){state.stops.value=emptyPaletteStops;return;}if(state.stops.value===emptyPaletteStops)state.stops.value=Array.from({length:PALETTE_STOP_LIMIT},()=>new T.Vector4());for(let i=0;i<PALETTE_STOP_LIMIT;i++){const stop=stops[i]??stops.at(-1)!;state.stops.value[i].set(...stop.rgb as [number,number,number],stop.at);}
 }
 const paletteShader=`
 uniform int textPaletteCount;
-uniform vec2 textPaletteStops[8];
+uniform vec4 textPaletteStops[${PALETTE_STOP_LIMIT}];
+uniform int textPaletteLayout;
+uniform float textPaletteSpread;
 vec3 paletteLinear(vec3 c){return mix(c/12.92,pow((c+0.055)/1.055,vec3(2.4)),step(vec3(0.04045),c));}
-vec3 paletteGlow(float x){
- float position=clamp(x,0.0,1.0)*float(textPaletteCount-1);vec2 stop=textPaletteStops[0];
- for(int i=0;i<7;i++){if(i<textPaletteCount-1&&float(i)<=position){vec2 a=textPaletteStops[i],b=textPaletteStops[i+1];float t=clamp(position-float(i),0.0,1.0),delta=b.x-a.x;if(delta>0.5)delta-=1.0;if(delta< -0.5)delta+=1.0;stop=vec2(fract(a.x+delta*t),mix(a.y,b.y,t));}}
- vec3 p=abs(fract(stop.x+vec3(0.0,0.666666667,0.333333333))*6.0-3.0);return mix(vec3(1.0),clamp(p-1.0,0.0,1.0),stop.y);
+vec3 paletteGlow(vec2 uv){
+ float x=uv.x;if(textPaletteLayout==1)x=1.0-uv.y;else if(textPaletteLayout==2)x=(uv.x+1.0-uv.y)*0.5;else if(textPaletteLayout==3)x=length((uv-0.5)*1.414213562);
+ x=clamp(x,0.0,1.0);if(textPaletteSpread>1.0)x=fract(x*textPaletteSpread);
+ vec4 a=textPaletteStops[0];vec3 color=a.rgb;
+ for(int i=1;i<${PALETTE_STOP_LIMIT};i++){if(i>=textPaletteCount)break;vec4 b=textPaletteStops[i];if(x<b.a){float t=clamp((x-a.a)/max(0.000001,b.a-a.a),0.0,1.0);color=mix(a.rgb,b.rgb,t);break;}a=b;color=b.rgb;}
+ return color;
 }
 `;
 /** Monochrome text keeps its ink in material.color. Both base and emission
  * inherit the same coverage decoder. The authored halo follows filtered texture
  * coverage at every zoom, just as document shadows follow their text. */
 export function packedTextureGlow(material:T.MeshBasicMaterial){
- const state={detail:{value:0},color:{value:material.color.clone()},count:{value:0},stops:{value:emptyPaletteStops}};sizes.set(material,state);updateTextureGlowSize(material);declareGlowDetail(material,state.detail);
+ const state={detail:{value:0},color:{value:material.color.clone()},count:{value:0},stops:{value:emptyPaletteStops},layout:{value:0},spread:{value:1}};sizes.set(material,state);updateTextureGlowSize(material);declareGlowDetail(material,state.detail);
  attachMaterialCoverage(material,target=>{
   const before=target.onBeforeCompile;
   target.onBeforeCompile=(shader,renderer)=>{
-   before.call(target,shader,renderer);shader.uniforms.glowInkColor=state.color;shader.uniforms.textPaletteCount=state.count;shader.uniforms.textPaletteStops=state.stops;
+   before.call(target,shader,renderer);shader.uniforms.glowInkColor=state.color;shader.uniforms.textPaletteCount=state.count;shader.uniforms.textPaletteStops=state.stops;shader.uniforms.textPaletteLayout=state.layout;shader.uniforms.textPaletteSpread=state.spread;
    const coverage=target===material?`
     float clean=coverage.r,halo=max(0.0,coverage.g-clean),total=clean+halo;
     vec3 ink=diffuseColor.rgb,glow=glowInkColor;
-    if(textPaletteCount>1&&total>0.0){vec3 hue=paletteGlow(vMapUv.x);ink=paletteLinear(mix(vec3(1.0),hue,0.25));glow=paletteLinear(hue);}
+    if(textPaletteCount>1&&total>0.0){vec3 hue=paletteGlow(vMapUv);ink=paletteLinear(mix(vec3(1.0),hue,0.25));glow=paletteLinear(hue);}
     diffuseColor.rgb=(ink*clean+glow*halo)/max(total,.00001);
     diffuseColor.a*=total;
    `:'diffuseColor.a*=coverage.r;';
@@ -54,6 +59,6 @@ export function packedTextureGlow(material:T.MeshBasicMaterial){
     ${coverage}
     #endif
    `);
-  };target.customProgramCacheKey=()=>target===material?'omnium.packed-text-glow.base.v5':'omnium.packed-text-glow.mask.v3';
+  };target.customProgramCacheKey=()=>target===material?'omnium.packed-text-glow.base.v6':'omnium.packed-text-glow.mask.v3';
  });
 }
