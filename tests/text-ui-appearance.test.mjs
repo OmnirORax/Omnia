@@ -32,7 +32,7 @@ test('text controls own UI decoration capabilities while fills and body channels
 });
 test('text and UI decoration switch together even when a legacy background has a different glow',()=>{
  const properties=new Map(),rules=[],attributes=new Map();
- globalThis.document={createElement:()=>({dataset:{},textContent:''}),head:{append:element=>rules.push(element)},documentElement:{style:{setProperty:(key,value)=>properties.set(key,value)},toggleAttribute:(key,value)=>attributes.set(key,value)}};
+ globalThis.document={createElement:()=>({dataset:{},textContent:''}),head:{append:element=>rules.push(element)},documentElement:{style:{setProperty:(key,value)=>properties.set(key,value),removeProperty:key=>properties.delete(key)},toggleAttribute:(key,value)=>attributes.set(key,value)}};
  const background={color:'#112233',translucency:.5,glow:2,glowColor:'#ff0000'};
  updateUIAppearance({text:{color:'#00aaff',glow:0},background});
  assert.equal(properties.get('--visual-text-border-shadow'),'var(--omnium-custom-shadow,0 0 0 transparent)');

@@ -553,7 +553,7 @@ let sceneView: ReturnType<typeof scenePanel> | undefined;
 function openScene(tab:SceneTab='image',restore?:ViewSpec) {
   if(!viewHistory.performing){viewHistory.perform(()=>openScene(tab,restore));return;}
   renderClose(); if (!view) return; sceneView?.close();
-  sceneView = scenePanel({account:openAccount, subscribe:store.subscribe, read: () => store.world, selected: ()=>restore?.selection as Origin[]??selectedOrigins(), change: (edit, group) => store.change(edit, group), preview: candidate => view.session.update(candidate, selectedOrigins()[0]), session: view.session, feedback },tab);
+  sceneView = scenePanel({previewTheme:(origin,settings)=>previewPaint(origin?'nodeText':'text',origin?[origin]:[],settings?autoImageColors.preview(store.world,origin,settings):undefined),account:openAccount, subscribe:store.subscribe, read: () => store.world, selected: ()=>restore?.selection as Origin[]??selectedOrigins(), change: (edit, group) => store.change(edit, group), preview: candidate => view.session.update(candidate, selectedOrigins()[0]), session: view.session, feedback },tab);
   viewHistory.adopt('scene',{kind:'scene',args:[tab],selection:[...selectedOrigins()]},sceneView,restore);
 }
 const documents = new Map<string, ReturnType<typeof editDocument>>(), openingDocuments = new Set<string>();

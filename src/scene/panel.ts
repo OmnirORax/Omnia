@@ -1,6 +1,8 @@
+import {FOCUS_DISTRIBUTIONS,focusRatio,RATIO_BUDGET} from '../properties/focusPalette.ts';
+import {bindOperationValueControl} from '../ui/operationValueControl.ts';
 import {readPaint} from '../core/appearance.ts';
-import {varyTheme} from './themeControls.ts';
-import {PALETTE_LAYOUTS,PALETTE_PATTERNS,PALETTE_SPREADS,PALETTE_MATCHES,PALETTE_INKS,PALETTE_SELECTIONS,THEME_PRESETS,themePresetIndex,themePresetAvailable,macroTheme,type PaletteSettings} from '../properties/textPalette.ts';
+import {varyTheme,focusTheme,setThemeFocus} from './themeControls.ts';
+import {PALETTE_SELECTIONS,type PaletteSettings} from '../properties/textPalette.ts';
 import {configureAutoColors,autoColorKey} from './autoColors.ts';
 import {imageTrash} from './imageTrash.ts';
 import {localSceneStorage,type SceneStorage,type SceneImage} from './storage.ts';
@@ -25,13 +27,13 @@ import { resolveScenePrompt } from './contracts.ts';
 import { locate, sameOrigin, type Origin, type World } from '../core/model.ts';
 import type { createSceneSession } from './session.ts';
 
-type Host = { account?:()=>void; subscribe:(listener:()=>void)=>()=>void; read: () => World; selected: () => readonly Origin[]; change: (edit: (world: World) => void, group?: string) => void; preview: (world: World) => void; session: ReturnType<typeof createSceneSession>; feedback: (text: string) => void };
+type Host = { previewTheme?:(origin:Origin|undefined,settings?:PaletteSettings)=>void; account?:()=>void; subscribe:(listener:()=>void)=>()=>void; read: () => World; selected: () => readonly Origin[]; change: (edit: (world: World) => void, group?: string) => void; preview: (world: World) => void; session: ReturnType<typeof createSceneSession>; feedback: (text: string) => void };
 export const SCENE_TABS=[['image','Image'],['waves','Waves'],['pulse','Pulse'],['audio','Audio'],['normalization','Normalize'],['prompt','Prompt']]as const;
 export type SceneTab=typeof SCENE_TABS[number][0];
 export function scenePanel(host: Host,initialTab:SceneTab='image') {
   let live = true, imageVersion=0;let storage:SceneStorage=localSceneStorage,accountImages=false;const materialized=new Map<string,string>(),generationRetry:import('../backend/sceneGenerationControls.ts').GenerationRetry={}; let target: Origin | undefined = host.selected()[0];
   const subscriptions: (() => void)[] = [];
-  const view = panel('Scene', () => { live = false; for (const stop of subscriptions.splice(0)) stop(); host.preview(host.read()); });
+  const view = panel('Scene', () => { live = false; for (const stop of subscriptions.splice(0)) stop(); host.previewTheme?.(target);host.preview(host.read()); });
   const navigation = document.createElement('nav'), body = document.createElement('div'); navigation.className = 'scene-tabs'; body.className = 'scene-content'; view.body.append(navigation, body);
   function attempt(action: () => void | Promise<void>) { try{void Promise.resolve(action()).catch(error => host.feedback(error instanceof Error ? error.message : String(error)));}catch(error){host.feedback(error instanceof Error ? error.message : String(error));} }
   function button(label: string, action: () => void | Promise<void>, parent: HTMLElement = body) { const b = document.createElement('button'); b.textContent = label; b.onclick = () => attempt(action); parent.append(b); return b; }
@@ -75,18 +77,31 @@ export function scenePanel(host: Host,initialTab:SceneTab='image') {
       throw Error('No image found on the clipboard.');
     }).disabled=!library.writable();
     const autoRow=document.createElement('label'),auto=document.createElement('input');auto.type='checkbox';auto.checked=!!host.read().appearance?.imageColors?.[autoColorKey(target)]?.enabled;autoRow.append(document.createTextNode('Auto image colors'),auto);body.append(autoRow);
-    const paletteControls:HTMLSelectElement[]=[];
-    auto.onchange=()=>{for(const control of paletteControls)control.disabled=!auto.checked;randomize.disabled=micro.disabled=generate.disabled=!auto.checked;host.change(world=>configureAutoColors(world,target,auto.checked));};
-    function paletteSelect(key:'layout'|'pattern'|'spread'|'match'|'ink'|'selection',label:string,options:readonly(readonly[string,string])[]){const select=document.createElement('select');select.setAttribute('aria-label',label);select.dataset.paletteSetting=key;for(const [value,text]of options){const option=document.createElement('option');option.value=value;option.textContent=text;select.append(option);}if(key==='pattern'&&host.read().appearance?.imageColors?.[autoColorKey(target)]?.palette?.pattern==='generated'){const option=document.createElement('option');option.value='generated';option.textContent='Generated';option.disabled=true;select.append(option);}select.value=host.read().appearance?.imageColors?.[autoColorKey(target)]?.palette?.[key]??options[0][0];select.disabled=!auto.checked;select.onchange=()=>{host.change(world=>configureAutoColors(world,target,auto.checked,false,{[key]:select.value} as PaletteSettings));syncTheme();};paletteControls.push(select);body.append(select);}
-    const preset=document.createElement('select');preset.setAttribute('aria-label','Theme preset');const custom=document.createElement('option');custom.value='';custom.textContent='Custom theme';custom.disabled=true;preset.append(custom);for(const [i,item]of THEME_PRESETS.entries()){const option=document.createElement('option');option.value=String(i);option.textContent=item.label;preset.append(option);}const current=host.read().appearance?.imageColors?.[autoColorKey(target)]?.palette??{},index=themePresetIndex(current);preset.value=index<0?'':String(index);preset.disabled=!auto.checked;preset.onchange=()=>{host.change(world=>configureAutoColors(world,target,auto.checked,false,macroTheme(THEME_PRESETS[Number(preset.value)].settings)));syncTheme();};paletteControls.push(preset);body.append(preset);
-    paletteSelect('selection','Theme colors',PALETTE_SELECTIONS);paletteSelect('match','Image theme matching',PALETTE_MATCHES);paletteSelect('ink','Text color constraint',PALETTE_INKS);
-    paletteSelect('layout','Gradient direction',PALETTE_LAYOUTS);paletteSelect('pattern','Gradient pattern',PALETTE_PATTERNS);paletteSelect('spread','Gradient spread',PALETTE_SPREADS);
-    const randomize=button('Macro',()=>{host.change(world=>varyTheme(world,target,'macro'));syncTheme();});randomize.disabled=!auto.checked;
-    const micro=button('Micro',()=>{host.change(world=>varyTheme(world,target,'micro'));syncTheme();});micro.disabled=!auto.checked;
-    const generate=button('Generate pattern',()=>{host.change(world=>varyTheme(world,target,'generate'));syncTheme();});generate.disabled=!auto.checked;
-    function syncTheme(){auto.checked=!!host.read().appearance?.imageColors?.[autoColorKey(target)]?.enabled;for(const select of paletteControls)select.disabled=!auto.checked;randomize.disabled=micro.disabled=generate.disabled=!auto.checked;const current=host.read().appearance?.imageColors?.[autoColorKey(target)]?.palette??{},index=themePresetIndex(current);preset.value=index<0?'':String(index);const dark=readPaint(host.read(),target?'nodeText':'text',target).palette?.darkSupport;for(const option of Array.from(preset.options))if(option.value)option.disabled=!themePresetAvailable(THEME_PRESETS[Number(option.value)].settings,dark,current.included);for(const select of paletteControls){const key=select.dataset.paletteSetting as keyof PaletteSettings|undefined;if(!key)continue;const value=String(current[key]??THEME_PRESETS[0].settings[key]);if(value==='generated'&&!Array.from(select.options).some(o=>o.value===value)){const option=document.createElement('option');option.value=value;option.textContent='Generated';option.disabled=true;select.append(option);}select.value=value;}}
-    button('Restore auto colors',()=>{host.change(world=>configureAutoColors(world,target,true,true));auto.checked=true;for(const control of paletteControls)control.disabled=false;randomize.disabled=micro.disabled=generate.disabled=false;});
-    syncTheme();let lastTheme='';subscriptions.push(host.subscribe(()=>{const next=JSON.stringify([host.read().appearance?.imageColors?.[autoColorKey(target)],readPaint(host.read(),target?'nodeText':'text',target).palette?.darkSupport]);if(next!==lastTheme){lastTheme=next;syncTheme();}}));
+    const paletteControls:(HTMLSelectElement|HTMLInputElement)[]=[],numberSync:(()=>void)[]=[];
+    const current=()=>host.read().appearance?.imageColors?.[autoColorKey(target)]?.palette??{};
+    const resolved=()=>readPaint(host.read(),target?'nodeText':'text',target).palette;
+    const manual=(delta:PaletteSettings)=>focusTheme(current(),delta);
+    function edit(delta:PaletteSettings){host.change(world=>setThemeFocus(world,target,delta));syncTheme();}
+    auto.onchange=()=>{host.change(world=>configureAutoColors(world,target,auto.checked));syncTheme();};
+    function select(key:'selection'|'distribution',label:string,options:readonly(readonly[string,string])[]){const row=document.createElement('label'),input=document.createElement('select');row.append(label,input);input.setAttribute('aria-label',label);for(const [id,text]of options){const option=document.createElement('option');option.value=id;option.textContent=text;input.append(option);}input.onchange=()=>edit({...{[key]:input.value},...(key==='selection'?{ratio:undefined}:{})} as PaletteSettings);paletteControls.push(input);body.append(row);numberSync.push(()=>{input.value=(key==='selection'&&current().selection==='pair'?'top-motif':current()[key])??(key==='distribution'?'balanced':'motif');});return row;}
+    select('selection','Focus',PALETTE_SELECTIONS.filter(([id])=>id!=='pair'));
+    function numeric(label:string,read:()=>number,min:number,max:()=>number,write:(n:number)=>PaletteSettings,step=1){
+      const row=document.createElement('label'),input=document.createElement('input');input.type='button';input.setAttribute('aria-label',label);row.append(label,input);body.append(row);paletteControls.push(input);
+      subscriptions.push(bindOperationValueControl(input,{label,min,get max(){return max();},integer:step===1,step,read,preview:n=>host.previewTheme?.(target,n===undefined?undefined:manual(write(n))),commit:n=>edit(write(n)),feedback:host.feedback,loadDial:()=>import('../ui/operationMathDial.tsx')}));
+      numberSync.push(()=>{input.value=String(read());input.setAttribute('aria-valuemax',String(max()));});return row;
+    }
+    const top=numeric('Top colors',()=>Math.min(current().top??2,resolved()?.available??8),1,()=>resolved()?.available??8,n=>({top:n,ratio:undefined}));
+    const maximum=document.createElement('span');top.append(maximum);
+    const ratios=Array.from({length:8},(_,i)=>{const row=numeric(`Ratio ${i+1}`,()=>{const p=resolved();return p?focusRatio(p)[i]??1:1;},1,()=>{const p=resolved(),counts=p?focusRatio(p):[1];return RATIO_BUDGET-counts.reduce((n,c,j)=>n+(j===i?0:c),0);},n=>{const p=resolved(),ratio=p?focusRatio(p):[1];ratio[i]=n;return {ratio};});const swatch=document.createElement('span');row.prepend(swatch);return {row,swatch};});
+    select('distribution','Distribution',FOCUS_DISTRIBUTIONS);
+    numeric('Scale ×',()=>current().scale??1,1,()=>4096,n=>({scale:n}),.25);
+    numeric('Saturation',()=>Math.round((current().saturation??1)*100),0,()=>100,n=>({saturation:n/100}));
+    const randomize=button('Macro',()=>{host.change(world=>varyTheme(world,target,'macro'));syncTheme();});
+    const micro=button('Micro',()=>{host.change(world=>varyTheme(world,target,'micro'));syncTheme();});
+    const generate=button('Generate pattern',()=>{host.change(world=>varyTheme(world,target,'generate'));syncTheme();});
+    function syncTheme(){auto.checked=!!host.read().appearance?.imageColors?.[autoColorKey(target)]?.enabled;for(const input of paletteControls)input.disabled=!auto.checked;randomize.disabled=micro.disabled=generate.disabled=!auto.checked;for(const sync of numberSync)sync();top.hidden=current().selection!=='top'&&current().selection!=='top-motif';maximum.textContent=`max ${resolved()?.available??8}`;const colors=resolved()?.colors??[];for(const [i,{row,swatch}]of ratios.entries()){row.hidden=i>=colors.length;swatch.textContent='■';swatch.style.color=colors[i]??'';}}
+    button('Restore auto colors',()=>{host.change(world=>configureAutoColors(world,target,true,true));syncTheme();});
+    syncTheme();let lastTheme='';subscriptions.push(host.subscribe(()=>{const next=JSON.stringify([host.read().appearance?.imageColors?.[autoColorKey(target)],resolved()]);if(next!==lastTheme){lastTheme=next;syncTheme();}}));
     button('Clear background', () => assign(null));
     if (target) button('Use default background', () => host.change(world => { const node = locate(world, target!); if (node) delete node.scene; }));
     const list = document.createElement('div'); body.append(list);
