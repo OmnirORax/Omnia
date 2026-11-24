@@ -38,7 +38,7 @@ export function MathematicalDialSurface({value,min,max,integer=false,label='Valu
 }){
 
  const displayScale=useSyncExternalStore(mathematicalDialScale.subscribe,mathematicalDialScale.getSnapshot),scaleDrag=useValueDrag({value:displayScale,min:.1,step:.01,pixelsPerStep:2,axis:{x:1,y:1}},()=>{},mathematicalDialScale.set);
- const [base,setBase]=useState<1|2>(initialConfiguration?.notation?.base??(grid?1:2)),[scaling,setScaling]=useState<MathematicalScaleMode>(initialConfiguration?.mode??'value'),scaleAnchor=useRef(initialConfiguration&&initialConfiguration.mode!=='value'?initialConfiguration.anchor:value),valueBase=useRef<1|2>(grid?1:2);
+ const [base,setBase]=useState<1|2>(initialConfiguration?.base??initialConfiguration?.notation?.base??(grid?1:2)),[scaling,setScaling]=useState<MathematicalScaleMode>(initialConfiguration?.mode??'value'),scaleAnchor=useRef(initialConfiguration&&initialConfiguration.mode!=='value'?initialConfiguration.anchor:value),valueBase=useRef<1|2>(grid?1:2);
 
  const [brush,setBrush]=useState<MathematicalSlotMode>('normal'),[scrubCount,setScrubCount]=useState(initialConfiguration?.count??0),[scrubDirection,setScrubDirection]=useState<1|-1|null>(null);
  const [sign,setSign]=useState<1|-1>(()=>initialConfiguration?.notation?(initialConfiguration.notation.clockwise?1:-1):grid?(initialConfiguration?.count??0)<0?-1:1:editing?.kind==='increment'?1:value<0?-1:1),[painting,setPainting]=useState(false);
