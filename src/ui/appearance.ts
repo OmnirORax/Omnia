@@ -1,12 +1,15 @@
+import {setTextPaint} from '../properties/textPaint.ts';
 import {textGlowShadow} from '../properties/textGlow.ts';
 import {UI_BORDER_SELECTOR,UI_SURFACE_SELECTOR,UI_DECORATION} from '../composer/runtime/appearance/registry.ts';
 import { BACKGROUND_DEFAULTS, renderedTextPaint, fontFamily,fontSizeScale, paintColor, type Appearance, type Paint } from '../properties/visual.ts';
 import { emboldenStrokeEm } from '../properties/embolden.ts';
 
-export function textStyle(paint?: Paint) {
-  const value=renderedTextPaint(paint);
-  return {color:paintColor(value),fontFamily:fontFamily(value.font),textShadow:textGlowShadow(value.glow,paintColor({...value,color:value.glowColor??value.color}),value.glowSpread)};
+export function setDOMTextPaint(target:{color:string;fontFamily:string;textShadow:string},paint:Paint={}){
+ const value=setTextPaint({setColor:color=>{target.color=paintColor({color});},setGlow:(color,strength,spread)=>{target.textShadow=textGlowShadow(strength,paintColor({color}),spread);}},paint);
+ target.fontFamily=fontFamily(value.font);return value;
 }
+export function textStyle(paint?:Paint){const style={color:'',fontFamily:'',textShadow:''};setDOMTextPaint(style,paint);return style;}
+
 export function textBorderStyle(paint:Paint={}){const value=renderedTextPaint(paint),halo=textGlowShadow(value.glow,value.glowColor,value.glowSpread);return {borderColor:value.color,boxShadow:halo==='none'?'var(--omnium-custom-shadow,0 0 0 transparent)':`var(--omnium-custom-shadow,0 0 0 transparent),${halo}`};}
 const scrollbarCSS=`
 :root[data-visual-text],:root[data-visual-text] *{scrollbar-color:var(--document-text-color,var(--visual-text-color)) transparent !important}

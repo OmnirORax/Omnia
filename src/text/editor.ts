@@ -20,7 +20,7 @@ import { HighlightStyle, syntaxHighlighting, codeFolding } from '@codemirror/lan
 import { tags } from '@lezer/highlight';
 import { closeSearchPanel, getSearchQuery, openSearchPanel, search, searchKeymap, SearchQuery, setSearchQuery } from '@codemirror/search';
 import { readPaint } from '../core/appearance.ts';
-import { textStyle } from '../ui/appearance.ts';
+import { setDOMTextPaint } from '../ui/appearance.ts';
 import { emboldenStrokeEm } from '../properties/embolden.ts';
 import { panel } from '../ui/panel.ts';
 import { TEXT_CLIPBOARD } from './dom.ts';
@@ -148,11 +148,10 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
     paintSession.render(readPaint(read(),'nodeText',origin));
   }
   function applyDocumentPaint(paint:import('../properties/visual.ts').Paint){
-    const style=textStyle(paint);
-    Object.assign(host.style,style);
+    setDOMTextPaint(host.style,paint);
     host.style.fontSize=`${fontSize*fontSizeScale(paint)}px`;
-    host.style.setProperty('--document-text-color',style.color);
-    host.style.setProperty('--document-text-shadow',style.textShadow);
+    host.style.setProperty('--document-text-color',host.style.color);
+    host.style.setProperty('--document-text-shadow',host.style.textShadow);
     host.style.setProperty('--visual-text-bold-stroke',`${emboldenStrokeEm(paint.embolden)}em currentColor`);
   }
   refreshAppearance();queueMicrotask(()=>{if(view.root.isConnected)editor?.dispatch({effects:refreshLexicon.of()});});editor.focus(); return {...view,refreshAppearance,previewAppearance(world:World){paintSession.render(readPaint(world,'nodeText',origin));}};
