@@ -1,27 +1,33 @@
-import {paletteRGB,paletteHex} from '../scene/palette.ts';
+import {paletteRGB,paletteHex,colorHue} from '../scene/palette.ts';
 export const PALETTE_LAYOUTS=[['horizontal','Horizontal'],['vertical','Vertical'],['diagonal','Diagonal'],['radial','Radial']] as const;
 export const PALETTE_PATTERNS=[['smooth','Smooth'],['bands','Bands']] as const;
 export const PALETTE_MATCHES=[['motif','Motif'],['light','Accent + white'],['dark','Accent + black'],['palette','Image palette'],['accents','Color only']] as const;
 export const PALETTE_SELECTIONS=[['motif','Whole motif'],['primary','Main accent'],['contrast','Contrasting accent'],['rare','Rare accent'],['pair','Two accents']] as const;
 export const PALETTE_INKS=[['pale','Pale text'],['color','Colored text']] as const;
 export const PALETTE_SPREADS=[['wide','Wide'],['repeat','Repeat'],['dense','Dense']] as const;
-export type PaletteSettings={selection?:typeof PALETTE_SELECTIONS[number][0];softness?:number;balance?:number;saturation?:number;layout?:typeof PALETTE_LAYOUTS[number][0];pattern?:typeof PALETTE_PATTERNS[number][0]|'generated';match?:typeof PALETTE_MATCHES[number][0];ink?:typeof PALETTE_INKS[number][0];spread?:typeof PALETTE_SPREADS[number][0];seed?:number};
+export type PaletteSettings={included?:readonly string[];selection?:typeof PALETTE_SELECTIONS[number][0];softness?:number;balance?:number;saturation?:number;layout?:typeof PALETTE_LAYOUTS[number][0];pattern?:typeof PALETTE_PATTERNS[number][0]|'generated';match?:typeof PALETTE_MATCHES[number][0];ink?:typeof PALETTE_INKS[number][0];spread?:typeof PALETTE_SPREADS[number][0];seed?:number};
 export type TextPalette=PaletteSettings&{mode:'text';colors:readonly string[];weights?:readonly number[];strength?:number;darkSupport?:boolean};
 export const PALETTE_STOP_LIMIT=24;
-export function validPaletteSettings(p:PaletteSettings){return (p.selection===undefined||PALETTE_SELECTIONS.some(([id])=>id===p.selection))&&(p.softness===undefined||Number.isFinite(p.softness)&&p.softness>=.02&&p.softness<=.49)&&(p.balance===undefined||Number.isFinite(p.balance)&&p.balance>=.2&&p.balance<=.8)&&(p.saturation===undefined||Number.isFinite(p.saturation)&&p.saturation>=0&&p.saturation<=1)&&(p.layout===undefined||PALETTE_LAYOUTS.some(([id])=>id===p.layout))&&(p.pattern===undefined||p.pattern==='generated'||PALETTE_PATTERNS.some(([id])=>id===p.pattern))&&(p.match===undefined||PALETTE_MATCHES.some(([id])=>id===p.match))&&(p.ink===undefined||PALETTE_INKS.some(([id])=>id===p.ink))&&(p.spread===undefined||PALETTE_SPREADS.some(([id])=>id===p.spread))&&(p.seed===undefined||Number.isInteger(p.seed)&&p.seed>=0&&p.seed<=0xffffffff);}
+export function validPaletteSettings(p:PaletteSettings){return (p.included===undefined||Array.isArray(p.included)&&p.included.length>0&&p.included.length<=8&&new Set(p.included.map(c=>typeof c==='string'?c.toLowerCase():c)).size===p.included.length&&p.included.every(c=>typeof c==='string'&&/^#[\da-f]{6}$/i.test(c)))&&(p.selection===undefined||PALETTE_SELECTIONS.some(([id])=>id===p.selection))&&(p.softness===undefined||Number.isFinite(p.softness)&&p.softness>=.02&&p.softness<=.49)&&(p.balance===undefined||Number.isFinite(p.balance)&&p.balance>=.2&&p.balance<=.8)&&(p.saturation===undefined||Number.isFinite(p.saturation)&&p.saturation>=0&&p.saturation<=1)&&(p.layout===undefined||PALETTE_LAYOUTS.some(([id])=>id===p.layout))&&(p.pattern===undefined||p.pattern==='generated'||PALETTE_PATTERNS.some(([id])=>id===p.pattern))&&(p.match===undefined||PALETTE_MATCHES.some(([id])=>id===p.match))&&(p.ink===undefined||PALETTE_INKS.some(([id])=>id===p.ink))&&(p.spread===undefined||PALETTE_SPREADS.some(([id])=>id===p.spread))&&(p.seed===undefined||Number.isInteger(p.seed)&&p.seed>=0&&p.seed<=0xffffffff);}
 export function validTextPalette(value:unknown):value is TextPalette{const p=value as TextPalette;return !!p&&typeof p==='object'&&!Array.isArray(p)&&p.mode==='text'&&(p.darkSupport===undefined||typeof p.darkSupport==='boolean')&&(p.strength===undefined||Number.isFinite(p.strength)&&p.strength>=.02&&p.strength<=1)&&validPaletteSettings(p)&&Array.isArray(p.colors)&&p.colors.length>0&&p.colors.length<=8&&p.colors.every(c=>typeof c==='string'&&/^#[\da-f]{6}$/i.test(c))&&(p.weights===undefined||Array.isArray(p.weights)&&p.weights.length===p.colors.length&&p.weights.every(w=>Number.isFinite(w)&&w>0&&w<=1));}
 export const paletteSpread=(p:PaletteSettings)=>p.spread==='dense'?4:p.spread==='repeat'?2:1;
 export const paletteLayout=(p:PaletteSettings)=>PALETTE_LAYOUTS.findIndex(([id])=>id===(p.layout??'horizontal'));
 export type PaletteStop={rgb:number[];at:number};
 const tables=new WeakMap<TextPalette,PaletteStop[]>();
 /** Small, cached stop table is the canonical owner for CSS and world-label gradients. */
+function transitionBridge(p:PaletteSettings,a:readonly number[],b:readonly number[]){
+ if(p.included?.length){const da=Math.max(...a)-Math.min(...a),db=Math.max(...b)-Math.min(...b),d=Math.abs(colorHue(a)-colorHue(b));if(da>1e-6&&db>1e-6&&Math.min(d,360-d)>1)return p.match==='dark'?[0,0,0]:[1,1,1];return;}
+ if(p.match!=='accents'&&p.match!=='dark'&&Math.max(...a)>.999&&Math.max(...b)>.999&&!a.some((c,k)=>c>=.999&&b[k]>=.999))return [1,1,1];
+}
+/** Included hue families blend through a neutral tone, without inventing a third hue. */
+export function mixPaletteRGB(p:PaletteSettings,a:readonly number[],b:readonly number[],t:number){const bridge=p.included?.length?transitionBridge(p,a,b):undefined;if(bridge){if(t<.5){b=bridge;t*=2;}else{a=bridge;t=(t-.5)*2;}}return a.map((v,k)=>v+(b[k]-v)*t);}
 export function textPaletteStops(p:TextPalette){let cached=tables.get(p);if(cached)return cached;
  const colors=p.colors.map((color,i)=>({rgb:paletteRGB(color).map(c=>c/255),weight:p.weights?.[i]??1}));
  const total=colors.reduce((sum,c)=>sum+c.weight,0),result:PaletteStop[]=[];let at=0;
  if(p.pattern==='bands'){
   for(const c of colors){result.push({rgb:c.rgb,at});at+=c.weight/total;result.push({rgb:c.rgb,at});}
  }else{
-  result.push({rgb:colors[0].rgb,at:0});for(let i=0;i<colors.length-1;i++){const a=colors[i],b=colors[i+1],half=Math.min(a.weight,b.weight)/total*(p.softness??.35);at+=a.weight/total;result.push({rgb:a.rgb,at:at-half});if(p.match!=='accents'&&p.match!=='dark'&&Math.max(...a.rgb)>.999&&Math.max(...b.rgb)>.999&&!a.rgb.some((c,k)=>c>=.999&&b.rgb[k]>=.999))result.push({rgb:[1,1,1],at});result.push({rgb:b.rgb,at:at+half});}result.push({rgb:colors.at(-1)!.rgb,at:1});
+  result.push({rgb:colors[0].rgb,at:0});for(let i=0;i<colors.length-1;i++){const a=colors[i],b=colors[i+1],half=Math.min(a.weight,b.weight)/total*(p.softness??.35);at+=a.weight/total;result.push({rgb:a.rgb,at:at-half});const bridge=transitionBridge(p,a.rgb,b.rgb);if(bridge)result.push({rgb:bridge,at});result.push({rgb:b.rgb,at:at+half});}result.push({rgb:colors.at(-1)!.rgb,at:1});
  }
  tables.set(p,result);return result;
 }
@@ -47,7 +53,8 @@ const macroKeys=['selection','match','ink','layout','pattern','spread'] as const
 export function themePresetIndex(p:PaletteSettings){const resolved={...THEME_VARIANTS[0],...p};return THEME_VARIANTS.findIndex(v=>macroKeys.every(key=>v[key]===resolved[key]));}
 /** Macro chooses one complete constrained design, resetting only the old micro deltas. */
 export const macroTheme=(settings:PaletteSettings)=>({saturation:undefined,softness:undefined,balance:undefined,seed:undefined,...settings});
-export function randomMacroTheme(p:PaletteSettings,darkSupport=false){const current=themePresetIndex(p),eligible=THEME_VARIANTS.filter((v,i)=>i!==current&&(v.match!=='dark'||darkSupport));return macroTheme(eligible[Math.floor(Math.random()*eligible.length)]);}
+export function themePresetAvailable(p:PaletteSettings,darkSupport=false,included?:readonly string[]){const permits=(color:string)=>included?.some(c=>c.toLowerCase()===color);return (p.match!=='dark'||(included?.length?!!permits('#000000'):darkSupport))&&(p.match!=='light'||!included?.length||!!permits('#ffffff'));}
+export function randomMacroTheme(p:PaletteSettings,darkSupport=false,included:readonly string[]|undefined=p.included){const current=themePresetIndex(p),eligible=THEME_VARIANTS.filter((v,i)=>i!==current&&themePresetAvailable(v,darkSupport,included));return macroTheme(eligible[Math.floor(Math.random()*eligible.length)]);}
 /** Micro never changes the macro's palette selection, neutral choice, ink or layout. */
 export function randomMicroTheme(p:PaletteSettings){return {...p,saturation:.4+Math.random()*.6,softness:.08+Math.random()*.4,balance:.35+Math.random()*.35,seed:Math.floor(Math.random()*0x100000000)};}
 /** A new proposal owns its treatment; subsequent manual edits remain available. */

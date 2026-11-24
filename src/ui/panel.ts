@@ -1,5 +1,5 @@
 import {VIEW_CLOSE,VIEW_GEOMETRY} from './viewHistory.ts';
-import {windowDrag} from './windowDrag';
+import {windowDrag} from './windowDrag.ts';
 import {registerWindow} from './windowDismissal.ts';
 import {universalHistory} from '../core/universalHistory.ts';
 let panelSequence=0;

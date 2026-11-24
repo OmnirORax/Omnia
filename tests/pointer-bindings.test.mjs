@@ -43,7 +43,7 @@ test('camera rotation activation is inherited by creation mode after rebinding',
  }finally{shortcuts.initialize({getItem:()=>null,setItem(){}});}
 });
 
-test('history side buttons never become rotation activations',async()=>{const {pointerCombo}=await import('../src/ui/activationCombo.ts');for(const button of [3,4,5,-1])for(const ctrlKey of [true,false])assert.equal(pointerCombo({button,ctrlKey,metaKey:false,altKey:false,shiftKey:false}),undefined);});
+test('side buttons are available only to explicit side-command consumers and never alias rotation',async()=>{const {pointerCombo}=await import('../src/ui/activationCombo.ts');for(const [button,key]of [[3,'MB4'],[4,'MB5']])for(const ctrlKey of [true,false]){const event={button,ctrlKey,metaKey:false,altKey:false,shiftKey:false};assert.equal(pointerCombo(event),undefined);assert.equal(pointerCombo(event,[],false,true),`${ctrlKey?'Ctrl+':''}${key}`);}for(const button of [5,-1])assert.equal(pointerCombo({button,ctrlKey:false,metaKey:false,altKey:false,shiftKey:false},[],false,true),undefined);});
 
 test('MB4 and MB5 reach history before world rotation, including compatibility mouse events',async()=>{
  const {installHistoryBindings}=await import('../src/ui/historyBindings.ts');

@@ -16,9 +16,9 @@ export function createAutoColors(host:{read:()=>World;change:(edit:(world:World)
  let closed=false,queue=Promise.resolve();const wanted=new Map<string,string>(),cache=new Map<string,Promise<ImageColorCombo>>();
  function update(){if(closed)return;const world=host.read(),rules=world.appearance?.imageColors??{},imageFor=autoImageReader(world);
   for(const key of wanted.keys())if(!rules[key]?.enabled)wanted.delete(key);
-  for(const [key,rule]of Object.entries(rules)){if(!rule.enabled)continue;const image=imageFor(key);if(!image){wanted.delete(key);continue;}const stamp=JSON.stringify([image,rule.manual,rule.palette]);if(wanted.get(key)===stamp)continue;wanted.set(key,stamp);
+  for(const [key,rule]of Object.entries(rules)){if(!rule.enabled)continue;const image=imageFor(key);if(!image&&!rule.palette?.included?.length){wanted.delete(key);continue;}const stamp=JSON.stringify([image,rule.manual,rule.palette]);if(wanted.get(key)===stamp)continue;wanted.set(key,stamp);
    queue=queue.then(async()=>{if(closed||wanted.get(key)!==stamp)return;try{
-    let pending=cache.get(image);if(!pending){pending=host.sample(image).then(imageColorCombo);cache.set(image,pending);if(cache.size>32)cache.delete(cache.keys().next().value!);}const sampled=await pending;
+    let pending=image?cache.get(image):undefined;if(!pending){pending=image?host.sample(image).then(imageColorCombo):Promise.resolve(imageColorCombo(new Uint8ClampedArray(rule.palette!.included!.flatMap(c=>[parseInt(c.slice(1,3),16),parseInt(c.slice(3,5),16),parseInt(c.slice(5,7),16),255]))));if(image){cache.set(image,pending);if(cache.size>32)cache.delete(cache.keys().next().value!);}}const sampled=await pending;
     const current=host.read(),active=current.appearance?.imageColors?.[key];if(closed||wanted.get(key)!==stamp||!active?.enabled||autoColorImage(current,key)!==image)return;
     const combo=matchedImageColors(sampled,active.palette);
     const origin=key==='default'?undefined:JSON.parse(key) as Origin;if(origin&&!locate(current,origin))return;
@@ -27,7 +27,7 @@ export function createAutoColors(host:{read:()=>World;change:(edit:(world:World)
     const palette=active.manual.some(c=>c==='text'||c==='textGlow')?undefined:{...active.palette,mode:'text' as const,colors:combo.textPalette,weights:combo.textWeights,strength:combo.textStrength,darkSupport:combo.textDarkSupport},textTarget=origin?'nodeText' as const:'text' as const;
     if(JSON.stringify(readPaint(current,textTarget,origin).palette)===JSON.stringify(palette)&&!edits.some(edit=>readPaint(current,edit.target,origin)[edit.field]!==edit.value))return;
     host.change(next=>{for(const edit of edits)writePaint(next,edit.target,origin?[origin]:[],{[edit.field]:edit.value},'automatic');writePaint(next,textTarget,origin?[origin]:[],{palette},'automatic');});
-   }catch(error){cache.delete(image);if(!closed&&wanted.get(key)===stamp){wanted.delete(key);host.error(error);}}});
+   }catch(error){if(image)cache.delete(image);if(!closed&&wanted.get(key)===stamp){wanted.delete(key);host.error(error);}}});
   }
  }
  return {update,settle:()=>queue,dispose(){closed=true;wanted.clear();cache.clear();}};

@@ -1,3 +1,6 @@
+import {colorInclusionPanel} from './scene/colorInclusions.ts';
+import {THEME_COLORS_SHORTCUT,createThemeShortcutCommands} from './scene/themeShortcuts.ts';
+import {varyTheme} from './scene/themeControls.ts';
 import {createAutoColors} from './scene/autoColors.ts';
 import {selectedDocumentText} from './text/export.ts';
 import {bindColorSession} from './ui/colorSession.ts';
@@ -72,6 +75,8 @@ import { liveForm,flushLiveForms } from './ui/liveForm.ts';
 
 try{shortcuts.initialize(localStorage);}catch{/* Session-only bindings when storage is unavailable. */}
 installPointerBindings(()=>view?.inputContext==='rotate'?'world':view?.inputContext??'world');
+const themeShortcutBinding=()=>shortcuts.get(THEME_COLORS_SHORTCUT);
+const themeCommands=createThemeShortcutCommands(releaseShortcuts,themeShortcutBinding,kind=>attempt(()=>store.change(world=>varyTheme(world,themeTarget(),kind))));
 const hierarchyCommands=createHeldCommands(releaseShortcuts,()=>[
  {binding:worldBinding('V'),run:command=>attempt(()=>view?.toggleHierarchy(command==='next',true))},
  {binding:worldBinding('Shift+V'),run:command=>attempt(()=>view?.toggleHierarchy(command==='next',false,true))},
@@ -82,6 +87,7 @@ installReleaseShortcuts(event=>{
  if(matchesShortcut(event,worldBinding('Ctrl+S')))return true;
  if(event.target instanceof Element&&event.target.closest('button,a[href]')&&(event.key==='Enter'||event.key===' '))return false;
  const element=event.target instanceof Element?event.target:undefined,editor=element?.closest('.cm-editor'),typing=element?.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"]),[role="textbox"]');
+ if(matchesShortcut(event,themeShortcutBinding())&&(!typing||element?.closest('.theme-color-inclusions')||/^F\d+$/.test(event.key)||event.ctrlKey||event.metaKey||event.altKey))return true;
  if(element?.closest('input,textarea,select')||typing&&!editor)return matchesShortcut(event,worldBinding('Esc'));
  if(editor&&(event.ctrlKey||event.metaKey)&&!event.altKey&&/^[cxv]$/i.test(event.key))return false;
  if(editor&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&/^(Arrow|Home|End|Page)/.test(event.key))return false;
@@ -94,7 +100,7 @@ installReleaseShortcuts(event=>{
  if(omnic&&!typing&&event.key.length===1&&event.key!==' ')return true;
  const keys=[...(!editor&&!omnic?worldShortcutActions(true).map(action=>({key:action.key??'',category:'Omnium' as const})):[]),...assignedShortcuts().filter(action=>editor?action.context==='Document':omnic?action.context==='Omnic':action.context==='Omnium').map(action=>({key:action.key,category:action.context==='Document'?'Document' as const:'Omnium' as const})),...(!editor?['V','Esc','.','F11','Ctrl+Z','Ctrl+Y','Ctrl+Shift+Z','Enter']:['F11']).map(key=>({key:worldBinding(key),category:'Omnium' as const}))];
  return keys.some(action=>matchesShortcut(event,action.key,action.category));
-},event=>{const chord=hierarchyCommands.match(event);return chord?[chord.prefix]:[];},event=>{const chord=hierarchyCommands.match(event);if(chord)return {release:chord.run,cancel:()=>{}};const element=event.target instanceof Element?event.target:undefined;if(!matchesShortcut(event,originShortcutBinding())||element?.closest('input,textarea,select,[contenteditable],[data-input-owner],.cm-editor')||element&&shortcutContextFor(element)==='Omnic')return;return view?.beginOriginSet()??{release:()=>feedback('Point inside the world to set its origin.'),cancel:()=>{}};});
+},event=>{const chord=hierarchyCommands.match(event);return chord?[chord.prefix]:[];},event=>{const chord=hierarchyCommands.match(event);if(chord)return {release:chord.run,cancel:()=>{}};if(matchesShortcut(event,themeShortcutBinding()))return {release:()=>openThemeInclusions(),cancel:()=>{}};const element=event.target instanceof Element?event.target:undefined;if(!matchesShortcut(event,originShortcutBinding())||element?.closest('input,textarea,select,[contenteditable],[data-input-owner],.cm-editor')||element&&shortcutContextFor(element)==='Omnic')return;return view?.beginOriginSet()??{release:()=>feedback('Point inside the world to set its origin.'),cancel:()=>{}};});
 installShortcutCapture();
 installPrimaryClickGate();
 installBrowserShortcutGuard();
@@ -459,6 +465,7 @@ function openAccount(){void import('./backend/panel.ts').then(module=>module.ope
 function searchActions():SearchAction[]{return [
  {label:'Account / Cloud',keywords:'account login sign in sign out cloud permissions members',run:openAccount},
  ...['Score tracker','Questboard','Leaderboard'].map(tab=>({label:`♾️ · ${tab}`,keywords:`infinity ∞ metrics timer score quests stars leaderboard ${tab}`,run:()=>{void import('./metrics/panel.ts').then(module=>module.openInfinityPanel(tab,openAccount)).catch(error=>feedback(String(error)));}})),
+ {label:'Theme colors',keywords:'color inclusion picker palette hue macro micro',run:()=>openThemeInclusions()},
  {label:'Shortcuts',keywords:'keyboard shortcuts hotkeys keybindings controls bindings',run:openShortcuts},
  immersiveAction(),
  ...spaceActions(),
@@ -527,11 +534,20 @@ function openWorkspace(restore?:ViewSpec) {
   renderClose(); if (workspaceView?.root.isConnected) { close();workspaceView.root.focus(); return; }
   workspaceView = workspacePanel({ account:openAccount, omnic:()=>openComposer(),atlas:openLibrary,draft:draftControl, selected: () => selectedOrigins().map(origin => JSON.stringify(origin)), read: () => store.world, replace: world => { store.replace(world); selection.clear(); search.value = ''; refresh(); }, recover: () => { store.recover(); selection.clear(); search.value = ''; refresh(); }, beforeReplace: () => {
     for(const composer of composers.values())composer.close(); library?.close();
-    documentEpoch++; view?.cancel(); close(); selection.cancel(); sceneView?.close();
+    documentEpoch++; view?.cancel(); close(); selection.cancel(); sceneView?.close();colorInclusions?.close();
     for (const document of documents.values()) document?.close();
     if ([...documents.values()].some(document => document?.root.isConnected)) throw Error('An open document could not close. Preserve it before importing.');
   } });
   viewHistory.adopt('workspace',{kind:'workspace'},workspaceView,restore);
+}
+let colorInclusions:ReturnType<typeof colorInclusionPanel>|undefined;
+function themeTarget(){return colorInclusions?.root.isConnected?colorInclusions.origin:sceneView?.root.isConnected?sceneView.themeTarget():undefined;}
+function openThemeInclusions(restore?:ViewSpec){
+ if(!viewHistory.performing){viewHistory.perform(()=>openThemeInclusions(restore));return;}
+ if(colorInclusions?.root.isConnected&&!restore){colorInclusions.openPicker();return;}
+ const origin=restore?(restore.selection as Origin[]|undefined)?.[0]:themeTarget();colorInclusions?.close();view?.cancel();
+ colorInclusions=colorInclusionPanel({read:()=>store.world,change:edit=>store.change(edit),subscribe:store.subscribe,feedback},origin);
+ colorInclusions.root.classList.add('theme-color-inclusions');viewHistory.adopt('themeColors',{kind:'themeColors',selection:origin?[origin]:[]},colorInclusions,restore);if(!restore)colorInclusions.openPicker();
 }
 let sceneView: ReturnType<typeof scenePanel> | undefined;
 function openScene(tab:SceneTab='image',restore?:ViewSpec) {
@@ -686,6 +702,7 @@ async function copySelectedDocuments(){
 function worldShortcutActions(includeUnavailable=false){return [
  ...spaceActions().filter(action=>includeUnavailable||action.available!==false).map(action=>({label:action.label,key:action.key,run:action.run})),
  {id:worldShortcutId('O'),label:'Set origin',gesture:undefined,key:'X',run:()=>view?.pickOrigin()},
+ {id:THEME_COLORS_SHORTCUT.id,label:THEME_COLORS_SHORTCUT.label,gesture:themeShortcutBinding()?`Hold ${themeShortcutBinding()} + MB4 / MB5`:undefined,key:THEME_COLORS_SHORTCUT.defaultKey,scope:THEME_COLORS_SHORTCUT.scope,run:openThemeInclusions},
  {label:'Copy selected node documents',key:'Ctrl+Shift+C',run:()=>{void copySelectedDocuments();}},
  {label:'Toggle origin symmetry',key:'+',run:toggleOriginSymmetry},
  {label:'Expand/collapse hierarchy',key:'Q',run:()=>hierarchyShortcut()},
@@ -742,10 +759,11 @@ viewHistory.menuRenderer(spec=>{
 });
 viewHistory.factory('workspace',spec=>openWorkspace(spec));
 viewHistory.factory('library',spec=>openLibrary(spec));
+viewHistory.factory('themeColors',spec=>openThemeInclusions(spec));
 viewHistory.factory('scene',spec=>openScene((spec.args as SceneTab[])[0],spec));
 viewHistory.factory('document',spec=>openDocument((spec.args as Origin[])[0],spec));
 viewHistory.factory('composer',spec=>openComposer((spec.args as Origin[])[0],spec));
-installHistoryBindings({undo:()=>travelHistory('undo'),redo:()=>travelHistory('redo'),configure:openHistory,flush:flushLiveForms});
+installHistoryBindings({undo:()=>travelHistory('undo'),redo:()=>travelHistory('redo'),configure:openHistory,flush:flushLiveForms,sideButton:event=>!capturingShortcut()&&themeCommands.handle(event)});
 shortcuts.subscribe(()=>{for(const control of document.querySelectorAll<HTMLElement>('[data-world-shortcut]'))shortcutCaption(control,control.dataset.shortcutLabel!,control.dataset.worldShortcut);refreshContextActions();element('empty').querySelector('span')!.textContent=worldBinding('W')||'Create nodes';for(const control of document.querySelectorAll<HTMLButtonElement>('[data-immersive-mode]'))control.textContent=immersiveLabel();});
 element('empty').querySelector('span')!.textContent=worldBinding('W')||'Create nodes';
 refresh();
@@ -757,6 +775,8 @@ refresh();
  ['Shift+V',['Shift+V','Ctrl+V','Alt+V'],'Assign Hide nodes outside active hierarchy in Shortcuts.'],
  ] as const){const definition=catalog.find(item=>item.id===worldShortcutId(key));if(definition&&shortcuts.getSnapshot().Omnium?.[definition.id]===undefined&&!assignAvailableDefault(shortcuts,definition,candidates,catalog))feedback(message);}
 }
+
+{const definition=worldShortcutActions(true).find(action=>action.id===THEME_COLORS_SHORTCUT.id),catalog=[...worldShortcutActions(true).map(action=>({category:'Omnium' as const,id:action.id,label:action.label,defaultKey:action.defaultKey,scope:action.scope})),...WORLD_GESTURES,...controlShortcutDefinitions()];if(definition&&!assignAvailableDefault(shortcuts,THEME_COLORS_SHORTCUT,['F6','F7','F8','F9'],catalog))feedback('Assign Theme color inclusions in Shortcuts.');}
 
 // Builds share one draft; production retains its published starting state.
 if(location.hostname==='omnium.nexus'||location.hostname==='omnia-web-bae.pages.dev'||location.hostname.endsWith('.omnia-web-bae.pages.dev')){

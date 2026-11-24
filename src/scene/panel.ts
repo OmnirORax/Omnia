@@ -1,5 +1,6 @@
 import {readPaint} from '../core/appearance.ts';
-import {PALETTE_LAYOUTS,PALETTE_PATTERNS,PALETTE_SPREADS,PALETTE_MATCHES,PALETTE_INKS,PALETTE_SELECTIONS,THEME_PRESETS,themePresetIndex,macroTheme,randomMacroTheme,randomMicroTheme,generatedTheme,type PaletteSettings} from '../properties/textPalette.ts';
+import {varyTheme} from './themeControls.ts';
+import {PALETTE_LAYOUTS,PALETTE_PATTERNS,PALETTE_SPREADS,PALETTE_MATCHES,PALETTE_INKS,PALETTE_SELECTIONS,THEME_PRESETS,themePresetIndex,themePresetAvailable,macroTheme,type PaletteSettings} from '../properties/textPalette.ts';
 import {configureAutoColors,autoColorKey} from './autoColors.ts';
 import {imageTrash} from './imageTrash.ts';
 import {localSceneStorage,type SceneStorage,type SceneImage} from './storage.ts';
@@ -80,11 +81,12 @@ export function scenePanel(host: Host,initialTab:SceneTab='image') {
     const preset=document.createElement('select');preset.setAttribute('aria-label','Theme preset');const custom=document.createElement('option');custom.value='';custom.textContent='Custom theme';custom.disabled=true;preset.append(custom);for(const [i,item]of THEME_PRESETS.entries()){const option=document.createElement('option');option.value=String(i);option.textContent=item.label;preset.append(option);}const current=host.read().appearance?.imageColors?.[autoColorKey(target)]?.palette??{},index=themePresetIndex(current);preset.value=index<0?'':String(index);preset.disabled=!auto.checked;preset.onchange=()=>{host.change(world=>configureAutoColors(world,target,auto.checked,false,macroTheme(THEME_PRESETS[Number(preset.value)].settings)));syncTheme();};paletteControls.push(preset);body.append(preset);
     paletteSelect('selection','Theme colors',PALETTE_SELECTIONS);paletteSelect('match','Image theme matching',PALETTE_MATCHES);paletteSelect('ink','Text color constraint',PALETTE_INKS);
     paletteSelect('layout','Gradient direction',PALETTE_LAYOUTS);paletteSelect('pattern','Gradient pattern',PALETTE_PATTERNS);paletteSelect('spread','Gradient spread',PALETTE_SPREADS);
-    const randomize=button('Macro',()=>{host.change(world=>configureAutoColors(world,target,auto.checked,false,randomMacroTheme(world.appearance?.imageColors?.[autoColorKey(target)]?.palette??{},readPaint(world,target?'nodeText':'text',target).palette?.darkSupport)));syncTheme();});randomize.disabled=!auto.checked;
-    const micro=button('Micro',()=>{host.change(world=>configureAutoColors(world,target,auto.checked,false,randomMicroTheme(world.appearance?.imageColors?.[autoColorKey(target)]?.palette??{})));syncTheme();});micro.disabled=!auto.checked;
-    const generate=button('Generate pattern',()=>{host.change(world=>configureAutoColors(world,target,auto.checked,false,generatedTheme(world.appearance?.imageColors?.[autoColorKey(target)]?.palette??{},readPaint(world,target?'nodeText':'text',target).palette?.darkSupport)));syncTheme();});generate.disabled=!auto.checked;
-    function syncTheme(){const current=host.read().appearance?.imageColors?.[autoColorKey(target)]?.palette??{},index=themePresetIndex(current);preset.value=index<0?'':String(index);for(const select of paletteControls){const key=select.dataset.paletteSetting as keyof PaletteSettings|undefined;if(!key)continue;const value=String(current[key]??THEME_PRESETS[0].settings[key]);if(value==='generated'&&!Array.from(select.options).some(o=>o.value===value)){const option=document.createElement('option');option.value=value;option.textContent='Generated';option.disabled=true;select.append(option);}select.value=value;}}
+    const randomize=button('Macro',()=>{host.change(world=>varyTheme(world,target,'macro'));syncTheme();});randomize.disabled=!auto.checked;
+    const micro=button('Micro',()=>{host.change(world=>varyTheme(world,target,'micro'));syncTheme();});micro.disabled=!auto.checked;
+    const generate=button('Generate pattern',()=>{host.change(world=>varyTheme(world,target,'generate'));syncTheme();});generate.disabled=!auto.checked;
+    function syncTheme(){auto.checked=!!host.read().appearance?.imageColors?.[autoColorKey(target)]?.enabled;for(const select of paletteControls)select.disabled=!auto.checked;randomize.disabled=micro.disabled=generate.disabled=!auto.checked;const current=host.read().appearance?.imageColors?.[autoColorKey(target)]?.palette??{},index=themePresetIndex(current);preset.value=index<0?'':String(index);const dark=readPaint(host.read(),target?'nodeText':'text',target).palette?.darkSupport;for(const option of Array.from(preset.options))if(option.value)option.disabled=!themePresetAvailable(THEME_PRESETS[Number(option.value)].settings,dark,current.included);for(const select of paletteControls){const key=select.dataset.paletteSetting as keyof PaletteSettings|undefined;if(!key)continue;const value=String(current[key]??THEME_PRESETS[0].settings[key]);if(value==='generated'&&!Array.from(select.options).some(o=>o.value===value)){const option=document.createElement('option');option.value=value;option.textContent='Generated';option.disabled=true;select.append(option);}select.value=value;}}
     button('Restore auto colors',()=>{host.change(world=>configureAutoColors(world,target,true,true));auto.checked=true;for(const control of paletteControls)control.disabled=false;randomize.disabled=micro.disabled=generate.disabled=false;});
+    syncTheme();let lastTheme='';subscriptions.push(host.subscribe(()=>{const next=JSON.stringify([host.read().appearance?.imageColors?.[autoColorKey(target)],readPaint(host.read(),target?'nodeText':'text',target).palette?.darkSupport]);if(next!==lastTheme){lastTheme=next;syncTheme();}}));
     button('Clear background', () => assign(null));
     if (target) button('Use default background', () => host.change(world => { const node = locate(world, target!); if (node) delete node.scene; }));
     const list = document.createElement('div'); body.append(list);
@@ -168,5 +170,5 @@ export function scenePanel(host: Host,initialTab:SceneTab='image') {
   }
   const show=(tab:SceneTab)=>{view.root.dispatchEvent(new CustomEvent(VIEW_ROUTE,{detail:[tab]}));if(tab==='image')attempt(images);else if(tab==='audio')audio();else controls(tab);};
   for(const [tab,label]of SCENE_TABS)button(label,()=>show(tab),navigation);
-  show(initialTab);return view;
+  show(initialTab);return {...view,themeTarget:()=>target};
 }

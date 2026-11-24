@@ -20,11 +20,11 @@ export function installReleaseShortcuts(accept:(event:KeyboardEvent)=>boolean,pr
 
 /** Held-prefix commands share suppression and release-order behavior. Prefix modifiers
  * belong to the prefix, so Shift+V then Q remains Q rather than Shift+Q. */
-export function createHeldCommands(queue:ReturnType<typeof createReleaseShortcuts>,read:()=>readonly {binding:string;run:(command:string)=>void}[],commands:()=>readonly {id:string;binding:string}[]){
- return {match(event:Key){for(const prefix of [...read()].reverse()){if(!prefix.binding||!queue.held(prefix.binding))continue;
+export function createHeldCommands<E extends Pick<KeyboardEvent,'ctrlKey'|'metaKey'|'shiftKey'|'altKey'>=Key>(queue:ReturnType<typeof createReleaseShortcuts>,read:()=>readonly {binding:string;run:(command:string)=>void}[],commands:()=>readonly {id:string;binding:string}[],matches:(event:E,binding:string)=>boolean=(event,binding)=>matchesShortcut(event as unknown as KeyboardEvent,binding)){
+ return {match(event:E){for(const prefix of [...read()].reverse()){if(!prefix.binding||!queue.held(prefix.binding))continue;
  const mods=prefix.binding.split('+');
- for(const command of commands()){const own=command.binding.split('+'),strip=(modifier:string)=>mods.includes(modifier)&&!own.includes(modifier),suffix={...event,ctrlKey:event.ctrlKey&&!strip('Ctrl'),metaKey:event.metaKey&&!strip('Cmd')&&!strip('Ctrl'),altKey:event.altKey&&!strip('Alt'),shiftKey:event.shiftKey&&!strip('Shift')};
- if(matchesShortcut(suffix as KeyboardEvent,command.binding))return {prefix:prefix.binding,run:()=>prefix.run(command.id)};
+ for(const command of commands()){const own=command.binding.split('+'),strip=(modifier:string)=>mods.includes(modifier)&&!own.includes(modifier),suffix={...event,key:'key' in event?event.key:undefined,code:'code' in event?event.code:undefined,button:'button' in event?event.button:undefined,ctrlKey:event.ctrlKey&&!strip('Ctrl'),metaKey:event.metaKey&&!strip('Cmd')&&!strip('Ctrl'),altKey:event.altKey&&!strip('Alt'),shiftKey:event.shiftKey&&!strip('Shift')};
+ if(matches(suffix as E,command.binding))return {prefix:prefix.binding,run:()=>prefix.run(command.id)};
  }
  }return undefined;}};
 }

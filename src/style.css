@@ -148,3 +148,5 @@ input[type="number"]:enabled:not([readonly]), input[inputmode="numeric"]:enabled
 .cm-image-palette *{text-shadow:none;-webkit-text-fill-color:inherit}
 
 .cm-native-emoji,.cm-native-emoji *{background-image:none;-webkit-text-fill-color:initial!important;-webkit-text-stroke:0!important;text-shadow:none!important;filter:none}
+
+.theme-color-inclusions{width:max-content;min-width:0}.theme-inclusions{display:grid;grid-template-columns:repeat(3,24px);gap:4px;margin-top:4px}.theme-inclusions button{width:24px;height:24px;min-width:0;padding:0;border:1px solid #aaa;box-shadow:none}
