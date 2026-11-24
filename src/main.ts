@@ -459,7 +459,7 @@ function searchActions():SearchAction[]{return [
  {label:'Shortcuts',keywords:'keyboard shortcuts hotkeys keybindings controls bindings',run:openShortcuts},
  immersiveAction(),
  ...spaceActions(),
- ...SCENE_TABS.map(([tab,label])=>({label:`Scene · ${label}`,keywords:`scene ${tab} ${tab==='audio'?'system audio sound connect code import':tab==='image'?'wallpaper background import paste download library private cloud files upload':tab==='normalization'?'normalization correction thresholds':tab==='prompt'?'cloud generate generation history':''}`,run:()=>openScene(tab)})),
+ ...SCENE_TABS.map(([tab,label])=>({label:`Scene · ${label}`,keywords:`scene ${tab} ${tab==='audio'?'system audio sound connect code import':tab==='image'?'wallpaper background import paste download library private cloud files upload palette dominant theme colors':tab==='normalization'?'normalization correction thresholds':tab==='prompt'?'cloud generate generation history':''}`,run:()=>openScene(tab)})),
  ...VISUAL_TARGETS.map(([target,label])=>({label:`Visuals · ${label}`,keywords:`eye appearance visuals ${target==='nodeDefaults'?'global node sphere body':target==='text'?'font import typeface':target==='background'?'background ui surfaces':''}`,run:()=>openVisualSettings(target,[...selectedOrigins()],label),available:(target!=='nodes'&&target!=='nodeText')||!!selectedOrigins().length})),
  ...CAMERA_ACTIONS.map(([id,label])=>({label:`Camera · ${label}`,keywords:`camera navigation ${id}`,run:()=>view?.camera(id)})),
  {label:'Workspace · import / export / restore',keywords:'workspace file json backup download upload everything cloud private shared draft save load',run:openWorkspace},

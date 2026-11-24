@@ -69,6 +69,14 @@ export function scenePanel(host: Host,initialTab:SceneTab='image') {
       for (const item of clipboard) { const type = item.types.find(type => ['image/png','image/jpeg','image/webp'].includes(type)); if (type) { if(library===storage)await receive(new File([await item.getType(type)], 'Pasted scene', { type }), captured, previous); return; } }
       throw Error('No image found on the clipboard.');
     }).disabled=!library.writable();
+    const combo=button('Apply image colors',async()=>{
+      const baseline=host.read(),captured=target,image=currentImage();if(!image)throw Error('Assign an image first.');combo.disabled=true;
+      try{const [{sceneSourceSample},{localSceneBlob},{imageColorCombo,applyImageColorCombo}]=await Promise.all([import('./normalizationCache.ts'),import('./library.ts'),import('./colorCombo.ts')]);
+        const sampled=await sceneSourceSample(await localSceneBlob(image));if(!live||version!==imageVersion)return;
+        if(host.read()!==baseline||currentImage()!==image)throw Error('Workspace changed during colour analysis. Try again.');
+        const colors=imageColorCombo(sampled.pixels);host.change(world=>applyImageColorCombo(world,colors,captured));
+      }finally{combo.disabled=false;}
+    });
     button('Clear background', () => assign(null));
     if (target) button('Use default background', () => host.change(world => { const node = locate(world, target!); if (node) delete node.scene; }));
     const list = document.createElement('div'); body.append(list);
