@@ -2,7 +2,7 @@ import {FOCUS_DISTRIBUTIONS} from '../properties/focusPalette.ts';
 import {bindOperationValueControl} from '../ui/operationValueControl.ts';
 import {readPaint} from '../core/appearance.ts';
 import {varyTheme,focusTheme,setThemeFocus} from './themeControls.ts';
-import {PALETTE_SELECTIONS,type PaletteSettings} from '../properties/textPalette.ts';
+import {PALETTE_SELECTIONS,PALETTE_INKS,type PaletteSettings} from '../properties/textPalette.ts';
 import {configureAutoColors,autoColorKey} from './autoColors.ts';
 import {imageTrash} from './imageTrash.ts';
 import {localSceneStorage,type SceneStorage,type SceneImage} from './storage.ts';
@@ -83,7 +83,7 @@ export function scenePanel(host: Host,initialTab:SceneTab='image') {
     const manual=(delta:PaletteSettings)=>focusTheme(current(),delta);
     function edit(delta:PaletteSettings){host.change(world=>setThemeFocus(world,target,delta));syncTheme();}
     auto.onchange=()=>{host.change(world=>configureAutoColors(world,target,auto.checked));syncTheme();};
-    function select(key:'selection'|'distribution',label:string,options:readonly(readonly[string,string])[]){const row=document.createElement('label'),input=document.createElement('select');row.append(label,input);input.setAttribute('aria-label',label);for(const [id,text]of options){const option=document.createElement('option');option.value=id;option.textContent=text;input.append(option);}input.onchange=()=>edit({[key]:input.value} as PaletteSettings);paletteControls.push(input);body.append(row);numberSync.push(()=>{input.value=(key==='selection'&&current().selection==='pair'?'top-motif':current()[key])??(key==='distribution'?'balanced':'motif');});return row;}
+    function select(key:'selection'|'distribution'|'ink',label:string,options:readonly(readonly[string,string])[]){const row=document.createElement('label'),input=document.createElement('select');row.append(label,input);input.setAttribute('aria-label',label);for(const [id,text]of options){const option=document.createElement('option');option.value=id;option.textContent=text;input.append(option);}input.onchange=()=>edit({[key]:input.value} as PaletteSettings);paletteControls.push(input);body.append(row);numberSync.push(()=>{input.value=(key==='selection'&&current().selection==='pair'?'top-motif':current()[key])??(key==='distribution'?'balanced':key==='ink'?'color':'motif');});return row;}
     select('selection','Focus',PALETTE_SELECTIONS.filter(([id])=>id!=='pair'));
     function numeric(label:string,read:()=>number,min:number,max:()=>number,write:(n:number)=>PaletteSettings,step=1){
       const row=document.createElement('label'),input=document.createElement('input');input.type='button';input.setAttribute('aria-label',label);row.append(label,input);body.append(row);paletteControls.push(input);
@@ -92,6 +92,7 @@ export function scenePanel(host: Host,initialTab:SceneTab='image') {
     }
     const top=numeric('Top colors',()=>Math.min(current().top??2,resolved()?.available??8),1,()=>resolved()?.available??8,n=>({top:n}));
     const maximum=document.createElement('span');top.append(maximum);
+    select('ink','Text color',PALETTE_INKS);
     select('distribution','Distribution',FOCUS_DISTRIBUTIONS);
     numeric('Scale ×',()=>current().scale??1,1,()=>4096,n=>({scale:n}),.25);
     numeric('Saturation',()=>Math.round((current().saturation??1)*100),0,()=>100,n=>({saturation:n/100}));
