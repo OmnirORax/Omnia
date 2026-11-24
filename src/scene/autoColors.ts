@@ -24,7 +24,7 @@ export function createAutoColors(host:{read:()=>World;change:(edit:(world:World)
     const origin=key==='default'?undefined:JSON.parse(key) as Origin;if(origin&&!locate(current,origin))return;
     const channels=[['text','color','text'],['text','glowColor','textGlow'],['nodeDefaults','color','node'],['nodeDefaults','glowColor','nodeGlow']] as const;
     const edits=channels.filter(([, ,channel])=>!active.manual.includes(channel)).map(([target,field,channel])=>({target:origin?(target==='text'?'nodeText':'nodes'):target,field,value:combo[channel]} as const));
-    const palette=active.manual.some(c=>c==='text'||c==='textGlow')?undefined:{...active.palette,mode:'text' as const,colors:combo.textPalette,weights:combo.textWeights},textTarget=origin?'nodeText' as const:'text' as const;
+    const palette=active.manual.some(c=>c==='text'||c==='textGlow')?undefined:{...active.palette,mode:'text' as const,colors:combo.textPalette,weights:combo.textWeights,strength:combo.textStrength},textTarget=origin?'nodeText' as const:'text' as const;
     if(JSON.stringify(readPaint(current,textTarget,origin).palette)===JSON.stringify(palette)&&!edits.some(edit=>readPaint(current,edit.target,origin)[edit.field]!==edit.value))return;
     host.change(next=>{for(const edit of edits)writePaint(next,edit.target,origin?[origin]:[],{[edit.field]:edit.value},'automatic');writePaint(next,textTarget,origin?[origin]:[],{palette},'automatic');});
    }catch(error){cache.delete(image);if(!closed&&wanted.get(key)===stamp){wanted.delete(key);host.error(error);}}});

@@ -1,4 +1,4 @@
-import {PALETTE_LAYOUTS,PALETTE_PATTERNS,PALETTE_SPREADS,PALETTE_MATCHES,PALETTE_INKS,THEME_PRESETS,themePresetIndex,randomTheme,type PaletteSettings} from '../properties/textPalette.ts';
+import {PALETTE_LAYOUTS,PALETTE_PATTERNS,PALETTE_SPREADS,PALETTE_MATCHES,PALETTE_INKS,THEME_PRESETS,themePresetIndex,randomTheme,generatedTheme,type PaletteSettings} from '../properties/textPalette.ts';
 import {configureAutoColors,autoColorKey} from './autoColors.ts';
 import {imageTrash} from './imageTrash.ts';
 import {localSceneStorage,type SceneStorage,type SceneImage} from './storage.ts';
@@ -80,7 +80,7 @@ export function scenePanel(host: Host,initialTab:SceneTab='image') {
     paletteSelect('match','Image theme matching',PALETTE_MATCHES);paletteSelect('ink','Text color constraint',PALETTE_INKS);
     paletteSelect('layout','Gradient direction',PALETTE_LAYOUTS);paletteSelect('pattern','Gradient pattern',PALETTE_PATTERNS);paletteSelect('spread','Gradient spread',PALETTE_SPREADS);
     const randomize=button('Randomize',()=>{host.change(world=>configureAutoColors(world,target,auto.checked,false,randomTheme(world.appearance?.imageColors?.[autoColorKey(target)]?.palette??{})));syncTheme();});randomize.disabled=!auto.checked;
-    const generate=button('Generate pattern',()=>{host.change(world=>configureAutoColors(world,target,auto.checked,false,{pattern:'generated',seed:Math.floor(Math.random()*0x100000000)}));syncTheme();});generate.disabled=!auto.checked;
+    const generate=button('Generate pattern',()=>{host.change(world=>configureAutoColors(world,target,auto.checked,false,generatedTheme(world.appearance?.imageColors?.[autoColorKey(target)]?.palette??{})));syncTheme();});generate.disabled=!auto.checked;
     function syncTheme(){const current=host.read().appearance?.imageColors?.[autoColorKey(target)]?.palette??{},index=themePresetIndex(current);preset.value=index<0?'':String(index);for(const select of paletteControls){const key=select.dataset.paletteSetting as keyof PaletteSettings|undefined;if(!key)continue;const value=String(current[key]??THEME_PRESETS[0].settings[key]);if(value==='generated'&&!Array.from(select.options).some(o=>o.value===value)){const option=document.createElement('option');option.value=value;option.textContent='Generated';option.disabled=true;select.append(option);}select.value=value;}}
     button('Restore auto colors',()=>{host.change(world=>configureAutoColors(world,target,true,true));auto.checked=true;for(const control of paletteControls)control.disabled=false;randomize.disabled=generate.disabled=false;});
     button('Clear background', () => assign(null));

@@ -11,7 +11,7 @@ export function extractScenePalette(pixels:Uint8ClampedArray):ScenePalette{
   const neutral=sat<.18||hi<24,bins=neutral?neutrals:accents,key=neutral?(hi<64?0:hi<190?1:2):hue<15||hue>=345?0:hue<55?1:hue<85?2:hue<165?3:hue<205?4:hue<255?5:hue<290?6:7;
   const bin=bins.get(key)??{rgb:[0,0,0],weight:0,energy:0};for(let c=0;c<3;c++)bin.rgb[c]+=rgb[c]*alpha;bin.weight+=alpha;bin.energy+=alpha*((hi-lo)/255)**4;bins.set(key,bin);
  }
- const ranked=(bins:typeof accents)=>[...bins.values()].filter(bin=>bin.weight>=Math.max(1,total*.005)).map(bin=>({color:paletteHex(bin.rgb.map(v=>v/bin.weight)),weight:bin.weight/Math.max(1,total),salience:bin.energy/bin.weight*Math.sqrt(bin.weight/Math.max(1,total))})).sort((a,b)=>b.weight-a.weight||a.color.localeCompare(b.color));
+ const ranked=(bins:typeof accents)=>[...bins.values()].filter(bin=>bin.weight>=Math.max(1,total*.001)).map(bin=>({color:paletteHex(bin.rgb.map(v=>v/bin.weight)),weight:bin.weight/Math.max(1,total),salience:bin.energy/bin.weight*Math.sqrt(bin.weight/Math.max(1,total))})).sort((a,b)=>b.weight-a.weight||a.color.localeCompare(b.color));
  return {accents:ranked(accents),neutrals:ranked(neutrals)};
 }
 /** Compatibility pair for pattern consumers; full palettes remain available to color suggestions. */

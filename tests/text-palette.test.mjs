@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {textPalettePair,textPaletteCSS,textPaletteStops,PALETTE_STOP_LIMIT,randomTheme,THEME_VARIANTS} from '../src/properties/textPalette.ts';
+import {textPalettePair,textPaletteCSS,textPaletteStops,PALETTE_STOP_LIMIT,randomTheme,generatedTheme,THEME_VARIANTS} from '../src/properties/textPalette.ts';
 import {paletteRGB} from '../src/scene/palette.ts';
 import {emptyWorld,addStructure,validateWorld} from '../src/core/model.ts';
 import {readPaint,writePaint} from '../src/core/appearance.ts';
@@ -14,7 +14,7 @@ test('band widths follow measured weights and every layout uses a bounded cached
  assert.match(textPaletteCSS({...palette,layout:'radial',spread:'repeat'}),/^repeating-radial-gradient/);assert.match(textPaletteCSS({...palette,layout:'vertical'}),/180deg/);assert.match(textPaletteCSS({...palette,layout:'diagonal'}),/135deg/);
 });
 test('theme randomization selects a different exposed constraint combination',()=>{
- for(const variant of THEME_VARIANTS)for(let i=0;i<20;i++){const next=randomTheme(variant);assert.ok(THEME_VARIANTS.some(v=>JSON.stringify(v)===JSON.stringify(next)));assert.notDeepEqual(next,variant);}
+ for(const variant of THEME_VARIANTS)for(let i=0;i<20;i++){const next=randomTheme(variant);assert.ok(THEME_VARIANTS.some(v=>JSON.stringify(v)===JSON.stringify(next)));assert.notDeepEqual(next,variant);assert.ok(next.match!=='dark'&&next.match!=='palette');assert.ok(!(next.layout==='vertical'&&next.spread!=='wide'));}
 });
 test('manual node colors override inherited palette after save/load',()=>{
  const world=emptyWorld(),node=addStructure(world,[0,0,0],1);writePaint(world,'text',[],{color:'#ffbfbf',glowColor:'#ff0000',palette});writePaint(world,'nodeText',[node.origin],{color:'#112233'});const saved=JSON.parse(JSON.stringify(world));validateWorld(saved);assert.equal(readPaint(saved,'nodeText',node.origin).palette,undefined);assert.equal(readPaint(saved,'nodeText',node.origin).color,'#112233');
@@ -22,3 +22,5 @@ test('manual node colors override inherited palette after save/load',()=>{
 test('palette validation bounds settings, weights and colors; old across-node saves become within-text',async()=>{
  const {validatePaint}=await import('../src/properties/visual.ts');for(const p of [{...palette,layout:'bad'},{...palette,pattern:'bad'},{...palette,spread:'bad'},{...palette,weights:[1]},{...palette,weights:[1,0]},{...palette,seed:NaN},{mode:'text',colors:[]},{mode:'text',colors:Array(9).fill('#ff0000')},{mode:'text',colors:['red']}])assert.throws(()=>validatePaint({palette:p},true));assert.throws(()=>validatePaint({palette},false));const world=emptyWorld(),node=addStructure(world,[0,0,0],1);world.appearance={text:{palette:{...palette,mode:'nodes'}},imageColors:{default:{enabled:true,manual:[],mode:'nodes'}}};node.textAppearance={palette:{...palette,mode:'nodes'}};validateWorld(world);assert.equal(world.appearance.text.palette.mode,'text');assert.equal(node.textAppearance.palette.mode,'text');assert.equal(world.appearance.imageColors.default.mode,'text');
 });
+
+test('generated proposals replace inherited pale/dark treatment and avoid glyph-crossing stripe layouts',()=>{const next=generatedTheme({match:'dark',ink:'pale',layout:'vertical',spread:'dense'});assert.equal(next.ink,'color');assert.equal(next.match,'motif');assert.equal(next.layout,'horizontal');assert.equal(next.spread,'wide');assert.equal(next.pattern,'generated');});
