@@ -4,13 +4,15 @@ import {claimUIPress} from '../composer/runtime/ui/pointerOwnership.ts';
 import {PAGE_INPUT_SUSPEND} from '../composer/runtime/ui/pageInputBoundary.ts';
 import {mathematicalValueRejection} from '../properties/mathematicalDial.ts';
 export type NumberDrag = {value:number;min?:number;max?:number;step?:number;pixelsPerStep?:number;axis?:{x:number;y:number};activation?:'click'|'drag'};
+function valueDragUnit({value,min,max,step,pixelsPerStep}:NumberDrag){
+ const bounded=min!==undefined&&max!==undefined&&Number.isFinite(max-min)&&max>min;
+ return pixelsPerStep&&step?step/pixelsPerStep:bounded?(max-min)/200:step&&step>0?step/6:Math.max(1,Math.abs(value))/100;
+}
 /** Horizontal relative movement; bounds and declared increments remain authoritative. */
 export function horizontalValue(config:NumberDrag,delta:number){
   const {value,min,max,step}=config;
   if(!Number.isFinite(delta)||delta===0)return value;
-  const bounded=min!==undefined&&max!==undefined&&Number.isFinite(max-min)&&max>min;
-  const unit=config.pixelsPerStep&&step?step/config.pixelsPerStep:bounded?(max-min)/200:step&&step>0?step/6:Math.max(1,Math.abs(value))/100;
-  let next=value+delta*unit;
+  let next=value+delta*valueDragUnit(config);
   if(step&&step>0){const anchor=min??0;next=anchor+Math.round((next-anchor)/step)*step;}
   if(min!==undefined)next=Math.max(min,next);if(max!==undefined)next=Math.min(max,next);
   return Number.isFinite(next)?Number(next.toPrecision(12)):value;
@@ -78,7 +80,14 @@ export function installValueDrag(){
     if(current.active){stop(event);if(current.text!==undefined||!relative.locked)return;}
     if(!current.root.isConnected){finish(true);return;}
     if(!current.active){if(Math.abs(valueDragDistance(current.config,event.clientX-current.x,event.clientY-current.y))<4)return;activate(current,event);if(!relative.locked)return;}
-    stop(event);const point=relative.sample(event);lastPoint={x:event.clientX,y:event.clientY};const next=horizontalValue(current.config,valueDragDistance(current.config,point.x-current.x,point.y-current.y));if(next!==current.next){current.next=next;current.adapter.input(next);}
+    stop(event);const point=relative.sample(event);lastPoint={x:event.clientX,y:event.clientY};
+    const config=current.config,unit=valueDragUnit(config),distance=valueDragDistance(config,point.x-current.x,point.y-current.y);
+    const bounded=Math.max(config.min===undefined?-Infinity:(config.min-config.value)/unit,Math.min(config.max===undefined?Infinity:(config.max-config.value)/unit,distance));
+    // Shift the origin by discarded movement, keeping the original sensitivity
+    // and fractional steps so reversing at either limit responds immediately.
+    const overflow=distance-bounded;
+    if(overflow){const axis=config.axis&&Math.hypot(config.axis.x,config.axis.y)>0?config.axis:{x:1,y:0},length=Math.hypot(axis.x,axis.y);current.x+=overflow*axis.x/length;current.y+=overflow*axis.y/length;}
+    const next=horizontalValue(config,bounded);if(next!==current.next){current.next=next;current.adapter.input(next);}
   };
   relative.observeMove(move);
   window.addEventListener('pointerup',event=>{if(drag?.configuring||drag?.id!==event.pointerId||event.button!==0)return;if(!drag.active){finish();return;}stop(event);drag.released=true;suppressClick=true;if(drag.root.hasPointerCapture(drag.id))drag.root.releasePointerCapture(drag.id);},true);

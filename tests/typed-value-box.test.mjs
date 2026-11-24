@@ -124,3 +124,37 @@ test('a registered numeric field keeps its declared parameter owner',()=>{
   f.send('pointerdown');f.send('pointerup');f.send('mousemove',{movementX:12});f.send('pointerdown');assert.equal(committed,14);
  }finally{dispose?.();f.restore();}
 });
+
+test('movement past native bounds is discarded so reversing responds at either limit',()=>{
+ const f=environment();f.input.type='number';f.input.value='50';f.input.min='0';f.input.max='100';f.input.step='1';
+ try{
+  f.send('pointerdown');f.send('pointerup');f.send('mousemove',{movementX:10000});assert.equal(f.input.value,'100');
+  f.send('mousemove',{movementX:10000});f.send('mousemove',{movementX:-2});assert.equal(f.input.value,'99','no hidden overshoot above max');
+  f.send('mousemove',{movementX:-10000});assert.equal(f.input.value,'0');f.send('mousemove',{movementX:-10000});
+  f.send('mousemove',{movementX:2});assert.equal(f.input.value,'1','no hidden overshoot below min');f.send('keydown',{key:'Enter'});assert.equal(f.input.value,'1');
+ }finally{f.restore();}
+});
+test('bounded sliding retains fractional reverse movement and the original sensitivity',()=>{
+ const f=environment();let value=50,dispose;
+ try{
+  dispose=registerValueDrag(f.input,{read:()=>({value:50,min:0,max:100,step:1,pixelsPerStep:6}),input:n=>value=n,commit:n=>value=n,cancel:n=>value=n});
+  f.send('pointerdown');f.send('pointerup');f.send('mousemove',{movementX:10000});assert.equal(value,100);f.send('mousemove',{movementX:10000});
+  for(let i=0;i<6;i++)f.send('mousemove',{movementX:-1});assert.equal(value,99,'small reverse events accumulate instead of being discarded at max');
+  f.send('mousemove',{movementX:-10000});assert.equal(value,0);for(let i=0;i<6;i++)f.send('mousemove',{movementX:1});assert.equal(value,1);
+  f.send('keydown',{key:'Escape'});assert.equal(value,50);
+ }finally{dispose?.();f.restore();}
+});
+
+test('limit reversal preserves fractional steps, diagonal handles and one-sided sensitivity',()=>{
+ const f=environment();let dispose;
+ try{
+  for(const {config,outward,reverse,expected} of [
+   {config:{value:1,min:0,max:2,step:.25,pixelsPerStep:6},outward:{movementX:10000},reverse:{movementX:-6},expected:1.75},
+   {config:{value:1,min:0,max:2,step:.25,pixelsPerStep:6,axis:{x:1,y:1}},outward:{movementX:10000,movementY:10000},reverse:{movementX:-6,movementY:-6},expected:1.75},
+   {config:{value:-500,min:-1000},outward:{movementX:-10000},reverse:{movementX:1},expected:-995},
+  ]){
+   let value=config.value;dispose=registerValueDrag(f.input,{read:()=>config,input:n=>value=n,commit:n=>value=n,cancel:n=>value=n});
+   f.send('pointerdown');f.send('pointerup');f.send('mousemove',outward);f.send('mousemove',outward);f.send('mousemove',reverse);assert.equal(value,expected);f.send('pointerdown');assert.equal(value,expected);dispose();dispose=undefined;
+  }
+ }finally{dispose?.();f.restore();}
+});
