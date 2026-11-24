@@ -38,12 +38,12 @@ function unresolvedPaint(world: World, target: VisualTarget, origin?: Origin): N
  if(target==='text')return resolvedTextPaint(world.appearance?.text);
  const node=origin&&locate(world,origin),actual=node&&inherited(node,world);
  if(target==='nodes')return nodePaint(world,actual);
- const local=actual?.textAppearance;return resolvedTextPaint({...world.appearance?.text,...local,...(local?.font!==undefined?{fontName:local.fontName}:{})});
+ return resolvedNodeTextPaint(world,actual);
 }
 export function readPaint(world:World,target:VisualTarget,origin?:Origin):NodePaint{const paint=unresolvedPaint(world,target,origin);return {...paint,glowColor:paint.glowColor??paint.color};}
 export function writePaint(world: World, target: VisualTarget, origins: readonly Origin[], patch: NodePaint,mode:'manual'|'automatic'='manual') {
   if(target==='nodes'||target==='nodeDefaults')validateNodePaint(patch);else validatePaint(patch,target==='nodeText'||target==='text');
-  if(mode==='manual'&&target!=='background')for(const origin of target==='nodes'||target==='nodeText'?origins:[undefined]){const key=origin?JSON.stringify(origin):'default',rule=world.appearance?.imageColors?.[key];if(!rule?.enabled)continue;const text=target==='text'||target==='nodeText',manual=[...new Set([...rule.manual,...(patch.color!==undefined?[text?'text' as const:'node' as const]:[]),...(patch.glowColor!==undefined?[text?'textGlow' as const:'nodeGlow' as const]:[])])];world.appearance={...world.appearance,imageColors:{...world.appearance!.imageColors,[key]:{...rule,manual}}};}
+  if(mode==='manual'&&target!=='background')for(const origin of target==='nodes'||target==='nodeText'?origins:[undefined]){const key=origin?JSON.stringify(origin):'default',existing=world.appearance?.imageColors?.[key],rule=existing??(origin&&world.appearance?.imageColors?.default?.enabled?{enabled:false,inherit:true,manual:[]}:undefined);if(!rule?.enabled&&!rule?.inherit)continue;const text=target==='text'||target==='nodeText',manual=[...new Set([...rule.manual,...(patch.color!==undefined?[text?'text' as const:'node' as const]:[]),...(patch.glowColor!==undefined?[text?'textGlow' as const:'nodeGlow' as const]:[])])];world.appearance={...world.appearance,imageColors:{...world.appearance!.imageColors,[key]:{...rule,manual}}};}
   if(target==='nodes'||target==='nodeText')for(const origin of origins){
     const node=locate(world,origin);if(!node)continue;
     if(target==='nodes'){
@@ -73,4 +73,13 @@ export function paintPreview(world:World,target:VisualTarget,origins:readonly Or
  const candidate={...world,appearance:{...world.appearance},nodes:local?world.nodes.map(node=>selected.has(JSON.stringify(node.origin))?{...node}:node):world.nodes};
  writePaint(candidate,target,origins,patch);return candidate;
 }
-export function nodeTextPaint(world:World,actual:Structure){return {...resolvedTextPaint({...world.appearance?.text,...actual.textAppearance}),...((actual.glow??NODE_VISUAL_DEFAULTS.glow)>0?{glow:0}:{})};}
+function resolvedNodeTextPaint(world:World,actual?:Structure){
+ const local=actual?.textAppearance,paint={...world.appearance?.text,...local,...(local?.font!==undefined?{fontName:local.fontName}:{})},rules=world.appearance?.imageColors,rule=actual&&rules?.[JSON.stringify(actual.origin)];
+ if(rules?.default?.enabled){
+  const manual=new Set(rule?.manual);let blocked=!!rule&&(rule.enabled||!rule.inherit),parent=actual?.variantOf;const seen=new Set<Structure>();
+  while(parent&&!blocked){const source=locate(world,parent);if(!source||seen.has(source))break;seen.add(source);const inheritedRule=rules[JSON.stringify(source.origin)];if(inheritedRule){blocked=inheritedRule.enabled||!inheritedRule.inherit;for(const channel of inheritedRule.manual)manual.add(channel);}parent=source.variantOf;}
+  if(!blocked)for(const [field,channel]of [['color','text'],['glowColor','textGlow']] as const)if(!manual.has(channel)){const value=world.appearance?.text?.[field];if(value!==undefined)paint[field]=value;}
+ }
+ return resolvedTextPaint(paint);
+}
+export function nodeTextPaint(world:World,actual:Structure){return {...resolvedNodeTextPaint(world,actual),...((actual.glow??NODE_VISUAL_DEFAULTS.glow)>0?{glow:0}:{})};}
