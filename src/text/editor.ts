@@ -1,4 +1,4 @@
-import {documentPalette,showDocumentPalette,createDocumentPalettePaint} from './palettePresentation.ts';
+import {documentPalette,showDocumentPalette,setDocumentPalette,setDocumentInkTypography,createDocumentPalettePaint} from './palettePresentation.ts';
 import {createDocumentPaintSession} from './paintSession.ts';
 import {fontSizeScale} from '../properties/visual.ts';
 import {documentHistoryBindings} from './historyBindings.ts';
@@ -52,7 +52,7 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
       const text = fromSource(sliceSource(editor.state));syncing=true;try{commit(text);failed=false;}finally{syncing=false;}
     } catch (error) { failed = true; feedback(error instanceof Error ? error.message : String(error)); }
   }
-  const host = document.createElement('div');host.className = 'document-content';view.body.append(host);const palettePaint=createDocumentPalettePaint(view.root);releasePalette=palettePaint.dispose;
+  const host = document.createElement('div');host.className = 'document-content';view.body.append(host);const palettePaint=createDocumentPalettePaint(view.root,true);releasePalette=palettePaint.dispose;
   host.addEventListener('keydown',event => {event.stopPropagation();});
   host.addEventListener('keydown',event=>{if(event.key==='Escape'&&event.repeat){event.preventDefault();event.stopImmediatePropagation();}},true);
   const run = (command: StateCommand) => { if (editor) { command(editor); editor.focus(); } };
@@ -63,7 +63,7 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
     host.before(headingMenu); return true;
   };
   let fontSize = 13;
-  const font = (delta: number) => () => { fontSize = Math.min(36, Math.max(9, fontSize+delta)); host.style.fontSize = `${fontSize*fontSizeScale(readPaint(read(),'nodeText',origin))}px`; editor?.requestMeasure(); return true; };
+  const font = (delta: number) => () => { fontSize = Math.min(36, Math.max(9, fontSize+delta)); applyDocumentPaint(readPaint(read(),'nodeText',origin)); editor?.requestMeasure(); return true; };
   const regex = () => {
     if (!editor) return false;
     const q = getSearchQuery(editor.state); editor.dispatch({ effects: setSearchQuery.of(new SearchQuery({ search:q.search,replace:q.replace,caseSensitive:q.caseSensitive,regexp:true })) });
@@ -149,11 +149,12 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
     paintSession.render(readPaint(read(),'nodeText',origin));
   }
   function applyDocumentPaint(paint:import('../properties/visual.ts').Paint){
-    setDOMTextPaint(host.style,paint);if(palettePaint.render(paint))editor?.dispatch({effects:showDocumentPalette.of(paint.palette?.mode==='text'&&paint.palette.colors.length>1)});
+    setDOMTextPaint(host.style,paint);
     host.style.fontSize=`${fontSize*fontSizeScale(paint)}px`;
     host.style.setProperty('--document-text-color',host.style.color);
     host.style.setProperty('--document-text-shadow',host.style.textShadow);
     host.style.setProperty('--visual-text-bold-stroke',`${emboldenStrokeEm(paint.embolden)}em currentColor`);
+    const changed=palettePaint.render(paint);editor?.dispatch({effects:[setDocumentPalette.of(paint.palette),setDocumentInkTypography.of(JSON.stringify([paint.font,paint.fontSize,paint.embolden,fontSize])),...(changed?[showDocumentPalette.of(paint.palette?.mode==='text'&&paint.palette.colors.length>1)]:[])]});
   }
   refreshAppearance();queueMicrotask(()=>{if(view.root.isConnected)editor?.dispatch({effects:refreshLexicon.of()});});editor.focus(); return {...view,refreshAppearance,previewAppearance(world:World){paintSession.render(readPaint(world,'nodeText',origin));}};
 }

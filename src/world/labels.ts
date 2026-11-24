@@ -1,3 +1,4 @@
+import {configureTextureInkRows,refreshTextureInkProgression} from '../textureInkProgression.ts';
 import {setTextPaint} from '../properties/textPaint.ts';
 import {WORLD_TEXT_LAYER,nativeTextMaterial} from './textPass.ts';
 import {textGlowLayers} from '../properties/textGlow.ts';
@@ -34,6 +35,7 @@ export function textSprite(value: string, color: string, selected = false, node 
     // Clean ink stays fully covered, independently of halo strength.
     context.globalAlpha=1;context.shadowBlur=0;draw();
   };
+  let inkMaterial:THREE.MeshBasicMaterial|undefined;
   const paint = (border: string, ink: string, glow: number, spread:number=TEXT_DEFAULTS.glowSpread) => {
     ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.shadowBlur = 0;
     if (!contentOnly && node) {
@@ -60,7 +62,7 @@ export function textSprite(value: string, color: string, selected = false, node 
       const combined=ctx.getImageData(0,0,canvas.width,canvas.height);
       if(glow>0){const clean=sharpTextContext(canvas.width,canvas.height);drawInk(clean,"#ffffff",0,spread);packGlowCoverage(clean.getImageData(0,0,canvas.width,canvas.height).data,combined.data);}
       else packGlowCoverage(combined.data,combined.data);
-      ctx.putImageData(combined,0,0);
+      ctx.putImageData(combined,0,0);if(inkMaterial)refreshTextureInkProgression(inkMaterial);
     }
   };
   paint(color, textColor, textGlow,textGlowSpread);
@@ -83,7 +85,7 @@ export function textSprite(value: string, color: string, selected = false, node 
       side: THREE.DoubleSide,
     }),
   );
-  if(contentOnly){packedTextureGlow(sprite.material);nativeTextMaterial(sprite.material);sprite.layers.set(WORLD_TEXT_LAYER);}
+  if(contentOnly){packedTextureGlow(sprite.material);configureTextureInkRows(sprite.material,10,48,lines.length);inkMaterial=sprite.material;nativeTextMaterial(sprite.material);sprite.layers.set(WORLD_TEXT_LAYER);}
   sprite.userData.lightningMask = () => {
     const mask = document.createElement("canvas"); mask.width = canvas.width; mask.height = canvas.height;
     const ink = mask.getContext("2d")!; ink.font = canvasFont(font);

@@ -1,6 +1,5 @@
 import {colorInclusionPanel} from './scene/colorInclusions.ts';
-import {THEME_COLORS_SHORTCUT,createThemeShortcutCommands} from './scene/themeShortcuts.ts';
-import {varyTheme} from './scene/themeControls.ts';
+import {THEME_COLORS_SHORTCUT} from './scene/themeShortcuts.ts';
 import {createAutoColors} from './scene/autoColors.ts';
 import {selectedDocumentText} from './text/export.ts';
 import {bindColorSession} from './ui/colorSession.ts';
@@ -76,7 +75,6 @@ import { liveForm,flushLiveForms } from './ui/liveForm.ts';
 try{shortcuts.initialize(localStorage);}catch{/* Session-only bindings when storage is unavailable. */}
 installPointerBindings(()=>view?.inputContext==='rotate'?'world':view?.inputContext??'world');
 const themeShortcutBinding=()=>shortcuts.get(THEME_COLORS_SHORTCUT);
-const themeCommands=createThemeShortcutCommands(releaseShortcuts,themeShortcutBinding,kind=>attempt(()=>store.change(world=>varyTheme(world,themeTarget(),kind))));
 const hierarchyCommands=createHeldCommands(releaseShortcuts,()=>[
  {binding:worldBinding('V'),run:command=>attempt(()=>view?.toggleHierarchy(command==='next',true))},
  {binding:worldBinding('Shift+V'),run:command=>attempt(()=>view?.toggleHierarchy(command==='next',false,true))},
@@ -763,7 +761,7 @@ viewHistory.factory('themeColors',spec=>openThemeInclusions(spec));
 viewHistory.factory('scene',spec=>openScene((spec.args as SceneTab[])[0],spec));
 viewHistory.factory('document',spec=>openDocument((spec.args as Origin[])[0],spec));
 viewHistory.factory('composer',spec=>openComposer((spec.args as Origin[])[0],spec));
-installHistoryBindings({undo:()=>travelHistory('undo'),redo:()=>travelHistory('redo'),configure:openHistory,flush:flushLiveForms,sideButton:event=>!capturingShortcut()&&themeCommands.handle(event)});
+installHistoryBindings({undo:()=>travelHistory('undo'),redo:()=>travelHistory('redo'),configure:openHistory,flush:flushLiveForms});
 shortcuts.subscribe(()=>{for(const control of document.querySelectorAll<HTMLElement>('[data-world-shortcut]'))shortcutCaption(control,control.dataset.shortcutLabel!,control.dataset.worldShortcut);refreshContextActions();element('empty').querySelector('span')!.textContent=worldBinding('W')||'Create nodes';for(const control of document.querySelectorAll<HTMLButtonElement>('[data-immersive-mode]'))control.textContent=immersiveLabel();});
 element('empty').querySelector('span')!.textContent=worldBinding('W')||'Create nodes';
 refresh();
