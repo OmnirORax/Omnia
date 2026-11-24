@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {textPalettePair,textPaletteCSS,textPaletteStops,PALETTE_STOP_LIMIT} from '../src/properties/textPalette.ts';
+import {textPalettePair,textPaletteCSS,textPaletteStops,PALETTE_STOP_LIMIT,randomTheme,THEME_VARIANTS} from '../src/properties/textPalette.ts';
 import {paletteRGB} from '../src/scene/palette.ts';
 import {emptyWorld,addStructure,validateWorld} from '../src/core/model.ts';
 import {readPaint,writePaint} from '../src/core/appearance.ts';
@@ -10,11 +10,11 @@ test('blue/orange gradients retain brightness and linked ink without inventing g
 });
 test('band widths follow measured weights and every layout uses a bounded cached stop table',()=>{
  const p={...palette,pattern:'bands'},stops=textPaletteStops(p);assert.equal(stops[1].at,.9);assert.equal(stops[2].at,.9);assert.equal(textPalettePair(p,.89).glowColor,'#0080ff');assert.equal(textPalettePair(p,.91).glowColor,'#ff8000');
- for(const pattern of ['smooth','bands','random','shuffle']){const q={mode:'text',colors:Array(8).fill('#ff0000'),pattern};assert.ok(textPaletteStops(q).length<=PALETTE_STOP_LIMIT);assert.equal(textPaletteStops(q),textPaletteStops(q));}
+ for(const pattern of ['smooth','bands','generated']){const q={mode:'text',colors:Array(8).fill('#ff0000'),pattern};assert.ok(textPaletteStops(q).length<=PALETTE_STOP_LIMIT);assert.equal(textPaletteStops(q),textPaletteStops(q));}
  assert.match(textPaletteCSS({...palette,layout:'radial',spread:'repeat'}),/^repeating-radial-gradient/);assert.match(textPaletteCSS({...palette,layout:'vertical'}),/180deg/);assert.match(textPaletteCSS({...palette,layout:'diagonal'}),/135deg/);
 });
-test('random patterns are deterministic, reshuffle with the seed, and use only the retained palette',()=>{
- assert.notDeepEqual(textPaletteStops({...palette,pattern:'shuffle',seed:1}),textPaletteStops({...palette,pattern:'shuffle',seed:2}));const p={...palette,weights:[1,1],pattern:'random',seed:42};assert.deepEqual(textPaletteStops(p),textPaletteStops({...p}));assert.notDeepEqual(textPaletteStops(p),textPaletteStops({...p,seed:43}));for(const stop of textPaletteStops(p))assert.ok(['#0080ff','#ff8000'].includes('#'+stop.rgb.map(c=>Math.round(c*255).toString(16).padStart(2,'0')).join('')));
+test('theme randomization selects a different exposed constraint combination',()=>{
+ for(const variant of THEME_VARIANTS)for(let i=0;i<20;i++){const next=randomTheme(variant);assert.ok(THEME_VARIANTS.some(v=>JSON.stringify(v)===JSON.stringify(next)));assert.notDeepEqual(next,variant);}
 });
 test('manual node colors override inherited palette after save/load',()=>{
  const world=emptyWorld(),node=addStructure(world,[0,0,0],1);writePaint(world,'text',[],{color:'#ffbfbf',glowColor:'#ff0000',palette});writePaint(world,'nodeText',[node.origin],{color:'#112233'});const saved=JSON.parse(JSON.stringify(world));validateWorld(saved);assert.equal(readPaint(saved,'nodeText',node.origin).palette,undefined);assert.equal(readPaint(saved,'nodeText',node.origin).color,'#112233');

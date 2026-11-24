@@ -3,7 +3,7 @@ import {locate,type World,type Origin} from '../core/model.ts';
 import {createInheritanceReader} from '../core/lattice.ts';
 import {readPaint,writePaint} from '../core/appearance.ts';
 import {DEFAULT_BACKGROUND} from './defaultBackground.ts';
-import {imageColorCombo,type ImageColorCombo} from './colorCombo.ts';
+import {imageColorCombo,matchedImageColors,type ImageColorCombo} from './colorCombo.ts';
 export type AutoColorChannel='text'|'textGlow'|'node'|'nodeGlow';
 export type AutoColorRule={enabled:boolean;inherit?:boolean;manual:AutoColorChannel[];mode?:'text';palette?:PaletteSettings};
 export const autoColorKey=(origin?:Origin)=>origin?JSON.stringify(origin):'default';
@@ -18,8 +18,9 @@ export function createAutoColors(host:{read:()=>World;change:(edit:(world:World)
   for(const key of wanted.keys())if(!rules[key]?.enabled)wanted.delete(key);
   for(const [key,rule]of Object.entries(rules)){if(!rule.enabled)continue;const image=imageFor(key);if(!image){wanted.delete(key);continue;}const stamp=JSON.stringify([image,rule.manual,rule.palette]);if(wanted.get(key)===stamp)continue;wanted.set(key,stamp);
    queue=queue.then(async()=>{if(closed||wanted.get(key)!==stamp)return;try{
-    let pending=cache.get(image);if(!pending){pending=host.sample(image).then(imageColorCombo);cache.set(image,pending);if(cache.size>32)cache.delete(cache.keys().next().value!);}const combo=await pending;
+    let pending=cache.get(image);if(!pending){pending=host.sample(image).then(imageColorCombo);cache.set(image,pending);if(cache.size>32)cache.delete(cache.keys().next().value!);}const sampled=await pending;
     const current=host.read(),active=current.appearance?.imageColors?.[key];if(closed||wanted.get(key)!==stamp||!active?.enabled||autoColorImage(current,key)!==image)return;
+    const combo=matchedImageColors(sampled,active.palette);
     const origin=key==='default'?undefined:JSON.parse(key) as Origin;if(origin&&!locate(current,origin))return;
     const channels=[['text','color','text'],['text','glowColor','textGlow'],['nodeDefaults','color','node'],['nodeDefaults','glowColor','nodeGlow']] as const;
     const edits=channels.filter(([, ,channel])=>!active.manual.includes(channel)).map(([target,field,channel])=>({target:origin?(target==='text'?'nodeText':'nodes'):target,field,value:combo[channel]} as const));

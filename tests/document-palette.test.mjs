@@ -19,3 +19,7 @@ test('native emoji clusters are outside gradient/filter spans through edits and 
  check(update(view.state.update({effects:showDocumentPalette.of(true)})));view.visibleRanges[0].to++;check(update(view.state.update({changes:{from:0,insert:'x'}})));view.visibleRanges=[{from:view.state.doc.line(2).from,to:view.state.doc.length}];const scrolled=update(view.state.update({}),true);assert.equal(scrolled.native.length,1);assert.equal(view.state.sliceDoc(...scrolled.native[0]),'😀');
  const off=update(view.state.update({effects:showDocumentPalette.of(false)}));assert.deepEqual(off,{gradients:[],native:[]});
 });
+test('colored text changes the shared glow filter transfer without changing the glow profile',()=>{
+ const old=globalThis.document;class Element{children=[];style={setProperty(){},removeProperty(){}};attrs={};setAttribute(k,v){this.attrs[k]=v;}append(n){this.children.push(n);}replaceChildren(){this.children=[];}remove(){}}
+ const body=new Element();globalThis.document={body,createElementNS:()=>new Element()};try{const sink=createDocumentPalettePaint(new Element()),paint={palette:{mode:'text',colors:['#ff0000','#000000'],ink:'color'},glow:1};sink.render(paint);const transfer=body.children[0].children[0].children[0];assert.equal(transfer.children[0].attrs.slope,'1');assert.equal(transfer.children[0].attrs.intercept,'0');sink.dispose();}finally{globalThis.document=old;}
+});

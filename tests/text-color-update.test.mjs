@@ -143,3 +143,7 @@ test('spatial palette changes update shared shader uniforms without text rasteri
  assert.equal(mesh.material.map,map);assert.equal(map.version,version);assert.deepEqual(snapshot(),before);
  updateLabelPaint(mesh,{color:'#ffbfbf',glow:.5});assert.equal(shader.uniforms.textPaletteCount.value,0);disposeLabel(mesh);
 });
+test('generated patterns share one GPU texture and release it after its final label owner',()=>{
+ const a=label('A'),b=label('B'),palette={mode:'text',colors:['#ff0000','#000000'],pattern:'generated',seed:42,ink:'color'};
+ updateLabelPaint(a,{palette});updateLabelPaint(b,{palette});const shader=mesh=>{const s={uniforms:{},vertexShader:'',fragmentShader:'#include <map_fragment>'};mesh.material.onBeforeCompile(s,{});return s;},sa=shader(a),sb=shader(b),texture=sa.uniforms.textPalettePattern.value;assert.equal(texture,sb.uniforms.textPalettePattern.value);assert.equal(sa.uniforms.textPaletteGenerated.value,1);assert.equal(sa.uniforms.textPaletteInk.value,1);let disposals=0;texture.addEventListener('dispose',()=>disposals++);disposeLabel(a);assert.equal(disposals,0);disposeLabel(b);assert.equal(disposals,1);
+});

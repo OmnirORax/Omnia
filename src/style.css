@@ -144,7 +144,7 @@ input[type="number"]:enabled:not([readonly]), input[inputmode="numeric"]:enabled
 .infinity-panel nav [aria-pressed=true] { outline:1px solid currentColor; }
 .infinity-panel .infinity-click { display:block; width:100%; min-height:90px; border:1px solid currentColor; margin:6px 0; }
 
-.cm-image-palette{background-image:var(--document-palette-gradient);background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent;color:var(--document-text-color);text-shadow:none;filter:var(--document-palette-filter,none);box-decoration-break:clone;-webkit-box-decoration-break:clone}
+.cm-image-palette{background-size:100% 100%;background-repeat:no-repeat;background-image:var(--document-palette-gradient);background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent;color:var(--document-text-color);text-shadow:none;filter:var(--document-palette-filter,none);box-decoration-break:clone;-webkit-box-decoration-break:clone}
 .cm-image-palette *{text-shadow:none;-webkit-text-fill-color:inherit}
 
 .cm-native-emoji,.cm-native-emoji *{background-image:none;-webkit-text-fill-color:initial!important;-webkit-text-stroke:0!important;text-shadow:none!important;filter:none}
