@@ -1,3 +1,4 @@
+import {clearMathCursorReadout} from './mathCursorReadout.ts';
 import {registerValueDrag,cancelValueDrag} from './valueDrag.ts';
 import {createOperationNumber,type OperationNumber} from './operationNumber.ts';
 import {popupControlTarget} from '../composer/runtime/ui/popupPlacement.ts';
@@ -8,7 +9,7 @@ export function bindOperationValueControl(button:HTMLInputElement,options:{label
  type Session={number:OperationNumber;sliding:boolean;panel?:HTMLElement;unmount?:()=>void;epoch:number;resume?:(accept?:boolean)=>void};
  let session:Session|undefined,disposed=false;
  const closePanel=(accept=false)=>{const active=session;if(!active)return;if(accept&&active.panel)confirmWindowWithin(active.panel);active.epoch++;active.unmount?.();active.unmount=undefined;active.panel?.remove();active.panel=undefined;};
- const end=()=>{if(!session)return;cancelValueDrag(button);if(!session)return;closePanel();session=undefined;button.value=String(options.read());options.preview();if(closeActive===end)closeActive=undefined;};
+ const end=()=>{if(!session)return;cancelValueDrag(button);if(!session)return;const owner=session.number.readoutOwner;closePanel();session=undefined;clearMathCursorReadout(owner);button.value=String(options.read());options.preview();if(closeActive===end)closeActive=undefined;};
  const start=(sliding:boolean)=>{closeActive?.();const active:Session={sliding,epoch:0,number:undefined!};
   active.number=createOperationNumber({label:options.label,value:options.read(),min:options.min,max:options.max,integer:options.integer,reject:options.feedback,apply:(n,phase)=>{
    if(disposed||session!==active)return;button.value=String(n);
