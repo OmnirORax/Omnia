@@ -3,6 +3,7 @@ import {createHoverPreview} from '../composer/runtime/ui/hoverPreview.ts';
 import {createRelativePointer} from './relativePointer.ts';
 import {claimUIPress} from '../composer/runtime/ui/pointerOwnership.ts';
 import {PAGE_INPUT_SUSPEND} from '../composer/runtime/ui/pageInputBoundary.ts';
+import {mathematicalValueRejection} from '../properties/mathematicalDial.ts';
 export type NumberDrag = {value:number;min?:number;max?:number;step?:number;pixelsPerStep?:number;axis?:{x:number;y:number};activation?:'click'|'drag'};
 /** Horizontal relative movement; bounds and declared increments remain authoritative. */
 export function horizontalValue(config:NumberDrag,delta:number){
@@ -16,7 +17,7 @@ export function horizontalValue(config:NumberDrag,delta:number){
   return Number.isFinite(next)?Number(next.toPrecision(12)):value;
 }
 export function valueDragDistance(config:NumberDrag,dx:number,dy:number){const axis=config.axis;if(!axis)return dx;const length=Math.hypot(axis.x,axis.y);return length>0?(dx*axis.x+(Number.isFinite(dy)?dy:0)*axis.y)/length:dx;}
-type Adapter={configure?:{open:(resume:(accept?:boolean)=>void)=>void;close:(accept:boolean)=>void;owns?:(target:HTMLElement)=>boolean};start?:()=>void;read:()=>NumberDrag|undefined;input:(value:number)=>void;commit:(value:number)=>void;cancel:(value:number)=>void};
+type Adapter={text?:{input:(text:string)=>void;accept:(text:string)=>boolean};configure?:{open:(resume:(accept?:boolean)=>void)=>void;close:(accept:boolean)=>void;owns?:(target:HTMLElement)=>boolean};start?:()=>void;read:()=>NumberDrag|undefined;input:(value:number)=>void;commit:(value:number)=>void;cancel:(value:number)=>void};
 const adapters=new WeakMap<HTMLElement,Adapter>(),activeOwners=new WeakMap<HTMLElement,()=>void>();
 export const cancelValueDrag=(root:HTMLElement)=>activeOwners.get(root)?.();
 export function registerValueDrag(root:HTMLElement,adapter:Adapter){
@@ -28,26 +29,29 @@ function numericInput(target:EventTarget|null){
     (target.type==='range'||target.type==='number'||target.inputMode==='numeric'||target.inputMode==='decimal')?target:undefined;
 }
 function inputAdapter(field:HTMLInputElement):Adapter{
+  const number=(text:string)=>text.trim()&&Number.isFinite(Number(text))?Number(text):undefined;
   const write=(value:number)=>{
     // Bypass React's value tracker so its existing onChange receives the edit.
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')!.set!.call(field,String(value));
     field.dispatchEvent(new Event('input',{bubbles:true}));
   };
-  return {read:()=>{
+  const read=()=>{
     const value=field.value.trim()?Number(field.value):NaN;if(!Number.isFinite(value))return;
-    const number=(text:string)=>text.trim()&&Number.isFinite(Number(text))?Number(text):undefined;
     return {value,pixelsPerStep:Number(field.dataset?.valuePixelsPerStep)||undefined,min:number(field.min),max:number(field.max),step:field.step==='any'?undefined:number(field.step)??(field.type==='number'||field.inputMode==='numeric'?1:undefined)};
-  },input:write,commit:()=>{field.dispatchEvent(new Event('change',{bubbles:true}));field.blur();},cancel:value=>{write(value);field.dispatchEvent(new Event('change',{bubbles:true}));}};
+  };
+  const typed=(text:string,report=false)=>{const value=text.trim()?Number(text):NaN,reason=mathematicalValueRejection(value,{min:number(field.min)??-Number.MAX_SAFE_INTEGER,max:number(field.max)??Number.MAX_SAFE_INTEGER,integer:field.step!=='any'&&(number(field.step)??1)===1});if(reason){if(report){field.setCustomValidity(reason);field.reportValidity();}return false;}field.setCustomValidity('');write(value);return true;};
+  return {read,text:{input:text=>{typed(text);field.value=text;},accept:text=>typed(text,true)},input:write,commit:()=>{field.dispatchEvent(new Event('change',{bubbles:true}));field.blur();},cancel:value=>{field.setCustomValidity('');write(value);field.dispatchEvent(new Event('change',{bubbles:true}));}};
 }
 export function installValueDrag(){
-  type Drag={id:number;root:HTMLElement;adapter:Adapter;config:NumberDrag;x:number;y:number;active:boolean;configuring:boolean;baseline:number;released:boolean;next:number;preview:ReturnType<typeof createHoverPreview>;owner:object};
+  type Drag={id:number;root:HTMLElement;adapter:Adapter;config:NumberDrag;x:number;y:number;active:boolean;configuring:boolean;text?:string;baseline:number;released:boolean;next:number;preview:ReturnType<typeof createHoverPreview>;owner:object};
   let drag:Drag|undefined,suppressClick=false;const suspended:Drag[]=[];
   let lastPoint={x:0,y:0};
   window.addEventListener('pointermove',event=>{if(drag&&!relative.locked)lastPoint={x:event.clientX,y:event.clientY};},true);
   const relative=createRelativePointer(()=>finish(true));
   const stop=(event:Event)=>{event.preventDefault();event.stopImmediatePropagation();};
   const finish=(cancel=false)=>{
-    const current=drag;drag=suspended.pop();relative.stop();if(!current)return;activeOwners.delete(current.root);current.adapter.configure?.close(false);
+    const current=drag;if(!cancel&&current?.text!==undefined&&!current.adapter.text?.accept(current.text))return;
+    drag=suspended.pop();relative.stop();if(!current)return;activeOwners.delete(current.root);current.adapter.configure?.close(false);
     document.documentElement.classList.remove('value-dragging');
     if(current.root.hasPointerCapture(current.id))current.root.releasePointerCapture(current.id);
     if(current.active){suppressClick=!cancel||!current.released;if(cancel)current.preview.cancel();else current.preview.commit();}
@@ -68,7 +72,7 @@ export function installValueDrag(){
     if(config.activation!=='drag')activate(drag,event);
   },true);
   const move=(event:MouseEvent|PointerEvent)=>{
-    const current=drag;if(!current||current.configuring||!relative.locked&&'pointerId' in event&&current.id!==event.pointerId)return;
+    const current=drag;if(!current||current.configuring||current.text!==undefined||!relative.locked&&'pointerId' in event&&current.id!==event.pointerId)return;
     if(!current.root.isConnected){finish(true);return;}
     if(!current.active){if(Math.abs(valueDragDistance(current.config,event.clientX-current.x,event.clientY-current.y))<4)return;activate(current,event);}
     stop(event);const point=relative.sample(event);lastPoint={x:event.clientX,y:event.clientY};current.preview.move(point.x,point.y);
@@ -84,7 +88,13 @@ export function installValueDrag(){
   window.addEventListener('keydown',event=>{
    if(event.key==='Shift'&&!event.repeat&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&suspended.length){stop(event);selectionLatch.use();finish();resume();return;}
    const current=drag;if(!current?.active)return;
-   if(event.key==='Shift'&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&current.adapter.configure){stop(event);selectionLatch.use();if(event.repeat)return;if(current.configuring){resume();}else{current.configuring=true;relative.stop();suppressClick=false;document.documentElement.classList.remove('value-dragging');current.adapter.configure.open(resume);}return;}
+   if(event.key==='Shift'&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&current.adapter.configure){stop(event);selectionLatch.use();if(event.repeat)return;if(current.text!==undefined){if(!current.adapter.text?.accept(current.text))return;current.text=undefined;}if(current.configuring){resume();}else{current.configuring=true;relative.stop();suppressClick=false;document.documentElement.classList.remove('value-dragging');current.adapter.configure.open(resume);}return;}
+   if(!current.configuring&&current.adapter.text&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&!event.isComposing){
+    const key=event.key;if(/^[\d.,+-]$/.test(key)||key==='Backspace'||key==='Delete'||current.text!==undefined&&/^[eE]$/.test(key)){
+     stop(event);const before=current.text??'';current.text=key==='Backspace'?before.slice(0,-1):key==='Delete'?'':before+(key===','?'.':key);current.adapter.text.input(current.text);return;
+    }
+    if(current.text!==undefined&&key.length===1){stop(event);return;}
+   }
    if(event.key==='Enter'&&!current.configuring&&!event.ctrlKey&&!event.metaKey&&!event.altKey){stop(event);if(!event.repeat)finish();return;}
    if(event.key==='Escape'){stop(event);finish(true);}
   },true);

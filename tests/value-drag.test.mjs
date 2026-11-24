@@ -24,6 +24,8 @@ test('numeric inputs and registered readouts share release, click, and cancellat
   get value(){return this.text;}set value(next){this.text=next;}
   dispatchEvent(event){if(event.type==='input')inputs.push(this.value);if(event.type==='change')changes.push(this.value);return true;}
   blur(){this.blurred=true;}
+  setCustomValidity(message){this.validationMessage=message;}
+  reportValidity(){return !this.validationMessage;}
  }
  globalThis.Element=FakeElement;globalThis.HTMLInputElement=FakeInput;
  globalThis.window={addEventListener(type,handler){const list=handlers.get(type)??[];list.push(handler);handlers.set(type,list);}};

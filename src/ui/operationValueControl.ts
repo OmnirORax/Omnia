@@ -26,6 +26,7 @@ export function bindOperationValueControl(button:HTMLInputElement,options:{label
   try{const module=await options.loadDial();if(!disposed&&session===active&&active.epoch===epoch&&active.panel===panel)active.unmount=module.mountOperationMathDial(panel,active.number,done,undefined,placement);}catch(error){if(session===active&&active.epoch===epoch){options.feedback(String(error));if(active.sliding)active.resume?.(false);else end();}}
  };
  const stop=registerValueDrag(button,{read:()=>{const active=session??start(true),scrub=active.number.scrub();active.scrub=scrub;const current=scrub.toValue(scrub.value);if(current!==active.number.current&&Number.isFinite(current))active.number.preview(current,scrub.configuration(scrub.value));return {...scrub,pixelsPerStep:6,axis:{x:0,y:-1}};},
+  text:{input:text=>{session?.number.type(text);button.value=text;},accept:text=>session?.number.type(text,true)??false},
   input:n=>{const active=session;if(active?.scrub)active.number.preview(active.scrub.toValue(n),active.scrub.configuration(n));},commit:()=>{const active=session;if(!active)return;remember(active);options.commit(active.number.current);end();},cancel:()=>end(),configure:{owns:target=>!!session?.panel?.contains(target),open:resume=>{void openPanel(resume);},close:accept=>closePanel(accept)},
  });
  button.onclick=()=>{if(disposed||session?.panel)return Promise.resolve();return openPanel();};
