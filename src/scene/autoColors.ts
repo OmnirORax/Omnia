@@ -7,7 +7,7 @@ import {imageColorCombo,matchedImageColors,type ImageColorCombo} from './colorCo
 export type AutoColorChannel='text'|'textGlow'|'node'|'nodeGlow';
 export type AutoColorRule={enabled:boolean;inherit?:boolean;manual:AutoColorChannel[];mode?:'text';palette?:PaletteSettings};
 export const autoColorKey=(origin?:Origin)=>origin?JSON.stringify(origin):'default';
-export function configureAutoColors(world:World,origin:Origin|undefined,enabled:boolean,reset=false,settings?:PaletteSettings){const key=autoColorKey(origin);world.appearance??={};world.appearance.imageColors={...world.appearance.imageColors,[key]:{enabled,mode:'text',palette:{...world.appearance.imageColors?.[key]?.palette,...settings},manual:reset?[]:world.appearance.imageColors?.[key]?.manual??[]}};}
+export function configureAutoColors(world:World,origin:Origin|undefined,enabled:boolean,reset=false,settings?:PaletteSettings){const key=autoColorKey(origin),palette={...world.appearance?.imageColors?.[key]?.palette,...settings};for(const k of Object.keys(palette) as (keyof PaletteSettings)[])if(palette[k]===undefined)delete palette[k];world.appearance??={};world.appearance.imageColors={...world.appearance.imageColors,[key]:{enabled,mode:'text',palette,manual:reset?[]:world.appearance.imageColors?.[key]?.manual??[]}};}
 function autoImageReader(world:World){let nodes:Map<string,World['nodes'][number]>|undefined;let inherit:ReturnType<typeof createInheritanceReader>|undefined;return(key:string)=>{if(key==='default')return world.scene?world.scene.image:DEFAULT_BACKGROUND.id;nodes??=new Map(world.nodes.map(node=>[JSON.stringify(node.origin),node]));const node=nodes.get(key);if(!node)return null;const actual=(inherit??=createInheritanceReader(world))(node);return actual.scene!==undefined?actual.scene:world.scene?world.scene.image:DEFAULT_BACKGROUND.id;};}
 export const autoColorImage=(world:World,key:string)=>autoImageReader(world)(key);
 
@@ -24,7 +24,7 @@ export function createAutoColors(host:{read:()=>World;change:(edit:(world:World)
     const origin=key==='default'?undefined:JSON.parse(key) as Origin;if(origin&&!locate(current,origin))return;
     const channels=[['text','color','text'],['text','glowColor','textGlow'],['nodeDefaults','color','node'],['nodeDefaults','glowColor','nodeGlow']] as const;
     const edits=channels.filter(([, ,channel])=>!active.manual.includes(channel)).map(([target,field,channel])=>({target:origin?(target==='text'?'nodeText':'nodes'):target,field,value:combo[channel]} as const));
-    const palette=active.manual.some(c=>c==='text'||c==='textGlow')?undefined:{...active.palette,mode:'text' as const,colors:combo.textPalette,weights:combo.textWeights,strength:combo.textStrength},textTarget=origin?'nodeText' as const:'text' as const;
+    const palette=active.manual.some(c=>c==='text'||c==='textGlow')?undefined:{...active.palette,mode:'text' as const,colors:combo.textPalette,weights:combo.textWeights,strength:combo.textStrength,darkSupport:combo.textDarkSupport},textTarget=origin?'nodeText' as const:'text' as const;
     if(JSON.stringify(readPaint(current,textTarget,origin).palette)===JSON.stringify(palette)&&!edits.some(edit=>readPaint(current,edit.target,origin)[edit.field]!==edit.value))return;
     host.change(next=>{for(const edit of edits)writePaint(next,edit.target,origin?[origin]:[],{[edit.field]:edit.value},'automatic');writePaint(next,textTarget,origin?[origin]:[],{palette},'automatic');});
    }catch(error){cache.delete(image);if(!closed&&wanted.get(key)===stamp){wanted.delete(key);host.error(error);}}});
