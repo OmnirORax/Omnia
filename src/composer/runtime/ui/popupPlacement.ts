@@ -50,3 +50,9 @@ export function popupBesideTarget(target:PopupRect,child:{width:number;height:nu
  for(const point of candidates){const x=clamp(point.x,viewport.x,child.width,viewport.width),y=clamp(point.y,viewport.y,child.height,viewport.height),overlap=Math.max(0,Math.min(x+child.width,target.x+target.width+gap)-Math.max(x,target.x-gap))*Math.max(0,Math.min(y+child.height,target.y+target.height+gap)-Math.max(y,target.y-gap)),distance=(x+child.width/2-requested.x)**2+(y+child.height/2-requested.y)**2,next=overlap*1e9+distance;if(next<score){best={x,y};score=next;}}
  return best;
 }
+
+/** A control editor avoids its opening panel, rather than just the small input. */
+export function popupControlTarget(control:HTMLElement):PopupRect{
+ const owner=control.closest<HTMLElement>('[data-ui-resident-root],[data-ui-popup-boundary]')??control.closest<HTMLElement>('#tools,.panel,[data-context-controller]')??control;
+ const bounds=owner.getBoundingClientRect();return {x:bounds.left,y:bounds.top,width:bounds.width,height:bounds.height};
+}

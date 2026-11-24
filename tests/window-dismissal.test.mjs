@@ -46,3 +46,17 @@ test('window confirmation and typed-input ownership follow the same top window a
  assert.equal(windows.owns('a'),false);assert.equal(windows.owns('b'),true);assert.equal(windows.canConfirm(),true);assert.equal(windows.confirm(),true);assert.deepEqual(calls,['confirm b']);
  stop();windows.confirm();assert.deepEqual(calls,['confirm b','confirm a']);a.isConnected=false;assert.equal(windows.canConfirm(),false);assert.equal(windows.confirm(),false);
 });
+
+test('Enter on a focused dial button confirms on release rather than clicking the dot again',async()=>{
+ const {createWindowConfirmation}=await import('../src/ui/windowDismissal.ts');
+ const windows=createWindowDismissal(),button={kind:'button'},input={kind:'input'},calls=[],dial={isConnected:true,contains:target=>target===button||target===input};
+ windows.register(dial,()=>{},1,true,()=>calls.push('apply'));
+ const keyboard=createWindowConfirmation(windows,target=>target===input),event=(target=button,extra={})=>({key:'Enter',target,preventDefault(){this.prevented=true;},stopImmediatePropagation(){this.stopped=true;},...extra});
+ const down=event();keyboard.keydown(down);assert.equal(down.prevented,true);assert.equal(down.stopped,true);assert.deepEqual(calls,[]);
+ keyboard.keydown(event(button,{repeat:true}));keyboard.keyup(event());assert.deepEqual(calls,['apply']);keyboard.keyup(event());assert.equal(calls.length,1);
+ const host={matches:()=>true,contains:node=>node===dial};keyboard.keydown(event(host));keyboard.keyup(event(host));assert.deepEqual(calls,['apply','apply'],'pointer selection keeps focus on the popup host, which still confirms its nested dial');
+ const typing=event(input);keyboard.keydown(typing);keyboard.keyup(event(input));assert.equal(typing.prevented,undefined);assert.equal(calls.length,2);
+ const outside=event({kind:'other button'});keyboard.keydown(outside);assert.equal(outside.prevented,undefined);
+ keyboard.keydown(event());keyboard.cancel();keyboard.keyup(event());assert.equal(calls.length,2);
+ keyboard.keydown(event());windows.register({isConnected:true,contains:()=>true},()=>{},2,true,()=>calls.push('different'));keyboard.keyup(event());assert.deepEqual(calls,['apply','apply']);
+});

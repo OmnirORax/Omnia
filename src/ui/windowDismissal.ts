@@ -17,6 +17,7 @@ export function createWindowDismissal() {
     },
     owns(target:Node){return !!top()?.[0].contains(target);},
     canConfirm(){return !!top()?.[1].confirm;},
+    beginConfirm(target:Node){const active=top(),parent=target as HTMLElement;const host=!!active&&!!parent?.matches?.('[data-input-owner],[data-context-controller]')&&parent.contains(active[0] as Node);if(!active||!active[1].confirm||!active[0].contains(target)&&!host)return;return()=>{if(top()?.[1]===active[1])active[1].confirm?.();};},
     confirm(){const entry=top()?.[1];if(!entry?.confirm)return false;entry.confirm();return true;},
     close() {
       const entry=top()?.[1];
@@ -24,6 +25,14 @@ export function createWindowDismissal() {
       if(entry.escape)entry.close(); return true;
     },
   };
+}
+/** Confirmation owns the whole key press, before a focused button can click again. */
+export function createWindowConfirmation(windows:Pick<ReturnType<typeof createWindowDismissal>,'beginConfirm'>,nativeInput:(target:EventTarget|null)=>boolean){
+ let pending:(()=>void)|undefined;
+ const enter=(event:KeyboardEvent)=>event.key==='Enter'&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&!event.shiftKey&&!event.isComposing;
+ const consume=(event:KeyboardEvent)=>{event.preventDefault();event.stopImmediatePropagation();};
+ return {keydown(event:KeyboardEvent){if(event.defaultPrevented||!enter(event)||nativeInput(event.target))return;const confirm=windows.beginConfirm(event.target as Node);if(!confirm)return;consume(event);if(!event.repeat)pending=confirm;},
+  keyup(event:KeyboardEvent){if(event.key!=='Enter'||!pending)return;const confirm=pending;pending=undefined;consume(event);if(enter(event)&&!nativeInput(event.target))confirm();},cancel(){pending=undefined;}};
 }
 const windows = createWindowDismissal();
 let listening = false;
@@ -33,6 +42,8 @@ export function registerWindow(root: HTMLElement, close: () => unknown, priority
     const activate = (event: Event) => { if (event.target instanceof Node) windows.activate(event.target); };
     window.addEventListener('pointerdown', activate, true);
     window.addEventListener('focusin', activate, true);
+    const confirmation=createWindowConfirmation(windows,target=>target instanceof Element&&!!target.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"]),[role="textbox"]'));
+    window.addEventListener('keydown',confirmation.keydown,true);window.addEventListener('keyup',confirmation.keyup,true);window.addEventListener('blur',confirmation.cancel);
   }
   return windows.register(root, close, priority, escape,confirm);
 }
