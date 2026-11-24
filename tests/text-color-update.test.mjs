@@ -116,3 +116,10 @@ test('retired brightness switch cannot change cached label or character ink or t
  const ink=object.children.find(child=>child.userData.isLabel);assert.ok(ink);assert.equal(ink.material.color.getHexString(),'204060');
  const after=snapshot();object.userData.setAppearance({textPaint:paint});assert.equal(ink.material.color.getHexString(),'204060');assert.deepEqual(snapshot(),after);disposeVisual(object);
 });
+
+ test('font size updates scale reversibly without rerasterizing labels',()=>{
+ const mesh=label('Size',{fontSize:12}),original=mesh.scale.clone(),texture=mesh.material.map,version=texture.version,before=snapshot();
+ for(const fontSize of [24,18,18,6,12]){updateLabelPaint(mesh,{fontSize});assert.ok(mesh.scale.distanceTo(original.clone().multiplyScalar(fontSize/12))<1e-9);}
+ assert.equal(mesh.material.map,texture);assert.equal(texture.version,version);assert.deepEqual(snapshot(),before);
+ assert.equal(labelGeometryKey({fontSize:12}),labelGeometryKey({fontSize:24}));disposeLabel(mesh);
+});

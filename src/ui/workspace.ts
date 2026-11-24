@@ -1,20 +1,25 @@
+import {withWorkspaceImages,prepareWorkspaceImages} from '../core/workspaceImages.ts';
 import { panel } from './panel.ts';
-import { checkedWorld, sceneReferences, encodeBytes, decodeScene, rebindScenes, TRANSFER_BYTES } from '../core/transfer.ts';
+import { checkedWorld, TRANSFER_BYTES } from '../core/transfer.ts';
 import { availableChoice, createPartsFile, fullChoice, hasChoice, parsePartsFile, preparePartsImport, scenesForChoice, type PartsFile, type TransferChoice } from '../core/transferParts.ts';
 import type { World } from '../core/model.ts';
-import { listLocalScenes, localSceneBlob, prepareLocalScene, saveLocalScenes, downloadScene, deleteLocalScene, type StoredScene } from '../scene/library.ts';
+import { listLocalScenes, saveLocalScenes, downloadScene, deleteLocalScene } from '../scene/library.ts';
 
-type Host = { omnic?:()=>void;atlas?:()=>void;draft?: HTMLButtonElement; read: () => World; replace: (world: World) => void; recover: () => void; beforeReplace: () => void; selected?: () => string[] };
+type Host = { account?:()=>void; omnic?:()=>void;atlas?:()=>void;draft?: HTMLElement; read: () => World; replace: (world: World) => void; recover: () => void; beforeReplace: () => void; selected?: () => string[] };
 export function workspacePanel(host: Host) {
-  let live = true, busy = false;
-  const view = panel('Workspace', () => { if (busy) return false; live = false; });
+  let live = true, busy = false, stopCloud=()=>{};
+  let cloudContext:import('../backend/workspaceContext.ts').WorkspaceContext|undefined;
+  const view = panel('Workspace', () => { if (busy) return false; live = false; stopCloud(); });
   const actions = document.createElement('div'), output = document.createElement('output'); output.setAttribute('role', 'status'); view.body.append(actions, output);
   const buttons: HTMLButtonElement[] = [];
-  if(host.draft){actions.append(host.draft);buttons.push(host.draft);}
+  if(host.draft)actions.append(host.draft);
   const options = document.createElement('fieldset'), filename = document.createElement('input');
   options.className = 'transfer-parts';
   filename.value = 'omnium-workspace'; filename.setAttribute('aria-label', 'File name'); filename.maxLength = 100;
-  view.body.prepend(filename, options);
+  const destination=document.createElement('select'),cloudRoot=document.createElement('div');destination.setAttribute('aria-label','Workspace storage');
+  for(const [value,label] of [['file','File'],['account','Account cloud']]){const option=document.createElement('option');option.value=value;option.textContent=label;destination.append(option);}
+  view.body.prepend(destination,cloudRoot,filename, options);
+  destination.onchange=()=>{if(busy)return;stopCloud();cloudContext=undefined;cloudRoot.replaceChildren();filename.hidden=destination.value!=='file';if(destination.value==='account')void run(async()=>{const {workspacePicker}=await import('../backend/workspacePicker.ts');if(!live)return;const picker=workspacePicker(cloudRoot,context=>{cloudContext=context;},{create:true,account:host.account,error:error=>{output.textContent=String(error);}});stopCloud=picker.dispose;});};
   let source: PartsFile | undefined, baseline: World | undefined, choice: TransferChoice, replace = false;
   function choices() {
     options.replaceChildren();
@@ -52,50 +57,42 @@ export function workspacePanel(host: Host) {
   choices();
   async function run(action: () => void | Promise<void>) {
     if (busy) return;
-    busy = true; options.disabled = true; filename.disabled = true; buttons.forEach(button => button.disabled = true); output.textContent = '';
+    busy = true; destination.disabled=true; cloudRoot.inert=true; options.disabled = true; filename.disabled = true; buttons.forEach(button => button.disabled = true); output.textContent = '';
     try { await action(); } catch (error) { output.textContent = error instanceof Error ? error.message : String(error); }
-    finally { busy = false; options.disabled = false; filename.disabled = false; buttons.forEach(button => button.disabled = false); }
+    finally { busy = false; destination.disabled=false; cloudRoot.inert=false; options.disabled = false; filename.disabled = false; buttons.forEach(button => button.disabled = false); }
   }
   function button(label: string, action: () => void) { const b = document.createElement('button'); b.textContent = label; b.onclick = action; buttons.push(b); actions.append(b); }
   if(host.omnic)button('Omnic',host.omnic);if(host.atlas)button('Atlas',host.atlas);
-  button('Export', () => void run(async () => {
-    if (source) throw Error('Choose New export first.');
-    const file = createPartsFile(structuredClone(checkedWorld(host.read())), choice), references = sceneReferences(file.world);
-    const metadata = new Map((references.size ? await listLocalScenes() : []).map(item => [item.id, item]));
-    // Encode each referenced original once; no normalized cache or device credentials.
-    for (const id of references) {
-      const item = metadata.get(id); if (!item) throw Error('A scene image is missing. Restore or clear it before exporting.');
-      const blob = await localSceneBlob(id);
-      file.scenes.push({ id, name: item.name, type: item.type, data: encodeBytes(new Uint8Array(await blob.arrayBuffer())) });
-    }
-    const blob = new Blob([JSON.stringify(file)], { type: 'application/json' });
-    if (blob.size > TRANSFER_BYTES) throw Error('Workspace file exceeds 145 MiB.');
-    downloadScene(blob, `${filename.value.trim().replace(/[^a-zA-Z0-9 _.-]/g, '_').replace(/\.json$/i, '') || 'omnium-workspace'}.json`); output.textContent = 'Exported';
+  async function selectedFile(){
+    const file=createPartsFile(structuredClone(checkedWorld(source?.world??host.read())),choice);
+    if(source){const required=scenesForChoice(source,choice);file.scenes=source.scenes.filter(image=>required.has(image.id));if(source.parts?.complete===false)file.parts!.complete=false;return file;}
+    return withWorkspaceImages(file);
+  }
+  button('Save', () => void run(async () => {
+    const context=cloudContext,valid=context?.current(),id=context?.state.id;
+    if(destination.value==='account'&&(!context||!id||!context.state.canWrite))throw Error('Choose an account workspace with write access.');
+    const file=await selectedFile();
+    if(context&&id&&valid){const {loadPrivateWorkspace,savePrivateWorkspace}=await import('../backend/workspaces.ts');const expected=await loadPrivateWorkspace(context.client,id);if(!live||!valid())return;await savePrivateWorkspace(context.client,id,file,expected,crypto.randomUUID(),()=>live&&valid());if(valid())output.textContent='Saved';return;}
+    const blob=new Blob([JSON.stringify(file)],{type:'application/json'});if(blob.size>TRANSFER_BYTES)throw Error('Workspace file exceeds 145 MiB.');
+    downloadScene(blob,`${filename.value.trim().replace(/[^a-zA-Z0-9 _.-]/g,'_').replace(/\.json$/i,'')||'omnium-workspace'}.json`);output.textContent='Saved';
   }));
   const input = document.createElement('input'); input.type = 'file'; input.accept = '.json,application/json'; input.hidden = true; view.body.append(input);
-  button('Import', () => input.click());
+  button('Load', () => {if(destination.value==='file'){input.click();return;}void run(async()=>{const context=cloudContext,id=context?.state.id;if(!context||!id)throw Error('Choose an account workspace.');const valid=context.current(),{downloadPrivateWorkspace}=await import('../backend/workspaces.ts'),file=await downloadPrivateWorkspace(context.client,id);if(live&&valid())stageText(JSON.stringify(file));});});
   input.onchange = () => {
     const file = input.files?.[0]; input.value = ''; if (!file) return;
     void run(async () => {
       if (file.size > TRANSFER_BYTES) throw Error('Workspace file exceeds 145 MiB.');
-      const candidate = parsePartsFile(await file.text());
-      if (!live) return;
-      source = candidate; baseline = host.read(); replace = false; choices(); output.textContent = 'Choose parts, then Import selected';
+      stageText(await file.text());
     });
   };
-  button('New export', () => { source = undefined; baseline = undefined; choices(); output.textContent = ''; });
+  function stageText(text:string){const candidate=parsePartsFile(text);if(!live)return;source=candidate;baseline=host.read();replace=false;choices();output.textContent='Choose parts, then Import selected';}
+  button('Current workspace', () => { source = undefined; baseline = undefined; choices(); output.textContent = ''; });
   button('Import selected', () => void run(async () => {
       if (!source || !baseline) throw Error('Open an import file first.');
       if (!hasChoice(choice)) throw Error('Choose at least one part.');
       if (replace && !confirm('Replace workspace content? The previous workspace is kept for recovery.')) return;
       const required = scenesForChoice(source, choice);
-      const prepared: StoredScene[] = [], ids = new Map<string, string>();
-      for (const image of source.scenes.filter(image => required.has(image.id))) {
-        const bytes = decodeScene(image);
-        const item = await prepareLocalScene(new File([bytes as Uint8Array<ArrayBuffer>], image.name, { type: image.type }), null);
-        prepared.push(item); ids.set(image.id, item.id);
-      }
-      const selectedFile = { ...source, world: rebindScenes(createPartsFile(source.world, choice).world, ids) };
+      const {file:selectedFile,prepared}=await prepareWorkspaceImages({...source,world:createPartsFile(source.world,choice).world,scenes:source.scenes.filter(image=>required.has(image.id))});
       const world = preparePartsImport(baseline, selectedFile, choice, replace);
       if (host.read() !== baseline) throw Error('Workspace changed during import. Retry.');
       const existing = new Set((prepared.length ? await listLocalScenes() : []).map(item => item.id));

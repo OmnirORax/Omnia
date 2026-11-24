@@ -1,6 +1,6 @@
 import {textGlowShadow} from '../properties/textGlow.ts';
 import {UI_BORDER_SELECTOR,UI_SURFACE_SELECTOR,UI_DECORATION} from '../composer/runtime/appearance/registry.ts';
-import { BACKGROUND_DEFAULTS, renderedTextPaint, fontFamily, paintColor, type Appearance, type Paint } from '../properties/visual.ts';
+import { BACKGROUND_DEFAULTS, renderedTextPaint, fontFamily,fontSizeScale, paintColor, type Appearance, type Paint } from '../properties/visual.ts';
 import { emboldenStrokeEm } from '../properties/embolden.ts';
 
 export function textStyle(paint?: Paint) {
@@ -24,6 +24,7 @@ export function updateUIAppearance(appearance?: Appearance) {
   document.documentElement.toggleAttribute('data-visual-text',true);
   document.documentElement.toggleAttribute('data-visual-background',!!appearance?.background);
   const text=appearance?.text;
+  root.setProperty('--visual-text-scale',String(fontSizeScale(text)));
   root.setProperty('--visual-text-bold-stroke',`${emboldenStrokeEm(text?.embolden ?? 0)}em currentColor`);
   for(const [name,value] of Object.entries(textStyle(text))) {
     root.setProperty(`--visual-text-${name}`,value);

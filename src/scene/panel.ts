@@ -1,3 +1,4 @@
+import {localSceneStorage,type SceneStorage,type SceneImage} from './storage.ts';
 import {watchFields} from '../ui/formState.ts';
 import {VIEW_ROUTE} from '../ui/viewHistory.ts';
 import { DEFAULT_BACKGROUND } from './defaultBackground.ts';
@@ -12,24 +13,24 @@ import { defaultScene, type SceneSettings } from './state.ts';
 import { NORMALIZATION_FIELDS, normalizationProperty, editNormalization } from './normalization.ts';
 import { WAVE_CONTROLS, WAVE_PRESETS, serializeSceneVfx } from './vfx.ts';
 import { readWavePresets, appendWavePreset } from './wavePresets.ts';
-import { importLocalScene, listLocalScenes, localSceneBlob, downloadScene, deleteLocalScene, saveCopiedPrompt, type ScenePromptSnapshot } from './library.ts';
+import { importLocalScene, downloadScene, saveCopiedPrompt, type ScenePromptSnapshot } from './library.ts';
 import { sceneAudioSnapshot, subscribeSceneAudio, toggleSceneSystemAudio, forgetSceneSystemAudio } from './audio.ts';
 import { readSystemAudioPreference } from './systemAudioPreference.ts';
 import { resolveScenePrompt } from './contracts.ts';
 import { locate, sameOrigin, type Origin, type World } from '../core/model.ts';
 import type { createSceneSession } from './session.ts';
 
-type Host = { subscribe:(listener:()=>void)=>()=>void; read: () => World; selected: () => readonly Origin[]; change: (edit: (world: World) => void, group?: string) => void; preview: (world: World) => void; session: ReturnType<typeof createSceneSession>; feedback: (text: string) => void };
+type Host = { account?:()=>void; subscribe:(listener:()=>void)=>()=>void; read: () => World; selected: () => readonly Origin[]; change: (edit: (world: World) => void, group?: string) => void; preview: (world: World) => void; session: ReturnType<typeof createSceneSession>; feedback: (text: string) => void };
 export const SCENE_TABS=[['image','Image'],['waves','Waves'],['pulse','Pulse'],['audio','Audio'],['normalization','Normalize'],['prompt','Prompt']]as const;
 export type SceneTab=typeof SCENE_TABS[number][0];
 export function scenePanel(host: Host,initialTab:SceneTab='image') {
-  let live = true; let target: Origin | undefined = host.selected()[0];
+  let live = true, imageVersion=0;let storage:SceneStorage=localSceneStorage,accountImages=false;const materialized=new Map<string,string>(),generationRetry:import('../backend/sceneGenerationControls.ts').GenerationRetry={}; let target: Origin | undefined = host.selected()[0];
   const subscriptions: (() => void)[] = [];
   const view = panel('Scene', () => { live = false; for (const stop of subscriptions.splice(0)) stop(); host.preview(host.read()); });
   const navigation = document.createElement('nav'), body = document.createElement('div'); navigation.className = 'scene-tabs'; body.className = 'scene-content'; view.body.append(navigation, body);
   function attempt(action: () => void | Promise<void>) { try{void Promise.resolve(action()).catch(error => host.feedback(error instanceof Error ? error.message : String(error)));}catch(error){host.feedback(error instanceof Error ? error.message : String(error));} }
   function button(label: string, action: () => void | Promise<void>, parent: HTMLElement = body) { const b = document.createElement('button'); b.textContent = label; b.onclick = () => attempt(action); parent.append(b); return b; }
-  function clear() { for (const stop of subscriptions.splice(0)) stop(); body.replaceChildren(); }
+  function clear() { imageVersion++; for (const stop of subscriptions.splice(0)) stop(); body.replaceChildren(); }
   function update(edit: (settings: SceneSettings) => void, group?: string) { host.change(world => { world.scene ??= defaultScene(); edit(world.scene); }, group); }
   function currentImage() { const w = host.read(), node = target && locate(w, target); return node?.scene !== undefined ? node.scene : w.scene?.image ?? null; }
   function assign(image: string | null) { host.change(world => { if (target) { const node = locate(world, target); if (!node) throw Error('Image destination no longer exists.'); node.scene = image; } else { world.scene ??= defaultScene(); world.scene.image = image; } }); }
@@ -38,39 +39,52 @@ export function scenePanel(host: Host,initialTab:SceneTab='image') {
     const settings = world.scene ?? defaultScene(), input = { id: JSON.stringify(node.origin), label: node.label, notes: node.text?.content.map(part => typeof part === 'string' ? part : part.word ?? '').join('') ?? '' };
     return { prompt: settings.prompt, variable: settings.variable, source: settings.source, node: input, resolved: resolveScenePrompt(settings.prompt, settings.variable, settings.source, input), copiedAt: new Date().toISOString() };
   }
+  async function applyImage(library:SceneStorage,image:SceneImage,captured:Origin|undefined,previous:string|null,input:ScenePromptSnapshot|null){
+    if(!live||!library.current()||image.state&&image.state!=='ready')return;
+    const id=library===localSceneStorage?image.id:image.localId??(await importLocalScene(new File([await library.download(image)],image.name,{type:image.media_type??'image/png'}),input)).id;
+    if(!live||!library.current())return;materialized.set(`${library.key}:${image.id}`,id);
+    if ((captured === undefined && target === undefined || captured && target && sameOrigin(captured, target)) && currentImage() === previous && (!captured || locate(host.read(), captured))) assign(id);
+    else host.feedback('Image saved in the library; its destination changed. Apply it when ready.');
+  }
   async function receive(file: File, captured: Origin | undefined, previous: string | null) {
     const input = captured ? (() => { try { return promptSnapshot(); } catch { return null; } })() : null;
-    const image = await importLocalScene(file, input);
-    if (!live) return;
-    if ((captured === undefined && target === undefined || captured && target && sameOrigin(captured, target)) && currentImage() === previous && (!captured || locate(host.read(), captured))) assign(image.id);
-    else host.feedback('Image saved in the library; its destination changed. Apply it when ready.');
-    await images();
+    const library=storage,image=await library.upload(file,input);await applyImage(library,image,captured,previous,input);if(live)await images();
   }
   async function images() {
-    clear();
+    clear();const version=++imageVersion;
+    const location=document.createElement('select');location.setAttribute('aria-label','Image storage');
+    for(const [value,label] of [['local','Local'],['account','Account cloud']]){const option=document.createElement('option');option.value=value;option.textContent=label;location.append(option);}location.value=accountImages?'account':'local';location.onchange=()=>{accountImages=location.value==='account';if(!accountImages)storage=localSceneStorage;attempt(images);};body.append(location);
+    if(accountImages){
+      const {workspacePicker}=await import('../backend/workspacePicker.ts'),{privateSceneStorage}=await import('../backend/sceneLibrary.ts');if(!live||version!==imageVersion)return;
+      let initial=true;const picker=workspacePicker(body,context=>{if(initial){storage=privateSceneStorage(context);return;}if(live)attempt(images);},{account:host.account,error:error=>host.feedback(String(error))});initial=false;subscriptions.push(picker.dispose);
+      if(!picker.context.state.id)return;
+    }
+    const library=storage;
     const scope = document.createElement('select'); scope.setAttribute('aria-label', 'Scene destination');
     for (const [value, label] of [['default','Default background'],['node','Selected node']]) { const option = document.createElement('option'); option.value = value; option.textContent = label; if (value === 'node') option.disabled = !host.selected().length; scope.append(option); }
-    scope.value = target ? 'node' : 'default'; scope.onchange = () => { target = scope.value === 'node' ? host.selected()[0] : undefined; void images(); }; body.append(scope);
-    button('Import image', () => { const file = document.createElement('input'); file.type = 'file'; file.accept = 'image/png,image/jpeg,image/webp'; const captured = target, previous = currentImage(); file.onchange = () => { if (file.files?.[0]) attempt(() => receive(file.files![0], captured, previous)); }; file.click(); });
+    scope.value = target ? 'node' : 'default'; scope.onchange = () => { target = scope.value === 'node' ? host.selected()[0] : undefined; attempt(images); }; body.append(scope);
+    button('Import image', () => { const file = document.createElement('input'); file.type = 'file'; file.accept = 'image/png,image/jpeg,image/webp'; const captured = target, previous = currentImage(); file.onchange = () => { if (file.files?.[0]&&library===storage) attempt(() => receive(file.files![0], captured, previous)); }; file.click(); }).disabled=!library.writable();
     button('Paste image', async () => {
       const captured = target, previous = currentImage(), clipboard = await navigator.clipboard.read();
-      for (const item of clipboard) { const type = item.types.find(type => ['image/png','image/jpeg','image/webp'].includes(type)); if (type) { await receive(new File([await item.getType(type)], 'Pasted scene', { type }), captured, previous); return; } }
+      for (const item of clipboard) { const type = item.types.find(type => ['image/png','image/jpeg','image/webp'].includes(type)); if (type) { if(library===storage)await receive(new File([await item.getType(type)], 'Pasted scene', { type }), captured, previous); return; } }
       throw Error('No image found on the clipboard.');
-    });
+    }).disabled=!library.writable();
     button('Clear background', () => assign(null));
     if (target) button('Use default background', () => host.change(world => { const node = locate(world, target!); if (node) delete node.scene; }));
     const list = document.createElement('div'); body.append(list);
-    const items = await listLocalScenes(); if (!live || !list.isConnected) return;
+    const items = await library.list(); if (!live || !list.isConnected||version!==imageVersion||!library.current()) return;
     for (const item of items) {
       const row = document.createElement('div'); row.className = 'scene-image-row';
-      button(`${currentImage() === item.id ? '✓ ' : ''}${item.name}`, () => { assign(item.id); return images(); }, row);
-      button('↓', async () => downloadScene(await localSceneBlob(item.id), item.name), row);
+      const localId=library===localSceneStorage?item.id:materialized.get(`${library.key}:${item.id}`);
+      button(`${currentImage() === localId ? '✓ ' : ''}${item.name}${item.state&&item.state!=='ready'?` · ${item.state}`:''}`,async()=>{await applyImage(library,item,target,currentImage(),null);if(live)await images();},row).disabled=!!item.state&&item.state!=='ready';
+      button('↓', async () => {const blob=await library.download(item);if(live&&library.current())downloadScene(blob,item.name);}, row).disabled=!!item.state&&item.state!=='ready';
+      if(library.finalize&&item.state==='pending')button('Finish upload',async()=>{await library.finalize!(item);if(live)await images();},row).disabled=!library.canFinalize?.(item);
       if(item.id!==DEFAULT_BACKGROUND.id)button('×', async () => {
-        if (!confirm(`Delete “${item.name}”? The next Push also removes unused shared copies. Download it first to keep the original.`)) return;
-        await deleteLocalScene(item.id,true);
-        host.change(world => { if (world.scene?.image === item.id) world.scene.image = null; for (const node of world.nodes) if (node.scene === item.id) delete node.scene; });
-        await images();
-      }, row); list.append(row);
+        if(!library.current()||!confirm(`Delete “${item.name}”?${library===localSceneStorage?' The next Push also removes unused shared copies.':''} Download it first to keep the original.`))return;
+        await library.remove(item);
+        if(library===localSceneStorage)host.change(world=>{if(world.scene?.image===item.id)world.scene.image=null;for(const node of world.nodes)if(node.scene===item.id)delete node.scene;});
+        if(live)await images();
+      }, row).disabled=!library.writable();list.append(row);
     }
   }
   function controls(group: 'waves' | 'pulse' | 'normalization' | 'prompt') {
@@ -111,6 +125,7 @@ export function scenePanel(host: Host,initialTab:SceneTab='image') {
     liveForm(form, undoGroup => { try { update(apply, undoGroup); } catch (error) { host.feedback(error instanceof Error ? error.message : String(error)); } });
     watchFields(form,values.map(control=>({input:control.input,read:()=>{const settings=host.read().scene??defaultScene();if(group==='normalization')return settings.normalization[control.key.slice('scene.normalize.'.length) as keyof typeof settings.normalization];if(group==='prompt')return settings[control.key as 'prompt'|'variable'|'source'];return vfxFunction.inputs[control.key].read({sceneVfx:settings.vfx});}})));
     body.append(form);
+    if(group==='prompt'){const mount=document.createElement('div');body.append(mount);const open=button('Cloud generation',async()=>{open.disabled=true;try{const module=await import('../backend/sceneGenerationControls.ts');if(live&&mount.isConnected){subscriptions.push(module.sceneGenerationControls(mount,promptSnapshot,generationRetry,host.account,error=>host.feedback(String(error))));open.remove();}}catch(error){open.disabled=false;throw error;}});}
     if (group === 'prompt') button('Copy resolved prompt', async () => { const input = promptSnapshot(); await navigator.clipboard.writeText(input.resolved); saveCopiedPrompt(input); host.feedback('Prompt copied. Import or paste the resulting image.'); });
     if (group === 'normalization') {
       const output = document.createElement('output'); body.append(output);

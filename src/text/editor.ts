@@ -1,3 +1,5 @@
+import {fontSizeScale} from '../properties/visual.ts';
+import {documentHistoryBindings} from './historyBindings.ts';
 import {documentListLayout} from './listLayout.ts';
 import {documentWordCounter} from './wordCount.ts';
 import {documentFoldBindings} from './folding.ts';
@@ -59,7 +61,7 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
     host.before(headingMenu); return true;
   };
   let fontSize = 13;
-  const font = (delta: number) => () => { fontSize = Math.min(36, Math.max(9, fontSize+delta)); host.style.fontSize = `${fontSize}px`; editor?.requestMeasure(); return true; };
+  const font = (delta: number) => () => { fontSize = Math.min(36, Math.max(9, fontSize+delta)); host.style.fontSize = `${fontSize*fontSizeScale(readPaint(read(),'nodeText',origin))}px`; editor?.requestMeasure(); return true; };
   const regex = () => {
     if (!editor) return false;
     const q = getSearchQuery(editor.state); editor.dispatch({ effects: setSearchQuery.of(new SearchQuery({ search:q.search,replace:q.replace,caseSensitive:q.caseSensitive,regexp:true })) });
@@ -87,7 +89,7 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
       { key:'Mod-PageUp',run:font(1) }, { key:'Mod-PageDown',run:font(-1) },
       ...markdownKeymap, ...historyKeymap, ...searchKeymap, indentWithTab, ...defaultKeymap,
   ];
-  const effectiveBindings=bindings.map(binding=>binding.key==='Mod-z'?{...binding,run:()=>{travelGlobalHistory('undo');return true;}}:binding.key==='Mod-y'||binding.key==='Mod-Shift-z'?{...binding,run:()=>{travelGlobalHistory('redo');return true;}}:binding);
+  const effectiveBindings=documentHistoryBindings(bindings,travelGlobalHistory);
   const shortcutMap=new Compartment();
   editor = new EditorView({ parent:host, state:EditorState.create({ doc:source.text, extensions:[
     EditorState.allowMultipleSelections.of(true), glyphField.init(() => source.glyphs), glyphHistory, history(),compactDocumentPaste,documentBrackets,lexiconAnnotations(read),
@@ -119,7 +121,7 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
       },
     }),
     EditorView.updateListener.of(update => { if (update.docChanged) save(); }),
-    EditorView.theme({ '&':{ backgroundColor:'transparent',fontSize:'inherit',color:'inherit' },'.cm-content':{fontFamily:'inherit',padding:'0',minHeight:'120px'},'.cm-scroller':{overflow:'auto',fontFamily:'inherit'},'&.cm-focused':{outline:'none'},'.cm-cursorLayer':{mixBlendMode:'difference'},'.cm-cursor, &.cm-focused .cm-cursor':{borderLeft:'2px solid #ffffff',marginLeft:'-1px',filter:'brightness(0) invert(1)'},'&.cm-editor .cm-scroller > .cm-selectionLayer .cm-selectionBackground, &.cm-editor.cm-focused .cm-scroller > .cm-selectionLayer .cm-selectionBackground':{backgroundColor:'#245eac',outline:'1px solid #85baff',outlineOffset:'-1px'},'.cm-panels':{backgroundColor:'#191c1b',color:'inherit'},'.cm-search':{fontSize:'11px',padding:'4px'},'.cm-search label':{display:'inline-flex'},'.cm-search input':{width:'90px'},'.cm-search input[type=checkbox]':{width:'auto'} }, {dark:true}),
+    EditorView.theme({ '&':{ backgroundColor:'transparent',fontSize:'inherit',color:'inherit' },'.cm-content':{fontFamily:'inherit',padding:'0',minHeight:'120px'},'.cm-scroller':{overflow:'auto',fontFamily:'inherit'},'&.cm-focused':{outline:'none'},'.cm-cursorLayer':{mixBlendMode:'difference'},'.cm-cursor, &.cm-focused .cm-cursor':{borderLeft:'2px solid #ffffff',marginLeft:'-1px',filter:'brightness(0) invert(1)'},'&.cm-editor .cm-scroller > .cm-selectionLayer .cm-selectionBackground, &.cm-editor.cm-focused .cm-scroller > .cm-selectionLayer .cm-selectionBackground':{backgroundColor:'#245eac',outline:'1px solid #85baff',outlineOffset:'-1px'},'.cm-panels':{backgroundColor:'#191c1b',color:'inherit'},'.cm-search':{fontSize:'calc(11px * var(--visual-text-scale, 1))',padding:'4px'},'.cm-search label':{display:'inline-flex'},'.cm-search input':{width:'90px'},'.cm-search input[type=checkbox]':{width:'auto'} }, {dark:true}),
   ] }) });
   releaseShortcuts=shortcuts.subscribe(()=>{if(editor)editor.dispatch({effects:shortcutMap.reconfigure(Prec.highest(keymap.of(remapDocumentBindings(effectiveBindings))))});});
   const labels=new Map(documentShortcutCatalog().map(item=>[item.id,item.label]));
@@ -148,6 +150,7 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
   function applyDocumentPaint(paint:ReturnType<typeof readPaint>){
     const style=textStyle(paint);
     Object.assign(host.style,style);
+    host.style.fontSize=`${fontSize*fontSizeScale(paint)}px`;
     host.style.setProperty('--document-text-color',style.color);
     host.style.setProperty('--document-text-shadow',style.textShadow);
     host.style.setProperty('--visual-text-bold-stroke',`${emboldenStrokeEm(paint.embolden)}em currentColor`);

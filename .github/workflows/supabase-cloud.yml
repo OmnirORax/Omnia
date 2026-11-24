@@ -1,0 +1,56 @@
+name: Account cloud backend
+on:
+  pull_request:
+    branches: [master]
+    paths: ['src/backend/**', 'src/core/**', 'supabase/**', 'scripts/*cloud*', 'scripts/*account-functions*', 'scripts/migration-sql.mjs', 'scripts/disposable-postgres.mjs', '.github/workflows/supabase-cloud.yml']
+  push:
+    branches: [master]
+    paths: ['src/**', 'supabase/**', 'scripts/*cloud*', 'scripts/*account-functions*', 'scripts/migration-sql.mjs', 'scripts/disposable-postgres.mjs', '.github/workflows/supabase-cloud.yml']
+  workflow_dispatch:
+    inputs:
+      mode:
+        type: choice
+        description: Plan or apply the account cloud backend
+        options: [plan, apply]
+        default: plan
+permissions:
+  contents: read
+concurrency:
+  group: account-cloud-${{ github.event_name == 'pull_request' && github.event.pull_request.number || 'production' }}
+  cancel-in-progress: false
+jobs:
+  database:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: node scripts/test-cloud-db.mjs
+      - run: node scripts/test-metrics-db.mjs
+      - run: node scripts/deploy-account-functions.mjs plan
+        env:
+          SUPABASE_ACCESS_TOKEN: build-only-no-network
+  deploy:
+    needs: database
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-24.04
+    environment: cloudflare-production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: node scripts/deploy-cloud.mjs "$DEPLOY_MODE"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          DEPLOY_MODE: ${{ github.event_name == 'push' && 'apply' || inputs.mode }}
+      - run: node scripts/deploy-account-functions.mjs "$DEPLOY_MODE"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          DEPLOY_MODE: ${{ github.event_name == 'push' && 'apply' || inputs.mode }}
