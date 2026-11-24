@@ -15,3 +15,8 @@ test('selected image rules affect their node only and preserve unrelated setting
 
 test('manual hover previews do not mark the authored rule as overridden',()=>{const store=createStore({getItem:()=>null,setItem(){}});store.change(world=>configureAutoColors(world,undefined,true));const preview=paintPreview(store.world,'text',[],{color:'#123456'});assert.deepEqual(store.world.appearance.imageColors.default.manual,[]);assert.deepEqual(preview.appearance.imageColors.default.manual,['text']);});
 test('a red glow accent does not displace the main purple node family',()=>{const extra=new Uint8ClampedArray([...pixels,...Array.from({length:50},()=>[255,20,30,255]).flat()]),combo=imageColorCombo(extra);assert.ok(colorHue(paletteRGB(combo.node))>255);assert.ok(colorHue(paletteRGB(combo.node))<290);});
+test('bright backgrounds and pale accents keep saturated text and glows instead of whitening',()=>{
+ const sample=[];for(let i=0;i<900;i++)sample.push(250,250,250,255);for(let i=0;i<50;i++)sample.push(200,150,120,255);for(let i=0;i<50;i++)sample.push(140,120,210,255);
+ const combo=imageColorCombo(new Uint8ClampedArray(sample));for(const color of Object.values(combo)){const rgb=paletteRGB(color),hi=Math.max(...rgb),lo=Math.min(...rgb);assert.ok((hi-lo)/hi>=.79);assert.ok(hi>=235);}
+});
+test('neutral-only images may still produce neutral ink',()=>{const combo=imageColorCombo(new Uint8ClampedArray([240,240,240,255,40,40,40,255]));for(const color of Object.values(combo)){const rgb=paletteRGB(color);assert.equal(rgb[0],rgb[1]);assert.equal(rgb[1],rgb[2]);}});

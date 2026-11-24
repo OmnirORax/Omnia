@@ -95,7 +95,7 @@ export function workspacePanel(host: Host) {
       const {file:selectedFile,prepared}=await prepareWorkspaceImages({...source,world:createPartsFile(source.world,choice).world,scenes:source.scenes.filter(image=>required.has(image.id))});
       const world = preparePartsImport(baseline, selectedFile, choice, replace);
       if (host.read() !== baseline) throw Error('Workspace changed during import. Retry.');
-      const existing = new Set((prepared.length ? await listLocalScenes() : []).map(item => item.id));
+      const existing = new Set((prepared.length ? await listLocalScenes(true) : []).map(item => item.id));
       await saveLocalScenes(prepared);
       try {
         if (host.read() !== baseline) throw Error('Workspace changed during import. Retry.');

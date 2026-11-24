@@ -1,4 +1,5 @@
 import {configureAutoColors,autoColorKey} from './autoColors.ts';
+import {imageTrash} from './imageTrash.ts';
 import {localSceneStorage,type SceneStorage,type SceneImage} from './storage.ts';
 import {watchFields} from '../ui/formState.ts';
 import {VIEW_ROUTE} from '../ui/viewHistory.ts';
@@ -76,6 +77,7 @@ export function scenePanel(host: Host,initialTab:SceneTab='image') {
     button('Clear background', () => assign(null));
     if (target) button('Use default background', () => host.change(world => { const node = locate(world, target!); if (node) delete node.scene; }));
     const list = document.createElement('div'); body.append(list);
+    if(library===localSceneStorage)subscriptions.push(imageTrash().subscribe(()=>{if(live)queueMicrotask(()=>attempt(images));}));
     const items = await library.list(); if (!live || !list.isConnected||version!==imageVersion||!library.current()) return;
     for (const item of items) {
       const row = document.createElement('div'); row.className = 'scene-image-row';
@@ -84,9 +86,8 @@ export function scenePanel(host: Host,initialTab:SceneTab='image') {
       button('↓', async () => {const blob=await library.download(item);if(live&&library.current())downloadScene(blob,item.name);}, row).disabled=!!item.state&&item.state!=='ready';
       if(library.finalize&&item.state==='pending')button('Finish upload',async()=>{await library.finalize!(item);if(live)await images();},row).disabled=!library.canFinalize?.(item);
       if(item.id!==DEFAULT_BACKGROUND.id)button('×', async () => {
-        if(!library.current()||!confirm(`Delete “${item.name}”?${library===localSceneStorage?' The next Push also removes unused shared copies.':''} Download it first to keep the original.`))return;
-        await library.remove(item);
-        if(library===localSceneStorage)host.change(world=>{if(world.scene?.image===item.id)world.scene.image=null;for(const node of world.nodes)if(node.scene===item.id)delete node.scene;});
+        if(!library.current())return;
+        await library.remove(item,library===localSceneStorage?()=>host.change(world=>{if(world.scene?.image===item.id)world.scene.image=null;for(const node of world.nodes)if(node.scene===item.id)delete node.scene;}):undefined);
         if(live)await images();
       }, row).disabled=!library.writable();list.append(row);
     }
