@@ -1,3 +1,4 @@
+import {selectionLatch} from './selectionLatch.ts';
 import {createHoverPreview} from '../composer/runtime/ui/hoverPreview.ts';
 import {createRelativePointer} from './relativePointer.ts';
 import {claimUIPress} from '../composer/runtime/ui/pointerOwnership.ts';
@@ -15,11 +16,12 @@ export function horizontalValue(config:NumberDrag,delta:number){
   return Number.isFinite(next)?Number(next.toPrecision(12)):value;
 }
 export function valueDragDistance(config:NumberDrag,dx:number,dy:number){const axis=config.axis;if(!axis)return dx;const length=Math.hypot(axis.x,axis.y);return length>0?(dx*axis.x+(Number.isFinite(dy)?dy:0)*axis.y)/length:dx;}
-type Adapter={start?:()=>void;read:()=>NumberDrag|undefined;input:(value:number)=>void;commit:(value:number)=>void;cancel:(value:number)=>void};
-const adapters=new WeakMap<HTMLElement,Adapter>();
+type Adapter={configure?:{open:(resume:(accept?:boolean)=>void)=>void;close:(accept:boolean)=>void;owns?:(target:HTMLElement)=>boolean};start?:()=>void;read:()=>NumberDrag|undefined;input:(value:number)=>void;commit:(value:number)=>void;cancel:(value:number)=>void};
+const adapters=new WeakMap<HTMLElement,Adapter>(),activeOwners=new WeakMap<HTMLElement,()=>void>();
+export const cancelValueDrag=(root:HTMLElement)=>activeOwners.get(root)?.();
 export function registerValueDrag(root:HTMLElement,adapter:Adapter){
   adapters.set(root,adapter);root.dataset.valueDrag='';
-  return()=>{adapters.delete(root);delete root.dataset.valueDrag;};
+  return()=>{cancelValueDrag(root);adapters.delete(root);delete root.dataset.valueDrag;};
 }
 function numericInput(target:EventTarget|null){
   return target instanceof HTMLInputElement&&!target.disabled&&!target.readOnly&&
@@ -38,44 +40,56 @@ function inputAdapter(field:HTMLInputElement):Adapter{
   },input:write,commit:()=>{field.dispatchEvent(new Event('change',{bubbles:true}));field.blur();},cancel:value=>{write(value);field.dispatchEvent(new Event('change',{bubbles:true}));}};
 }
 export function installValueDrag(){
-  let drag:{id:number;root:HTMLElement;adapter:Adapter;config:NumberDrag;x:number;y:number;active:boolean;released:boolean;next:number}|undefined,suppressClick=false;
-  const preview=createHoverPreview(),owner={};
+  type Drag={id:number;root:HTMLElement;adapter:Adapter;config:NumberDrag;x:number;y:number;active:boolean;configuring:boolean;baseline:number;released:boolean;next:number;preview:ReturnType<typeof createHoverPreview>;owner:object};
+  let drag:Drag|undefined,suppressClick=false;const suspended:Drag[]=[];
+  let lastPoint={x:0,y:0};
+  window.addEventListener('pointermove',event=>{if(drag&&!relative.locked)lastPoint={x:event.clientX,y:event.clientY};},true);
   const relative=createRelativePointer(()=>finish(true));
   const stop=(event:Event)=>{event.preventDefault();event.stopImmediatePropagation();};
   const finish=(cancel=false)=>{
-    const current=drag;drag=undefined;relative.stop();if(!current)return;
+    const current=drag;drag=suspended.pop();relative.stop();if(!current)return;activeOwners.delete(current.root);current.adapter.configure?.close(false);
     document.documentElement.classList.remove('value-dragging');
     if(current.root.hasPointerCapture(current.id))current.root.releasePointerCapture(current.id);
-    if(current.active){suppressClick=!cancel||!current.released;if(cancel)preview.cancel();else preview.commit();}
+    if(current.active){suppressClick=!cancel||!current.released;if(cancel)current.preview.cancel();else current.preview.commit();}
   };
   const activate=(current:NonNullable<typeof drag>,event:MouseEvent|PointerEvent)=>{
-    current.adapter.start?.();current.active=true;stop(event);claimUIPress(current.id,'pointerType' in event?event.pointerType:'mouse',event.buttons);
-    preview.enter(owner,{start(){},move(x,y){const next=horizontalValue(current.config,valueDragDistance(current.config,x-current.x,(y??current.y)-current.y));if(next!==current.next){current.next=next;current.adapter.input(next);}},commit:()=>current.adapter.commit(current.next),cancel:()=>current.adapter.cancel(current.config.value)},current.x,current.y);
+    current.adapter.start?.();activeOwners.set(current.root,()=>{while(drag&&drag!==current&&suspended.includes(current))finish(true);if(drag===current)finish(true);});current.active=true;stop(event);claimUIPress(current.id,'pointerType' in event?event.pointerType:'mouse',event.buttons);
+    current.preview.enter(current.owner,{start(){},move(x,y){const next=horizontalValue(current.config,valueDragDistance(current.config,x-current.x,(y??current.y)-current.y));if(next!==current.next){current.next=next;current.adapter.input(next);}},commit:()=>current.adapter.commit(current.next),cancel:()=>current.adapter.cancel(current.baseline)},current.x,current.y);
     document.documentElement.classList.add('value-dragging');relative.start(current.root,{x:current.x,y:current.y});
   };
   window.addEventListener('pointerdown',event=>{
     if(event.button!==0||event.pointerType==='touch')return;
-    if(drag?.active){stop(event);finish();return;}finish(true);suppressClick=false;
     const field=numericInput(event.target),root=field??(event.target instanceof Element?event.target.closest<HTMLElement>('[data-value-drag]'):null);
-    if(!root||root.closest('[data-range-control]'))return;const adapter=field?inputAdapter(field):adapters.get(root),config=adapter?.read();if(!adapter||!config)return;
-    drag={id:event.pointerId,root,adapter,config,x:event.clientX,y:event.clientY,active:false,released:false,next:config.value};
+    const paused=drag?.configuring?drag:undefined;
+    if(paused){if(!root||root===paused.root||!paused.adapter.configure?.owns?.(root))return;}else{if(drag?.active){stop(event);finish();return;}finish(true);}
+    suppressClick=false;if(!root||root.closest('[data-range-control]'))return;const adapter=field?inputAdapter(field):adapters.get(root),config=adapter?.read();if(!adapter||!config)return;
+    if(paused){suspended.push(paused);drag=undefined;}
+    lastPoint={x:event.clientX,y:event.clientY};drag={id:event.pointerId,root,adapter,config,x:event.clientX,y:event.clientY,active:false,configuring:false,baseline:config.value,released:false,next:config.value,preview:createHoverPreview(),owner:{}};
     if(config.activation!=='drag')activate(drag,event);
   },true);
   const move=(event:MouseEvent|PointerEvent)=>{
-    const current=drag;if(!current||!relative.locked&&'pointerId' in event&&current.id!==event.pointerId)return;
+    const current=drag;if(!current||current.configuring||!relative.locked&&'pointerId' in event&&current.id!==event.pointerId)return;
     if(!current.root.isConnected){finish(true);return;}
     if(!current.active){if(Math.abs(valueDragDistance(current.config,event.clientX-current.x,event.clientY-current.y))<4)return;activate(current,event);}
-    stop(event);const point=relative.sample(event);preview.move(point.x,point.y);
+    stop(event);const point=relative.sample(event);lastPoint={x:event.clientX,y:event.clientY};current.preview.move(point.x,point.y);
   };
   relative.observeMove(move);
-  window.addEventListener('pointerup',event=>{if(drag?.id!==event.pointerId||event.button!==0)return;if(!drag.active){finish();return;}stop(event);drag.released=true;suppressClick=true;if(drag.root.hasPointerCapture(drag.id))drag.root.releasePointerCapture(drag.id);},true);
-  window.addEventListener('mouseup',event=>{if(drag?.active&&event.button===0){drag.released=true;suppressClick=true;stop(event);if(drag.root.hasPointerCapture(drag.id))drag.root.releasePointerCapture(drag.id);}},true);
-  window.addEventListener('mousedown',event=>{if(relative.locked&&drag?.active&&event.button===0){stop(event);if(drag.released)finish();}},true);
+  window.addEventListener('pointerup',event=>{if(drag?.configuring||drag?.id!==event.pointerId||event.button!==0)return;if(!drag.active){finish();return;}stop(event);drag.released=true;suppressClick=true;if(drag.root.hasPointerCapture(drag.id))drag.root.releasePointerCapture(drag.id);},true);
+  window.addEventListener('mouseup',event=>{if(drag?.active&&!drag.configuring&&event.button===0){drag.released=true;suppressClick=true;stop(event);if(drag.root.hasPointerCapture(drag.id))drag.root.releasePointerCapture(drag.id);}},true);
+  window.addEventListener('mousedown',event=>{if(relative.locked&&drag?.active&&!drag.configuring&&event.button===0){stop(event);if(drag.released)finish();}},true);
   window.addEventListener('dragstart',event=>{if(drag)stop(event);},true);
-  window.addEventListener('pointercancel',event=>{if(drag?.id===event.pointerId&&!relative.active)finish(true);},true);
+  window.addEventListener('pointercancel',event=>{if(drag?.id===event.pointerId&&!drag.configuring&&!relative.active)finish(true);},true);
   window.addEventListener('lostpointercapture',event=>{if(drag?.id===event.pointerId&&!drag.active)finish(true);},true);
-  window.addEventListener('keydown',event=>{if(event.key==='Escape'&&drag?.active){stop(event);finish(true);}},true);
+  const resume=(accept=true)=>{const current=drag;if(!current?.configuring)return;current.configuring=false;current.adapter.configure?.close(accept);const config=current.adapter.read();if(!config){finish(true);return;}current.config=config;current.next=config.value;current.released=true;current.x=lastPoint.x;current.y=lastPoint.y;suppressClick=false;document.documentElement.classList.add('value-dragging');relative.start(current.root,lastPoint);};
+  window.addEventListener('keydown',event=>{
+   if(event.key==='Shift'&&!event.repeat&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&suspended.length){stop(event);selectionLatch.use();finish();resume();return;}
+   const current=drag;if(!current?.active)return;
+   if(event.key==='Shift'&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&current.adapter.configure){stop(event);selectionLatch.use();if(event.repeat)return;if(current.configuring){resume();}else{current.configuring=true;relative.stop();suppressClick=false;document.documentElement.classList.remove('value-dragging');current.adapter.configure.open(resume);}return;}
+   if(event.key==='Enter'&&!current.configuring&&!event.ctrlKey&&!event.metaKey&&!event.altKey){stop(event);if(!event.repeat)finish();return;}
+   if(event.key==='Escape'){stop(event);finish(true);}
+  },true);
   window.addEventListener('click',event=>{if(suppressClick&&event.detail>0){suppressClick=false;stop(event);}},true);
-  window.addEventListener('blur',()=>finish(true));window.addEventListener(PAGE_INPUT_SUSPEND,()=>finish(true));
-  document.addEventListener('visibilitychange',()=>{if(document.hidden)finish(true);});
+  const cancelAll=()=>{while(drag)finish(true);};
+  window.addEventListener('blur',cancelAll);window.addEventListener(PAGE_INPUT_SUSPEND,cancelAll);
+  document.addEventListener('visibilitychange',()=>{if(document.hidden)cancelAll();});
 }

@@ -16,6 +16,7 @@ export function createWindowDismissal() {
       if (root) entries.get(root)!.order = ++sequence;
     },
     owns(target:Node){return !!top()?.[0].contains(target);},
+    confirmWithin(root:WindowRoot){const active=top();if(!active?.[1].confirm||!root.contains(active[0] as Node))return false;active[1].confirm();return true;},
     canConfirm(){return !!top()?.[1].confirm;},
     beginConfirm(target:Node){const active=top(),parent=target as HTMLElement;const host=!!active&&!!parent?.matches?.('[data-input-owner],[data-context-controller]')&&parent.contains(active[0] as Node);if(!active||!active[1].confirm||!active[0].contains(target)&&!host)return;return()=>{if(top()?.[1]===active[1])active[1].confirm?.();};},
     confirm(){const entry=top()?.[1];if(!entry?.confirm)return false;entry.confirm();return true;},
@@ -52,3 +53,5 @@ export const closeActiveWindow = () => windows.close();
 export const confirmActiveWindow=()=>windows.confirm();
 export const hasConfirmableWindow=()=>windows.canConfirm();
 export const activeWindowOwns=(target:Node)=>windows.owns(target);
+
+export const confirmWindowWithin=(root:HTMLElement)=>windows.confirmWithin(root);

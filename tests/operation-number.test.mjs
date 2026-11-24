@@ -34,3 +34,8 @@ test('Shift keeps an open operation dial available for Shift-click Snap fields',
  const number=createOperationNumber({label:'Step',value:1,min:0,max:4,apply(){},reject(){}}),dial=createOperationDial({host:{hidden:true},active:()=>true,number:()=>number,feedback(){},mount:()=>{mounts++;return()=>{};}}),event=()=>({key:'Shift',repeat:false,ctrlKey:false,metaKey:false,altKey:false,preventDefault(){},stopImmediatePropagation(){}});
  dial.key(event());await Promise.resolve();dial.key(event());assert.equal(dial.active,true);assert.equal(mounts,1);dial.close();
 });
+
+test('slider snap has the same owner and domain as dial snap configuration',()=>{
+ const errors=[],number=createOperationNumber({label:'Size',value:12,min:6,max:72,integer:true,apply(){},reject:m=>errors.push(m)});
+ assert.equal(number.grid,undefined);assert.equal(number.setSnap(2),true);assert.equal(number.grid.snap,2);assert.equal(number.value,12);assert.equal(number.setSnap(.5),false);assert.equal(number.setSnap(0),false);assert.equal(number.setSnap(100),false);assert.equal(number.grid.snap,2);assert.equal(errors.length,3);
+});

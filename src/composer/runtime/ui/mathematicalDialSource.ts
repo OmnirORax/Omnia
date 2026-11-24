@@ -25,7 +25,7 @@ export function createMathematicalDialSource(id:string,read:()=>MathematicalDial
    record(kind==='direct'?'value':kind).configuration=configuration;if(configuration)showMathCursorReadout(p.readoutOwner??id,source.field(kind).label,configuration);return true;
   },
   configuration(kind:DialField){const r=record(kind),f=source.field(kind);return r.configuration?.value===f.value?r.configuration:undefined;},
-  setSnap(kind:DialField,n:number,configuration?:ConfirmedMathValue){Object.assign(record(kind),{snap:n,snapConfiguration:configuration});},
+  setSnap(kind:DialField,n:number,configuration?:ConfirmedMathValue){Object.assign(record(kind),{snap:n,snapConfiguration:configuration});if(kind==='value')read().onSnapChange?.(n,configuration);},
  };
  return source;
 }

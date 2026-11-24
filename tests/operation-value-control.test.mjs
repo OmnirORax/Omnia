@@ -1,0 +1,33 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {bindOperationValueControl} from '../src/ui/operationValueControl.ts';
+import {installValueDrag,registerValueDrag} from '../src/ui/valueDrag.ts';
+import {registerWindow} from '../src/ui/windowDismissal.ts';
+
+test('a value box slides first; Shift toggles free configuration and resumes with accepted value, bounds and snap',async()=>{
+ const names=['window','document','Element','Node','HTMLInputElement'],saved=Object.fromEntries(names.map(k=>[k,globalThis[k]]));
+ const handlers=new Map(),doc=new EventTarget();doc.pointerLockElement=null;doc.hidden=false;doc.documentElement={classList:{add(){},remove(){}}};doc.exitPointerLock=()=>{doc.pointerLockElement=null;doc.dispatchEvent(new Event('pointerlockchange'));};
+ class Element{isConnected=true;dataset={};style={};children=[];type='button';ownerDocument=doc;capture=false;value='12';
+  closest(selector){return selector==='[data-value-drag]'&&this.dataset.valueDrag!==undefined?this:null;}contains(n){return n===this||this.children.some(c=>c.contains(n));}append(n){this.children.push(n);n.parent=this;}remove(){this.isConnected=false;if(this.parent)this.parent.children=this.parent.children.filter(n=>n!==this);}focus(){doc.activeElement=this;}getBoundingClientRect(){return {left:100,top:100,width:80,height:24};}hasPointerCapture(){return this.capture;}releasePointerCapture(){this.capture=false;}requestPointerLock(){doc.pointerLockElement=this;doc.dispatchEvent(new Event('pointerlockchange'));}}
+ doc.body=new Element();doc.createElement=()=>new Element();
+ Object.assign(globalThis,{Element,Node:Element,HTMLInputElement:Element,document:doc,window:{addEventListener(type,fn){const list=handlers.get(type)??[];list.push(fn);handlers.set(type,list);},removeEventListener(){}}});
+ try{
+  installValueDrag();const box=new Element(),previews=[],writes=[];let authored=12,number,manual=20;
+  const dispose=bindOperationValueControl(box,{label:'Size',min:6,max:72,integer:true,step:1,read:()=>authored,preview:n=>previews.push(n),commit:n=>{authored=n;writes.push(n);},feedback:message=>assert.fail(message),loadDial:async()=>({mountOperationMathDial:(host,parameter,done)=>{number=parameter;const unregister=registerWindow(host,()=>{},1,true,()=>{parameter.commit(manual);parameter.setLimit('max',30);parameter.setSnap(2);queueMicrotask(done);});return()=>{unregister();parameter.restore();};}})});
+  const send=(type,extra={})=>{const event={type,target:box,button:0,buttons:1,pointerType:'mouse',pointerId:1,clientX:120,clientY:110,movementX:0,movementY:0,detail:1,preventDefault(){this.prevented=true;},stopImmediatePropagation(){this.stopped=true;},...extra};for(const fn of handlers.get(type)??[]){fn(event);if(event.stopped)break;}return event;};
+  send('pointerdown');assert.equal(doc.pointerLockElement,box);assert.equal(doc.body.children.length,0,'first click starts sliding without opening configuration');
+  send('pointerup',{buttons:0});send('mousemove',{buttons:0,movementY:-12});assert.equal(previews.at(-1),14);assert.equal(authored,12);
+  send('keydown',{key:'Shift'});await Promise.resolve();assert.equal(doc.pointerLockElement,null);assert.equal(doc.body.children.length,1);assert.equal(number.value,14);
+  send('keydown',{key:'Shift',repeat:true});assert.equal(doc.pointerLockElement,null);
+  const panel=doc.body.children[0];assert.equal(send('pointerdown',{target:panel}).prevented,undefined,'configuration can receive ordinary clicks');
+  const scaler=new Element();panel.append(scaler);let scale=1;const stopScale=registerValueDrag(scaler,{read:()=>({value:scale,min:.1,max:4,step:.1,pixelsPerStep:6}),input:n=>scale=n,commit:n=>scale=n,cancel:n=>scale=n});send('pointerdown',{target:scaler});send('pointerup',{target:scaler,buttons:0});send('mousemove',{target:scaler,movementX:6,buttons:0});send('pointerdown',{target:scaler});assert.equal(scale,1.1);assert.equal(doc.pointerLockElement,null);assert.equal(doc.body.children.length,1,'nested dial controls return to the paused outer operation');stopScale();
+  send('pointermove',{target:panel,clientX:500,clientY:350,buttons:0});assert.equal(previews.at(-1),14,'free pointer movement cannot slide the value');
+  send('keydown',{key:'Shift'});await Promise.resolve();assert.equal(doc.pointerLockElement,box);assert.equal(doc.body.children.length,0);assert.equal(authored,12);assert.equal(previews.at(-1),20);
+  send('mousemove',{clientX:500,clientY:350,buttons:0});assert.equal(previews.at(-1),20,'resume rebases without a jump');
+  send('mousemove',{clientX:500,clientY:350,movementY:-6,buttons:0});assert.equal(previews.at(-1),22,'new snap is used');
+  send('mousemove',{clientX:500,clientY:350,movementY:-1000,buttons:0});assert.equal(previews.at(-1),30,'new maximum is used');
+  send('pointerdown');assert.deepEqual(writes,[30]);assert.equal(doc.pointerLockElement,null);
+  manual=24;send('pointerdown');send('pointerup',{buttons:0});send('keydown',{key:'Shift'});await Promise.resolve();const editor=doc.body.children[0];send('keydown',{key:'Enter',target:editor});send('keyup',{key:'Enter',target:editor});await Promise.resolve();assert.equal(doc.pointerLockElement,box,'Enter accepts configuration and resumes sliding');assert.equal(previews.at(-1),24);assert.equal(authored,30);send('keydown',{key:'Enter'});assert.deepEqual(writes,[30,24],'Enter while sliding applies the final value');
+  send('pointerdown');send('pointerup',{buttons:0});send('mousemove',{movementY:-6,buttons:0});send('keydown',{key:'Escape'});assert.equal(authored,24);assert.equal(doc.pointerLockElement,null);assert.equal(previews.at(-1),undefined);
+  send('pointerdown');send('pointerup',{buttons:0});send('keydown',{key:'Shift'});await Promise.resolve();const nested=new Element();doc.body.children[0].append(nested);let nestedCancelled=false;const stopNested=registerValueDrag(nested,{read:()=>({value:1,step:1}),input(){},commit(){},cancel(){nestedCancelled=true;}});send('pointerdown',{target:nested});dispose();stopNested();assert.equal(nestedCancelled,true,'owner disposal also cancels an active nested dial adjustment');assert.equal(doc.body.children.length,0);assert.equal(doc.pointerLockElement,null);assert.equal(previews.at(-1),undefined);number.commit(28);assert.deepEqual(writes,[30,24],'closing the owner cancels both modes and stale callbacks');
+ }finally{for(const [key,value]of Object.entries(saved))if(value===undefined)delete globalThis[key];else globalThis[key]=value;}
+});
