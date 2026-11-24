@@ -1,3 +1,4 @@
+import {WORLD_TEXT_LAYER} from './world/textPass.ts';
 import {nodeVisible} from './world/nodeVisibility.ts';
 import {createHierarchyIsolation} from './core/hierarchy.ts';
 import {createRenderScheduler} from './world/renderScheduler.ts';
@@ -108,7 +109,7 @@ export function createWorld(host: HTMLElement, input: Input) {
   scene.add(new T.AmbientLight('#ffffff',2.1));
   const light = new T.DirectionalLight('#ffffff', 2.2); light.position.set(5, 12, 9); scene.add(light);
   const sphere = atomicCarrierGeometry(), slotMaterial = new T.MeshBasicMaterial({ visible: false });
-  const visuals = new Map<string, Visual>(), ray = new T.Raycaster(), edges = new T.Group(); scene.add(edges);
+  const visuals = new Map<string, Visual>(), ray = new T.Raycaster(), edges = new T.Group(); scene.add(edges);ray.layers.enable(WORLD_TEXT_LAYER);
   const axisView=createAxisView(scene,host,camera);
   let nodeViewDepth:number|undefined;
   let pointOfView:Origin|undefined,userView:{position:number[];target:number[];up:number[];pov?:Origin;depth?:number;returnView?:{position:number[];target:number[];up:number[]}}|undefined;

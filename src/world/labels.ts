@@ -1,3 +1,4 @@
+import {WORLD_TEXT_LAYER,nativeTextMaterial} from './textPass.ts';
 import {textGlowLayers} from '../properties/textGlow.ts';
 import {packedTextureGlow,packGlowCoverage,updateTextureGlowColor} from '../textureGlow.ts';
 import {imageHull} from './contentEnvelope.ts';
@@ -81,7 +82,7 @@ export function textSprite(value: string, color: string, selected = false, node 
       side: THREE.DoubleSide,
     }),
   );
-  if(contentOnly)packedTextureGlow(sprite.material);
+  if(contentOnly){packedTextureGlow(sprite.material);nativeTextMaterial(sprite.material);sprite.layers.set(WORLD_TEXT_LAYER);}
   sprite.userData.lightningMask = () => {
     const mask = document.createElement("canvas"); mask.width = canvas.width; mask.height = canvas.height;
     const ink = mask.getContext("2d")!; ink.font = canvasFont(font);

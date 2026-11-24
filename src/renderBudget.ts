@@ -9,9 +9,9 @@ export const RENDER_BUDGET = {
 } as const;
 export const budgetPixelRatio = (width: number, height: number, dpr: number, pixels: number, maxDpr: number) =>
   Math.min(dpr, maxDpr, Math.sqrt(pixels / Math.max(1, width * height)));
-/** Full-detail wallpaper output; graph targets retain scenePixels independently. */
-export const sceneOutputPixelRatio=(width:number,height:number,dpr:number,wallpaper:boolean)=>
-  budgetPixelRatio(width,height,dpr,wallpaper?RENDER_BUDGET.wallpaperPixels:RENDER_BUDGET.scenePixels,wallpaper?RENDER_BUDGET.maxWallpaperDpr:RENDER_BUDGET.maxSceneDpr);
+/** Final wallpaper/text output; graph targets retain scenePixels independently. */
+export const sceneOutputPixelRatio=(width:number,height:number,dpr:number,_wallpaper:boolean)=>
+  budgetPixelRatio(width,height,dpr,RENDER_BUDGET.wallpaperPixels,RENDER_BUDGET.maxWallpaperDpr);
 export function bloomSize(width: number, height: number) {
   const scale = Math.min(1, RENDER_BUDGET.bloomEdge / Math.max(1, width, height));
   return { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)) };

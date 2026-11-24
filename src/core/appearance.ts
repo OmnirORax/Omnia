@@ -82,4 +82,4 @@ function resolvedNodeTextPaint(world:World,actual?:Structure,lookup:(origin:Orig
  }
  return resolvedTextPaint(paint);
 }
-export function nodeTextPaint(world:World,actual:Structure,lookup?:(origin:Origin)=>Structure|undefined){return {...resolvedNodeTextPaint(world,actual,lookup),...((actual.glow??NODE_VISUAL_DEFAULTS.glow)>0?{glow:0}:{})};}
+export function nodeTextPaint(world:World,actual:Structure,lookup?:(origin:Origin)=>Structure|undefined){return resolvedNodeTextPaint(world,actual,lookup);}

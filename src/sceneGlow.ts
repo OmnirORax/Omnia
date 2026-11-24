@@ -87,6 +87,7 @@ export class SceneGlow extends Pass {
     try {
       this.scene.background = new THREE.Color(0);
       this.scene.traverseVisible(object => {
+        if(!object.layers.test(this.camera.layers))return;
         if (!(object instanceof THREE.Mesh || object instanceof THREE.Line || object instanceof THREE.Points || object instanceof THREE.Sprite)) return;
         const owner=inheritedOwner<THREE.Object3D>(object,'glowIntensity'),intensity=Number(owner?.userData.glowIntensity??0);
         saved.push({ object, material: object.material,owner,intensity });
