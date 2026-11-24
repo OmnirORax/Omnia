@@ -166,8 +166,10 @@ const view = (() => {
 })();
 
 function previewPaint(target:VisualTarget,origins:readonly Origin[],patch?:Paint){
- const candidate=view?.previewPaint(target,origins,patch)??store.world;updateUIAppearance(candidate.appearance);
- for(const document of documents.values())document?.previewAppearance(candidate);
+ showAppearancePreview(view?.previewPaint(target,origins,patch)??store.world);
+}
+function showAppearancePreview(candidate:World){
+ updateUIAppearance(candidate.appearance);for(const document of documents.values())document?.previewAppearance(candidate);
 }
 function refresh(reason?:'document') {
   refreshContextActions();
@@ -534,7 +536,7 @@ let sceneView: ReturnType<typeof scenePanel> | undefined;
 function openScene(tab:SceneTab='image',restore?:ViewSpec) {
   if(!viewHistory.performing){viewHistory.perform(()=>openScene(tab,restore));return;}
   renderClose(); if (!view) return; sceneView?.close();
-  sceneView = scenePanel({account:openAccount, subscribe:store.subscribe, read: () => store.world, selected: ()=>restore?.selection as Origin[]??selectedOrigins(), change: (edit, group) => store.change(edit, group), preview: candidate => view.session.update(candidate, selectedOrigins()[0]), session: view.session, feedback },tab);
+  sceneView = scenePanel({previewColors:candidate=>showAppearancePreview(view?.previewAppearance(candidate)??candidate),account:openAccount, subscribe:store.subscribe, read: () => store.world, selected: ()=>restore?.selection as Origin[]??selectedOrigins(), change: (edit, group) => store.change(edit, group), preview: candidate => view.session.update(candidate, selectedOrigins()[0]), session: view.session, feedback },tab);
   viewHistory.adopt('scene',{kind:'scene',args:[tab],selection:[...selectedOrigins()]},sceneView,restore);
 }
 const documents = new Map<string, ReturnType<typeof editDocument>>(), openingDocuments = new Set<string>();

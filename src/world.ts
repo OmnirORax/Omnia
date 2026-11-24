@@ -328,9 +328,9 @@ export function createWorld(host: HTMLElement, input: Input) {
   }
   let pendingAppearance:World|undefined;
   function previewPaint(target:VisualTarget,origins:readonly Origin[],patch?:Paint){
-    const candidate=patch?paintPreview(world,target,origins,patch):world;
-    pendingAppearance=candidate;renderScheduler.request(true);return candidate;
+    return previewAppearance(patch?paintPreview(world,target,origins,patch):world);
   }
+  function previewAppearance(candidate:World=world){pendingAppearance=candidate;renderScheduler.request(true);return candidate;}
   function applyAppearance(candidate:World){
     const inherit=createInheritanceReader(candidate);
     const nodes=new Map(candidate.nodes.map(node=>[key(node.origin),node]));
@@ -705,7 +705,7 @@ export function createWorld(host: HTMLElement, input: Input) {
     pressedNudges.set(event.code||event.key,action);if(!held.size)nudgeDepth=action==='nudgeUp'||action==='nudgeDown';held.add(action);nudging.update([...held]);});
   window.addEventListener('keyup',event=>{const code=event.code||event.key,action=pressedNudges.get(code);if(action){pressedNudges.delete(code);held.delete(action);nudging.update([...held]);}});
   document.addEventListener('visibilitychange',()=>{if(document.hidden){middlePress=undefined;held.clear();nudging.finish(true);navigation.finish(true);restoreNative();restore();cancelOmnic();cancelDrive();}else request();});
-  return { update,previewPaint,documentChanged(next:World){world=next;const nodes=new Map(next.nodes.map(node=>[key(node.origin),node]));for(const [id,visual]of visuals)visual.node=nodes.get(id)??visual.node;},session,commitSelection,saveCamera(){const state=readCamera();seenCamera=state;input.cameraChanged(state);},restoreCamera(value:CameraState|undefined){restoreCamera(value);presentation();},point:creationPoint,center:()=>hoverCandidate?.valid?hoverCandidate.anchor:navigator.initialized?xyz(navigator.position.clone().divideScalar(scale)):xyz(controls.target.clone().divideScalar(scale)),request,
+  return { update,previewPaint,previewAppearance,documentChanged(next:World){world=next;const nodes=new Map(next.nodes.map(node=>[key(node.origin),node]));for(const [id,visual]of visuals)visual.node=nodes.get(id)??visual.node;},session,commitSelection,saveCamera(){const state=readCamera();seenCamera=state;input.cameraChanged(state);},restoreCamera(value:CameraState|undefined){restoreCamera(value);presentation();},point:creationPoint,center:()=>hoverCandidate?.valid?hoverCandidate.anchor:navigator.initialized?xyz(navigator.position.clone().divideScalar(scale)):xyz(controls.target.clone().divideScalar(scale)),request,
     editOmnic(surface:OmnicSurface){if(omnic!==surface){cancelOmnic();omnic=surface;request();}return()=>{if(omnic===surface){cancelOmnic();omnic=undefined;request();}};},
     focusInput(){canvas.focus();},
     get reference(){return activeAxis();},
