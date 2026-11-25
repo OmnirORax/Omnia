@@ -57,13 +57,16 @@ test('surface-backed text retains canvas color painting',()=>{
  assert.ok(work.draw>before.draw);mesh.geometry.dispose();mesh.material.map.dispose();mesh.material.dispose();
 });
 
-test('late font completion preserves latest ink and coupled opacity',async()=>{
+test('late font completion preserves latest ink and node stroke transmission',async()=>{
  const mesh=label('Font',{font:'electric',color:'#ffffff',glow:.5});
- updateLabelPaint(mesh,{font:'electric',color:'#ff0000',glow:.5,translucency:.4},.42);
+ updateLabelPaint(mesh,{font:'electric',color:'#ff0000',glow:.5,translucency:.4},1,{opacity:.42,translucency:.8,radius:.6});
  finishFont([]);await Promise.resolve();
  assert.equal(mesh.material.color.getHexString(),'ff0000');assert.equal(mesh.material.opacity,.42);
- const before=snapshot();updateLabelPaint(mesh,{font:'electric',color:'#00ff00',glow:.5},.7);
- assert.equal(mesh.material.color.getHexString(),'00ff00');assert.equal(mesh.material.opacity,.7);assert.deepEqual(snapshot(),before);
+ const shader={uniforms:{},fragmentShader:'#include <map_fragment>'};mesh.material.onBeforeCompile(shader,{});
+ assert.deepEqual(shader.uniforms.textTransmission.value.toArray(),[.8,.6]);
+ assert.match(shader.fragmentShader,/clean\*=boundaryTransmission\(/);
+ const before=snapshot();updateLabelPaint(mesh,{font:'electric',color:'#00ff00',glow:.5},1,{opacity:.7,translucency:.4,radius:1});
+ assert.equal(mesh.material.color.getHexString(),'00ff00');assert.equal(mesh.material.opacity,.7);assert.deepEqual(shader.uniforms.textTransmission.value.toArray(),[.4,1]);assert.deepEqual(snapshot(),before);
  disposeLabel(mesh);
 });
 

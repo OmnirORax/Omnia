@@ -5,7 +5,7 @@ import { inherited,createInheritanceReader } from './lattice.ts';
 import { capabilities } from './capabilities.ts';
 import { BACKGROUND_DEFAULTS, resolvedTextPaint, validatePaint } from '../properties/visual.ts';
 import { SPHERE_VISUAL_DEFAULTS } from '../properties/sphereVisualDefaults.ts';
-import {translucentOpacity} from '../properties/translucency.ts';
+import {translucentOpacity,type SurfaceTransmission} from '../properties/translucency.ts';
 
 export type VisualTarget = 'nodeDefaults' | 'nodes' | 'nodeText' | 'text' | 'background';
 /** Resolve defaults once in the existing node update; author values remain untouched. */
@@ -17,7 +17,10 @@ export function nodePaint(world:World,node?:Structure):NodePaint {
   translucency:node.translucency??base.translucency,translucencyRadius:node.translucencyRadius??base.translucencyRadius,glowColor:node.glowColor??base.glowColor,glow:node.glow??base.glow};
 }
 function nodeTransmission(paint:NodePaint){return translucentOpacity(paint.opacity!,paint.translucency);}
-export function nodeTextOpacity(world:World,actual?:Structure){return nodeTransmission(nodePaint(world,actual));}
+export function nodeTextTransmission(world:World,actual?:Structure):SurfaceTransmission{
+ const paint=nodePaint(world,actual);
+ return {opacity:paint.opacity!,translucency:paint.translucency!,radius:paint.translucencyRadius!};
+}
 /** Outgoing connections share their source's resolved visual channels. */
 export function connectorPaint(world:World,source:Structure,actual=inherited(source,world)) {
  const paint=nodePaint(world,actual);
@@ -93,5 +96,5 @@ export function nodeTextPaint(world:World,actual:Structure,lookup?:(origin:Origi
 /** Document paint and transmission resolve from the same inherited node. */
 export function readNodeTextPresentation(world:World,origin:Origin){
  const node=locate(world,origin),actual=node&&inherited(node,world);
- return {paint:resolvedNodeTextPaint(world,actual),opacity:nodeTextOpacity(world,actual)};
+ return {paint:resolvedNodeTextPaint(world,actual),transmission:nodeTextTransmission(world,actual)};
 }

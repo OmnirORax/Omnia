@@ -57,6 +57,7 @@ header button { width: 28px; height: 28px; font-size: calc(18px * var(--visual-t
 .scene-content > input { max-width:100%; }
 .document-tools { display:flex; gap:2px; padding:1px 0 5px; }
 .document-content { min-height:120px; padding:7px; outline:none; overflow-wrap:anywhere; white-space:pre-wrap; font-size:calc(13px * var(--visual-text-scale, 1)); line-height:1.55; }
+.document-content .cm-line { opacity:var(--document-transmission-opacity,1); filter:var(--document-transmission-filter,none); }
 .document-content img { max-height:1.25em; vertical-align:middle; }
 .document-content p { margin:.4em 0; }
 /* Allow weight synthesis only for marked Bold content. The root explicitly disables it.

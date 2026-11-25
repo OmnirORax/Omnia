@@ -1,3 +1,4 @@
+import {createDocumentTransmission} from '../ui/palettePaint.ts';
 import {documentPalette,showDocumentPalette,setDocumentPalette,setDocumentInkTypography,createDocumentPalettePaint} from './palettePresentation.ts';
 import {createDocumentPaintSession} from './paintSession.ts';
 import {fontSizeScale} from '../properties/visual.ts';
@@ -52,7 +53,8 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
       const text = fromSource(sliceSource(editor.state));syncing=true;try{commit(text);failed=false;}finally{syncing=false;}
     } catch (error) { failed = true; feedback(error instanceof Error ? error.message : String(error)); }
   }
-  const host = document.createElement('div');host.className = 'document-content';view.body.append(host);const palettePaint=createDocumentPalettePaint(view.root,true);releasePalette=palettePaint.dispose;
+  const host = document.createElement('div');host.className = 'document-content';view.body.append(host);const palettePaint=createDocumentPalettePaint(view.root,true);const transmission=createDocumentTransmission(host);
+  releasePalette=()=>{palettePaint.dispose();transmission.dispose();};
   host.addEventListener('keydown',event => {event.stopPropagation();});
   host.addEventListener('keydown',event=>{if(event.key==='Escape'&&event.repeat){event.preventDefault();event.stopImmediatePropagation();}},true);
   const run = (command: StateCommand) => { if (editor) { command(editor); editor.focus(); } };
@@ -133,11 +135,11 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
   let previousLexicon=workspaceLexicon(read()),previousGlyphs=createGlyphPresentation(read());
   const paintSession=createDocumentPaintSession(
     paint=>{applyDocumentPaint(paint);editor?.requestMeasure();},
-    opacity=>{if(editor)editor.contentDOM.style.opacity=String(opacity);},
+    value=>{if(editor)transmission.render(value);},
   );
   function presentAppearance(world:World){
-    const {paint,opacity}=readNodeTextPresentation(world,origin);
-    paintSession.render(paint,opacity);
+    const {paint,transmission}=readNodeTextPresentation(world,origin);
+    paintSession.render(paint,transmission);
   }
   function refreshAppearance(){
     if(editor&&!failed&&!syncing){
