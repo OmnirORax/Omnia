@@ -25,6 +25,25 @@ test('world labels consume the canonical pixel cycle and separate screen pixels 
  const p={...palette,imageRatio:[1,2],scale:2},material=new T.MeshBasicMaterial();packedTextureGlow(material);updateTextureTextPalette(material,p);const shader={uniforms:{},fragmentShader:T.ShaderLib.basic.fragmentShader};material.onBeforeCompile(shader,{});
  assert.equal(shader.uniforms.textPaletteFocus.value,1);assert.equal(shader.uniforms.textPalettePeriod.value,6);assert.equal(shader.uniforms.textPixelRatio,textPixelRatio);assert.deepEqual(shader.uniforms.textPalettePattern.value.image.data,focusPattern(p).glow);assert.equal(shader.uniforms.textPalettePattern.value.magFilter,T.LinearFilter);material.dispose();
 });
+test('world text samples the swatch pattern at outline-only pixels',()=>{
+ const material=new T.MeshBasicMaterial();
+ packedTextureGlow(material);
+ updateTextureTextPalette(material,{...palette,fillOpacity:0});
+ const shader={uniforms:{},fragmentShader:T.ShaderLib.basic.fragmentShader};
+ material.onBeforeCompile(shader,{});
+ assert.equal(shader.uniforms.textFillOpacity.value,0);
+ const coverage=shader.fragmentShader.match(/float inkCoverage=([^;]+);/)[1];
+ const usePalette=shader.fragmentShader.match(/if\((textPaletteCount>[^)]*)\)\{vec3 hue=paletteGlow/)[1];
+ const color=shader.fragmentShader.match(/diffuseColor\.rgb=(.*);/)[1];
+ const inkCoverage=Function('clean','fill','outline',`return ${coverage}`)(0,0,1);
+ assert.equal(inkCoverage,1);
+ assert.equal(Function('textPaletteCount','inkCoverage','halo',`return ${usePalette}`)(shader.uniforms.textPaletteCount.value,inkCoverage,0),true);
+ const composite=Function('ink','inkCoverage','glow','halo','total','max',`return ${color}`);
+ for(const swatch of [0,1])assert.equal(composite(swatch,inkCoverage,0,0,1,Math.max),swatch);
+ updateTextureTextPalette(material,{...palette,colors:['#ff0000'],fillOpacity:0});
+ assert.equal(shader.uniforms.textPaletteCount.value,0);
+ material.dispose();
+});
 test('focus previews and commits inherit inclusions while retiring old layout deltas',async()=>{
  const {createAutoColors,configureAutoColors}=await import('../src/scene/autoColors.ts'),{focusTheme,setThemeFocus}=await import('../src/scene/themeControls.ts'),{createStore}=await import('../src/core/store.ts'),{readPaint}=await import('../src/core/appearance.ts');
  const store=createStore({getItem:()=>null,setItem(){}}),errors=[];let samples=0;const controller=createAutoColors({read:()=>store.world,change:edit=>store.change(edit),sample:async()=>{samples++;return sample([[60,[255,0,0]],[20,[0,0,255]]]);},error:e=>errors.push(e)});store.subscribe(controller.update);store.change(w=>configureAutoColors(w,undefined,true));await controller.settle();const original=JSON.stringify(store.world),settings=focusTheme(store.world.appearance.imageColors.default.palette,{scale:3});const preview=controller.preview(store.world,undefined,settings);assert.equal(JSON.stringify(store.world),original);assert.equal(preview.palette.scale,3);assert.deepEqual([...focusRatio(preview.palette)].sort((a,b)=>a-b),[1,3]);store.change(w=>setThemeFocus(w,undefined,{scale:3}));await controller.settle();assert.deepEqual(readPaint(store.world,'text').palette,preview.palette);assert.equal(samples,1);assert.deepEqual(errors,[]);controller.dispose();

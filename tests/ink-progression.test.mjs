@@ -29,11 +29,23 @@ test('document glyph maps survive color edits and clear their inline paint when 
 });
 test('indexed glyph pixels resolve through a tiny palette lookup with glow derived after color mapping',async()=>{
  const {createPalettePaint}=await import('../src/ui/palettePaint.ts');const previous=globalThis.document;
- class Element{children=[];attrs={};style={setProperty(k,v){this[k]=v;},removeProperty(k){delete this[k];}};setAttribute(k,v){this.attrs[k]=v;}toggleAttribute(k,v){if(v)this.attrs[k]='';else delete this.attrs[k];}append(node){this.children.push(node);}replaceChildren(){this.children=[];}remove(){}}
+ class Element{children=[];attrs={};style={setProperty(k,v){this[k]=v;},removeProperty(k){delete this[k];}};setAttribute(k,v){this.attrs[k]=v;}toggleAttribute(k,v){if(v)this.attrs[k]='';else delete this.attrs[k];}append(...nodes){this.children.push(...nodes);}replaceChildren(){this.children=[];}remove(){}}
  const body=new Element();globalThis.document={body,createElementNS:()=>new Element(),createElement:()=>({getContext:()=>({createImageData:w=>({data:new Uint8ClampedArray(w*4)}),putImageData(){}}),toDataURL:()=> 'data:image/png;base64,pattern'})};
  try{const host=new Element(),sink=createPalettePaint(host,true),paint={palette:p,glow:1};sink.render(paint);const filter=body.children[1].children[0],lookup=filter.children[0];assert.equal(lookup.attrs.result,'paletteInk');assert.equal(lookup.children[0].attrs.type,'discrete');assert.equal(lookup.children[0].attrs.tableValues,'1 0');assert.equal(lookup.children[2].attrs.tableValues,'0 1');const smooth=filter.children.find(node=>node.attrs.result==='softPaletteInk'),opaque=filter.children.find(node=>node.attrs.result==='opaquePaletteInk'),restore=filter.children.find(node=>node.attrs.result==='smoothPaletteInk');assert.equal(smooth.attrs.in,'paletteInk');assert.equal(smooth.attrs.stdDeviation,'0.5');assert.equal(opaque.attrs.in,'softPaletteInk');assert.equal(restore.attrs.in,'opaquePaletteInk');assert.equal(restore.attrs.in2,'SourceGraphic');assert.equal(restore.attrs.operator,'in');const alphaRow=opaque.attrs.values.split(' ').slice(15).map(Number);assert.deepEqual(alphaRow,[0,0,0,0,1]);for(const sourceAlpha of [0,.1,.25,.7,1])for(const blurredAlpha of [0,.2,.8,1])assert.equal((alphaRow[3]*blurredAlpha+alphaRow[4])*sourceAlpha,sourceAlpha);assert.equal(filter.children.find(node=>node.attrs.result==='glowColor').attrs.in,'smoothPaletteInk');assert.equal(filter.children.at(-1).children.at(-1).attrs.in,'smoothPaletteInk');
   const scan=scanInk(image.width,image.height,image.data),indexed=paintInkScan(scan,p,true),rgb=paintInkScan(scan,p);for(let i=0;i<indexed.length;i+=4){const chosen=Math.min(1,Math.floor(indexed[i]/255*2));for(let c=0;c<3;c++)assert.equal(Number(lookup.children[c].attrs.tableValues.split(' ')[chosen])*255,rgb[i+c]);}
-  sink.render({...paint,palette:{...p,colors:['#00ff00','#ff00ff']}});assert.equal(body.children.length,2);assert.equal(filter.children[0].children[1].attrs.tableValues,'1 0');sink.dispose();
+  sink.render({...paint,palette:{...p,colors:['#00ff00','#ff00ff']}});assert.equal(body.children.length,2);assert.equal(filter.children[0].children[1].attrs.tableValues,'1 0');
+  sink.render({color:'#ffffff',palette:{...p,fillOpacity:0}});
+  for(const [root,source] of [[body.children[0],'SourceGraphic'],[body.children[1],'smoothPaletteInk']]){
+   const outlineFilter=root.children[0],outputs=new Map(outlineFilter.children.map(node=>[node.attrs.result,node.attrs]));
+   assert.equal(outputs.get('edgeInk').in,source);
+   assert.equal(outputs.get('outlineColor').in,'edgeInk');
+   assert.equal(outputs.get('outline').in2,'outlineMask');
+   assert.equal(outputs.get('interior'),undefined);
+   assert.deepEqual(outlineFilter.children.at(-1).children.map(node=>node.attrs.in),['outline']);
+  }
+  sink.render({color:'#ff0000',palette:{...p,colors:['#ff0000'],fillOpacity:0}});
+  assert.equal(body.children[0].children[0].children.find(node=>node.attrs.result==='outlineColor').attrs['flood-color'],'#ff0000');
+  sink.dispose();
  }finally{globalThis.document=previous;}
 });
 test('document ink measurement coalesces changes, invalidates typography and ignores work after disposal',async()=>{
