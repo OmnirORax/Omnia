@@ -1,4 +1,3 @@
-import {boundaryOpacity,type SurfaceTransmission} from '../properties/translucency.ts';
 import {useDocumentWallpaper} from '../scene/documentWallpaper.ts';
 import {isFocusPalette,focusPaletteCSS,focusPaletteGeometry,isImageField} from '../properties/focusPalette.ts';
 import {generatedTextPaletteCSS} from '../properties/generatedTextPalette.ts';
@@ -77,40 +76,3 @@ export function createPalettePaint(host:HTMLElement,inkEnabled=false){const norm
    host.style.setProperty('--document-ink-filter',inkEnabled&&!pixels&&patterned&&!isImageField(p)&&p.progression==='ink-serpentine'?ink.render(paint,true,fill):'none');
   }else{host.toggleAttribute('data-focus-theme',false);host.toggleAttribute('data-pattern-debug',false);for(const name of ['--document-palette-gradient','--document-palette-filter','--document-ink-filter'])host.style.removeProperty(name);}return changed;
  },dispose(){if(inkEnabled)useDocumentWallpaper(host,false);normal.dispose();ink.dispose();}};}
-
-/** Use the visible glyph mask to approximate the interior and rim of each stroke. */
-export function createDocumentTransmission(host:HTMLElement){
- const id=`document-transmission-${++sequence}`;
- let svg:SVGSVGElement|undefined;
- let outside:SVGElement|undefined,middle:SVGElement|undefined,inside:SVGElement|undefined;
- return {
-  render({opacity,translucency,radius}:SurfaceTransmission){
-   host.style.setProperty('--document-transmission-opacity',String(opacity));
-   if(!translucency){host.style.removeProperty('--document-transmission-filter');return;}
-   if(!svg){
-    svg=element('svg',{width:0,height:0,'aria-hidden':'true'}) as SVGSVGElement;
-    svg.style.position='absolute';svg.style.pointerEvents='none';
-    const filter=element('filter',{id,x:'-20%',y:'-100%',width:'140%',height:'300%','color-interpolation-filters':'sRGB'});
-    outside=element('feFuncA',{type:'linear'});
-    const outerMask=element('feComponentTransfer',{in:'SourceAlpha',result:'weightedEdge'});outerMask.append(outside);
-    middle=element('feComposite',{in:'weightedEdge',in2:'firstInset',operator:'arithmetic',k2:1,result:'weightedMiddle'});
-    inside=element('feComposite',{in:'weightedMiddle',in2:'secondInset',operator:'arithmetic',k2:1,result:'strokeAlpha'});
-    filter.append(
-     element('feGaussianBlur',{in:'SourceAlpha',stdDeviation:.65,result:'softInset'}),
-     element('feComposite',{in:'softInset',in2:'SourceAlpha',operator:'in',result:'firstInset'}),
-     element('feMorphology',{in:'SourceAlpha',operator:'erode',radius:1,result:'secondInset'}),
-     outerMask,middle,inside,
-     element('feColorMatrix',{in:'SourceGraphic',type:'matrix',values:opaqueRGB,result:'inkColor'}),
-     element('feComposite',{in:'inkColor',in2:'strokeAlpha',operator:'in'}),
-    );
-    svg.append(filter);document.body.append(svg);
-   }
-   const edge=boundaryOpacity(translucency,radius,.95),mid=boundaryOpacity(translucency,radius,.5),center=boundaryOpacity(translucency,radius,0);
-   outside!.setAttribute('slope',String(edge));
-   middle!.setAttribute('k3',String(mid-edge));
-   inside!.setAttribute('k3',String(center-mid));
-   host.style.setProperty('--document-transmission-filter',`url(#${id})`);
-  },
-  dispose(){svg?.remove();},
- };
-}

@@ -1,7 +1,7 @@
 import {glowScaleGLSL} from './glowScale.ts';
 import {SPHERE_VISUAL_DEFAULTS} from './properties/sphereVisualDefaults.ts';
 import {attachMaterialCoverage,declareGlowDetail} from './materialCoverage.ts';
-import {boundaryTransmissionGLSL,translucentOpacity} from './properties/translucency.ts';
+import {translucentOpacity} from './properties/translucency.ts';
 import * as THREE from 'three';
 /** One carrier appearance for saved nodes and creation previews. Nearly clear
  * at the centre, with a translucent rim from the actual sphere surface normal. */
@@ -25,20 +25,24 @@ vec3 carrierNormal = normal;
 carrierNormal = mat3(instanceMatrix) * carrierNormal;
 #endif
 carrierViewNormal = normalize(normalMatrix * carrierNormal);`).replace('#include <project_vertex>','#include <project_vertex>\ncarrierViewPosition = -mvPosition.xyz;');
-   shader.fragmentShader=glowScaleGLSL+boundaryTransmissionGLSL+'\n'+'uniform float carrierTranslucency; uniform float carrierTranslucencyRadius; uniform float carrierAuthoredOpacity; uniform float carrierGlow; varying vec3 carrierViewNormal; varying vec3 carrierViewPosition;\n'+shader.fragmentShader;
+   shader.fragmentShader=glowScaleGLSL+'\n'+'uniform float carrierTranslucency; uniform float carrierTranslucencyRadius; uniform float carrierAuthoredOpacity; uniform float carrierGlow; varying vec3 carrierViewNormal; varying vec3 carrierViewPosition;\n'+shader.fragmentShader;
    shader.fragmentShader=shader.fragmentShader.replace('#include <opaque_fragment>',`// Projected radial fraction derived from the actual sphere normal, independent of zoom.
 float carrierFacing = clamp(abs(dot(normalize(carrierViewNormal),normalize(carrierViewPosition))),0.0,1.0);
-float carrierEdge = boundaryEdge(carrierFacing);
+float carrierEdge = pow(1.0-carrierFacing,3.0);
 float carrierRadius = sqrt(max(0.0,1.0-carrierFacing*carrierFacing));
 float carrierClearRadius = clamp(carrierTranslucencyRadius,0.0,1.0);
+// Radius 1 preserves the historical all-surface transmission exactly.
+float carrierShell = carrierClearRadius>=1.0?0.0:smoothstep(carrierClearRadius,1.0,carrierRadius);
+float carrierLocalTranslucency = carrierTranslucency*(1.0-carrierShell);
+float carrierProfile = mix(pow(1.0-carrierLocalTranslucency,2.15),1.0,carrierEdge);
 float carrierPixelSpan=max(abs(dFdx(carrierRadius)),abs(dFdy(carrierRadius)));
 float carrierVisibleGlow=carrierGlow*zoomGlowScale(2.0/max(carrierPixelSpan,.00001));
 float carrierGain = 1.0 + 2.0 * carrierVisibleGlow * carrierEdge;
-diffuseColor.a = carrierAuthoredOpacity * min(boundaryTransmission(carrierTranslucency,carrierClearRadius,carrierRadius,carrierEdge) * carrierGain,1.0);
+diffuseColor.a = carrierAuthoredOpacity * min((1.0-carrierLocalTranslucency)*carrierProfile * carrierGain,1.0);
 ${target===material?'outgoingLight *= 1.0 + carrierVisibleGlow * carrierEdge;':''}
 #include <opaque_fragment>`);
   };
-  target.customProgramCacheKey=()=> 'atomic-radial-translucency-v5';
+  target.customProgramCacheKey=()=> 'atomic-radial-translucency-v4';
  });return material;
 }
 export const atomicCarrierOpacity=(opacity:number,translucency:number=SPHERE_VISUAL_DEFAULTS.translucency)=>translucentOpacity(opacity,translucency);

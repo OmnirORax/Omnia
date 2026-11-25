@@ -30,7 +30,7 @@ import {createPaintSession} from './core/painting.ts';
 import {createAxisView} from './world/axisView.ts';
 import {projectionAxis,operationSlot,activeWorldAxes,nodeOriginView,axisCenter,axisPoint,axisAnchor,planAxis,planSlotNode,endpointView,dot,minus,type AxisFrame} from './core/axes.ts';
 import {startsConnector,connectorDragged} from './world/connectorGesture.ts';
-import {resolveNodeAppearance,nodePaint,connectorPaintReader,nodeTextTransmission,nodeTextPaint,paintPreview,type VisualTarget} from './core/appearance.ts';
+import {resolveNodeAppearance,nodePaint,connectorPaintReader,nodeTextPaint,paintPreview,type VisualTarget} from './core/appearance.ts';
 import {brightHex} from './composer/runtime/appearance/resolve.ts';
 import {createContentContour,collectContentHull} from './world/contentContour.ts';
 import {contentEnvelope,convexHull} from './world/contentEnvelope.ts';
@@ -287,7 +287,7 @@ export function createWorld(host: HTMLElement, input: Input) {
     if(signature!==pushSignature){pushSignature=signature;pushDirty=true;}
     refreshContours();rebuildPicks();request();
   }
-  const edgeCaptions=new Map<string,{mesh:ReturnType<typeof label>;geometryKey:string;source:Origin}>();
+  const edgeCaptions=new Map<string,{mesh:ReturnType<typeof label>;geometryKey:string}>();
   function clearEdges() {
     connectors.length=0;
     for (const child of [...edges.children]) {
@@ -306,8 +306,8 @@ export function createWorld(host: HTMLElement, input: Input) {
     const line = new T.Line(new T.BufferGeometry().setFromPoints([a,back]), material);line.userData.edge=edge;line.userData.glowIntensity=paint.glow;edges.add(line);
     const arrow = new T.Mesh(new T.BufferGeometry().setFromPoints([back.clone().add(side),b,back.clone().sub(side)]),new T.MeshBasicMaterial({color:material.color,opacity:material.opacity,transparent:true,side:T.DoubleSide,depthWrite:false})); arrow.userData.edge = edge;arrow.userData.glowIntensity=paint.glow; edges.add(arrow);
     if (text) { const id=JSON.stringify(edge),geometryKey=JSON.stringify([text,labelGeometryKey(world.appearance?.text,fontRevision)]);let cached=edgeCaptions.get(id);
-      if(cached?.geometryKey!==geometryKey){if(cached)disposeLabel(cached.mesh);const mesh=label(text,world.appearance?.text);mesh.userData.requestRender=request;mesh.scale.multiplyScalar(.65);cached={mesh,geometryKey,source:source.origin};edgeCaptions.set(id,cached);}
-      const caption=cached.mesh;updateLabelPaint(caption,world.appearance?.text,1,nodeTextTransmission(world,aVisual.actual));caption.position.copy(a.clone().add(b).multiplyScalar(.5)); caption.userData.edge = edge; caption.userData.ends=[a,b]; edges.add(caption); }
+      if(cached?.geometryKey!==geometryKey){if(cached)disposeLabel(cached.mesh);const mesh=label(text,world.appearance?.text);mesh.userData.requestRender=request;mesh.scale.multiplyScalar(.65);cached={mesh,geometryKey};edgeCaptions.set(id,cached);}
+      const caption=cached.mesh;updateLabelPaint(caption,world.appearance?.text);caption.position.copy(a.clone().add(b).multiplyScalar(.5)); caption.userData.edge = edge; caption.userData.ends=[a,b]; edges.add(caption); }
     line.userData.glowColor=arrow.userData.glowColor=paint.glowColor;arrow.userData.glowIntensity=paint.glow;line.userData.baseColor=paint.color;line.userData.baseOpacity=paint.opacity;
     connectors.push({key:JSON.stringify(edge),source:source.origin,line,arrow});
   }
@@ -320,10 +320,9 @@ export function createWorld(host: HTMLElement, input: Input) {
   function visibility(node: Structure) {
     return nodeVisible(node,{parent:origin=>visuals.get(key(origin))?.node,variants,pointOfView,reveal:movementVisible,isolation:movementVisible?undefined:isolation.visible(world),filter});
   }
-  function styleVisual(visual:Visual,actual:Structure,textPaint:Paint,world:World){
-    const transmission=nodeTextTransmission(world,actual);
-    visual.actual=actual;updateLabelPaint(visual.text,textPaint,1,transmission);
-    if(actual.visual?.character)visual.object?.userData.setAppearance?.({textPaint,transmission});
+  function styleVisual(visual:Visual,actual:Structure,textPaint:Paint){
+    visual.actual=actual;updateLabelPaint(visual.text,textPaint);
+    if(actual.visual?.character)visual.object?.userData.setAppearance?.({textPaint,opacity:1});
     visual.body.material.color.set(actual.color);visual.contour.outline.material.color.set(actual.color);
     updateAtomicCarrier(visual.body.material,actual.opacity??defaults.opacity,actual.translucency??defaults.translucency,actual.glow??defaults.glow,actual.translucencyRadius??defaults.translucencyRadius);
     visual.group.userData.glowIntensity=actual.glow??defaults.glow;visual.group.userData.glowColor=actual.glowColor;
@@ -336,12 +335,9 @@ export function createWorld(host: HTMLElement, input: Input) {
   function applyAppearance(candidate:World){
     const inherit=createInheritanceReader(candidate);
     const nodes=new Map(candidate.nodes.map(node=>[key(node.origin),node]));
-    for(const [id,visual]of visuals){const node=nodes.get(id);if(!node)continue;const actual=resolveNodeAppearance(candidate,inherit(node));styleVisual(visual,actual,nodeTextPaint(candidate,actual,origin=>nodes.get(key(origin))),candidate);}
+    for(const [id,visual]of visuals){const node=nodes.get(id);if(!node)continue;const actual=resolveNodeAppearance(candidate,inherit(node));styleVisual(visual,actual,nodeTextPaint(candidate,actual,origin=>nodes.get(key(origin))));}
+    for(const cached of edgeCaptions.values())updateLabelPaint(cached.mesh,candidate.appearance?.text);
     const readPaint=connectorPaintReader(candidate);
-    for(const cached of edgeCaptions.values()){
-     const node=nodes.get(key(cached.source));
-     if(node)updateLabelPaint(cached.mesh,candidate.appearance?.text,1,nodeTextTransmission(candidate,inherit(node)));
-    }
     for(const connector of connectors){const node=nodes.get(key(connector.source));if(!node)continue;const paint=readPaint(node);for(const mesh of [connector.line,connector.arrow]){mesh.userData.glowColor=paint.glowColor;mesh.userData.glowIntensity=paint.glow;mesh.material.color.set(connector.line.userData.highlighted?'#ffb000':paint.color);} }
   }
   function update(next: World, selection: readonly Origin[], visible?: ReadonlySet<string>, edgeSelection: readonly Edge[] = []) {
@@ -377,7 +373,7 @@ export function createWorld(host: HTMLElement, input: Input) {
       }
       visual.node=node;visual.group.quaternion.set(node.orientation?.x??0,node.orientation?.y??0,node.orientation?.z??0,node.orientation?.w??1);visual.group.position.copy(new T.Vector3(...vector(cellPoint(grid.cells.get(id)!,scale))));
       visual.body.scale.setScalar(scale);visual.slot.scale.setScalar(scale);
-      styleVisual(visual,actual,textPaint,next);visual.group.userData.origin=node.origin;visual.slot.userData.origin=node.origin;visual.text.userData.origin=node.origin;
+      styleVisual(visual,actual,textPaint);visual.group.userData.origin=node.origin;visual.slot.userData.origin=node.origin;visual.text.userData.origin=node.origin;
       visual.group.visible=true;
     }
     if(!sameValue(next.camera,seenCamera)){seenCamera=next.camera;restoreCamera(next.camera);}
