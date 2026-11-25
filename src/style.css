@@ -146,8 +146,7 @@ input[type="number"]:enabled:not([readonly]), input[inputmode="numeric"]:enabled
 
 .cm-image-palette{background-size:var(--document-palette-size,100% 100%);background-repeat:var(--document-palette-repeat,no-repeat);image-rendering:auto;background-image:var(--document-palette-gradient);background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent;color:var(--document-text-color);text-shadow:none;filter:var(--document-palette-filter,none);box-decoration-break:clone;-webkit-box-decoration-break:clone}
 [data-scene-text-image] [data-document-image-pixels] .cm-image-palette {
-  background-image:var(--scene-text-image);
-  filter:var(--document-image-filter);
+  background-image:linear-gradient(rgb(255 255 255 / var(--document-image-pale)),rgb(255 255 255 / var(--document-image-pale))),var(--scene-text-image);
   background-attachment:fixed;
   background-position:center;
   background-size:cover;

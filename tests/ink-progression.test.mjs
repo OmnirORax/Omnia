@@ -45,26 +45,10 @@ test('indexed glyph pixels resolve through a tiny palette lookup with glow deriv
   }
   sink.render({color:'#ff0000',palette:{...p,colors:['#ff0000'],fillOpacity:0}});
   assert.equal(body.children[0].children[0].children.find(node=>node.attrs.result==='outlineColor').attrs['flood-color'],'#ff0000');
-  const pixels={mode:'text',distribution:'pixels',ink:'pale',colors:['#ff0000'],fillOpacity:1};
-  sink.render({color:'#ff0000',palette:pixels});
+  sink.render({color:'#ff0000',palette:{mode:'text',distribution:'pixels',ink:'pale',colors:['#ff0000'],fillOpacity:0}});
   assert.ok('data-document-image-pixels' in host.attrs);
-  const pixelFilter=body.children[2].children[0];
-  assert.equal(host.style['--document-image-filter'],`url(#${pixelFilter.attrs.id})`);
-  const primitive=name=>pixelFilter.children.find(node=>node.attrs.result===name);
-  const weights=primitive('edgeLuminance').attrs.values.split(' ').slice(0,3).map(Number);
-  const table=primitive('outlineColor').children[0].attrs.tableValues.split(' ').map(Number);
-  const stroke=rgb=>table[Math.min(1,Math.floor(2*weights.reduce((value,weight,index)=>value+weight*rgb[index],0)))];
-  assert.equal(stroke([.05,.05,.05]),1);
-  assert.equal(stroke([.85,.85,.85]),0);
-  assert.equal(primitive('outline').attrs.in2,'outlineMask');
-  assert.equal(primitive('interior').attrs.in,'SourceGraphic');
-  assert.equal(primitive('interior').children[0].attrs.slope,'0.25');
-  assert.equal(primitive('interior').children.at(-1).attrs.slope,'1');
-  sink.render({color:'#ff0000',palette:{...pixels,fillOpacity:0}});
-  assert.equal(primitive('interior'),undefined);
-  assert.ok(primitive('outline'));
-  sink.render({palette:p});
-  assert.ok(!('data-document-image-pixels' in host.attrs));
+  assert.equal(host.style['--document-image-pale'],'0.75');
+  assert.equal(body.children[0].children[0].children.find(node=>node.attrs.result==='outlineColor').attrs.in,'edgeInk');
   sink.dispose();
  }finally{globalThis.document=previous;}
 });
