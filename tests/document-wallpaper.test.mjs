@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as T from 'three';
-import {createDocumentWallpaper,useDocumentWallpaper,acquireTextWallpaper} from '../src/scene/documentWallpaper.ts';
+import {createDocumentWallpaper,useDocumentWallpaper,acquireTextWallpaper,textWallpaperPixels} from '../src/scene/documentWallpaper.ts';
 import {createDocumentPixelPainter} from '../src/text/imagePixelPresentation.ts';
 import {createWallpaperSampling} from '../src/scene/wallpaperSample.ts';
 
@@ -19,7 +19,8 @@ test('documents and world labels share one static capture; only authored changes
   getRenderTarget:()=>target,setRenderTarget(next){target=next;},
   render(mesh){
    draws++;captured=target;ink=Math.round(123*mesh.material.uniforms.imagePixelSaturation.value);
-   assert.match(mesh.material.fragmentShader,/mapImagePixel\(displayColour\(sampleWallpaper\(screenUV\)\)\)/);
+   assert.match(mesh.material.fragmentShader,/mapImagePixel\(displayColour\(sampleWallpaper\(pixelUV\)\)\)/);
+   assert.equal(mesh.material.uniforms.imagePixelScale.value,1);
    for(const [name,value] of Object.entries({time:0,bounce:1,light:0,waves:0,feedbackStrength:0}))assert.equal(mesh.material.uniforms[name].value,value);
   },
   async readRenderTargetPixelsAsync(read,_x,_y,w,h,bytes){
@@ -50,6 +51,10 @@ test('documents and world labels share one static capture; only authored changes
   assert.equal(draws,4);assert.equal(captures,3);assert.equal(world.texture.value,captured.texture);
   const reuse=published();useDocumentWallpaper(host,palette);await reuse;
   assert.equal(draws,4,'opening a document must reuse the already rendered world frame');assert.equal(captures,4);
+  world.release();world=undefined;
+  const cpuReady=published(),serpentine={...palette,progression:'ink-serpentine',saturation:.5};useDocumentWallpaper(host,serpentine);await cpuReady;
+  const cpu=textWallpaperPixels(serpentine);assert.equal(cpu.width,1920);assert.equal(cpu.height,1080);
+  assert.deepEqual([...cpu.pixels.slice(0,4)],[123,52,62,255],'the shared RGB copy is retained before BMP channel swapping');
  }finally{
   world?.release();useDocumentWallpaper(host);wallpaper.dispose();image.dispose();globalThis.document=previousDocument;globalThis.Image=previousImage;
  }
@@ -85,4 +90,33 @@ test('document pixel offsets follow window motion and scrolling without measurin
   painter.clear();
   assert.equal(attrs.size,0);assert.equal(contentDOM.style.values.size,0);assert.equal(element.style.values.size,0);assert.equal(disconnected,true);
  }finally{painter.clear();globalThis.window=previousWindow;globalThis.MutationObserver=previousObserver;}
+});
+
+test('Image pixels scale changes the shared centered crop while reusing the color lookup',{timeout:3000},async()=>{
+ const previousDocument=globalThis.document;
+ globalThis.document={documentElement:{style:{removeProperty(){}}}};
+ const {uniforms}=createWallpaperSampling();uniforms.image.value=new T.Texture();
+ const palette={mode:'text',distribution:'pixels',ink:'color',colors:['#ff0000','#0000ff']};
+ const paints=[],lookups=[],modifiers=[];let current;
+ const renderer={getRenderTarget:()=>current,setRenderTarget(target){current=target;},render(mesh){
+  const u=mesh.material.uniforms;
+  const expression=mesh.material.fragmentShader.match(/vec2 pixelUV=([^;]+);/)[1];
+  const map=Function('screenUV','imagePixelScale',`return ${expression};`);
+  paints.push({scale:u.imagePixelScale.value,uv:[0,.25,.5,.75,1].map(v=>map(v,u.imagePixelScale.value))});
+  lookups.push(u.imagePixelInk.value);modifiers.push([u.imagePixelAxis.value,u.imagePixelInverse.value]);
+ }};
+ let ready;const drawn=()=>new Promise(resolve=>{ready=resolve;});
+ const wallpaper=createDocumentWallpaper(renderer,uniforms,()=>ready());wallpaper.resize(640,480);
+ let a,b,same,vertical;
+ try{
+  const first=drawn();a=acquireTextWallpaper(palette);await first;
+  assert.deepEqual(paints[0],{scale:1,uv:[0,.25,.5,.75,1]});
+  const next=drawn();b=acquireTextWallpaper({...palette,scale:2});same=acquireTextWallpaper({...palette,scale:2});await next;
+  assert.notEqual(a.key,b.key);assert.equal(b.texture,same.texture);assert.notEqual(a.texture.value,b.texture.value);
+  assert.deepEqual(paints[1],{scale:2,uv:[.25,.375,.5,.625,.75]});
+  assert.equal(lookups[0],lookups[1],'scaling must reuse the unchanged color transform');
+  const modified=drawn();vertical=acquireTextWallpaper({...palette,scale:.25,distributionAxis:'vertical',inverseDistribution:true});await modified;
+  assert.notEqual(b.key,vertical.key);assert.deepEqual(modifiers.at(-1),[1,1]);assert.equal(paints.at(-1).scale,.25);
+  assert.equal(lookups[0],lookups.at(-1),'orientation and scale share the same color lookup');
+ }finally{vertical?.release();same?.release();b?.release();a?.release();wallpaper.dispose();uniforms.image.value.dispose();globalThis.document=previousDocument;}
 });

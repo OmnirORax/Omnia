@@ -19,7 +19,7 @@ function shade(ink,rgb){
  const value=expression(/float value=([^;]+);/,{inkHigh,high,sourceHigh});
  let saturation=expression(/float saturation=([^;]+);/,{inkHigh,inkLow});
  if(sourceDelta>.00001&&saturation>0)saturation=expression(/saturation=(clamp[^;]+);/,{saturation,imagePixelSaturation:ink.saturation,delta,high,sourceDelta,sourceHigh});
- const hue=source[3]>.5?source.slice(0,3).map(v=>(v-sourceLow)/Math.max(sourceDelta,.00001)):rgb.map(v=>(v-low)/Math.max(delta,.00001));
+ const hue=source[3]>.75?target.slice(0,3).map(v=>(v-inkLow)/Math.max(inkHigh-inkLow,.00001)):source[3]>.25?source.slice(0,3).map(v=>(v-sourceLow)/Math.max(sourceDelta,.00001)):rgb.map(v=>(v-low)/Math.max(delta,.00001));
  return hue.map(v=>value*(1-saturation+v*saturation));
 }
 const palette={mode:'text',distribution:'pixels',ink:'color',saturation:1,pixelSources:['#10172b','#9c223f','#0b448b'],colors:['#5f87ff','#ff0044','#0080ff']};
@@ -76,4 +76,17 @@ test('resolved color edits invalidate ink; saturation-only edits reuse the sourc
  assert.notEqual(a.texture,c.texture);assert.notEqual(a.key,c.key);
  assert.notDeepEqual(shade(a,[.1,.2,.5]),shade(c,[.1,.2,.5]));
  a.release();assert.equal(disposed,0);b.release();assert.equal(disposed,1);c.release();
+});
+
+test('occupation inverse reverses color ownership while retaining continuous shade detail',()=>{
+ const p={...palette,pixelSources:['#cc2211','#1144cc'],colors:['#ff2000','#0044ff'],weights:[.8,.2]};
+ const regular=acquireImagePixelInk(p),inverse=acquireImagePixelInk({...p,inverseOccupation:true});
+ try{
+  assert.notEqual(regular.texture,inverse.texture);
+  const red=[.8,.14,.07],blue=[.07,.27,.8];
+  assert.ok(shade(regular,red)[0]>shade(regular,red)[2]);
+  assert.ok(shade(inverse,red)[2]>shade(inverse,red)[0]);
+  assert.ok(shade(inverse,blue)[0]>shade(inverse,blue)[2]);
+  assert.notDeepEqual(shade(inverse,red),shade(inverse,[.65,.12,.06]));
+ }finally{regular.release();inverse.release();}
 });

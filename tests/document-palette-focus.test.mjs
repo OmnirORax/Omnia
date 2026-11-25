@@ -57,7 +57,7 @@ for(const mode of ['image','pixels'])test(`${mode} document coordinates are reap
  if(mode==='pixels'){
   plugin.pixels.watch=()=>{};plugin.pixels.read=()=>({point:{left:0,top:0},cuts:[],runs:[]});plugin.pixels.render=()=>painted++;
  }else{plugin.field.read=()=>[];plugin.field.render=()=>painted++;}
- const p={...palette,distribution:mode,...(mode==='image'?{field:{width:2,height:1,cells:[0,1]}}:{})};
+ const p={...palette,progression:'horizontal',distribution:mode,...(mode==='image'?{field:{width:2,height:1,cells:[0,1]}}:{})};
  function update(spec={},flags={}){
   const tr=view.state.update(spec);view.state=tr.state;plugin.update({view,transactions:[tr],selectionSet:!!tr.selection,...flags});
  }

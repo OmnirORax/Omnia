@@ -35,7 +35,7 @@ export function updateTextureTextPalette(material:T.Material,palette?:TextPalett
  const previousFrame=state.imageFrame;
  state.imageFrame=imagePixels&&palette?acquireTextWallpaper(palette):undefined;
  previousFrame?.release();
- updateTextureInkProgression(material,imagePixels?undefined:palette);state.field.value=Number(isImageField(palette));state.scale.value=palette?.scale??1;if(isImageField(palette)){const f=focusPattern(palette!);state.fieldSize.value.set(f.width,f.height);}state.debug.value=Number(!imagePixels&&!!palette?.debugPattern&&palette.colors.length>1);state.paletteKey=key;const release=state.releasePattern;state.releasePattern=undefined;state.pattern.value=emptyPattern;state.generated.value=0;state.focus.value=0;state.axis.value=palette?focusPaletteAxis(palette):0;state.strength.value=palette?paletteInk(palette):.25;if(palette&&(isFocusPalette(palette)||palette.pattern==='generated')&&palette.colors.length>1){const pattern=acquirePattern(palette);state.pattern.value=pattern.texture;state.releasePattern=pattern.release;state.generated.value=isFocusPalette(palette)?0:1;state.focus.value=isFocusPalette(palette)?1:0;state.period.value=isFocusPalette(palette)?focusPeriod(palette):1;}
+ updateTextureInkProgression(material,palette);state.field.value=Number(isImageField(palette));state.scale.value=palette?.scale??1;if(isImageField(palette)){const f=focusPattern(palette!);state.fieldSize.value.set(f.width,f.height);}state.debug.value=Number(!!palette?.debugPattern&&(imagePixels||palette.colors.length>1));state.paletteKey=key;const release=state.releasePattern;state.releasePattern=undefined;state.pattern.value=emptyPattern;state.generated.value=0;state.focus.value=0;state.axis.value=palette?focusPaletteAxis(palette):0;state.strength.value=palette?paletteInk(palette):.25;if(palette&&(isFocusPalette(palette)||palette.pattern==='generated')&&palette.colors.length>1){const pattern=acquirePattern(palette);state.pattern.value=pattern.texture;state.releasePattern=pattern.release;state.generated.value=isFocusPalette(palette)?0:1;state.focus.value=isFocusPalette(palette)?1:0;state.period.value=isFocusPalette(palette)?focusPeriod(palette):1;}
  release?.();const stops=data?.stops??[];state.count.value=stops.length;state.layout.value=palette?paletteLayout(palette):0;state.spread.value=palette?paletteSpread(palette):1;
  if(!stops.length){state.stops.value=emptyPaletteStops;return;}if(state.stops.value===emptyPaletteStops)state.stops.value=Array.from({length:PALETTE_STOP_LIMIT},()=>new T.Vector4());for(let i=0;i<PALETTE_STOP_LIMIT;i++){const stop=stops[i]??stops.at(-1)!;state.stops.value[i].set(...stop.rgb as [number,number,number],stop.at);}
 }
@@ -96,8 +96,17 @@ export function packedTextureGlow(material:T.MeshBasicMaterial){
     }
     float inkCoverage=clean*fill+outline;
     vec3 ink=diffuseColor.rgb,glow=glowInkColor;
-    ${imagePixels?`if(imagePixelFrameReady>.5){
-     vec3 hue=texture2D(imagePixelFrame,gl_FragCoord.xy/wallpaperViewport).rgb;
+    ${imagePixels?`vec3 pixelHue=vec3(1.0);
+    if(imagePixelFrameReady>.5){
+     vec2 imageUV=gl_FragCoord.xy/wallpaperViewport;
+     if(textStream)imageUV=vec2(clamp(textStreamPosition(vMapUv),0.0,1.0),vMapUv.y);
+     else if(textInkScan){
+      vec2 size=vec2(textureSize(imagePixelFrame,0));
+      float at=min(size.x*size.y-1.0,floor(clamp(inkScanFraction(vMapUv,coverage,textPixelRatio),0.0,1.0)*size.x*size.y));
+      imageUV=(vec2(mod(at,size.x),floor(at/size.x))+.5)/size;
+     }
+     pixelHue=texture2D(imagePixelFrame,imageUV).rgb;
+     vec3 hue=pixelHue;
      glow=linearColour(hue);
      ink=linearColour(mix(vec3(1.0),hue,textPaletteInk));
     }else`:''}
@@ -106,7 +115,7 @@ export function packedTextureGlow(material:T.MeshBasicMaterial){
     float total=inkCoverage+halo;
     diffuseColor.rgb=(ink*inkCoverage+glow*halo)/max(total,.00001);
     diffuseColor.a*=total;
-    if(textPatternDebug&&textPaletteCount>1){diffuseColor.rgb=paletteLinear(paletteGlow(vMapUv,coverage));diffuseColor.a=max(diffuseColor.a,0.4*opacity);}
+    if(textPatternDebug&&(textPaletteCount>1${imagePixels?'||imagePixelFrameReady>.5':''})){diffuseColor.rgb=${imagePixels?'imagePixelFrameReady>.5?linearColour(pixelHue):':''}paletteLinear(paletteGlow(vMapUv,coverage));diffuseColor.a=max(diffuseColor.a,0.4*opacity);}
    `:'diffuseColor.a*=coverage.r;';
    const wallpaperShader=imagePixels?SCENE_COLOR_SPACE_GLSL+'uniform vec2 wallpaperViewport; uniform sampler2D imagePixelFrame; uniform float imagePixelFrameReady;\n':'';
    shader.fragmentShader=wallpaperShader+paletteShader+'uniform vec3 glowInkColor;\n'+shader.fragmentShader.replace('#include <map_fragment>',`
@@ -118,6 +127,6 @@ export function packedTextureGlow(material:T.MeshBasicMaterial){
     ${coverage}
     #endif
    `);
-  };target.customProgramCacheKey=()=>target===material?`omnium.packed-text-glow.base.v25.${Number(state.imagePixels)}`:'omnium.packed-text-glow.mask.v3';
+  };target.customProgramCacheKey=()=>target===material?`omnium.packed-text-glow.base.v26.${Number(state.imagePixels)}`:'omnium.packed-text-glow.mask.v3';
  });
 }

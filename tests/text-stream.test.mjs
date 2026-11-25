@@ -52,3 +52,13 @@ test('start-end document measurement retains its global phase when only later ro
  const oldDocument=globalThis.document,oldStyle=globalThis.getComputedStyle;let measured=0;globalThis.document={createElement:()=>({getContext:()=>({measureText:text=>{measured++;return {width:text.length*10};}})})};globalThis.getComputedStyle=()=>({font:'12px sans-serif',letterSpacing:'normal',wordSpacing:'normal'});
  try{const text='ab\n\ncd',doc={toString:()=>text},a={textContent:'ab',at:0,end:2,childNodes:[{}],getClientRects:()=>[{width:20}]},b={textContent:'cd',at:4,end:6,childNodes:[{}],getClientRects:()=>[{width:10},{width:10}]};let mounted=[a,b];const view={contentDOM:{},dom:{querySelectorAll:()=>mounted},state:{doc},posAtDOM:(e,offset)=>offset?e.end:e.at},painter=createStartEndPainter();const first=painter.read(view),calls=measured;assert.deepEqual(first.marks.map(m=>[m.start,m.end,m.width]),[[0,20,20],[20,40,20]]);mounted=[b];const scrolled=painter.read(view);assert.equal(scrolled.total,40);assert.equal(scrolled.marks[0].start,20);assert.equal(measured,calls);painter.invalidate();painter.read(view);assert.ok(measured>calls);}finally{globalThis.document=oldDocument;globalThis.getComputedStyle=oldStyle;}
 });
+
+test('Image pixels start-end reuses the whole-document stream with the cached image and shared pale layer',()=>{
+ const painter=createStartEndPainter(),style={setProperty(){},removeProperty(){}};
+ const palette={mode:'text',colors:['#ff0000','#0000ff'],distribution:'pixels',progression:'start-end',scale:2};
+ painter.render({total:100,marks:[{element:{style},start:60,end:80,width:20}]},palette);
+ assert.equal(style.backgroundImage,'var(--document-image-ink)');
+ assert.equal(style.backgroundSize,'100% 100%,100px 100%','image scale is already baked once into the shared snapshot');
+ assert.equal(style.backgroundPosition,'0 0,-60px 0px');
+ painter.clear();
+});

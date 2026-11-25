@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {textPalettePair,textPaletteCSS,textPaletteStops,PALETTE_STOP_LIMIT} from '../src/properties/textPalette.ts';
+import {textPalettePair,textPaletteCSS,textPaletteStops,PALETTE_STOP_LIMIT,validTextPalette} from '../src/properties/textPalette.ts';
 import {paletteRGB} from '../src/scene/palette.ts';
 import {emptyWorld,addStructure,validateWorld} from '../src/core/model.ts';
 import {readPaint,writePaint} from '../src/core/appearance.ts';
@@ -30,4 +30,11 @@ test('pale amount changes the shared ink mix and leaves colored ink unchanged',a
  assert.equal(paletteInk({...p,ink:'color',paleAmount:.99}),1);
  for(const paleAmount of [0,.75,.99])assert.ok(validPaletteSettings({paleAmount}));
  for(const paleAmount of [-.1,1,NaN])assert.ok(!validPaletteSettings({paleAmount}));
+});
+
+test('Image pixels permits fractional scale and the exposed maximum pale amount survives validation',()=>{
+ const p={mode:'text',colors:['#ff0000'],distribution:'pixels',scale:.25,paleAmount:.99,strength:.01};
+ assert.ok(validTextPalette(p));
+ assert.ok(!validTextPalette({...p,scale:0}));
+ assert.ok(validTextPalette({...p,distribution:'balanced'}),'switching distribution retains the fractional scale');
 });

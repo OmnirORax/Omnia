@@ -1,24 +1,27 @@
 import type {TextPalette} from '../properties/textPalette.ts';
-import {acquireImagePixelInk,imagePixelInkGLSL,type ImagePixelInk} from '../properties/imagePixelInk.ts';
+import {acquireImagePixelInk,imagePixelInkGLSL,imagePixelInkKey,type ImagePixelInk} from '../properties/imagePixelInk.ts';
 import * as THREE from 'three';
 import {FullScreenQuad} from 'three/addons/postprocessing/Pass.js';
 import {wallpaperSampleGLSL,type WallpaperSampleUniforms} from './wallpaperSample.ts';
 
-type Frame={ink:ImagePixelInk;texture:{value:THREE.Texture|null};uses:number;revision?:number;target?:THREE.WebGLRenderTarget;url?:string};
+export type TextWallpaperPixels={width:number;height:number;pixels:Uint8Array};
+type Frame={key:string;scale:number;axis:number;inverse:number;cpu:boolean;pixels?:TextWallpaperPixels;ink:ImagePixelInk;texture:{value:THREE.Texture|null};uses:number;revision?:number;target?:THREE.WebGLRenderTarget;url?:string};
 const frames=new Map<string,Frame>(),consumers=new Map<HTMLElement,ReturnType<typeof acquireTextWallpaper>>();
 const listeners=new Set<()=>void>();
+const frameKey=(p:TextPalette)=>JSON.stringify([imagePixelInkKey(p),p.scale??1,p.distributionAxis??'horizontal',!!p.inverseDistribution,p.progression==='ink-serpentine']);
+export const textWallpaperPixels=(p:TextPalette)=>frames.get(frameKey(p))?.pixels;
 /** Documents and world labels retain the same static, resolved image per palette. */
 export function acquireTextWallpaper(palette:TextPalette){
- const ink=acquireImagePixelInk(palette);
- let frame=frames.get(ink.key);
+ const ink=acquireImagePixelInk(palette),scale=palette.scale??1,key=frameKey(palette);
+ let frame=frames.get(key);
  if(frame)ink.release();
- else{frame={ink,texture:{value:null},uses:0};frames.set(ink.key,frame);}
+ else{frame={key,scale,axis:Number(palette.distributionAxis==='vertical'),inverse:Number(!!palette.inverseDistribution),cpu:palette.progression==='ink-serpentine',ink,texture:{value:null},uses:0};frames.set(key,frame);}
  frame.uses++;
  const owned=frame;
  if(owned.uses===1)for(const listener of listeners)listener();
- return {key:owned.ink.key,texture:owned.texture,release(){
+ return {key:owned.key,texture:owned.texture,release(){
   if(--owned.uses)return;
-  frames.delete(owned.ink.key);owned.ink.release();owned.target?.dispose();
+  frames.delete(owned.key);owned.ink.release();owned.target?.dispose();
   if(owned.url)URL.revokeObjectURL(owned.url);
   for(const listener of listeners)listener();
  }};
@@ -50,13 +53,13 @@ function wallpaperBitmap(width:number,height:number,bytes:Uint8Array<ArrayBuffer
 /** Rebuild only after an image, authored color setting, viewport or palette change. */
 export function createDocumentWallpaper(renderer:THREE.WebGLRenderer,uniforms:WallpaperSampleUniforms,requestPaint=()=>{}){
  let width=1,height=1,revision=0,sourceRevision=0,timer:ReturnType<typeof setTimeout>|undefined,running=false,closed=false,pending=false;
- const imagePixelInk={value:null as THREE.Texture|null},imagePixelSaturation={value:1};
+ const imagePixelInk={value:null as THREE.Texture|null},imagePixelSaturation={value:1},imagePixelScale={value:1},imagePixelAxis={value:0},imagePixelInverse={value:0};
  let quad:FullScreenQuad|undefined,material:THREE.ShaderMaterial|undefined;
  const available=()=>!closed&&frames.size>0&&!!uniforms.image.value;
  const clear=()=>{
   for(const host of consumers.keys())setDocumentFrame(host);
   for(const frame of frames.values()){
-   frame.texture.value=null;frame.target?.dispose();frame.target=undefined;
+   frame.texture.value=null;frame.pixels=undefined;frame.target?.dispose();frame.target=undefined;
    if(frame.url)URL.revokeObjectURL(frame.url);frame.url=undefined;
   }
   document.documentElement.style.removeProperty('--scene-text-frame-size');
@@ -66,7 +69,7 @@ export function createDocumentWallpaper(renderer:THREE.WebGLRenderer,uniforms:Wa
  const refresh=()=>{sourceRevision++;invalidate();};
  const demand=()=>{
   const documents=new Set([...consumers.values()].map(ink=>ink.key));
-  for(const [key,frame] of frames)if(frame.url&&!documents.has(key)){URL.revokeObjectURL(frame.url);frame.url=undefined;}
+  for(const [key,frame] of frames)if(!documents.has(key)){if(frame.url)URL.revokeObjectURL(frame.url);frame.url=undefined;frame.pixels=undefined;}
   if(!frames.size)document.documentElement.style.removeProperty('--scene-text-frame-size');
   invalidate();
  };
@@ -82,12 +85,19 @@ export function createDocumentWallpaper(renderer:THREE.WebGLRenderer,uniforms:Wa
    if(!quad){
     material=new THREE.ShaderMaterial({
      // Animation and transient selection feedback never alter the applied text image.
-     uniforms:{...uniforms,time:{value:0},bounce:{value:1},light:{value:0},waves:{value:0},feedbackStrength:{value:0},imagePixelInk,imagePixelSaturation},
+     uniforms:{...uniforms,time:{value:0},bounce:{value:1},light:{value:0},waves:{value:0},feedbackStrength:{value:0},imagePixelInk,imagePixelSaturation,imagePixelScale,imagePixelAxis,imagePixelInverse},
      depthTest:false,depthWrite:false,toneMapped:false,
      vertexShader:'varying vec2 screenUV; void main(){screenUV=uv;gl_Position=vec4(position.xy,1.0,1.0);}',
      fragmentShader:`${wallpaperSampleGLSL}${imagePixelInkGLSL}
+      uniform float imagePixelScale; uniform float imagePixelAxis; uniform float imagePixelInverse;
       varying vec2 screenUV;
-      void main(){gl_FragColor=vec4(mapImagePixel(displayColour(sampleWallpaper(screenUV))),1.0);}`,
+      void main(){
+       vec2 pixelUV=(screenUV-.5)/imagePixelScale+.5;
+       if(imagePixelAxis>.5)pixelUV=pixelUV.yx;
+       if(imagePixelInverse>.5)pixelUV=vec2(1.0)-pixelUV;
+       pixelUV=fract(pixelUV);
+       gl_FragColor=vec4(mapImagePixel(displayColour(sampleWallpaper(pixelUV))),1.0);
+      }`,
     });
     quad=new FullScreenQuad(material);
    }
@@ -96,16 +106,17 @@ export function createDocumentWallpaper(renderer:THREE.WebGLRenderer,uniforms:Wa
     const rebuild=frame.revision!==sourceRevision||!frame.target||frame.target.width!==w||frame.target.height!==h;
     if(rebuild){
      frame.target??=new THREE.WebGLRenderTarget(w,h,{depthBuffer:false});frame.target.setSize(w,h);
-     imagePixelInk.value=frame.ink.texture;imagePixelSaturation.value=frame.ink.saturation;
+     imagePixelInk.value=frame.ink.texture;imagePixelSaturation.value=frame.ink.saturation;imagePixelScale.value=frame.scale;imagePixelAxis.value=frame.axis;imagePixelInverse.value=frame.inverse;
      const previous=renderer.getRenderTarget();
      try{renderer.setRenderTarget(frame.target);quad.render(renderer);}finally{renderer.setRenderTarget(previous);}
      frame.revision=sourceRevision;
     }
-    const hosts=[...consumers].filter(([,ink])=>ink.key===frame.ink.key).map(([host])=>host);
+    const hosts=[...consumers].filter(([,ink])=>ink.key===frame.key).map(([host])=>host);
     if(hosts.length&&(rebuild||!frame.url)){
      const bytes=new Uint8Array(w*h*4);
      await renderer.readRenderTargetPixelsAsync(frame.target!,0,0,w,h,bytes);
      if(captured!==revision||!available())return;
+     if(frame.cpu)frame.pixels={width:w,height:h,pixels:bytes.slice()};
      for(let at=0;at<bytes.length;at+=4){const r=bytes[at];bytes[at]=bytes[at+2];bytes[at+2]=r;}
      nextUrl=URL.createObjectURL(wallpaperBitmap(w,h,bytes));
      const image=new Image();image.src=nextUrl;await image.decode();
