@@ -87,3 +87,16 @@ test('Image pixels survives saving and tracks the Auto image colors toggle',asyn
  assert.equal(calls(),1);
  controller.dispose();
 });
+
+test('Image pixels keeps a chromatic node accent when black leads the enabled palette',async()=>{
+ const {matchedImageColors}=await import('../src/scene/colorCombo.ts');
+ const source=imageColorCombo(scene([[500,[0,0,0]],[500,[15,40,180]]]));
+ const settings={ink:'color',included:['#000000','#ff0000']};
+ const relations=matchedImageColors(source,{...settings,distribution:'image'});
+ const pixels=matchedImageColors(source,{...settings,distribution:'pixels'});
+ assert.equal(relations.node,'#000000');
+ assert.equal(pixels.node,'#ff0000');
+ assert.equal(pixels.nodeGlow,pixels.node);
+ assert.deepEqual(pixels.textPalette,relations.textPalette);
+ assert.equal(matchedImageColors(source,{...settings,distribution:'pixels',included:['#000000']}).node,'#000000');
+});

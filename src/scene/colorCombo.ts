@@ -40,7 +40,10 @@ export function matchedImageColors(combo:ImageColorCombo,settings:PaletteSetting
  const palette=imageTextPalette(combo.source,settings),first=palette[0],candidates=motifCandidates(combo.source,settings),members=candidates.filter(c=>c.enabled),available=candidates.length;
  let textRelations:ColorRelations|undefined,textField:ImageField|undefined;
  if(settings.distribution==='image'&&combo.source.spatial){const destinations=new Map([...combo.source.accents,...combo.source.neutrals].map(c=>[c.id??paletteFamily(paletteRGB(c.color)),settings.included?.length?settings.included[nearestIncluded(c.color,settings.included)].toLowerCase():c.id??paletteFamily(paletteRGB(c.color))]));const mapping=combo.source.spatial.families.map(id=>members.findIndex(c=>c.id===destinations.get(id)));textRelations=imageRelations(combo.source,mapping,members.length);textField=imageField(combo.source,mapping,palette.map(c=>c.weight));}
- return {...combo,text:first.text,textGlow:first.textGlow,textPalette:palette.map(c=>c.textGlow),textWeights:palette.map(c=>c.weight),textStrength:first.strength,textDarkSupport:first.darkSupport,textAvailable:available,textRatio:imageRatio(palette.map(c=>c.weight)),textRelations,textField,node:first.textGlow,nodeGlow:first.textGlow};
+ const node=settings.distribution==='pixels'
+  ?palette.find(entry=>{const [r,g,b]=paletteRGB(entry.textGlow);return r!==g||g!==b;})?.textGlow??first.textGlow
+  :first.textGlow;
+ return {...combo,text:first.text,textGlow:first.textGlow,textPalette:palette.map(c=>c.textGlow),textWeights:palette.map(c=>c.weight),textStrength:first.strength,textDarkSupport:first.darkSupport,textAvailable:available,textRatio:imageRatio(palette.map(c=>c.weight)),textRelations,textField,node,nodeGlow:node};
 }
 export function imageColorCombo(pixels:SceneSignal):ImageColorCombo{
  const source=extractScenePalette(pixels);if(!source.accents.length&&!source.neutrals.length)throw Error('Image has no visible colours.');

@@ -1,3 +1,4 @@
+import {createDocumentWallpaper} from './documentWallpaper.ts';
 import {configureSceneCorrection} from './normalizationShader.ts';
 import {createWallpaperSampling,wallpaperSampleGLSL,type WallpaperSampleUniforms} from './wallpaperSample.ts';
 import type {Corrections} from './normalization.ts';
@@ -10,6 +11,7 @@ export interface WallpaperComposite {readonly visible:boolean;readonly sampleUni
 /** A screen-space image behind the existing scene, with the same selection feedback. */
 export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, renderer: THREE.WebGLRenderer) {
   const {correction,uniforms}=createWallpaperSampling();
+  const documentWallpaper=createDocumentWallpaper(renderer,uniforms);
   const material = new THREE.ShaderMaterial({
     depthTest:false,depthWrite:false,toneMapped:false,
     uniforms:{...uniforms,worldLayer:{value:null},compositeWorld:{value:0},sceneGlowPass:{value:0}},
@@ -80,6 +82,7 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
         material.uniforms[key].value.set(rgb.r,rgb.g,rgb.b);
       }
       uniforms.imageTintEnabled.value=Number(settings.imageTintEnabled);
+      documentWallpaper.refresh();
       material.uniforms.waves.value=reduced.matches?0:Number(settings.waves);
 
 
@@ -91,7 +94,7 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
       if(!url||!keepPrevious){
         configureSceneCorrection(correction,null);cancel();elapsed=0;
         material.uniforms.time.value=0;material.uniforms.bounce.value=1;material.uniforms.light.value=0;material.uniforms.waveAudio.value=1;
-        mesh.visible=false;documentImage();texture?.dispose();texture=null;material.uniforms.image.value=null;requestPaint();
+        mesh.visible=false;documentImage();texture?.dispose();texture=null;material.uniforms.image.value=null;documentWallpaper.reset();requestPaint();
       }
       if(!url)return;
       try{
@@ -99,14 +102,14 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
         if(!alive||mine!==epoch){loaded.dispose();return;}
         loaded.colorSpace=THREE.SRGBColorSpace;const previous=texture;texture=loaded;previous?.dispose();
         material.uniforms.image.value=loaded;material.uniforms.imageAspect.value=loaded.image.width/loaded.image.height;
-        mesh.visible=true;documentImage(typeof url==='string'?url:undefined);requestPaint();schedule();
+        mesh.visible=true;documentImage(typeof url==='string'?url:undefined);documentWallpaper.reset();requestPaint();schedule();
       }catch{/* Preserve the current same-source image if replacement fails. */}
     },
-    setCorrection(value:Corrections|null){configureSceneCorrection(correction,value);requestPaint();},
-    resize(width: number, height: number) { material.uniforms.viewportAspect.value = width / height; },
+    setCorrection(value:Corrections|null){configureSceneCorrection(correction,value);documentWallpaper.refresh();requestPaint();},
+    resize(width: number, height: number) { material.uniforms.viewportAspect.value = width / height;documentWallpaper.resize(width,height); },
     feedback(color: THREE.Color, strength: number) {
       material.uniforms.feedbackColor.value.copy(color); material.uniforms.feedbackStrength.value = strength;
     },
-    dispose() { alive = false;documentImage();cancel();stopAudio();disposeSceneAudio();document.removeEventListener('visibilitychange',visibility);reduced.removeEventListener('change',motion); epoch++; texture?.dispose();scene.remove(mesh);compositeQuad.dispose(); material.dispose(); geometry.dispose(); },
+    dispose() { alive = false;documentImage();documentWallpaper.dispose();cancel();stopAudio();disposeSceneAudio();document.removeEventListener('visibilitychange',visibility);reduced.removeEventListener('change',motion); epoch++; texture?.dispose();scene.remove(mesh);compositeQuad.dispose(); material.dispose(); geometry.dispose(); },
   };
 }

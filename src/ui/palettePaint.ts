@@ -1,3 +1,4 @@
+import {useDocumentWallpaper} from '../scene/documentWallpaper.ts';
 import {isFocusPalette,focusPaletteCSS,focusPaletteGeometry,isImageField} from '../properties/focusPalette.ts';
 import {generatedTextPaletteCSS} from '../properties/generatedTextPalette.ts';
 import {textPaletteCSS,paletteInk,paletteFillOpacity} from '../properties/textPalette.ts';
@@ -61,6 +62,7 @@ export function createPalettePaint(host:HTMLElement,inkEnabled=false){const norm
   const pixels=inkEnabled&&p?.distribution==='pixels',debug=patterned&&!pixels&&!!p.debugPattern;
   if(pixels)host.style.setProperty('--document-image-pale',String(1-paletteInk(p)));
   host.toggleAttribute('data-document-image-pixels',pixels);
+  if(inkEnabled)useDocumentWallpaper(host,pixels);
   const fill=inkEnabled&&!debug?paletteFillOpacity(p):1;
   const active=patterned||pixels||fill<1,changed=active!==enabled;enabled=active;
   if(active&&p){
@@ -71,4 +73,4 @@ export function createPalettePaint(host:HTMLElement,inkEnabled=false){const norm
    host.style.setProperty('--document-palette-filter',normal.render(paint,false,fill));
    host.style.setProperty('--document-ink-filter',inkEnabled&&!pixels&&patterned&&!isImageField(p)&&p.progression==='ink-serpentine'?ink.render(paint,true,fill):'none');
   }else{host.toggleAttribute('data-focus-theme',false);host.toggleAttribute('data-pattern-debug',false);for(const name of ['--document-palette-gradient','--document-palette-filter','--document-ink-filter'])host.style.removeProperty(name);}return changed;
- },dispose(){normal.dispose();ink.dispose();}};}
+ },dispose(){if(inkEnabled)useDocumentWallpaper(host,false);normal.dispose();ink.dispose();}};}
