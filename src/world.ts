@@ -1,3 +1,4 @@
+import {WORLD_TEXT_LAYER} from './world/textPass.ts';
 import {nodeVisible} from './world/nodeVisibility.ts';
 import {createHierarchyIsolation} from './core/hierarchy.ts';
 import {createRenderScheduler} from './world/renderScheduler.ts';
@@ -108,7 +109,7 @@ export function createWorld(host: HTMLElement, input: Input) {
   scene.add(new T.AmbientLight('#ffffff',2.1));
   const light = new T.DirectionalLight('#ffffff', 2.2); light.position.set(5, 12, 9); scene.add(light);
   const sphere = atomicCarrierGeometry(), slotMaterial = new T.MeshBasicMaterial({ visible: false });
-  const visuals = new Map<string, Visual>(), ray = new T.Raycaster(), edges = new T.Group(); scene.add(edges);
+  const visuals = new Map<string, Visual>(), ray = new T.Raycaster(), edges = new T.Group(); scene.add(edges);ray.layers.enable(WORLD_TEXT_LAYER);
   const axisView=createAxisView(scene,host,camera);
   let nodeViewDepth:number|undefined;
   let pointOfView:Origin|undefined,userView:{position:number[];target:number[];up:number[];pov?:Origin;depth?:number;returnView?:{position:number[];target:number[];up:number[]}}|undefined;
@@ -328,13 +329,13 @@ export function createWorld(host: HTMLElement, input: Input) {
   }
   let pendingAppearance:World|undefined;
   function previewPaint(target:VisualTarget,origins:readonly Origin[],patch?:Paint){
-    const candidate=patch?paintPreview(world,target,origins,patch):world;
-    pendingAppearance=candidate;renderScheduler.request(true);return candidate;
+    return previewAppearance(patch?paintPreview(world,target,origins,patch):world);
   }
+  function previewAppearance(candidate:World=world){pendingAppearance=candidate;renderScheduler.request(true);return candidate;}
   function applyAppearance(candidate:World){
     const inherit=createInheritanceReader(candidate);
     const nodes=new Map(candidate.nodes.map(node=>[key(node.origin),node]));
-    for(const [id,visual]of visuals){const node=nodes.get(id);if(!node)continue;const actual=resolveNodeAppearance(candidate,inherit(node));styleVisual(visual,actual,nodeTextPaint(candidate,actual));}
+    for(const [id,visual]of visuals){const node=nodes.get(id);if(!node)continue;const actual=resolveNodeAppearance(candidate,inherit(node));styleVisual(visual,actual,nodeTextPaint(candidate,actual,origin=>nodes.get(key(origin))));}
     for(const cached of edgeCaptions.values())updateLabelPaint(cached.mesh,candidate.appearance?.text);
     const readPaint=connectorPaintReader(candidate);
     for(const connector of connectors){const node=nodes.get(key(connector.source));if(!node)continue;const paint=readPaint(node);for(const mesh of [connector.line,connector.arrow]){mesh.userData.glowColor=paint.glowColor;mesh.userData.glowIntensity=paint.glow;mesh.material.color.set(connector.line.userData.highlighted?'#ffb000':paint.color);} }
@@ -350,11 +351,11 @@ export function createWorld(host: HTMLElement, input: Input) {
     const nextScale = next.settings?.latticeScale ?? 1;
     if (nextScale !== scale) { const shift = controls.target.clone().multiplyScalar(nextScale/scale-1); controls.target.add(shift); camera.position.add(shift); navigator.rescale(nextScale/scale); scale=nextScale; controls.minDistance=Math.min(.2,scale/4); camera.near=Math.max(1e-9,scale*.001); camera.updateProjectionMatrix(); controls.update(); }
     axisView.update(operationWorld(next),scale);
-    const present = new Set(next.nodes.map(node => key(node.origin)));
+    const textNodes=new Map(next.nodes.map(node=>[key(node.origin),node])),present=new Set(textNodes.keys());
     for (const [id, visual] of visuals) if (!present.has(id)) { scene.remove(visual.host);visual.contour.dispose(); visual.body.material.dispose(); disposeLabel(visual.text); if (visual.object) disposeVisual(visual.object); visuals.delete(id); }
     const inherit=createInheritanceReader(next);
     for (const node of next.nodes) {
-      const actual = resolveNodeAppearance(next,inherit(node)), id=key(node.origin), textPaint=nodeTextPaint(next,actual),textKey=labelGeometryKey(textPaint,fontRevision), caption=`${actual.label || (node.invariant ? '⚬' : '')}${node.parts.some(binding => !prepared.resolve(binding).length) ? ' !' : ''}`;
+      const actual = resolveNodeAppearance(next,inherit(node)), id=key(node.origin), textPaint=nodeTextPaint(next,actual,origin=>textNodes.get(key(origin))),textKey=labelGeometryKey(textPaint,fontRevision), caption=`${actual.label || (node.invariant ? '⚬' : '')}${node.parts.some(binding => !prepared.resolve(binding).length) ? ' !' : ''}`;
       let visual=visuals.get(id);
       if (!visual) {
         const host=new T.Group(),group=new T.Group(),presentation=new T.Group(),body=new T.Mesh(sphere,atomicCarrierMaterial(actual.color)),slot=new T.Mesh(sphere,slotMaterial),text=label(caption,textPaint);text.userData.requestRender=request;
@@ -705,7 +706,7 @@ export function createWorld(host: HTMLElement, input: Input) {
     pressedNudges.set(event.code||event.key,action);if(!held.size)nudgeDepth=action==='nudgeUp'||action==='nudgeDown';held.add(action);nudging.update([...held]);});
   window.addEventListener('keyup',event=>{const code=event.code||event.key,action=pressedNudges.get(code);if(action){pressedNudges.delete(code);held.delete(action);nudging.update([...held]);}});
   document.addEventListener('visibilitychange',()=>{if(document.hidden){middlePress=undefined;held.clear();nudging.finish(true);navigation.finish(true);restoreNative();restore();cancelOmnic();cancelDrive();}else request();});
-  return { update,previewPaint,documentChanged(next:World){world=next;const nodes=new Map(next.nodes.map(node=>[key(node.origin),node]));for(const [id,visual]of visuals)visual.node=nodes.get(id)??visual.node;},session,commitSelection,saveCamera(){const state=readCamera();seenCamera=state;input.cameraChanged(state);},restoreCamera(value:CameraState|undefined){restoreCamera(value);presentation();},point:creationPoint,center:()=>hoverCandidate?.valid?hoverCandidate.anchor:navigator.initialized?xyz(navigator.position.clone().divideScalar(scale)):xyz(controls.target.clone().divideScalar(scale)),request,
+  return { update,previewPaint,previewAppearance,documentChanged(next:World){world=next;const nodes=new Map(next.nodes.map(node=>[key(node.origin),node]));for(const [id,visual]of visuals)visual.node=nodes.get(id)??visual.node;},session,commitSelection,saveCamera(){const state=readCamera();seenCamera=state;input.cameraChanged(state);},restoreCamera(value:CameraState|undefined){restoreCamera(value);presentation();},point:creationPoint,center:()=>hoverCandidate?.valid?hoverCandidate.anchor:navigator.initialized?xyz(navigator.position.clone().divideScalar(scale)):xyz(controls.target.clone().divideScalar(scale)),request,
     editOmnic(surface:OmnicSurface){if(omnic!==surface){cancelOmnic();omnic=surface;request();}return()=>{if(omnic===surface){cancelOmnic();omnic=undefined;request();}};},
     focusInput(){canvas.focus();},
     get reference(){return activeAxis();},

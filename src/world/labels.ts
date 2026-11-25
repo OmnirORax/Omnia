@@ -1,9 +1,12 @@
+import {configureTextureInkRows,refreshTextureInkProgression} from '../textureInkProgression.ts';
+import {setTextPaint} from '../properties/textPaint.ts';
+import {WORLD_TEXT_LAYER,nativeTextMaterial} from './textPass.ts';
 import {textGlowLayers} from '../properties/textGlow.ts';
-import {packedTextureGlow,packGlowCoverage,updateTextureGlowColor} from '../textureGlow.ts';
+import {packedTextureGlow,packGlowCoverage,updateTextureGlowColor,updateTextureTextPalette} from '../textureGlow.ts';
 import {imageHull} from './contentEnvelope.ts';
 import * as THREE from 'three';
 import {labelLines,labelSize} from '../composer/runtime/graph/labels.ts';
-import {fontFamily,fontSizeScale, TEXT_DEFAULTS,renderedTextPaint,type Paint} from '../properties/visual.ts';
+import {fontFamily,fontSizeScale, TEXT_DEFAULTS,type Paint} from '../properties/visual.ts';
 import {isImportedFont} from '../properties/importedFont.ts';
 type FontId=string;
 const canvasFont=(id:FontId)=>`${id==='electric'||isImportedFont(id)?400:500} 36px ${fontFamily(id)}`;
@@ -32,6 +35,7 @@ export function textSprite(value: string, color: string, selected = false, node 
     // Clean ink stays fully covered, independently of halo strength.
     context.globalAlpha=1;context.shadowBlur=0;draw();
   };
+  let inkMaterial:THREE.MeshBasicMaterial|undefined;
   const paint = (border: string, ink: string, glow: number, spread:number=TEXT_DEFAULTS.glowSpread) => {
     ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.shadowBlur = 0;
     if (!contentOnly && node) {
@@ -58,7 +62,7 @@ export function textSprite(value: string, color: string, selected = false, node 
       const combined=ctx.getImageData(0,0,canvas.width,canvas.height);
       if(glow>0){const clean=sharpTextContext(canvas.width,canvas.height);drawInk(clean,"#ffffff",0,spread);packGlowCoverage(clean.getImageData(0,0,canvas.width,canvas.height).data,combined.data);}
       else packGlowCoverage(combined.data,combined.data);
-      ctx.putImageData(combined,0,0);
+      ctx.putImageData(combined,0,0);if(inkMaterial)refreshTextureInkProgression(inkMaterial);
     }
   };
   paint(color, textColor, textGlow,textGlowSpread);
@@ -81,7 +85,7 @@ export function textSprite(value: string, color: string, selected = false, node 
       side: THREE.DoubleSide,
     }),
   );
-  if(contentOnly)packedTextureGlow(sprite.material);
+  if(contentOnly){packedTextureGlow(sprite.material);configureTextureInkRows(sprite.material,10,48,lines.length);inkMaterial=sprite.material;nativeTextMaterial(sprite.material);sprite.layers.set(WORLD_TEXT_LAYER);}
   sprite.userData.lightningMask = () => {
     const mask = document.createElement("canvas"); mask.width = canvas.width; mask.height = canvas.height;
     const ink = mask.getContext("2d")!; ink.font = canvasFont(font);
@@ -118,16 +122,17 @@ export function textSprite(value: string, color: string, selected = false, node 
   sprite.userData.lines = lines.length;
   sprite.userData.wrapColumns = columns;
   const size = labelSize(value,columns);
-  sprite.scale.set(size.width, size.height, 1);
+  sprite.scale.set(size.height*(canvas.width/canvas.height), size.height, 1);
   return sprite;
 }
 /** Only typography changes text geometry. Color/opacity/glow reuse the label. */
 export const labelGeometryKey=(paint:Paint={},revision=0)=>JSON.stringify([paint.font??TEXT_DEFAULTS.font,revision]);
 export function updateLabelPaint(mesh:ReturnType<typeof textSprite>,paint:Paint={}){
- const style={...TEXT_DEFAULTS,...paint},rendered=renderedTextPaint(style);
+ const style={...TEXT_DEFAULTS,...paint};
  const nextScale=fontSizeScale(style),oldScale=mesh.userData.labelFontScale??1;if(nextScale!==oldScale){mesh.scale.multiplyScalar(nextScale/oldScale);mesh.userData.labelFontScale=nextScale;}
- mesh.userData.setTextStyle(rendered.color,rendered.color,style.glow,style.glowSpread);
- updateTextureGlowColor(mesh.material,rendered.glowColor);mesh.userData.glowColor=style.glowColor===undefined?undefined:rendered.glowColor;
+ const rendered=setTextPaint({setColor:color=>{mesh.material.color.set(color);mesh.userData.textColor=color;},setGlow:(color,strength,spread)=>{const ink=mesh.userData.textColor as string;mesh.userData.setTextStyle(ink,ink,strength,spread);updateTextureGlowColor(mesh.material,color);}},paint);
+ updateTextureTextPalette(mesh.material,paint.palette);
+ mesh.userData.glowColor=style.glowColor===undefined?undefined:rendered.glowColor;
  mesh.material.opacity=1;
  mesh.userData.labelPaint=style;mesh.userData.textColor=rendered.color;
 }
@@ -141,6 +146,7 @@ export function label(caption:string,paint?:Paint){
    const fresh=textSprite(caption,current.color,false,false,false,current.font,current.glow,current.color,{},true,32,current.glowSpread);
    mesh.material.map?.dispose();mesh.material.dispose();mesh.material=fresh.material;
    for(const name of ['setTextStyle','setSurfaceStyle','setSelected','lightningMask','contentHull'])mesh.userData[name]=fresh.userData[name];
+   mesh.userData.aspect=fresh.userData.aspect;mesh.scale.copy(fresh.scale);mesh.userData.labelFontScale=1;
    updateLabelPaint(mesh,current);fresh.geometry.dispose();mesh.userData.requestRender?.();
  });
  return mesh;

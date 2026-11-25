@@ -29,6 +29,9 @@ export function installPointerBindings(context:()=>string){
  const apply=(event:MouseEvent,combo:string)=>{if(!('activationPhysicalButton' in event))Object.defineProperty(event,'activationPhysicalButton',{value:event.button});const parts=combo.split('+'),button=parts.at(-1),values={ctrlKey:parts.includes('Ctrl'),metaKey:false,altKey:parts.includes('Alt'),shiftKey:parts.includes('Shift'),...(button?.startsWith('MB')?{button:button==='MB1'?0:button==='MB2'?2:1}:{})};for(const [key,value]of Object.entries(values))Object.defineProperty(event,key,{value,configurable:true});};
  window.addEventListener('pointerdown',event=>{
   selectionLatch.use();
+  // A numerical adjustment owns its acceptance click, independently of which
+  // scene surface lies under the frozen cursor or its configured activation.
+  if(typeof document!=='undefined'&&document.documentElement?.classList?.contains?.('value-dragging'))return;
   if(capturingShortcut()||!(event.target instanceof Element)||event.target.closest('.shortcut-capture')||!event.target.closest('#world,.cm-content'))return;
   const doc=!!event.target.closest('.cm-content'),mode=doc?'document':context(),combo=pointerCombo(event,[...held]);if(!combo)return;
   const latched=!doc&&selectionLatch.active&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&held.size===0?POINTER_BINDINGS.find(d=>d.id===(selectionLatch.depth||event.shiftKey?'gesture:multi-depth':'gesture:multi-plane')):undefined;

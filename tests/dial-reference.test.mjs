@@ -31,3 +31,43 @@ test('source fields preserve one accepted number and its exact notation across p
  props.max=8;assert.equal(source.receive(),true);assert.equal(source.configuration('min').value,2);assert.equal(source.configuration('value').value,4);
  props.value=6;assert.equal(source.receive(),true);assert.equal(source.configuration('value'),undefined);assert.equal(source.field('value').value,6);
 });
+
+test('direct dot selections add in preview and write once only on explicit confirmation',async()=>{
+ const {createDialEditorDraft}=await import('../src/composer/runtime/ui/mathematicalDialSource.ts');
+ const writes=[],previews=[],props={value:0,min:0,max:100,onPreview:n=>previews.push(n),onCommit:n=>writes.push(n)};
+ const source=createMathematicalDialSource('direct',()=>props),draft=createDialEditorDraft(source);
+ draft.configure({mode:'value',anchor:6,count:0,value:6,notation:{base:2,clockwise:true,marks:{selected:['0:0','0:1'],modes:{}}}});
+ draft.choose(2);draft.choose(6);assert.deepEqual(writes,[]);assert.equal(source.field('value').value,0);assert.equal(draft.candidate,6);
+ draft.hover(8);draft.restorePreview();assert.equal(previews.at(-1),6);assert.equal(draft.accept(),true);assert.deepEqual(writes,[6]);assert.deepEqual(source.configuration('value').notation.marks.selected,['0:0','0:1']);
+ const cancelled=createDialEditorDraft(source);cancelled.choose(12);cancelled.cancel();assert.deepEqual(writes,[6]);assert.equal(previews.at(-1),6);
+});
+
+test('an external direct-value change invalidates pending marks without moving the dial host',()=>{
+ const controller=createDialReferenceController(),source={},events=[];controller.register('a',source);const before=controller.snapshot();
+ controller.attachCancel('a','direct',()=>events.push('restore'));controller.select('a');
+ assert.deepEqual(events,['restore']);assert.equal(controller.snapshot().host,before.host);assert.ok(controller.snapshot().selection.generation>before.selection.generation);
+});
+test('a center-only two-dot configuration survives confirmation without changing its value and sets the box increment',async()=>{
+ const {createDialEditorDraft}=await import('../src/composer/runtime/ui/mathematicalDialSource.ts'),{createOperationNumber}=await import('../src/ui/operationNumber.ts');
+ const writes=[];let configuration;
+ const number=createOperationNumber({label:'Value',value:10,min:0,max:100,integer:true,apply:(n,phase)=>{if(phase==='commit')writes.push(n);},reject:message=>assert.fail(message)});
+ const source=createMathematicalDialSource('center',()=>({value:number.value,min:0,max:100,integer:true,onConfigurationCommit:next=>configuration=next,onCommit:n=>number.commit(n,configuration)})),draft=createDialEditorDraft(source);
+ draft.configure({mode:'value',base:2,anchor:10,count:0,value:10,notation:{base:2,clockwise:true,marks:{selected:[],modes:{}}}});assert.deepEqual(writes,[]);assert.equal(draft.candidate,10);assert.equal(draft.accept(),true);assert.deepEqual(writes,[10]);
+ assert.equal(source.configuration('value').base,2);assert.equal(number.configuration.notation.base,2);const scrub=number.scrub();assert.equal(scrub.toValue(scrub.value+1),12);
+});
+
+test('direct Value/Snap tab changes preserve the draft; leaving the editor cancels it',()=>{
+ const controller=createDialReferenceController(),source={},events=[];controller.register('a',source);controller.attachCancel('a','direct',()=>events.push('cancel'));
+ const generation=controller.snapshot().selection.generation;controller.select('a','direct','snap');assert.equal(controller.snapshot().selection.generation,generation);controller.select('a','direct','value');controller.select('a','direct','value');assert.equal(controller.snapshot().selection.generation,generation);assert.deepEqual(events,[]);
+ controller.select('a');assert.deepEqual(events,['cancel']);assert.ok(controller.snapshot().selection.generation>generation);
+});
+test('ordinary direct confirmation retains absolute arithmetic without silently enabling a grid',async()=>{
+ const {createDialEditorDraft}=await import('../src/composer/runtime/ui/mathematicalDialSource.ts'),snaps=[],writes=[],props={value:3,min:0,max:100,onSnapChange:n=>snaps.push(n),onCommit:n=>writes.push(n)};
+ const source=createMathematicalDialSource('absolute',()=>props),draft=createDialEditorDraft(source);assert.equal(draft.candidate,3);assert.equal(draft.valueGrid,undefined);draft.choose(7);draft.saveSnap();assert.deepEqual(snaps,[]);assert.deepEqual(writes,[]);assert.equal(draft.accept(),true);assert.deepEqual(writes,[7]);
+});
+test('direct and reference editors share snap ownership and preserve a pending value through snap editing',async()=>{
+ const {createDialEditorDraft}=await import('../src/composer/runtime/ui/mathematicalDialSource.ts'),snaps=[],writes=[],props={value:20,min:0,max:100,integer:true,onSnapChange:n=>snaps.push(n),onCommit:n=>writes.push(n)},source=createMathematicalDialSource('shared',()=>props),draft=createDialEditorDraft(source);
+ assert.equal(source.record('direct'),source.record('value'));draft.choose(22);const config={mode:'value',base:1,anchor:2,count:0,value:2};draft.configureSnap(config);assert.equal(draft.setSnap(2),true);assert.equal(draft.candidate,22);assert.equal(draft.valueGrid.snap,2);assert.deepEqual(writes,[]);assert.deepEqual(snaps,[]);
+ draft.saveSnap();assert.deepEqual(snaps,[2]);assert.equal(source.record('value').snapConfiguration,config);assert.equal(draft.configuration.snap,2);draft.accept();assert.deepEqual(writes,[22]);assert.equal(createDialEditorDraft(source).valueGrid.snap,2);assert.equal(createDialEditorDraft(source,'value').grid.snap,2);
+ const abandoned=createDialEditorDraft(source);abandoned.configureSnap({...config,value:3});abandoned.setSnap(3);abandoned.cancel();assert.deepEqual(snaps,[2]);assert.equal(source.record('value').snap,2);
+});

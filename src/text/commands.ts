@@ -65,6 +65,14 @@ export const wrap = (mark: string, end = mark): StateCommand => ({ state, dispat
   }
   dispatch(sourceTransaction(state, edits, destinations)); return true;
 };
+/** Case edits retain carets inside words, including Unicode length changes. */
+function caseSelection(state:EditorState,edits:readonly Edit[],prefix:(edit:Edit,text:string)=>string){
+ const changes=state.changes(edits.map(edit=>({from:edit.from,to:edit.to,insert:edit.insert.text})));
+ return state.selection.ranges.map(range=>{
+  if(range.empty){const edit=edits.find(edit=>range.head>edit.from&&range.head<edit.to),at=edit?changes.mapPos(edit.from,-1)+prefix(edit,state.sliceDoc(edit.from,range.head)).length:changes.mapPos(range.head,1);return {anchor:at,head:at};}
+  const from=changes.mapPos(range.from,-1),to=changes.mapPos(range.to,1);return range.anchor<=range.head?{anchor:from,head:to}:{anchor:to,head:from};
+ });
+}
 /** Uppercase highlighted text or words at carets, preserving glyph references. */
 export const uppercaseSelection: StateCommand = ({state,dispatch})=>{
   const edits:Edit[]=[];
@@ -77,32 +85,32 @@ export const uppercaseSelection: StateCommand = ({state,dispatch})=>{
     }
   }
   if(edits.length){
-    const changes=state.changes(edits.map(edit=>({from:edit.from,to:edit.to,insert:edit.insert.text})));
-    const ranges=state.selection.ranges.map(range=>{
-      if(range.empty){
-        const edit=edits.find(edit=>range.head>edit.from&&range.head<edit.to);
-        const at=edit?changes.mapPos(edit.from,-1)+state.sliceDoc(edit.from,range.head).toLocaleUpperCase().length:changes.mapPos(range.head,1);
-        return {anchor:at,head:at};
-      }
-      const from=changes.mapPos(range.from,-1),to=changes.mapPos(range.to,1);
-      return range.anchor<=range.head?{anchor:from,head:to}:{anchor:to,head:from};
-    });
-    dispatch(sourceTransaction(state,edits,ranges));
+    dispatch(sourceTransaction(state,edits,caseSelection(state,edits,(_edit,text)=>text.toLocaleUpperCase())));
   }
   return true;
 };
 export const codeBlock = wrap('```\n', '\n```');
+function sentenceWord(word:string,capital:boolean){
+ const text=word.toLocaleLowerCase();if(!capital||!text)return text;
+ const first=String.fromCodePoint(text.codePointAt(0)!);return first.toLocaleUpperCase()+text.slice(first.length);
+}
+/** Sentence case keeps punctuation, task markers and glyph references intact. */
 export const capitalizeSentence: StateCommand = ({ state, dispatch }) => {
-  const edits: Edit[] = []; const seen = new Set<string>();
-  for (const range of state.selection.ranges) {
-    const line = state.doc.lineAt(range.head), from = range.empty ? line.from : range.from, to = range.empty ? line.to : range.to;
-    const source = state.sliceDoc(from, to), starts = /(^(?:\[[ xX]\]|[\p{P}\p{S}\p{N}\t ])*|[.!?:](?:\[[ xX]\]|[\p{P}\p{S}\t ])*)(\p{L})/gmu;
-    for (const match of source.matchAll(starts)) {
-      const at = from + match.index! + match[1].length, text = match[2], key = `${at}:${at+text.length}`;
-      if (!seen.has(key)) { seen.add(key); edits.push({ from: at, to: at + text.length, insert: literal(text.toLocaleUpperCase()) }); }
+  const edits: Edit[] = [],capitalStarts=new Set<number>();
+  const targets=EditorSelection.create(state.selection.ranges.map(range=>{const line=state.doc.lineAt(range.head);return range.empty?EditorSelection.range(line.from,line.to):range;})).ranges;
+  for (const {from,to} of targets) {
+    const source=state.sliceDoc(from,to),starts=/(^(?:\[[ xX]\]|[\p{P}\p{S}\p{N}\t ])*|[.!?:](?:\[[ xX]\]|[\p{P}\p{S}\t ])*)(\p{L})/gmu;
+    const capitals=new Set<number>(),prefixes:{from:number;to:number}[]=[];
+    for(const match of source.matchAll(starts)){const at=match.index!+match[1].length;capitals.add(at);capitalStarts.add(from+at);prefixes.push({from:match.index!,to:at});}
+    let prefix=0;
+    for(const match of source.matchAll(/\p{L}[\p{L}\p{M}]*/gu)){
+      const at=match.index!,word=match[0];while(prefix<prefixes.length&&prefixes[prefix].to<=at)prefix++;
+      if(prefix<prefixes.length&&at>=prefixes[prefix].from&&at<prefixes[prefix].to)continue;
+      const text=sentenceWord(word,capitals.has(at));
+      if(text!==word)edits.push({from:from+at,to:from+at+word.length,insert:literal(text)});
     }
   }
-  edits.sort((a,b) => a.from-b.from); dispatch(sourceTransaction(state, edits)); return true;
+  if(edits.length)dispatch(sourceTransaction(state,edits,caseSelection(state,edits,(edit,text)=>sentenceWord(text,capitalStarts.has(edit.from)))));return true;
 };
 /** Remove selected document lines without expanding to surrounding paragraphs. */
 export const deleteLines: StateCommand = ({state,dispatch})=>{

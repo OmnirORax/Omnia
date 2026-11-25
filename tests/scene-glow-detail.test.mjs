@@ -107,3 +107,8 @@ test('retired glow protection settings cannot disable the shared zoom policy',as
  const {emptyWorld,validateWorld}=await import('../src/core/model.ts');const world=emptyWorld();world.settings.glowDetailProtection=false;
  validateWorld(world);assert.equal('glowDetailProtection' in world.settings,false);assert.equal(glowScale(0),0);assert.equal(glowScale(100),1);
 });
+test('glow masks respect camera layers so native text cannot be retinted by graph bloom',()=>{
+ const scene=new T.Scene(),camera=new T.PerspectiveCamera(),group=new T.Group(),body=new T.Mesh(new T.PlaneGeometry(),new T.MeshBasicMaterial()),text=new T.Mesh(new T.PlaneGeometry(),new T.MeshBasicMaterial());text.layers.set(2);group.userData.glowIntensity=1;group.add(body,text);scene.add(group);const normal=body.material,ink=text.material,glow=new SceneGlow(scene,camera,4),read=new T.WebGLRenderTarget(1,1),gpu=renderer();let checked=false;
+ gpu.render=drawScene=>{if(drawScene===scene){checked=true;assert.notEqual(body.material,normal);assert.equal(text.material,ink);}};
+ try{glow.render(gpu,read,read,0);assert.equal(checked,true);assert.equal(body.material,normal);assert.equal(text.material,ink);}finally{glow.dispose();read.dispose();body.geometry.dispose();text.geometry.dispose();normal.dispose();ink.dispose();}
+});

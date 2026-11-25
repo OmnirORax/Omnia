@@ -1,5 +1,5 @@
 import {VIEW_CLOSE,VIEW_GEOMETRY} from './viewHistory.ts';
-import {windowDrag} from './windowDrag';
+import {windowDrag} from './windowDrag.ts';
 import {registerWindow} from './windowDismissal.ts';
 import {universalHistory} from '../core/universalHistory.ts';
 let panelSequence=0;
@@ -12,6 +12,7 @@ export function panel(title: string, onClose?: () => void | boolean, placement:'
   const point = placement==='cursor'?openingPoint:undefined;
   const root = document.createElement('section'); root.className = 'panel'; root.setAttribute('role', 'dialog'); root.setAttribute('aria-label', title);
   root.dataset.inputOwner = '';
+  root.addEventListener('scroll',()=>root.style.setProperty('--panel-scroll-y',`${root.scrollTop}px`),{passive:true});
   const heading = document.createElement('header'), caption = document.createElement('span'), body = document.createElement('div');
   if(chrome==='edge'){root.classList.add('edge-panel');heading.classList.add('panel-edge');}
   const titleText=document.createTextNode(title),titleDetail=document.createTextNode('');caption.append(titleText,titleDetail); body.className = 'panel-body';

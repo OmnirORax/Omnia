@@ -1,0 +1,9 @@
+import {PALETTE_COLOR_LIMIT} from './colorRelations.ts';
+export type ImageField={width:number;height:number;cells:readonly number[]};
+export function validImageField(value:unknown,colors:number):value is ImageField{const f=value as ImageField;return !!f&&typeof f==='object'&&Number.isInteger(f.width)&&f.width>0&&Number.isInteger(f.height)&&f.height>0&&f.width*f.height<=4096&&Array.isArray(f.cells)&&f.cells.length===f.width*f.height&&f.cells.every(n=>Number.isInteger(n)&&n>=0&&n<colors&&n<PALETTE_COLOR_LIMIT);}
+/** Exact largest-remainder shares; even a small included family retains one sample. */
+export function fieldQuotas(weights:readonly number[],size:number){const sum=weights.reduce((a,b)=>a+b,0),raw=weights.map(w=>w/sum*size),counts=raw.map(n=>Math.max(1,Math.floor(n)));let delta=size-counts.reduce((a,b)=>a+b,0);while(delta){let best=-Infinity,pick=-1;for(let i=0;i<counts.length;i++){if(delta<0&&counts[i]<=1)continue;const score=delta>0?raw[i]-counts[i]:counts[i]-raw[i];if(score>best){best=score;pick=i;}}if(pick<0)break;const step=delta>0?1:-1;counts[pick]+=step;delta-=step;}return counts;}
+
+/** One index field supplies both ink and emission. Inverse offsets it while retaining its spatial structure. */
+const inverses=new WeakMap<ImageField,ImageField>();
+export function inverseField(field:ImageField){const found=inverses.get(field);if(found)return found;const {width:w,height:h,cells}=field;let best=Infinity,dx=0,dy=0;for(const sy of new Set([0,1%h,Math.floor(h/4),Math.floor(h/2),Math.floor(h*3/4)]))for(const sx of new Set([0,1%w,Math.floor(w/4),Math.floor(w/2),Math.floor(w*3/4)])){let overlap=0;for(let j=0;j<h;j++)for(let i=0;i<w;i++)overlap+=Number(cells[j*w+i]===cells[(j+sy)%h*w+(i+sx)%w]);if(overlap<best){best=overlap;dx=sx;dy=sy;}}const result={width:w,height:h,cells:cells.map((_,at)=>cells[(Math.floor(at/w)+dy)%h*w+(at%w+dx)%w])};inverses.set(field,result);return result;}

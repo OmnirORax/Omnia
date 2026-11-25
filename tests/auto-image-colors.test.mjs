@@ -1,0 +1,111 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {createAutoColors,configureAutoColors} from '../src/scene/autoColors.ts';
+import {imageColorCombo,imageTextPalette} from '../src/scene/colorCombo.ts';
+import {colorHue,paletteRGB} from '../src/scene/palette.ts';
+import {createStore} from '../src/core/store.ts';import {readPaint,writePaint,paintPreview} from '../src/core/appearance.ts';import {validateWorld,addStructure} from '../src/core/model.ts';
+const sample=[];for(let i=0;i<700;i++)sample.push(20,40,180,255);for(let i=0;i<150;i++)sample.push(255,130,30,255);for(let i=0;i<150;i++)sample.push(160,40,220,255);const pixels=new Uint8ClampedArray(sample);
+test('image text, glow and nodes share the defining accent family',()=>{const combo=imageColorCombo(pixels),h=colorHue(paletteRGB(combo.text)),g=colorHue(paletteRGB(combo.textGlow)),n=colorHue(paletteRGB(combo.node));assert.ok(Math.abs(h-g)<1);assert.ok(Math.abs(h-n)<1);});
+function fixture(sample=async()=>pixels){const store=createStore({getItem:()=>null,setItem(){}}),errors=[];let calls=0;const controller=createAutoColors({read:()=>store.world,change:edit=>store.change(edit),sample:async id=>{calls++;return sample(id);},error:error=>errors.push(error)});store.subscribe(controller.update);return {store,controller,errors,calls:()=>calls};}
+test('auto follows image changes, preserves manual channels/strengths and can restore automatic colors',async()=>{const f=fixture(),{store,controller}=f;
+ store.change(world=>configureAutoColors(world,undefined,true));await controller.settle();assert.equal(f.calls(),1);const glow=readPaint(store.world,'text').glow;
+ store.change(world=>writePaint(world,'text',[],{color:'#abcdef'}));await controller.settle();store.change(world=>{world.scene.image='new-image';});await controller.settle();assert.equal(f.calls(),2);assert.equal(readPaint(store.world,'text').color,'#abcdef');assert.equal(readPaint(store.world,'text').glow,glow);
+ store.change(world=>configureAutoColors(world,undefined,true,true));await controller.settle();assert.notEqual(readPaint(store.world,'text').color,'#abcdef');assert.equal(f.calls(),2);validateWorld(JSON.parse(JSON.stringify(store.world)));controller.dispose();});
+test('turning auto off discards pending analysis and never overwrites colors',async()=>{let done;const f=fixture(()=>new Promise(resolve=>done=resolve));f.store.change(world=>configureAutoColors(world,undefined,true));await new Promise(resolve=>setImmediate(resolve));f.store.change(world=>configureAutoColors(world,undefined,false));const before=f.store.world;done(pixels);await f.controller.settle();assert.equal(f.store.world,before);f.controller.dispose();});
+test('selected image rules affect their node only and preserve unrelated settings',async()=>{const f=fixture();let origin,other;f.store.change(world=>{origin=addStructure(world,[0,0,0],1).origin;other=addStructure(world,[8,0,0],2).origin;configureAutoColors(world,origin,true);});const before=readPaint(f.store.world,'nodes',other);await f.controller.settle();assert.deepEqual(readPaint(f.store.world,'nodes',other),before);assert.notEqual(readPaint(f.store.world,'nodeText',origin).color,readPaint(f.store.world,'text').color);f.controller.dispose();});
+
+test('manual hover previews do not mark the authored rule as overridden',()=>{const store=createStore({getItem:()=>null,setItem(){}});store.change(world=>configureAutoColors(world,undefined,true));const preview=paintPreview(store.world,'text',[],{color:'#123456'});assert.deepEqual(store.world.appearance.imageColors.default.manual,[]);assert.deepEqual(preview.appearance.imageColors.default.manual,['text']);});
+test('a smaller high-contrast accent can lead without majority coverage',()=>{const extra=new Uint8ClampedArray([...pixels,...Array.from({length:50},()=>[255,20,30,255]).flat()]),combo=imageColorCombo(extra);assert.ok(combo.textWeights[0]<.5);assert.equal(combo.node,combo.textGlow);});
+test('bright backgrounds retain source saturation and linked pale ink',()=>{
+ const sample=[];for(let i=0;i<900;i++)sample.push(250,250,250,255);for(let i=0;i<50;i++)sample.push(200,150,120,255);for(let i=0;i<50;i++)sample.push(140,120,210,255);
+ const combo=imageColorCombo(new Uint8ClampedArray(sample));for(const [role,color]of ['text','textGlow','node','nodeGlow'].map(role=>[role,combo[role]])){const rgb=paletteRGB(color),hi=Math.max(...rgb),lo=Math.min(...rgb);assert.ok(hi>=250);if(role==='text'){const glow=paletteRGB(combo.textGlow);for(let i=0;i<3;i++)assert.ok(Math.abs(rgb[i]-(255*(1-combo.textStrength)+glow[i]*combo.textStrength))<=1);}}
+});
+test('neutral-only images may still produce neutral ink',()=>{const combo=imageColorCombo(new Uint8ClampedArray([240,240,240,255,40,40,40,255]));for(const color of ['text','textGlow','node','nodeGlow'].map(role=>combo[role])){const rgb=paletteRGB(color);assert.equal(rgb[0],rgb[1]);assert.equal(rgb[1],rgb[2]);}});
+test('global automatic text reaches documents with older local white paint, while subsequent manual edits remain local',async()=>{const f=fixture();let origin;f.store.change(world=>{origin=addStructure(world,[0,0,0],1).origin;writePaint(world,'nodeText',[origin],{color:'#fff0df',glowColor:'#ffffff',font:'serif'});configureAutoColors(world,undefined,true);});await f.controller.settle();assert.equal(readPaint(f.store.world,'nodeText',origin).color,readPaint(f.store.world,'text').color);assert.equal(readPaint(f.store.world,'nodeText',origin).glowColor,readPaint(f.store.world,'text').glowColor);assert.equal(readPaint(f.store.world,'nodeText',origin).font,'serif');f.store.change(world=>writePaint(world,'nodeText',[origin],{color:'#aabbcc'}));f.store.change(world=>{world.scene.image='another';});await f.controller.settle();assert.equal(readPaint(f.store.world,'nodeText',origin).color,'#aabbcc');assert.equal(readPaint(f.store.world,'nodeText',origin).glowColor,readPaint(f.store.world,'text').glowColor);f.controller.dispose();});
+test('explicit parent text edits still inherit into variants while global Auto is enabled',async()=>{const {childNode}=await import('../src/core/nodeOperations.ts'),f=fixture();let origin,variant;f.store.change(world=>{origin=addStructure(world,[0,0,0],1).origin;variant=childNode(world,origin,true).origin;configureAutoColors(world,undefined,true);});await f.controller.settle();f.store.change(world=>writePaint(world,'nodeText',[origin],{color:'#33aa55'}));assert.equal(readPaint(f.store.world,'nodeText',variant).color,'#33aa55');assert.equal(readPaint(f.store.world,'nodeText',variant).glowColor,readPaint(f.store.world,'text').glowColor);f.controller.dispose();});
+
+test('each pale stop remains linked to its glow without forcing glow saturation',async()=>{
+ const {extractScenePalette}=await import('../src/scene/palette.ts');const palette=imageTextPalette(extractScenePalette(pixels));assert.ok(palette.length>=1);
+ for(const stop of palette){const ink=paletteRGB(stop.text),glow=paletteRGB(stop.textGlow);assert.equal(Math.max(...ink),255);assert.ok(Math.max(...glow)<=255);for(let i=0;i<3;i++)assert.ok(Math.abs(ink[i]-(255*.75+glow[i]*.25))<=1);}
+});
+test('pattern changes reuse analysis, persist settings, and do not change colors between nodes',async()=>{
+ const f=fixture();let a,b;f.store.change(world=>{a=addStructure(world,[0,0,0],1).origin;b=addStructure(world,[10,0,0],2).origin;configureAutoColors(world,undefined,true,false,{pattern:'bands',layout:'radial',spread:'repeat'});});await f.controller.settle();assert.equal(f.calls(),1);assert.deepEqual(readPaint(f.store.world,'nodeText',a),readPaint(f.store.world,'nodeText',b));assert.equal(readPaint(f.store.world,'text').palette.pattern,'bands');
+ f.store.change(world=>configureAutoColors(world,undefined,true,false,{pattern:'generated',seed:42}));await f.controller.settle();assert.equal(f.calls(),1);assert.equal(readPaint(f.store.world,'text').palette.seed,42);const settled=f.store.world;f.controller.update();await f.controller.settle();assert.equal(f.store.world,settled);const saved=JSON.parse(JSON.stringify(settled));validateWorld(saved);assert.equal(saved.appearance.text.palette.layout,'radial');f.controller.dispose();
+});
+test('limited motifs preserve rare vivid accents and meaningful bright neutrals',()=>{
+ const source=[];for(const [count,rgb]of [[880,[15,70,220]],[70,[235,235,235]],[45,[240,120,25]],[5,[20,240,20]]])for(let i=0;i<count;i++)source.push(...rgb,255);
+ const combo=imageColorCombo(new Uint8ClampedArray(source));assert.ok(combo.textPalette.length>=2);assert.ok(combo.textPalette.includes('#ffffff'));assert.ok(combo.textPalette.some(c=>{const rgb=paletteRGB(c);return rgb[1]>rgb[0]&&rgb[1]>rgb[2];}));assert.ok(combo.textWeights[0]<.5,'attention ranking is independent of majority coverage');assert.ok(combo.textWeights.every(w=>w>0&&w<=1));
+});
+function scene(parts){return new Uint8ClampedArray(parts.flatMap(([count,rgb])=>Array.from({length:count},()=>[...rgb,255]).flat()));}
+test('saturated red details define a dark motif instead of amplifying blue-grey scenery',()=>{
+ const combo=imageColorCombo(scene([[850,[40,45,55]],[100,[10,10,10]],[50,[255,0,0]]]));assert.equal(combo.textGlow,'#ff0000');assert.ok(!combo.textPalette.some(c=>{const rgb=paletteRGB(c);return rgb[2]>rgb[0];}));assert.ok(combo.textWeights[0]<.5);
+});
+test('small vivid green lighting can define a motif over broad muted warm and cool tints',()=>{
+ const combo=imageColorCombo(scene([[550,[130,110,110]],[360,[80,100,110]],[60,[240,240,240]],[30,[0,255,90]]]));assert.ok(combo.textPalette.includes('#ffffff'));const rgb=paletteRGB(combo.textGlow);assert.equal(rgb[1],255);assert.equal(rgb[0],0);assert.ok(rgb[2]<150);
+});
+test('equally recurring multicolor regions remain motif members',()=>{
+ const colors=[[150,0,255],[255,0,180],[0,200,255]],width=60,height=30,pixels=new Uint8ClampedArray(width*height*4);for(let y=0;y<height;y++)for(let x=0;x<width;x++)pixels.set([...colors[(Math.floor(x/5)+Math.floor(y/5))%3],255],(y*width+x)*4);
+ const combo=imageColorCombo({pixels,width,height});assert.equal(combo.textPalette.length,3);assert.ok(combo.textWeights.every(w=>Math.abs(w-1/3)<.01));
+});
+test('match and ink constraints resolve from cached analysis and preserve manual channel deltas',async()=>{
+ const f=fixture();f.store.change(w=>configureAutoColors(w,undefined,true,false,{match:'dark',ink:'color'}));await f.controller.settle();let p=readPaint(f.store.world,'text');assert.ok(!p.palette.colors.includes('#000000'));assert.equal(p.palette.strength,1);f.store.change(w=>configureAutoColors(w,undefined,true,false,{match:'light',ink:'pale'}));await f.controller.settle();assert.equal(f.calls(),1);assert.equal(readPaint(f.store.world,'text').palette.distribution,'image');assert.equal(readPaint(f.store.world,'text').palette.strength,.25);f.store.change(w=>writePaint(w,'text',[],{color:'#112233'}));f.store.change(w=>configureAutoColors(w,undefined,true,false,{match:'motif',ink:'color'}));await f.controller.settle();assert.equal(readPaint(f.store.world,'text').color,'#112233');assert.equal(readPaint(f.store.world,'text').palette,undefined);f.controller.dispose();
+});
+test('muted purple scenery is not inflated into pure blue, and colored ink clears sampled contrast',async()=>{
+ const {matchedImageColors}=await import('../src/scene/colorCombo.ts'),{colorLuminance}=await import('../src/scene/palette.ts'),combo=matchedImageColors(imageColorCombo(scene([[850,[90,70,140]],[150,[255,60,180]]])),{ink:'color'}),background=colorLuminance([90,70,140]);assert.ok(!combo.textPalette.includes('#0000ff'));assert.ok(!combo.textPalette.includes('#000000'));assert.equal(combo.textStrength,1);for(const c of imageTextPalette(combo.source,{ink:'color'})){const contrast=(colorLuminance(paletteRGB(c.text))+.05)/(background+.05);assert.ok(contrast>=4.45);}
+});
+test('motif complexity admits a fourth rare vivid accent but does not amplify a weak tint',()=>{
+ const colors=scene([[400,[255,40,40]],[350,[30,80,255]],[248,[255,190,20]],[2,[20,255,100]]]),rare=imageColorCombo(colors);assert.ok(rare.textPalette.some(c=>{const [r,g,b]=paletteRGB(c);return g>r*2&&g>b;}));assert.ok(rare.textWeights[0]<.01);
+ const weak=imageColorCombo(scene([[400,[255,40,40]],[350,[30,80,255]],[248,[255,190,20]],[2,[100,110,100]]]));assert.ok(!weak.textPalette.some(c=>{const [r,g,b]=paletteRGB(c);return g>r&&g>b;}));
+});
+test('black is restored for a cyan/white motif with dark forms and a bright backdrop',async()=>{
+ const {matchedImageColors}=await import('../src/scene/colorCombo.ts'),{textPalettePair}=await import('../src/properties/textPalette.ts'),input=scene([[450,[15,12,24]],[450,[210,225,240]],[100,[0,210,255]]]),combo=matchedImageColors(imageColorCombo(input),{ink:'color'});assert.equal(combo.textDarkSupport,true);assert.ok(combo.textPalette.includes('#000000'));assert.ok(combo.textPalette.includes('#ffffff'));assert.equal(combo.textStrength,1);const p={mode:'text',colors:combo.textPalette,weights:combo.textWeights,ink:'color',strength:combo.textStrength};assert.ok(combo.textPalette.includes(textPalettePair(p,1).glowColor));
+ const f=fixture(async()=>input);f.store.change(w=>configureAutoColors(w,undefined,true,false,{ink:'color'}));await f.controller.settle();assert.equal(readPaint(f.store.world,'text').palette.darkSupport,true);validateWorld(JSON.parse(JSON.stringify(f.store.world)));f.controller.dispose();
+});
+test('warm sparks remain a visible saturated motif alongside a dominant blue scene',async()=>{
+ const {matchedImageColors}=await import('../src/scene/colorCombo.ts'),source=imageColorCombo(scene([[850,[15,35,150]],[100,[255,180,80]],[50,[245,245,245]]]));for(const match of ['motif','light','dark']){const combo=matchedImageColors(source,{match,ink:'color'}),warm=combo.textPalette.findIndex(c=>{const [r,g,b]=paletteRGB(c);return r>g&&g>b&&r-b>120;});assert.ok(warm>=0);assert.ok(combo.textWeights[warm]>.1);const rgb=paletteRGB(combo.textPalette[warm]);assert.ok((Math.max(...rgb)-Math.min(...rgb))/255>.65);}
+});
+test('dark green foliage is retained beside vivid sky instead of losing to brightness alone',async()=>{
+ const {matchedImageColors}=await import('../src/scene/colorCombo.ts'),source=imageColorCombo(scene([[700,[15,95,240]],[150,[35,90,15]],[150,[220,220,210]]]));const combo=matchedImageColors(source,{ink:'color',pattern:'generated',seed:42}),green=combo.textPalette.findIndex(c=>{const [r,g,b]=paletteRGB(c);return g>r&&g>b;});assert.ok(green>=0);assert.ok(combo.textWeights[green]>.1);
+});
+
+test('Image pixels survives saving and tracks the Auto image colors toggle',async()=>{
+ const {setThemeFocus}=await import('../src/scene/themeControls.ts');
+ const {controller,store,calls}=fixture();
+ store.change(world=>setThemeFocus(world,undefined,{distribution:'pixels',ink:'pale',fillOpacity:.5}));
+ await controller.settle();
+ const saved=JSON.parse(JSON.stringify(store.world));
+ validateWorld(saved);
+ assert.equal(readPaint(saved,'text').palette.distribution,'pixels');
+ assert.equal(readPaint(saved,'text').palette.strength,.25);
+ assert.equal(readPaint(saved,'text').palette.fillOpacity,.5);
+ store.change(world=>configureAutoColors(world,undefined,false));
+ await controller.settle();
+ assert.equal(readPaint(store.world,'text').palette.distribution,'balanced');
+ assert.equal(store.world.appearance.imageColors.default.palette.distribution,'pixels');
+ store.change(world=>configureAutoColors(world,undefined,true));
+ await controller.settle();
+ assert.equal(readPaint(store.world,'text').palette.distribution,'pixels');
+ assert.equal(calls(),1);
+ controller.dispose();
+});
+
+test('Image pixels keeps a chromatic node accent when black leads the enabled palette',async()=>{
+ const {matchedImageColors}=await import('../src/scene/colorCombo.ts');
+ const source=imageColorCombo(scene([[500,[0,0,0]],[500,[15,40,180]]]));
+ const settings={ink:'color',included:['#000000','#ff0000']};
+ const relations=matchedImageColors(source,{...settings,distribution:'image'});
+ const pixels=matchedImageColors(source,{...settings,distribution:'pixels'});
+ assert.equal(relations.node,'#000000');
+ assert.equal(pixels.node,'#ff0000');
+ assert.equal(pixels.nodeGlow,pixels.node);
+ assert.deepEqual(pixels.textPalette,relations.textPalette);
+ assert.equal(matchedImageColors(source,{...settings,distribution:'pixels',included:['#000000']}).node,'#000000');
+});
+
+test('Pale amount changes fill while keeping the same resolved image-pixel glow palette',()=>{
+ const source=imageColorCombo(scene([[900,[80,102,140]],[100,[110,20,28]]]));
+ const settings={ink:'pale',distribution:'pixels',saturation:1.5};
+ const plain=imageTextPalette(source.source,{...settings,paleAmount:0});
+ const pale=imageTextPalette(source.source,{...settings,paleAmount:.99});
+ assert.deepEqual(plain.map(entry=>entry.textGlow),pale.map(entry=>entry.textGlow));
+ assert.notDeepEqual(plain.map(entry=>entry.text),pale.map(entry=>entry.text));
+});

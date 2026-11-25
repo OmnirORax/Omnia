@@ -219,3 +219,31 @@ test('Ctrl+4 resolves words at multiple carets, deduplicates targets and maps Un
  e.run(undo);assert.equal(e.state.doc.toString(),'straße second');assert.deepEqual(e.state.selection.ranges.map(r=>r.head),[3,5,10]);
  const blank=editor(['  '],[[1,1]]);blank.run(uppercaseSelection);assert.equal(blank.state.doc.toString(),'  ');
 });
+
+test('Ctrl+3 lowercases existing capitals after sentence starts and preserves glyphs, prefixes and undo',()=>{
+ const original='kjhdsfkjahafd HUH aoisdfjaoijdf';
+ for(const selection of [[[0,original.length]],[[5,5]]]){const e=editor([original],selection);e.run(capitalizeSentence);assert.equal(e.state.doc.toString(),'Kjhdsfkjahafd huh aoisdfjaoijdf');e.run(undo);assert.equal(e.state.doc.toString(),original);}
+ const text='- [X] HELLO NASA. NEXT: LOUD! AGAIN? YES\n  + MIXED Case ',e=editor([text,glyph,' KEEP ME'],[[0,text.length+9]]);e.run(capitalizeSentence);
+ assert.deepEqual(e.text().content,['- [X] Hello nasa. Next: Loud! Again? Yes\n  + Mixed case ',glyph,' keep me']);e.run(undo);assert.deepEqual(e.text().content,[text,glyph,' KEEP ME']);
+ const partial=editor(['LEAVE ME / CHANGE THIS / ALSO LEAVE'],[[11,22]]);partial.run(capitalizeSentence);assert.equal(partial.state.doc.toString(),'LEAVE ME / Change this / ALSO LEAVE');
+});
+test('Ctrl+3 merges a row caret with a partial selection and handles Unicode case expansion',()=>{
+ const e=editor(['ßETA ΟΣ UPPER'],[[0,2],[8,8]]);e.run(capitalizeSentence);assert.equal(e.state.doc.toString(),'SSeta ος upper');e.run(undo);assert.equal(e.state.doc.toString(),'ßETA ΟΣ UPPER');
+});
+
+test('typed delimiters wrap selected rows, glyphs and reverse selections through the shared bracket owner',()=>{
+ const pairs=[['(',')'],['[',']'],['{','}'],['<','>'],['"','"'],["'","'"],['`','`'],['*','*'],['_','_'],['~','~'],['$','$'],['“','”'],['‘','’'],['«','»'],['‹','›'],['「','」'],['【','】'],['（','）'],['⟨','⟩']];
+ const text='sdofijafsdoij aisodfjapoijfd\nnext row';
+ for(const [open,close] of pairs)for(const reverse of [false,true]){
+  const e=editor([text,' ',glyph],reverse?[[text.length+2,0]]:[[0,text.length+2]]),before=e.text(),from=e.state.selection.main.from,to=e.state.selection.main.to;
+  const transaction=insertBracket(e.state,open);assert.ok(transaction,open);e.dispatch(transaction);
+  assert.deepEqual(e.text().content,[open+text+' ',glyph,close]);assert.equal(e.state.selection.main.from,from+open.length);assert.equal(e.state.selection.main.to,to+open.length);assert.equal(e.state.selection.main.anchor>e.state.selection.main.head,reverse);
+  e.dispatch(insertBracket(e.state,open));assert.deepEqual(e.text().content,[open+open+text+' ',glyph,close+close]);
+  e.run(undo);assert.deepEqual(e.text(),before);
+ }
+});
+test('delimiter wrapping works at multiple selections without changing unselected text or ordinary marker typing',()=>{
+ const e=editor(['one and two'],[[0,3],[8,11]]);e.dispatch(insertBracket(e.state,'*'));assert.equal(e.state.doc.toString(),'*one* and *two*');assert.deepEqual(e.state.selection.ranges.map(r=>e.state.sliceDoc(r.from,r.to)),['one','two']);
+ e.dispatch(insertBracket(e.state,'*'));assert.equal(e.state.doc.toString(),'**one** and **two**');
+ for(const marker of ['*','_','~','"',"'",'`','$','{','<']){const caret=editor(['word'],[[2,2]]);assert.equal(insertBracket(caret.state,marker),null);}
+});

@@ -15,7 +15,7 @@ export function HoverPreviewScope({children}:{children:ReactNode}){
   const down=(e:PointerEvent)=>{tail=false;if(!session.active())return;if(e.button!==0){session.cancel();return;}if(!session.capturesPress())return;
    const point=relative.sample(e);x=point.x;y=point.y;flush();if(session.commit()){tail=true;consume(e);}};
   const after=(e:Event)=>{if(!tail)return;consume(e);if(e.type==='click')tail=false;};
-  const stop=session.subscribe(()=>{cancelAnimationFrame(frame);frame=0;relative.stop();const input=session.relativeInput();if(input)relative.start(input.surface??document.body,input.origin);});
+  const stop=session.subscribe(()=>{cancelAnimationFrame(frame);frame=0;const input=session.relativeInput();if(input)relative.start(input.surface??document.body,input.origin);else relative.stop();});
   const cancel=()=>{cancelAnimationFrame(frame);frame=0;session.cancel();};
   const key=(e:KeyboardEvent)=>{if(e.key==='Escape'&&session.active()){cancel();consume(e);}};
   const stopMoves=relative.observeMove(move);window.addEventListener('pointerdown',down,true);window.addEventListener('keydown',key,true);window.addEventListener('blur',cancel);

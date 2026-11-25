@@ -123,3 +123,27 @@ test('retired brightness switch cannot change cached label or character ink or t
  assert.equal(mesh.material.map,texture);assert.equal(texture.version,version);assert.deepEqual(snapshot(),before);
  assert.equal(labelGeometryKey({fontSize:12}),labelGeometryKey({fontSize:24}));disposeLabel(mesh);
 });
+
+test('document and world adapters receive identical text and glow through the shared setter',async()=>{
+ const {setDOMTextPaint}=await import('../src/ui/appearance.ts'),{imageColorCombo}=await import('../src/scene/colorCombo.ts');
+ const combo=imageColorCombo(new Uint8ClampedArray([10,30,200,255,10,30,200,255,255,120,20,255,180,30,200,255]));
+ const mesh=label('Shared setter'),doc={color:'',fontFamily:'',textShadow:''},shader={uniforms:{},fragmentShader:'#include <map_fragment>\n#include <logdepthbuf_fragment>'};mesh.material.onBeforeCompile(shader,{});
+ try{for(const paint of [{color:combo.text,glowColor:combo.textGlow,glow:1.4,glowSpread:8},{color:'#22aa66',glow:1,glowSpread:3},{color:'#0044ff',glowColor:'#ff7700',glow:2,glowSpread:10},{}]){
+  const assigned=setDOMTextPaint(doc,paint);updateLabelPaint(mesh,paint);
+  assert.equal(mesh.material.color.getHexString(),doc.color.slice(1,7));assert.equal(shader.uniforms.glowInkColor.value.getHexString(),assigned.glowColor.slice(1));
+  assert.equal(mesh.userData.labelPaint.glow,assigned.glow);assert.equal(mesh.userData.labelPaint.glowSpread,assigned.glowSpread);
+  if(assigned.glow)assert.ok(doc.textShadow.includes(assigned.glowColor+'ff'));else assert.equal(doc.textShadow,'none');
+ }}finally{disposeLabel(mesh);}
+});
+
+test('spatial palette changes update shared shader uniforms without text rasterization or texture uploads',()=>{
+ const mesh=label('Gradient',{color:'#ffbfbf',glowColor:'#ff0000',glow:.5}),before=snapshot(),map=mesh.material.map,version=map.version;
+ updateLabelPaint(mesh,{color:'#ffbfbf',glowColor:'#ff0000',glow:.5,palette:{mode:'text',colors:['#ff0000','#0000ff','#00ff00']}});
+ const shader={uniforms:{},vertexShader:'',fragmentShader:'#include <map_fragment>'};mesh.material.onBeforeCompile(shader,{});assert.ok(shader.uniforms.textPaletteCount.value>3);assert.equal(shader.uniforms.textPaletteStops.value[0].x,1);assert.match(shader.fragmentShader,/paletteGlow\(vMapUv,coverage\)/);
+ assert.equal(mesh.material.map,map);assert.equal(map.version,version);assert.deepEqual(snapshot(),before);
+ updateLabelPaint(mesh,{color:'#ffbfbf',glow:.5});assert.equal(shader.uniforms.textPaletteCount.value,0);disposeLabel(mesh);
+});
+test('generated patterns share one GPU texture and release it after its final label owner',()=>{
+ const a=label('A'),b=label('B'),palette={mode:'text',colors:['#ff0000','#000000'],pattern:'generated',seed:42,ink:'color'};
+ updateLabelPaint(a,{palette});updateLabelPaint(b,{palette});const shader=mesh=>{const s={uniforms:{},vertexShader:'',fragmentShader:'#include <map_fragment>'};mesh.material.onBeforeCompile(s,{});return s;},sa=shader(a),sb=shader(b),texture=sa.uniforms.textPalettePattern.value;assert.equal(texture,sb.uniforms.textPalettePattern.value);assert.equal(sa.uniforms.textPaletteGenerated.value,1);assert.equal(sa.uniforms.textPaletteInk.value,1);let disposals=0;texture.addEventListener('dispose',()=>disposals++);disposeLabel(a);assert.equal(disposals,0);disposeLabel(b);assert.equal(disposals,1);
+});

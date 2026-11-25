@@ -1,3 +1,6 @@
+import {colorInclusionPanel} from './scene/colorInclusions.ts';
+import {THEME_COLORS_SHORTCUT} from './scene/themeShortcuts.ts';
+import {createAutoColors} from './scene/autoColors.ts';
 import {selectedDocumentText} from './text/export.ts';
 import {bindColorSession} from './ui/colorSession.ts';
 import {SYSTEM_MESSAGE} from './ui/systemMessage.ts';
@@ -46,7 +49,7 @@ import {createDraftSync,type Marker} from './cloud/sync.ts';
 import {createDraftClient} from './cloud/client.ts';
 import {panel} from './ui/panel.ts';
 import {readPaint,writePaint,resolveNodeSettings,type VisualTarget} from './core/appearance.ts';
-import {visualProperties,type Paint} from './properties/visual.ts';
+import {visualProperties,type Paint,type PaintField} from './properties/visual.ts';
 import vfxFunction from './scene/vfx.function.ts';
 import {definitions as audioDefinitions} from './scene/audioControls.ts';
 import {defaultScene} from './scene/state.ts';
@@ -70,7 +73,10 @@ import { field } from './ui/fields.ts';
 import { liveForm,flushLiveForms } from './ui/liveForm.ts';
 
 try{shortcuts.initialize(localStorage);}catch{/* Session-only bindings when storage is unavailable. */}
+// An active numeric session gets its inputs before scene and shortcut routing.
+installValueDrag();
 installPointerBindings(()=>view?.inputContext==='rotate'?'world':view?.inputContext??'world');
+const themeShortcutBinding=()=>shortcuts.get(THEME_COLORS_SHORTCUT);
 const hierarchyCommands=createHeldCommands(releaseShortcuts,()=>[
  {binding:worldBinding('V'),run:command=>attempt(()=>view?.toggleHierarchy(command==='next',true))},
  {binding:worldBinding('Shift+V'),run:command=>attempt(()=>view?.toggleHierarchy(command==='next',false,true))},
@@ -81,6 +87,7 @@ installReleaseShortcuts(event=>{
  if(matchesShortcut(event,worldBinding('Ctrl+S')))return true;
  if(event.target instanceof Element&&event.target.closest('button,a[href]')&&(event.key==='Enter'||event.key===' '))return false;
  const element=event.target instanceof Element?event.target:undefined,editor=element?.closest('.cm-editor'),typing=element?.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"]),[role="textbox"]');
+ if(matchesShortcut(event,themeShortcutBinding())&&(!typing||element?.closest('.theme-color-inclusions')||/^F\d+$/.test(event.key)||event.ctrlKey||event.metaKey||event.altKey))return true;
  if(element?.closest('input,textarea,select')||typing&&!editor)return matchesShortcut(event,worldBinding('Esc'));
  if(editor&&(event.ctrlKey||event.metaKey)&&!event.altKey&&/^[cxv]$/i.test(event.key))return false;
  if(editor&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&/^(Arrow|Home|End|Page)/.test(event.key))return false;
@@ -93,14 +100,15 @@ installReleaseShortcuts(event=>{
  if(omnic&&!typing&&event.key.length===1&&event.key!==' ')return true;
  const keys=[...(!editor&&!omnic?worldShortcutActions(true).map(action=>({key:action.key??'',category:'Omnium' as const})):[]),...assignedShortcuts().filter(action=>editor?action.context==='Document':omnic?action.context==='Omnic':action.context==='Omnium').map(action=>({key:action.key,category:action.context==='Document'?'Document' as const:'Omnium' as const})),...(!editor?['V','Esc','.','F11','Ctrl+Z','Ctrl+Y','Ctrl+Shift+Z','Enter']:['F11']).map(key=>({key:worldBinding(key),category:'Omnium' as const}))];
  return keys.some(action=>matchesShortcut(event,action.key,action.category));
-},event=>{const chord=hierarchyCommands.match(event);return chord?[chord.prefix]:[];},event=>{const chord=hierarchyCommands.match(event);if(chord)return {release:chord.run,cancel:()=>{}};const element=event.target instanceof Element?event.target:undefined;if(!matchesShortcut(event,originShortcutBinding())||element?.closest('input,textarea,select,[contenteditable],[data-input-owner],.cm-editor')||element&&shortcutContextFor(element)==='Omnic')return;return view?.beginOriginSet()??{release:()=>feedback('Point inside the world to set its origin.'),cancel:()=>{}};});
+},event=>{const chord=hierarchyCommands.match(event);return chord?[chord.prefix]:[];},event=>{const chord=hierarchyCommands.match(event);if(chord)return {release:chord.run,cancel:()=>{}};if(matchesShortcut(event,themeShortcutBinding()))return {release:()=>openThemeInclusions(),cancel:()=>{}};const element=event.target instanceof Element?event.target:undefined;if(!matchesShortcut(event,originShortcutBinding())||element?.closest('input,textarea,select,[contenteditable],[data-input-owner],.cm-editor')||element&&shortcutContextFor(element)==='Omnic')return;return view?.beginOriginSet()??{release:()=>feedback('Point inside the world to set its origin.'),cancel:()=>{}};});
 installShortcutCapture();
 installPrimaryClickGate();
 installBrowserShortcutGuard();
-installValueDrag();
 installCursorTracking();
 const element = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const tools = element('tools'), status = element('status'), search = document.createElement('input');
+type NodeSearchScope='names'|'documents';
+let nodeSearchScope:NodeSearchScope='names';
 search.id='find';search.type='search';search.placeholder='Find nodes…';search.setAttribute('aria-label','Find nodes');search.autocomplete='off';
 type Target = Origin | Edge;
 const isNode = (target: Target): target is Origin => 'born' in target;
@@ -166,15 +174,17 @@ const view = (() => {
 })();
 
 function previewPaint(target:VisualTarget,origins:readonly Origin[],patch?:Paint){
- const candidate=view?.previewPaint(target,origins,patch)??store.world;updateUIAppearance(candidate.appearance);
- for(const document of documents.values())document?.previewAppearance(candidate);
+ showAppearancePreview(view?.previewPaint(target,origins,patch)??store.world);
+}
+function showAppearancePreview(candidate:World){
+ updateUIAppearance(candidate.appearance);for(const document of documents.values())document?.previewAppearance(candidate);
 }
 function refresh(reason?:'document') {
   refreshContextActions();
   requestFormSync();
   updateUIAppearance(store.world.appearance);
   for (const document of documents.values()) document?.refreshAppearance();
-  const query = search.value.trim().toLocaleLowerCase();
+  const query = nodeSearchScope==='names'?search.value.trim().toLocaleLowerCase():'';
   const atlas=visibleInAtlas(store.world);
   shown = query ? new Set(store.world.nodes.filter(node => node.label.toLocaleLowerCase().includes(query)).map(node => key(node.origin))) : atlas;
   if(atlas&&shown)shown=new Set([...shown].filter(id=>atlas.has(id)));
@@ -410,7 +420,7 @@ function searchSettingsEntries(){
   let nodeWorld=store.world,nodeCapabilities=selected?capabilities(resolveNodeSettings(store.world,inherited(selected,store.world))):[];
   const readNode=(key:string,index:number)=>{if(nodeWorld!==store.world){nodeWorld=store.world;const node=locate(nodeWorld,origins[0]);nodeCapabilities=node?capabilities(resolveNodeSettings(nodeWorld,inherited(node,nodeWorld))):[];}return nodeCapabilities.find(c=>c.key===key)?.properties[index].read();};
   const nodeEntries=selected?nodeCapabilities.flatMap(capability=>capability.properties.map((binding,index)=>({label:`${capability.label} · ${binding.property.label}`,keywords:'selected node',definition:binding.property,read:()=>readNode(capability.key,index),write:(world:World,value:string|number|boolean)=>{if(capability.key==='move'){const first=locate(world,origins[0]);if(first){const delta:Vec3=[0,0,0];delta[index]=Number(value)-first.position[index];translate(world,origins,delta);}return;}for(const origin of origins){const node=locate(world,origin);if(!node)continue;const target=capabilities(node).find(item=>item.key===capability.key);if(!target)continue;target.properties[index].write(String(value));if(node.variantOf)node.overrides=[...new Set([...(node.overrides??[]),binding.property.key])];}}}))):[];
-  const visualEntries=(['nodeDefaults','text','background',...(origins.length?['nodeText' as const,'nodes' as const]:[])] as const).flatMap(target=>(target==='nodeDefaults'||target==='nodes'?NODE_VISUAL_PROPERTIES.map(p=>({...p,key:p.id})):visualProperties(target==='text'||target==='nodeText',readPaint(store.world,target,origins[0]))).map(definition=>({label:`${target} · ${definition.label}`,keywords:`eye appearance visuals ${target==='nodeDefaults'?'global nodes sphere body':''}`,definition,preview:(value:Value|undefined)=>previewPaint(target,origins,value===undefined?undefined:{[definition.key]:value}),read:()=>readPaint(store.world,target,origins[0])[definition.key as keyof Paint]!,write:(world:World,value:string|number|boolean)=>writePaint(world,target,origins,{[definition.key]:value})})));
+  const visualEntries=(['nodeDefaults','text','background',...(origins.length?['nodeText' as const,'nodes' as const]:[])] as const).flatMap(target=>(target==='nodeDefaults'||target==='nodes'?NODE_VISUAL_PROPERTIES.map(p=>({...p,key:p.id})):visualProperties(target==='text'||target==='nodeText',readPaint(store.world,target,origins[0]))).map(definition=>({label:`${target} · ${definition.label}`,keywords:`eye appearance visuals ${target==='nodeDefaults'?'global nodes sphere body':''}`,definition,preview:(value:Value|undefined)=>previewPaint(target,origins,value===undefined?undefined:{[definition.key]:value}),read:()=>readPaint(store.world,target,origins[0])[definition.key as PaintField]!,write:(world:World,value:string|number|boolean)=>writePaint(world,target,origins,{[definition.key]:value})})));
   const entries:SearchSetting[]=[
     ...nodeEntries,...visualEntries,
 
@@ -456,10 +466,11 @@ function openAccount(){void import('./backend/panel.ts').then(module=>module.ope
 function searchActions():SearchAction[]{return [
  {label:'Account / Cloud',keywords:'account login sign in sign out cloud permissions members',run:openAccount},
  ...['Score tracker','Questboard','Leaderboard'].map(tab=>({label:`♾️ · ${tab}`,keywords:`infinity ∞ metrics timer score quests stars leaderboard ${tab}`,run:()=>{void import('./metrics/panel.ts').then(module=>module.openInfinityPanel(tab,openAccount)).catch(error=>feedback(String(error)));}})),
+ {label:'Theme colors',keywords:'color inclusion picker palette hue macro micro',run:()=>openThemeInclusions()},
  {label:'Shortcuts',keywords:'keyboard shortcuts hotkeys keybindings controls bindings',run:openShortcuts},
  immersiveAction(),
  ...spaceActions(),
- ...SCENE_TABS.map(([tab,label])=>({label:`Scene · ${label}`,keywords:`scene ${tab} ${tab==='audio'?'system audio sound connect code import':tab==='image'?'wallpaper background import paste download library private cloud files upload':tab==='normalization'?'normalization correction thresholds':tab==='prompt'?'cloud generate generation history':''}`,run:()=>openScene(tab)})),
+ ...SCENE_TABS.map(([tab,label])=>({label:`Scene · ${label}`,keywords:`scene ${tab} ${tab==='audio'?'system audio sound connect code import':tab==='image'?'wallpaper background import paste download library private cloud files upload palette dominant theme colors':tab==='normalization'?'normalization correction thresholds':tab==='prompt'?'cloud generate generation history':''}`,run:()=>openScene(tab)})),
  ...VISUAL_TARGETS.map(([target,label])=>({label:`Visuals · ${label}`,keywords:`eye appearance visuals ${target==='nodeDefaults'?'global node sphere body':target==='text'?'font import typeface':target==='background'?'background ui surfaces':''}`,run:()=>openVisualSettings(target,[...selectedOrigins()],label),available:(target!=='nodes'&&target!=='nodeText')||!!selectedOrigins().length})),
  ...CAMERA_ACTIONS.map(([id,label])=>({label:`Camera · ${label}`,keywords:`camera navigation ${id}`,run:()=>view?.camera(id)})),
  {label:'Workspace · import / export / restore',keywords:'workspace file json backup download upload everything cloud private shared draft save load',run:openWorkspace},
@@ -474,6 +485,7 @@ function searchActions():SearchAction[]{return [
  {label:'Redo',keywords:'redo history mb5 ctrl y control y',run:()=>travelHistory('redo')},
  {label:'Create structure',key:'W',keywords:'add new node structure',run:()=>view?.toggleCreation(),available:!!view},
  {label:'Document',key:'D',keywords:'node document text notes writing',run:openDocument,available:!!selectedOrigins().length},
+ {label:'Find in node documents',key:'Ctrl+S',keywords:'search world text content notes',run:()=>openNodeSearch('documents')},
  {label:'Composition',keywords:'node parts include references invariants',run:parts,available:!!selectedOrigins().length},
  {label:'Node tools',keywords:'node child parent copy variants attach detach hide connect remove',run:nodeTools,available:!!selectedOrigins().length},
  {label:'Node visual',keywords:'import image svg glb character object mesh show text size',run:visuals,available:!!selectedOrigins().length},
@@ -500,18 +512,56 @@ function searchRenderer(results:HTMLElement){
 const searchSettings=defineMenu('search',()=>{
  const results=document.createElement('div');results.className='settings-search-results';const render=searchRenderer(results),input=open('Search',render,true);tools.append(results);if(input.value)render(input.value);input.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();results.querySelector<HTMLElement>('input,select,button:not(:disabled)')?.focus();}});positionMenu();input.focus();
 },true);
-let nodeSearchView:ReturnType<typeof panel>|undefined;
-const createNodeSearch=viewHistory.defineWindow('nodeSearch',()=>{
- const window=panel('Find nodes',()=>{search.value='';nodeSearchView=undefined;refresh();});
- nodeSearchView=window;window.root.classList.add('node-search-panel');window.body.append(search);
+let nodeSearchView:(ReturnType<typeof panel>&{setScope:(scope:NodeSearchScope)=>void;searchDocuments:()=>void;openFirst:()=>void})|undefined;
+const createNodeSearch=viewHistory.defineWindow('nodeSearch',(initialScope:NodeSearchScope='names')=>{
+ let timer:ReturnType<typeof setTimeout>|undefined,revision=0;
+ const window=panel('Find nodes',()=>{
+  clearTimeout(timer);revision++;stop();search.value='';nodeSearchScope='names';nodeSearchView=undefined;refresh();
+ });
+ const fields=document.createElement('div'),scope=document.createElement('select'),results=document.createElement('div'),status=document.createElement('output');
+ fields.className='node-search-fields';scope.setAttribute('aria-label','Search scope');
+ scope.append(new Option('Names','names'),new Option('Documents','documents'));
+ results.className='node-search-results';status.hidden=true;
+ fields.append(search,scope);window.body.append(fields,results,status);window.root.classList.add('node-search-panel');
+ function searchDocuments(){
+  clearTimeout(timer);
+  const request=++revision,query=search.value.trim();
+  results.replaceChildren();status.hidden=true;
+  if(nodeSearchScope!=='documents'||!query)return;
+  timer=setTimeout(async()=>{
+   try{
+    const {searchNodeDocuments}=await import('./text/worldSearch.ts');
+    if(request!==revision)return;
+    const {matches,truncated}=searchNodeDocuments(store.world,query);
+    for(const {origin,label,snippet}of matches){
+     const button=document.createElement('button'),title=document.createElement('strong'),excerpt=document.createElement('span');
+     button.type='button';title.textContent=label;excerpt.textContent=snippet;button.append(title,excerpt);
+     button.onclick=()=>openDocument(origin,undefined,query);results.append(button);
+    }
+    status.textContent=truncated?`Showing the first ${matches.length} matching documents`:matches.length?'':'No matching documents';
+    status.hidden=!status.textContent;
+   }catch(error){if(request===revision)feedback(String(error));}
+  },120);
+ }
+ function setScope(next:NodeSearchScope){
+  nodeSearchScope=next;scope.value=next;
+  const label=next==='documents'?'Find in node documents':'Find nodes';
+  search.placeholder=`${label}…`;search.setAttribute('aria-label',label);
+  refresh();searchDocuments();
+ }
+ const stop=store.subscribe(()=>{if(nodeSearchScope==='documents'&&search.value.trim())searchDocuments();});
+ scope.onchange=()=>{setScope(scope.value==='documents'?'documents':'names');search.focus();};
+ nodeSearchView={...window,setScope,searchDocuments,openFirst:()=>results.querySelector('button')?.click()};
+ setScope(initialScope);
  requestAnimationFrame(()=>{if(search.isConnected){search.focus();search.select();}});
  return window;
 });
-function openNodeSearch(){
+function openNodeSearch(scope?:NodeSearchScope){
  view?.cancel();close();
- if(nodeSearchView?.root.isConnected){search.focus();search.select();return;}
- createNodeSearch();
+ if(nodeSearchView?.root.isConnected){if(scope&&scope!==nodeSearchScope)nodeSearchView.setScope(scope);search.focus();search.select();return;}
+ createNodeSearch(scope);
 }
+function clearNodeSearch(){search.value='';nodeSearchView?.searchDocuments();}
 window.addEventListener('keydown',event=>{
  if(capturingShortcut()||event.isComposing||event.defaultPrevented||!matchesShortcut(event,worldBinding('Ctrl+S')))return;
  event.preventDefault();event.stopImmediatePropagation();if(!event.repeat)runWorldAction(worldShortcutId('Ctrl+S'));
@@ -522,32 +572,42 @@ let workspaceView: ReturnType<typeof workspacePanel> | undefined;
 function openWorkspace(restore?:ViewSpec) {
   if(!viewHistory.performing){viewHistory.perform(()=>openWorkspace(restore));return;}
   renderClose(); if (workspaceView?.root.isConnected) { close();workspaceView.root.focus(); return; }
-  workspaceView = workspacePanel({ account:openAccount, omnic:()=>openComposer(),atlas:openLibrary,draft:draftControl, selected: () => selectedOrigins().map(origin => JSON.stringify(origin)), read: () => store.world, replace: world => { store.replace(world); selection.clear(); search.value = ''; refresh(); }, recover: () => { store.recover(); selection.clear(); search.value = ''; refresh(); }, beforeReplace: () => {
+  workspaceView = workspacePanel({ account:openAccount, omnic:()=>openComposer(),atlas:openLibrary,draft:draftControl, selected: () => selectedOrigins().map(origin => JSON.stringify(origin)), read: () => store.world, replace: world => { store.replace(world); selection.clear(); clearNodeSearch(); refresh(); }, recover: () => { store.recover(); selection.clear(); clearNodeSearch(); refresh(); }, beforeReplace: () => {
     for(const composer of composers.values())composer.close(); library?.close();
-    documentEpoch++; view?.cancel(); close(); selection.cancel(); sceneView?.close();
+    documentEpoch++; view?.cancel(); close(); selection.cancel(); sceneView?.close();colorInclusions?.close();
     for (const document of documents.values()) document?.close();
     if ([...documents.values()].some(document => document?.root.isConnected)) throw Error('An open document could not close. Preserve it before importing.');
   } });
   viewHistory.adopt('workspace',{kind:'workspace'},workspaceView,restore);
 }
+let colorInclusions:ReturnType<typeof colorInclusionPanel>|undefined;
+function themeTarget(){return colorInclusions?.root.isConnected?colorInclusions.origin:sceneView?.root.isConnected?sceneView.themeTarget():undefined;}
+function openThemeInclusions(restore?:ViewSpec){
+ if(!viewHistory.performing){viewHistory.perform(()=>openThemeInclusions(restore));return;}
+ if(colorInclusions?.root.isConnected&&!restore){colorInclusions.openPicker();return;}
+ const origin=restore?(restore.selection as Origin[]|undefined)?.[0]:themeTarget();colorInclusions?.close();view?.cancel();
+ colorInclusions=colorInclusionPanel({motifs:origin=>autoImageColors.motifs(store.world,origin),subscribeMotifs:autoImageColors.subscribe,read:()=>store.world,change:edit=>store.change(edit),subscribe:store.subscribe,feedback},origin);
+ colorInclusions.root.classList.add('theme-color-inclusions');viewHistory.adopt('themeColors',{kind:'themeColors',selection:origin?[origin]:[]},colorInclusions,restore);if(!restore)colorInclusions.openPicker();
+}
 let sceneView: ReturnType<typeof scenePanel> | undefined;
 function openScene(tab:SceneTab='image',restore?:ViewSpec) {
   if(!viewHistory.performing){viewHistory.perform(()=>openScene(tab,restore));return;}
   renderClose(); if (!view) return; sceneView?.close();
-  sceneView = scenePanel({account:openAccount, subscribe:store.subscribe, read: () => store.world, selected: ()=>restore?.selection as Origin[]??selectedOrigins(), change: (edit, group) => store.change(edit, group), preview: candidate => view.session.update(candidate, selectedOrigins()[0]), session: view.session, feedback },tab);
+  sceneView = scenePanel({motifs:origin=>autoImageColors.motifs(store.world,origin),subscribeMotifs:autoImageColors.subscribe,previewTheme:(origin,settings)=>previewPaint(origin?'nodeText':'text',origin?[origin]:[],settings?autoImageColors.preview(store.world,origin,settings):undefined),account:openAccount, subscribe:store.subscribe, read: () => store.world, selected: ()=>restore?.selection as Origin[]??selectedOrigins(), change: (edit, group) => store.change(edit, group), preview: candidate => view.session.update(candidate, selectedOrigins()[0]), session: view.session, feedback },tab);
   viewHistory.adopt('scene',{kind:'scene',args:[tab],selection:[...selectedOrigins()]},sceneView,restore);
 }
-const documents = new Map<string, ReturnType<typeof editDocument>>(), openingDocuments = new Set<string>();
+const documents = new Map<string, ReturnType<typeof editDocument>>(), openingDocuments = new Map<string,{query?:string}>();
 let documentEpoch = 0;
-function openDocument(requested?:Origin,restore?:ViewSpec) {
+function openDocument(requested?:Origin,restore?:ViewSpec,query?:string) {
   const origin = requested??selectedOrigins()[0]; if (!origin) return; renderClose();
   const id = key(origin), existing = documents.get(id);
-  if (existing?.root.isConnected) { close();existing.root.querySelector<HTMLElement>('.cm-content')?.focus(); return; }
-  if (openingDocuments.has(id)) return;
-  openingDocuments.add(id); const epoch = documentEpoch,actionId=universalHistory.currentActionId;
+  if (existing?.root.isConnected) { close();if(query)existing.revealSearchMatch(query);else existing.root.querySelector<HTMLElement>('.cm-content')?.focus();return; }
+  const pending=openingDocuments.get(id);
+  if(pending){if(query)pending.query=query;return;}
+  const opening={query};openingDocuments.set(id,opening);const epoch = documentEpoch,actionId=universalHistory.currentActionId;
   void loadEditor(()=>import('./text/editor.ts')).then(({ editDocument }) => {
     if (epoch !== documentEpoch || !locate(store.world, origin)||restore&&!viewHistory.wants(restore)) return;
-    viewHistory.perform(()=>{const document=editDocument(origin, () => store.world, text => store.changeDocument(origin,text,`document:${id}`), feedback, () => documents.delete(id));documents.set(id,document);if(document)viewHistory.adopt(`document:${id}`,{kind:'document',args:[origin]},document,restore);},actionId);
+    viewHistory.perform(()=>{const document=editDocument(origin, () => store.world, text => store.changeDocument(origin,text,`document:${id}`), feedback, () => documents.delete(id));documents.set(id,document);if(document){viewHistory.adopt(`document:${id}`,{kind:'document',args:[origin]},document,restore);if(opening.query)document.revealSearchMatch(opening.query);}},actionId);
   }).catch(error => {viewHistory.failed(restore,error);feedback(error instanceof Error ? error.message : String(error));}).finally(() => openingDocuments.delete(id));
 }
 
@@ -575,7 +635,7 @@ const openVisualSettings=defineMenu('visualSettings',(target:VisualTarget,origin
  if(target==='nodes'||target==='nodeDefaults'){
   const root=document.createElement('div');root.className='node-body-editor';tools.append(root);
   void loadEditor(()=>import('./ui/nodeVisuals.tsx')).then(({nodeVisualEditor})=>{if(!root.isConnected)return;disposeTools=nodeVisualEditor(root,{read:()=>store.world,subscribe:store.subscribe,change:store.change,error:feedback,preview:patch=>previewPaint(target,origins,patch)},target,origins);positionMenu();}).catch(error=>feedback(String(error)));
- }else tools.append(paintForm(target,origins,()=>store.world,(edit,group)=>store.change(edit,group),feedback,patch=>previewPaint(target,origins,patch)));positionMenu();
+ }else{const editor=paintForm(target,origins,()=>store.world,(edit,group)=>store.change(edit,group),feedback,patch=>previewPaint(target,origins,patch));tools.append(editor.root);disposeTools=editor.dispose;}positionMenu();
 });
 const appearance=defineMenu('appearance',()=>{
   open('👁');
@@ -611,7 +671,7 @@ const worldControls=defineMenu('world',()=>{
   const immersion=immersiveAction(),immersiveButton=button(immersion.label,immersion.run);immersiveButton.disabled=immersion.available===false;immersiveButton.dataset.immersiveMode='';
   button('History',openHistory);
   button('Camera & rotation',openNavigation);
-  button('Show all nodes', () => { store.change(world => { for (const node of world.nodes) {node.hidden=false;node.collapsed=false;} });search.value='';close();refresh(); });
+  button('Show all nodes', () => { store.change(world => { for (const node of world.nodes) {node.hidden=false;node.collapsed=false;} });clearNodeSearch();close();refresh(); });
   button('Fit all', () => { view?.focus(store.world.nodes.map(node => node.origin),true);close(); });positionMenu();
 });
 const visuals=defineMenu('visualAsset',()=>{
@@ -653,8 +713,12 @@ function travelHistory(direction:'undo'|'redo'){
   if(editing)field.blur();flushLiveForms();view?.cancel();selection.cancel();travelGlobalHistory(direction);
   if(editing&&field.isConnected)field.focus({preventScroll:true});refresh();
 }
-search.oninput = () => { close(); refresh(); };
-search.onkeydown = event => { if (event.key === 'Enter' && shown && !selection.requesting) { selection.set(store.world.nodes.filter(node => shown!.has(key(node.origin))).map(node => node.origin)); search.blur(); refresh(); } };
+search.oninput = () => { if(nodeSearchScope==='documents')nodeSearchView?.searchDocuments();else {close();refresh();} };
+search.onkeydown = event => {
+ if(event.key!=='Enter'||event.isComposing)return;
+ if(nodeSearchScope==='documents'){event.preventDefault();nodeSearchView?.openFirst();return;}
+ if(shown&&!selection.requesting){selection.set(store.world.nodes.filter(node=>shown!.has(key(node.origin))).map(node=>node.origin));search.blur();refresh();}
+};
 tools.addEventListener('contextmenu', event => { event.preventDefault(); event.stopPropagation(); });
 window.addEventListener('keydown',event=>{
   if(!matchesShortcut(event,worldBinding('Esc'))||event.defaultPrevented)return;
@@ -683,6 +747,7 @@ async function copySelectedDocuments(){
 function worldShortcutActions(includeUnavailable=false){return [
  ...spaceActions().filter(action=>includeUnavailable||action.available!==false).map(action=>({label:action.label,key:action.key,run:action.run})),
  {id:worldShortcutId('O'),label:'Set origin',gesture:undefined,key:'X',run:()=>view?.pickOrigin()},
+ {id:THEME_COLORS_SHORTCUT.id,label:THEME_COLORS_SHORTCUT.label,gesture:themeShortcutBinding()?`Hold ${themeShortcutBinding()} + MB4 / MB5`:undefined,key:THEME_COLORS_SHORTCUT.defaultKey,scope:THEME_COLORS_SHORTCUT.scope,run:openThemeInclusions},
  {label:'Copy selected node documents',key:'Ctrl+Shift+C',run:()=>{void copySelectedDocuments();}},
  {label:'Toggle origin symmetry',key:'+',run:toggleOriginSymmetry},
  {label:'Expand/collapse hierarchy',key:'Q',run:()=>hierarchyShortcut()},
@@ -739,6 +804,7 @@ viewHistory.menuRenderer(spec=>{
 });
 viewHistory.factory('workspace',spec=>openWorkspace(spec));
 viewHistory.factory('library',spec=>openLibrary(spec));
+viewHistory.factory('themeColors',spec=>openThemeInclusions(spec));
 viewHistory.factory('scene',spec=>openScene((spec.args as SceneTab[])[0],spec));
 viewHistory.factory('document',spec=>openDocument((spec.args as Origin[])[0],spec));
 viewHistory.factory('composer',spec=>openComposer((spec.args as Origin[])[0],spec));
@@ -754,6 +820,8 @@ refresh();
  ['Shift+V',['Shift+V','Ctrl+V','Alt+V'],'Assign Hide nodes outside active hierarchy in Shortcuts.'],
  ] as const){const definition=catalog.find(item=>item.id===worldShortcutId(key));if(definition&&shortcuts.getSnapshot().Omnium?.[definition.id]===undefined&&!assignAvailableDefault(shortcuts,definition,candidates,catalog))feedback(message);}
 }
+
+{const definition=worldShortcutActions(true).find(action=>action.id===THEME_COLORS_SHORTCUT.id),catalog=[...worldShortcutActions(true).map(action=>({category:'Omnium' as const,id:action.id,label:action.label,defaultKey:action.defaultKey,scope:action.scope})),...WORLD_GESTURES,...controlShortcutDefinitions()];if(definition&&!assignAvailableDefault(shortcuts,THEME_COLORS_SHORTCUT,['F6','F7','F8','F9'],catalog))feedback('Assign Theme color inclusions in Shortcuts.');}
 
 // Builds share one draft; production retains its published starting state.
 if(location.hostname==='omnium.nexus'||location.hostname==='omnia-web-bae.pages.dev'||location.hostname.endsWith('.omnia-web-bae.pages.dev')){
@@ -793,3 +861,6 @@ function restoreWorkspaceSession(){
 }
 store.subscribeReplace(restoreWorkspaceSession);
 if(!(location.hostname==='omnium.nexus'||location.hostname==='omnia-web-bae.pages.dev'||location.hostname.endsWith('.omnia-web-bae.pages.dev')))restoreWorkspaceSession();
+
+const autoImageColors=createAutoColors({read:()=>store.world,change:edit=>store.change(edit),sample:async image=>{const [{localSceneBlob},{sceneSourceSample}]=await Promise.all([import('./scene/library.ts'),import('./scene/normalizationCache.ts')]);return await sceneSourceSample(await localSceneBlob(image));},error:error=>feedback(String(error))});
+store.subscribe(autoImageColors.update);autoImageColors.update();

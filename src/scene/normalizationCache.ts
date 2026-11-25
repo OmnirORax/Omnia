@@ -1,9 +1,10 @@
+import {sampleSceneGrid,type SceneSample} from './palette.ts';
 import NormalizationWorker from './normalization.worker?worker&inline';
 import {sampleScenePixels,normalizationKey,type NormalizationPreferences,type NormalizationReport} from './normalization.ts';
 type Cached={key:string;blob:Blob;report:NormalizationReport;touched:number};
 // Bounded source samples keep drag solving consistent with full-size correction.
 const samples=new Map<string,Uint8ClampedArray>();
-const paletteSamples=new Map<string,Uint8ClampedArray>();
+const paletteSamples=new Map<string,SceneSample>();
 const MAX_CACHE_BYTES=32*1024*1024,MAX_CACHE_IMAGES=8;
 async function database(){return new Promise<IDBDatabase>((resolve,reject)=>{const request=indexedDB.open('omnium-scene-normalization',1);request.onupgradeneeded=()=>request.result.createObjectStore('results',{keyPath:'key'});request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});}
 async function cacheRead(key:string){const db=await database();try{return await new Promise<Cached|undefined>((resolve,reject)=>{const transaction=db.transaction('results','readwrite'),store=transaction.objectStore('results'),request=store.get(key);let value:Cached|undefined;request.onsuccess=()=>{value=request.result;if(value)store.put({...value,touched:Date.now()});};transaction.oncomplete=()=>resolve(value);transaction.onerror=transaction.onabort=()=>reject(transaction.error);});}finally{db.close();}}
@@ -44,6 +45,7 @@ export async function normalizeSceneBlob(original:Blob,preferences:Normalization
   aborted(signal);if(image.width>4096||image.height>4096||image.width*image.height>12_000_000)throw new Error('Scene exceeds the normalization resolution limit.');
   const canvas=document.createElement('canvas');canvas.width=image.width;canvas.height=image.height;const context=canvas.getContext('2d',{willReadFrequently:true});if(!context)throw new Error('Image processing is unavailable.');context.drawImage(image,0,0,canvas.width,canvas.height);
   const input=context.getImageData(0,0,canvas.width,canvas.height);
+  if(!paletteSamples.has(hash)){if(paletteSamples.size>=8)paletteSamples.delete(paletteSamples.keys().next().value!);paletteSamples.set(hash,sampleSceneGrid(input.data,image.width,image.height));}
   const sample=samples.get(hash)??sampleScenePixels(input.data);
   samples.delete(hash);samples.set(hash,sample);if(samples.size>8)samples.delete(samples.keys().next().value!);
 
@@ -69,9 +71,8 @@ export async function forgetNormalizedScene(original:Blob){
 /** Read-only bounded scene signal input; normalization's canonical sample is never replaced. */
 export async function sceneSourceSample(original:Blob,signal?:AbortSignal){
  aborted(signal);const digest=await crypto.subtle.digest('SHA-256',await original.arrayBuffer()),hash=Array.from(new Uint8Array(digest),v=>v.toString(16).padStart(2,'0')).join('');aborted(signal);
- const cached=paletteSamples.get(hash);if(cached)return {key:hash,pixels:cached.slice()};
- let pixels:Uint8ClampedArray;const canonical=samples.get(hash);
- if(canonical)pixels=sampleScenePixels(canonical,4096);
- else{const image=await createImageBitmap(original);try{aborted(signal);if(image.width>4096||image.height>4096||image.width*image.height>12_000_000)throw new Error('Scene exceeds the signal analysis limit.');const scale=Math.min(1,Math.sqrt(4096/(image.width*image.height))),canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.floor(image.width*scale));canvas.height=Math.max(1,Math.floor(image.height*scale));const ctx=canvas.getContext('2d',{willReadFrequently:true});if(!ctx)throw new Error('Scene colour analysis is unavailable.');ctx.drawImage(image,0,0,canvas.width,canvas.height);pixels=ctx.getImageData(0,0,canvas.width,canvas.height).data;}finally{image.close();}}
- if(paletteSamples.size>=8)paletteSamples.delete(paletteSamples.keys().next().value!);paletteSamples.set(hash,pixels);aborted(signal);return {key:hash,pixels:pixels.slice()};
+ const cached=paletteSamples.get(hash);if(cached)return {key:hash,...cached,pixels:cached.pixels.slice()};
+ const image=await createImageBitmap(original);let sample:SceneSample;
+ try{aborted(signal);if(image.width>4096||image.height>4096||image.width*image.height>12_000_000)throw new Error('Scene exceeds the signal analysis limit.');const scale=Math.min(1,Math.sqrt(4096/(image.width*image.height))),canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.floor(image.width*scale));canvas.height=Math.max(1,Math.floor(image.height*scale));const ctx=canvas.getContext('2d',{willReadFrequently:true});if(!ctx)throw new Error('Scene colour analysis is unavailable.');ctx.drawImage(image,0,0,canvas.width,canvas.height);sample={pixels:ctx.getImageData(0,0,canvas.width,canvas.height).data,width:canvas.width,height:canvas.height};}finally{image.close();}
+ if(paletteSamples.size>=8)paletteSamples.delete(paletteSamples.keys().next().value!);paletteSamples.set(hash,sample);aborted(signal);return {key:hash,...sample,pixels:sample.pixels.slice()};
 }

@@ -1,16 +1,34 @@
 import {reportSystemMessage} from './systemMessage.ts';
 type Point={x:number;y:number};
 type Sample={clientX:number;clientY:number;movementX?:number;movementY?:number};
-let owner:{stop:()=>void;readonly target?:HTMLElement}|undefined;
+let owner:{stop:(release?:boolean)=>void;handoff:(release:boolean)=>void;readonly surface?:HTMLElement}|undefined;
 /** One relative stream for free DOF adjustment; consumers keep their own value math. */
 export function createRelativePointer(onLost:()=>void=()=>{},onRejected:(message:string)=>void=reportSystemMessage){
- let element:HTMLElement|undefined,doc:Document|undefined,point:Point={x:0,y:0},pending=false,locked=false,legacy=false,generation=0;
- const change=()=>{if(!element||!doc)return;if(doc.pointerLockElement===element){pending=false;locked=true;}else if(locked){api.stop();onLost();}};
- const error=()=>{pending=false;api.stop();onRejected('Continuous pointer input was refused by the browser. Activate the DOF control with a click and try again.');};
- const api={get target(){return element;},get active(){return pending||locked;},get locked(){return !!element&&doc?.pointerLockElement===element;},
-  start(target:HTMLElement,origin:Point){api.stop();point={...origin};if(typeof target.requestPointerLock!=='function')return false;owner?.stop();owner=api;element=target;doc=target.ownerDocument??document;pending=true;const epoch=++generation,documentOwner=doc;
-   doc.addEventListener('pointerlockchange',change);doc.addEventListener('pointerlockerror',error);
-   try{const request=target.requestPointerLock();legacy=!request;if(request&&typeof request.then==='function')void request.then(()=>{if(epoch!==generation&&owner?.target!==target&&documentOwner.pointerLockElement===target)documentOwner.exitPointerLock();}).catch(()=>{if(epoch===generation)error();});}catch{error();return false;}return true;
+ let element:HTMLElement|undefined,surface:HTMLElement|undefined,doc:Document|undefined,point:Point={x:0,y:0},pending=false,locked=false,legacy=false,required=false,generation=0;
+ const change=()=>{if(!element||!doc)return;if(doc.pointerLockElement===surface){pending=false;locked=true;}else if(locked){api.stop();onLost();}};
+ const error=(reason?:unknown)=>{if(!element)return;const cancel=required,detail=reason instanceof Error?` ${reason.name}: ${reason.message}`:'';api.stop();onRejected(`Continuous pointer input was refused by the browser.${detail}`);if(cancel)onLost();};
+ const api={get target(){return element;},get surface(){return surface;},handoff(release:boolean){api.stop(release);onLost();},get active(){return pending||locked;},get locked(){return !!element&&doc?.pointerLockElement===surface;},
+  start(target:HTMLElement,origin:Point,options?:{requireLock?:boolean}){
+   const documentOwner=target.ownerDocument??(typeof document==='undefined'?undefined:document),lockSurface=typeof documentOwner?.documentElement?.requestPointerLock==='function'?documentOwner.documentElement:target;
+   point={...origin};required=!!options?.requireLock;
+   if(element===target&&(pending||api.locked))return true;
+   // The page survives control rerenders. Transfer an existing lock without
+   // releasing it and immediately asking the browser for another one.
+   const preserve=documentOwner?.pointerLockElement===lockSurface;
+   api.stop(!preserve);
+   if(!required&&!preserve&&typeof navigator!=='undefined'&&navigator.userActivation?.isActive===false)return false;
+   owner?.handoff(!preserve);
+   if(typeof lockSurface.requestPointerLock!=='function'){if(required){onRejected('This browser cannot hold the cursor still for sliding.');onLost();}return false;}
+   owner=api;element=target;surface=lockSurface;doc=documentOwner??document;pending=true;const epoch=++generation;
+   doc.addEventListener('pointerlockchange',change);
+   if(doc.pointerLockElement===lockSurface){pending=false;locked=true;return true;}
+   try{
+    const request=lockSurface.requestPointerLock();legacy=!request||typeof request.then!=='function';
+    // Promise failures belong to this request. Document errors have no request
+    // identity and may have been queued by an older control.
+    if(legacy)doc.addEventListener('pointerlockerror',error);
+    else void request.then(()=>{if(epoch!==generation&&owner?.surface!==lockSurface&&documentOwner?.pointerLockElement===lockSurface)documentOwner.exitPointerLock();},reason=>{if(epoch===generation)error(reason);});
+   }catch(reason){error(reason);return false;}return true;
   },
   observeMove(listener:(event:MouseEvent|PointerEvent)=>void){
    if(typeof window==='undefined')return()=>{};
@@ -24,7 +42,7 @@ export function createRelativePointer(onLost:()=>void=()=>{},onRejected:(message
    window.addEventListener('mousemove',move,true);window.addEventListener('pointermove',move,true);
    return()=>{window.removeEventListener('mousemove',move,true);window.removeEventListener('pointermove',move,true);};
   },
-  sample(event:Sample){if(api.locked){locked=true;pending=false;point={x:point.x+(Number.isFinite(event.movementX)?event.movementX!:0),y:point.y+(Number.isFinite(event.movementY)?event.movementY!:0)};}else point={x:event.clientX,y:event.clientY};return {...point};},
-  stop(){generation++;const previous=element,documentOwner=doc,late=legacy&&pending;legacy=false;element=undefined;doc=undefined;pending=locked=false;if(owner===api)owner=undefined;documentOwner?.removeEventListener('pointerlockchange',change);documentOwner?.removeEventListener('pointerlockerror',error);if(previous&&documentOwner?.pointerLockElement===previous)documentOwner.exitPointerLock();else if(late&&previous&&documentOwner){const cleanup=()=>{documentOwner.removeEventListener('pointerlockchange',release);documentOwner.removeEventListener('pointerlockerror',cleanup);};const release=()=>{cleanup();if(documentOwner.pointerLockElement===previous&&owner?.target!==previous)documentOwner.exitPointerLock();};documentOwner.addEventListener('pointerlockchange',release);documentOwner.addEventListener('pointerlockerror',cleanup);}},
+  sample(event:Sample){if(api.locked){locked=true;pending=false;point={x:point.x+(Number.isFinite(event.movementX)?event.movementX!:0),y:point.y+(Number.isFinite(event.movementY)?event.movementY!:0)};}else if(!required)point={x:event.clientX,y:event.clientY};return {...point};},
+  stop(release=true){generation++;const previous=surface,documentOwner=doc,late=legacy&&pending;legacy=false;element=surface=undefined;doc=undefined;pending=locked=false;if(owner===api)owner=undefined;documentOwner?.removeEventListener('pointerlockchange',change);documentOwner?.removeEventListener('pointerlockerror',error);if(release&&previous&&documentOwner?.pointerLockElement===previous)documentOwner.exitPointerLock();else if(late&&previous&&documentOwner){const cleanup=()=>{documentOwner.removeEventListener('pointerlockchange',release);documentOwner.removeEventListener('pointerlockerror',cleanup);};const release=()=>{cleanup();if(documentOwner.pointerLockElement===previous&&owner?.surface!==previous)documentOwner.exitPointerLock();};documentOwner.addEventListener('pointerlockchange',release);documentOwner.addEventListener('pointerlockerror',cleanup);}},
  };return api;
 }

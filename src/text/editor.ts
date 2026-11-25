@@ -1,3 +1,5 @@
+import {documentPalette,showDocumentPalette,setDocumentPalette,setDocumentInkTypography,createDocumentPalettePaint} from './palettePresentation.ts';
+import {createDocumentPaintSession} from './paintSession.ts';
 import {fontSizeScale} from '../properties/visual.ts';
 import {documentHistoryBindings} from './historyBindings.ts';
 import {documentListLayout} from './listLayout.ts';
@@ -15,11 +17,11 @@ import { EditorView, drawSelection, keymap, scrollPastEnd } from '@codemirror/vi
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { markdown, markdownKeymap } from '@codemirror/lang-markdown';
 import { Strikethrough, TaskList } from '@lezer/markdown';
-import { HighlightStyle, syntaxHighlighting, codeFolding } from '@codemirror/language';
+import { HighlightStyle, syntaxHighlighting, codeFolding, foldedRanges, unfoldEffect } from '@codemirror/language';
 import { tags } from '@lezer/highlight';
 import { closeSearchPanel, getSearchQuery, openSearchPanel, search, searchKeymap, SearchQuery, setSearchQuery } from '@codemirror/search';
 import { readPaint } from '../core/appearance.ts';
-import { textStyle } from '../ui/appearance.ts';
+import { setDOMTextPaint } from '../ui/appearance.ts';
 import { emboldenStrokeEm } from '../properties/embolden.ts';
 import { panel } from '../ui/panel.ts';
 import { TEXT_CLIPBOARD } from './dom.ts';
@@ -32,16 +34,17 @@ import { capitalizeSentence, uppercaseSelection, codeBlock, deleteLines, heading
 import { documentMouseSelection } from './mouse.ts';
 import {createGlyphPresentation} from '../omnic/presentation.ts';
 import { documentPresentation,refreshDocumentGlyphs } from './presentation.ts';
+import { documentSearchPattern,firstDocumentMatch } from './worldSearch.ts';
 
 export function editDocument(origin: Origin, read: () => World, commit: (text: NodeText) => void, feedback: (message: string) => void, closed?: () => void) {
   const current = locate(read(), origin); if (!current) return;
   let releaseActions:(()=>void)|undefined;
-  let releaseShortcuts:(()=>void)|undefined;
+  let releaseShortcuts:(()=>void)|undefined,releasePalette:(()=>void)|undefined;
   let syncing=false,failed = false, editor: EditorView | undefined;
   const actual = inherited(current, read()), source = toSource(actual.text ?? { version: 1, content: [] });
   const view = panel(actual.label || 'Document', () => {
     if (failed) { save(); if (failed && !confirm('These document changes could not be saved. Close and discard them?')) return false; }
-    releaseActions?.();releaseShortcuts?.();editor?.destroy(); closed?.();
+    releaseActions?.();releaseShortcuts?.();releasePalette?.();editor?.destroy(); closed?.();
   },'default','edge');
   view.root.classList.add('node-document-panel');
   function save() {
@@ -50,7 +53,7 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
       const text = fromSource(sliceSource(editor.state));syncing=true;try{commit(text);failed=false;}finally{syncing=false;}
     } catch (error) { failed = true; feedback(error instanceof Error ? error.message : String(error)); }
   }
-  const host = document.createElement('div');host.className = 'document-content';view.body.append(host);
+  const host = document.createElement('div');host.className = 'document-content';view.body.append(host);const palettePaint=createDocumentPalettePaint(view.root,true,host);releasePalette=palettePaint.dispose;
   host.addEventListener('keydown',event => {event.stopPropagation();});
   host.addEventListener('keydown',event=>{if(event.key==='Escape'&&event.repeat){event.preventDefault();event.stopImmediatePropagation();}},true);
   const run = (command: StateCommand) => { if (editor) { command(editor); editor.focus(); } };
@@ -61,7 +64,7 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
     host.before(headingMenu); return true;
   };
   let fontSize = 13;
-  const font = (delta: number) => () => { fontSize = Math.min(36, Math.max(9, fontSize+delta)); host.style.fontSize = `${fontSize*fontSizeScale(readPaint(read(),'nodeText',origin))}px`; editor?.requestMeasure(); return true; };
+  const font = (delta: number) => () => { fontSize = Math.min(36, Math.max(9, fontSize+delta)); applyDocumentPaint(readPaint(read(),'nodeText',origin)); editor?.requestMeasure(); return true; };
   const regex = () => {
     if (!editor) return false;
     const q = getSearchQuery(editor.state); editor.dispatch({ effects: setSearchQuery.of(new SearchQuery({ search:q.search,replace:q.replace,caseSensitive:q.caseSensitive,regexp:true })) });
@@ -94,7 +97,7 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
   editor = new EditorView({ parent:host, state:EditorState.create({ doc:source.text, extensions:[
     EditorState.allowMultipleSelections.of(true), glyphField.init(() => source.glyphs), glyphHistory, history(),compactDocumentPaste,documentBrackets,lexiconAnnotations(read),
     EditorView.clickAddsSelectionRange.of(event => event.altKey), documentMouseSelection(), drawSelection({drawRangeCursor:true,cursorBlinkRate:1000}), EditorView.lineWrapping, scrollPastEnd(),
-    markdown({ extensions:[Strikethrough,TaskList],addKeymap:false }), codeFolding(), documentListLayout, documentWordCounter(view.setTitleDetail), documentPresentation(read),
+    markdown({ extensions:[Strikethrough,TaskList],addKeymap:false }), codeFolding(), documentListLayout, documentWordCounter(view.setTitleDetail), documentPresentation(read),documentPalette,
     syntaxHighlighting(HighlightStyle.define([
       { tag:tags.strong,fontWeight:'bold',fontSynthesis:'weight',WebkitTextStroke:'var(--visual-text-bold-stroke, 0em currentColor)' }, { tag:tags.emphasis,fontStyle:'italic' }, { tag:tags.strikethrough,textDecoration:'line-through' },
       { tag:tags.monospace,fontFamily:'ui-monospace, monospace',backgroundColor:'#ffffff08' },
@@ -128,7 +131,8 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
   releaseActions=registerContextActions({label:'Document',owns:element=>view.root.contains(element),read:()=>{
     const seen=new Set<string>();return documentBindings(effectiveBindings).flatMap(({definition,binding})=>{if(seen.has(definition.id))return [];seen.add(definition.id);const label=labels.get(definition.id)??definition.label;return [{id:definition.id,defaultKey:definition.defaultKey,label,key:shortcutBinding('Document',definition.id,definition.defaultKey),run:()=>{if(editor){binding.run?.(editor);editor.focus();}}}];});
   }});
-  let previousLexicon=workspaceLexicon(read()),previousPaint='',previousGlyphs=createGlyphPresentation(read());
+  let previousLexicon=workspaceLexicon(read()),previousGlyphs=createGlyphPresentation(read());
+  const paintSession=createDocumentPaintSession(paint=>{applyDocumentPaint(paint);editor?.requestMeasure();});
   function refreshAppearance(){
     if(editor&&!failed&&!syncing){
       const node=locate(read(),origin),latest=node&&inherited(node,read()),text=latest?.text;
@@ -143,19 +147,30 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
     if(!locate(read(),origin))return;
     const dictionary=workspaceLexicon(read());if(dictionary!==previousLexicon){previousLexicon=dictionary;queueMicrotask(()=>{if(view.root.isConnected)editor?.dispatch({effects:refreshLexicon.of()});});}
     const glyphs=createGlyphPresentation(read());if(glyphs!==previousGlyphs){previousGlyphs=glyphs;queueMicrotask(()=>{if(view.root.isConnected)editor?.dispatch({effects:refreshDocumentGlyphs.of()});});}
-    const paint=readPaint(read(),'nodeText',origin),key=JSON.stringify(paint);if(key===previousPaint)return;previousPaint=key;
-    applyDocumentPaint(paint);
-    editor?.requestMeasure();
+    paintSession.render(readPaint(read(),'nodeText',origin));
   }
-  function applyDocumentPaint(paint:ReturnType<typeof readPaint>){
-    const style=textStyle(paint);
-    Object.assign(host.style,style);
+  function applyDocumentPaint(paint:import('../properties/visual.ts').Paint){
+    setDOMTextPaint(host.style,paint);
     host.style.fontSize=`${fontSize*fontSizeScale(paint)}px`;
-    host.style.setProperty('--document-text-color',style.color);
-    host.style.setProperty('--document-text-shadow',style.textShadow);
+    host.style.setProperty('--document-text-color',host.style.color);
+    host.style.setProperty('--document-text-shadow',host.style.textShadow);
     host.style.setProperty('--visual-text-bold-stroke',`${emboldenStrokeEm(paint.embolden)}em currentColor`);
+    const palette=paint.palette&&(paint.palette.distribution==='pixels'||paint.palette.colors.length>1)?paint.palette:undefined;
+    const changed=palettePaint.render(paint);editor?.dispatch({effects:[setDocumentPalette.of(palette),setDocumentInkTypography.of(JSON.stringify([paint.font,paint.fontSize,paint.embolden,fontSize])),...(changed?[showDocumentPalette.of(palettePaint.enabled)]:[])]});
   }
-  refreshAppearance();queueMicrotask(()=>{if(view.root.isConnected)editor?.dispatch({effects:refreshLexicon.of()});});editor.focus(); return {...view,refreshAppearance,previewAppearance(world:World){applyDocumentPaint(readPaint(world,'nodeText',origin));}};
+  function revealSearchMatch(value:string){
+    if(!editor)return;
+    const pattern=documentSearchPattern(value),match=pattern&&firstDocumentMatch(pattern,editor.state.doc.toString());
+    if(match){
+      const unfold=[];
+      const folds=foldedRanges(editor.state).iter(match.from);
+      for(;folds.value&&folds.from<match.to;folds.next())if(folds.to>match.from)unfold.push(unfoldEffect.of({from:folds.from,to:folds.to}));
+      const query=new SearchQuery({search:value,literal:true});
+      editor.dispatch({selection:{anchor:match.from,head:match.to},effects:[...unfold,setSearchQuery.of(query),EditorView.scrollIntoView(match.from,{y:'center'})]});
+    }
+    editor.focus();
+  }
+  refreshAppearance();queueMicrotask(()=>{if(view.root.isConnected)editor?.dispatch({effects:refreshLexicon.of()});});editor.focus(); return {...view,refreshAppearance,revealSearchMatch,previewAppearance(world:World){paintSession.render(readPaint(world,'nodeText',origin));}};
 }
 
 const DOCUMENT_SHORTCUT_LABELS:Record<string,string>={'Alt-1':'Fold all headings','Alt-2':'Unfold all headings','Mod-b':'Bold','Mod-i':'Italic','Mod-ArrowUp':'Move line up','Mod-ArrowDown':'Move line down','Alt-Delete':'Delete line','Mod-Delete':'Remove heading','Mod-F7':'Choose heading','Mod-1':'Numbered list','Mod-2':'Bullet list','Mod-Shift-3':'Cycle list','Mod-Shift-4':'Strikethrough','Mod-5':'Inline code','Alt-Mod-1':'Code block','Mod-3':'Capitalize','Mod-4':'Uppercase','Alt-ArrowRight':'Regex search','Mod-PageUp':'Increase font size','Mod-PageDown':'Decrease font size','Escape':'Close / cancel'};

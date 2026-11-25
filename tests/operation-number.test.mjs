@@ -34,3 +34,17 @@ test('Shift keeps an open operation dial available for Shift-click Snap fields',
  const number=createOperationNumber({label:'Step',value:1,min:0,max:4,apply(){},reject(){}}),dial=createOperationDial({host:{hidden:true},active:()=>true,number:()=>number,feedback(){},mount:()=>{mounts++;return()=>{};}}),event=()=>({key:'Shift',repeat:false,ctrlKey:false,metaKey:false,altKey:false,preventDefault(){},stopImmediatePropagation(){}});
  dial.key(event());await Promise.resolve();dial.key(event());assert.equal(dial.active,true);assert.equal(mounts,1);dial.close();
 });
+
+test('slider snap has the same owner and domain as dial snap configuration',()=>{
+ const errors=[],number=createOperationNumber({label:'Size',value:12,min:6,max:72,integer:true,apply(){},reject:m=>errors.push(m)});
+ assert.equal(number.grid,undefined);assert.equal(number.setSnap(2),true);assert.equal(number.grid.snap,2);assert.equal(number.value,12);assert.equal(number.setSnap(.5),false);assert.equal(number.setSnap(0),false);assert.equal(number.setSnap(100),false);assert.equal(number.grid.snap,2);assert.equal(errors.length,3);
+});
+
+test('sliding inherits the canonical dial arithmetic, base and snap and preserves pending configuration',()=>{
+ for(const [mode,anchor,count,value,next]of [['halving',48,1,24,12],['doubling',6,1,12,24],['division',48,2,24,16]]){
+  const number=createOperationNumber({label:'Size',value,min:6,max:72,integer:true,apply(){},reject:assert.fail});number.commit(value,{mode,base:1,anchor,count,value});const scrub=number.scrub();assert.equal(scrub.toValue(scrub.value+1),next);
+  number.preview(next,scrub.configuration(scrub.value+1));assert.equal(number.currentConfiguration.mode,mode);assert.equal(number.currentConfiguration.count,count+1);assert.equal(number.configuration.count,count);
+  number.commit(number.current,number.currentConfiguration);assert.equal(number.scrub().value,count+1);assert.equal(number.configuration.anchor,anchor);
+ }
+ const n=createOperationNumber({label:'Size',value:20,min:6,max:30,integer:true,apply(){},reject:assert.fail});n.commit(20,{mode:'value',base:2,anchor:20,count:0,value:20});assert.equal(n.scrub().toValue(n.scrub().value+1),22);n.setSnap(3);n.commit(24,{mode:'value',base:1,anchor:24,count:2,value:24});assert.equal(n.scrub().toValue(n.scrub().value+1),27);
+});

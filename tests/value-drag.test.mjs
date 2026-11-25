@@ -18,25 +18,27 @@ test('numeric dragging honors fractional steps and unbounded signed values witho
 test('numeric inputs and registered readouts share release, click, and cancellation ownership',()=>{
  const originals=Object.fromEntries(['window','document','HTMLInputElement','Element'].map(key=>[key,globalThis[key]]));
  const handlers=new Map(),classes=new Set(),inputs=[],changes=[];
- class FakeElement {isConnected=true;dataset={};capture=false;closest(selector){return selector==='[data-value-drag]'?this:null;}hasPointerCapture(){return this.capture;}setPointerCapture(){this.capture=true;}releasePointerCapture(){this.capture=false;}}
+ class FakeElement {isConnected=true;dataset={};capture=false;get ownerDocument(){return globalThis.document;}requestPointerLock(){document.pointerLockElement=this;document.dispatchEvent(new Event('pointerlockchange'));}closest(selector){return selector==='[data-value-drag]'?this:null;}hasPointerCapture(){return this.capture;}setPointerCapture(){this.capture=true;}releasePointerCapture(){this.capture=false;}}
  class FakeInput extends FakeElement {
   type='number';inputMode='';disabled=false;readOnly=false;min='0';max='100';step='1';text='50';blurred=false;
   get value(){return this.text;}set value(next){this.text=next;}
   dispatchEvent(event){if(event.type==='input')inputs.push(this.value);if(event.type==='change')changes.push(this.value);return true;}
   blur(){this.blurred=true;}
+  setCustomValidity(message){this.validationMessage=message;}
+  reportValidity(){return !this.validationMessage;}
  }
  globalThis.Element=FakeElement;globalThis.HTMLInputElement=FakeInput;
  globalThis.window={addEventListener(type,handler){const list=handlers.get(type)??[];list.push(handler);handlers.set(type,list);}};
- globalThis.document={hidden:false,documentElement:{classList:{add:value=>classes.add(value),remove:value=>classes.delete(value)}},addEventListener:()=>{}};
+ const doc=new EventTarget();Object.assign(doc,{hidden:false,pointerLockElement:null,documentElement:{classList:{add:value=>classes.add(value),remove:value=>classes.delete(value)}},exitPointerLock(){this.pointerLockElement=null;this.dispatchEvent(new Event('pointerlockchange'));}});globalThis.document=doc;
  try{
   installValueDrag();const input=new FakeInput();
-  const send=(type,x=0,extra={})=>{const event={type,target:input,button:0,buttons:1,pointerType:'mouse',pointerId:1,clientX:x,clientY:0,detail:1,preventDefault(){this.prevented=true;},stopImmediatePropagation(){this.stopped=true;},...extra};for(const fn of handlers.get(type)??[]){fn(event);if(event.stopped)break;}return event;};
+  let previousX=0;const send=(type,x=0,extra={})=>{const movementX=type==='pointermove'?x-previousX:0;if(type==='pointermove'||type==='pointerdown')previousX=x;const event={type,target:input,button:0,buttons:1,pointerType:'mouse',pointerId:1,clientX:x,clientY:0,movementX,movementY:0,detail:1,preventDefault(){this.prevented=true;},stopImmediatePropagation(){this.stopped=true;},...extra};for(const fn of handlers.get(type)??[]){fn(event);if(event.stopped)break;}return event;};
   send('pointerdown',10);assert.equal(classes.has('value-dragging'),true,'click arms immediately');assert.equal(input.value,'50');assert.equal(send('pointerup',10).prevented,true);assert.equal(changes.length,0);send('keydown',10,{key:'Escape'});changes.length=0;
   send('pointerdown',10);send('pointermove',30);assert.equal(input.value,'60');assert.equal(classes.has('value-dragging'),true);
   send('pointermove',-10);assert.equal(input.value,'40');send('pointerup',-10);assert.equal(input.blurred,false);assert.deepEqual(changes,[]);send('pointermove',-20,{buttons:0});assert.equal(input.value,'35');send('pointerdown',-20);assert.equal(input.blurred,true);assert.deepEqual(changes,['35']);assert.equal(classes.size,0);
   assert.equal(send('click').prevented,true);assert.equal(send('click').prevented,undefined);
   send('pointerdown',0);send('pointermove',40);assert.equal(input.value,'55');assert.equal(send('keydown',0,{key:'Escape'}).prevented,true);assert.equal(input.value,'35');assert.equal(input.capture,false);
-  send('pointerdown',0);send('pointermove',-20);assert.equal(input.value,'25');send('pointercancel');assert.equal(input.value,'35');
+  send('pointerdown',0);send('pointermove',-20);assert.equal(input.value,'25');doc.exitPointerLock();assert.equal(input.value,'35');
   input.dataset.valuePixelsPerStep='1';input.max='255';input.value='128';
   send('pointerdown',100);send('pointermove',101);assert.equal(input.value,'129');send('pointermove',102);assert.equal(input.value,'130');send('pointerup',102);send('pointerdown',102);delete input.dataset.valuePixelsPerStep;
   input.type='range';send('pointerdown',0);assert.equal(classes.has('value-dragging'),true);send('pointerup',0);send('pointermove',2,{target:new FakeElement(),buttons:0});assert.equal(input.value,'133');send('keydown',2,{key:'Escape'});assert.equal(input.value,'130');input.type='number';
@@ -57,6 +59,10 @@ test('diagonal size handles inherit scalar dragging while preserving horizontal 
  const {valueDragDistance}=await import('../src/ui/valueDrag.ts');
  assert.equal(valueDragDistance({value:1},10,30),10);assert.ok(Math.abs(valueDragDistance({value:1,axis:{x:1,y:1}},10,10)-Math.sqrt(200))<1e-9);
  assert.ok(valueDragDistance({value:1,axis:{x:1,y:1}},-10,-10)<0);assert.equal(valueDragDistance({value:1,axis:{x:1,y:1}},10,-10),0);
+ // An accepted value need not lie on a new two-dot/snap lattice. Perpendicular
+ // movement must not round that baseline before any horizontal input exists.
+ const config={value:-13.5,min:-16,max:16,step:1,pixelsPerStep:6,axis:{x:1,y:0}};
+ assert.equal(horizontalValue(config,valueDragDistance(config,0,1000)),-13.5);
 });
 
 test('locked mouse movement keeps editing after release and accepts with a later click',()=>{
@@ -68,9 +74,9 @@ test('locked mouse movement keeps editing after release and accepts with a later
  globalThis.Element=ElementStub;globalThis.HTMLInputElement=class extends ElementStub{};globalThis.document=doc;
  globalThis.window={addEventListener(type,fn){const list=handlers.get(type)??[];list.push(fn);handlers.set(type,list);},removeEventListener(){}};
  try{
-  installValueDrag();const root=new ElementStub();registerValueDrag(root,{read:()=>({value:50,min:0,max:100,step:1}),input:value=>values.push(value),commit:value=>commits.push(value),cancel:value=>values.push(value)});
+  installValueDrag();const root=new ElementStub();let starts=0;registerValueDrag(root,{start:()=>{starts++;},read:()=>({value:50,min:0,max:100,step:1}),input:value=>values.push(value),commit:value=>commits.push(value),cancel:value=>values.push(value)});
   const send=(type,extra={})=>{const event={type,target:root,button:0,buttons:1,pointerType:'mouse',pointerId:1,clientX:0,clientY:0,movementX:0,movementY:0,detail:1,preventDefault(){},stopImmediatePropagation(){this.stopped=true;},...extra};for(const fn of handlers.get(type)??[]){fn(event);if(event.stopped)break;}};
-  send('pointerdown');assert.equal(doc.pointerLockElement,root,'click requests lock without movement');send('mousedown');assert.equal(commits.length,0,'activating compatibility mousedown cannot confirm');send('pointermove',{clientX:0,movementX:20});assert.equal(values.at(-1),60);
+  send('pointerdown');assert.equal(starts,1,'the center releases its previous hover owner before shared adjustment starts');assert.equal(doc.pointerLockElement,root,'click requests lock without movement');send('mousedown');assert.equal(commits.length,0,'activating compatibility mousedown cannot confirm');send('pointermove',{clientX:0,movementX:20});assert.equal(values.at(-1),60);
   send('pointercancel');assert.equal(doc.pointerLockElement,root);
   send('pointerup',{buttons:0,clientX:20});send('lostpointercapture');assert.equal(commits.length,0);assert.equal(doc.pointerLockElement,root);
   send('pointermove',{target:{},buttons:0,movementX:10,clientX:20,timeStamp:100});assert.equal(values.at(-1),65,'locked pointer-only movement updates values');

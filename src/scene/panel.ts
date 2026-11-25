@@ -1,3 +1,14 @@
+import {useDocumentWallpaper} from './documentWallpaper.ts';
+import {focusPaletteCSS,isImageField,FOCUS_DISTRIBUTIONS} from '../properties/focusPalette.ts';
+import {bindOperationValueControl} from '../ui/operationValueControl.ts';
+import {readPaint} from '../core/appearance.ts';
+import {motifSwatches} from './motifSwatches.ts';
+import type {MotifCandidate} from './colorCombo.ts';
+import {focusTheme,setThemeFocus,setMotifMembership} from './themeControls.ts';
+import {palettePaleAmount,paletteFillOpacity,PALETTE_INKS,PALETTE_SCALE,PALETTE_SATURATION_MAX,PALETTE_PROGRESSIONS,PALETTE_DISTRIBUTION_AXES,type PaletteSettings} from '../properties/textPalette.ts';
+import {configureAutoColors,autoColorKey,autoColorImage} from './autoColors.ts';
+import {openMotifCropPicker} from './motifCropPicker.ts';
+import {imageTrash} from './imageTrash.ts';
 import {localSceneStorage,type SceneStorage,type SceneImage} from './storage.ts';
 import {watchFields} from '../ui/formState.ts';
 import {VIEW_ROUTE} from '../ui/viewHistory.ts';
@@ -13,20 +24,20 @@ import { defaultScene, type SceneSettings } from './state.ts';
 import { NORMALIZATION_FIELDS, normalizationProperty, editNormalization } from './normalization.ts';
 import { WAVE_CONTROLS, WAVE_PRESETS, serializeSceneVfx } from './vfx.ts';
 import { readWavePresets, appendWavePreset } from './wavePresets.ts';
-import { importLocalScene, downloadScene, saveCopiedPrompt, type ScenePromptSnapshot } from './library.ts';
+import { importLocalScene, downloadScene, localSceneBlob, saveCopiedPrompt, type ScenePromptSnapshot } from './library.ts';
 import { sceneAudioSnapshot, subscribeSceneAudio, toggleSceneSystemAudio, forgetSceneSystemAudio } from './audio.ts';
 import { readSystemAudioPreference } from './systemAudioPreference.ts';
 import { resolveScenePrompt } from './contracts.ts';
 import { locate, sameOrigin, type Origin, type World } from '../core/model.ts';
 import type { createSceneSession } from './session.ts';
 
-type Host = { account?:()=>void; subscribe:(listener:()=>void)=>()=>void; read: () => World; selected: () => readonly Origin[]; change: (edit: (world: World) => void, group?: string) => void; preview: (world: World) => void; session: ReturnType<typeof createSceneSession>; feedback: (text: string) => void };
+type Host = { motifs?:(origin?:Origin)=>readonly MotifCandidate[];subscribeMotifs?:(listener:()=>void)=>()=>void; previewTheme?:(origin:Origin|undefined,settings?:PaletteSettings)=>void; account?:()=>void; subscribe:(listener:()=>void)=>()=>void; read: () => World; selected: () => readonly Origin[]; change: (edit: (world: World) => void, group?: string) => void; preview: (world: World) => void; session: ReturnType<typeof createSceneSession>; feedback: (text: string) => void };
 export const SCENE_TABS=[['image','Image'],['waves','Waves'],['pulse','Pulse'],['audio','Audio'],['normalization','Normalize'],['prompt','Prompt']]as const;
 export type SceneTab=typeof SCENE_TABS[number][0];
 export function scenePanel(host: Host,initialTab:SceneTab='image') {
   let live = true, imageVersion=0;let storage:SceneStorage=localSceneStorage,accountImages=false;const materialized=new Map<string,string>(),generationRetry:import('../backend/sceneGenerationControls.ts').GenerationRetry={}; let target: Origin | undefined = host.selected()[0];
   const subscriptions: (() => void)[] = [];
-  const view = panel('Scene', () => { live = false; for (const stop of subscriptions.splice(0)) stop(); host.preview(host.read()); });
+  const view = panel('Scene', () => { live = false; for (const stop of subscriptions.splice(0)) stop(); host.previewTheme?.(target);host.preview(host.read()); });
   const navigation = document.createElement('nav'), body = document.createElement('div'); navigation.className = 'scene-tabs'; body.className = 'scene-content'; view.body.append(navigation, body);
   function attempt(action: () => void | Promise<void>) { try{void Promise.resolve(action()).catch(error => host.feedback(error instanceof Error ? error.message : String(error)));}catch(error){host.feedback(error instanceof Error ? error.message : String(error));} }
   function button(label: string, action: () => void | Promise<void>, parent: HTMLElement = body) { const b = document.createElement('button'); b.textContent = label; b.onclick = () => attempt(action); parent.append(b); return b; }
@@ -69,9 +80,67 @@ export function scenePanel(host: Host,initialTab:SceneTab='image') {
       for (const item of clipboard) { const type = item.types.find(type => ['image/png','image/jpeg','image/webp'].includes(type)); if (type) { if(library===storage)await receive(new File([await item.getType(type)], 'Pasted scene', { type }), captured, previous); return; } }
       throw Error('No image found on the clipboard.');
     }).disabled=!library.writable();
+    const autoRow=document.createElement('label'),auto=document.createElement('input');auto.type='checkbox';auto.checked=!!host.read().appearance?.imageColors?.[autoColorKey(target)]?.enabled;autoRow.append(document.createTextNode('Auto image colors'),auto);body.append(autoRow);
+    const paletteControls:(HTMLSelectElement|HTMLInputElement|HTMLButtonElement)[]=[],numberSync:(()=>void)[]=[];
+    const current=()=>host.read().appearance?.imageColors?.[autoColorKey(target)]?.palette??{};
+    const resolved=()=>readPaint(host.read(),target?'nodeText':'text',target).palette;
+    const manual=(delta:PaletteSettings)=>focusTheme(current(),delta);
+    function edit(delta:PaletteSettings){host.change(world=>setThemeFocus(world,target,delta));syncTheme();}
+    auto.onchange=()=>{host.change(world=>configureAutoColors(world,target,auto.checked));syncTheme();};
+    function select(key:'distribution'|'ink'|'progression'|'distributionAxis',label:string,options:readonly(readonly[string,string])[]){const row=document.createElement('label'),input=document.createElement('select');row.append(label,input);input.setAttribute('aria-label',label);for(const [id,text]of options){const option=document.createElement('option');option.value=id;option.textContent=text;input.append(option);}input.onchange=()=>edit({[key]:input.value} as PaletteSettings);paletteControls.push(input);body.append(row);numberSync.push(()=>{input.value=current()[key]??(key==='distribution'?'image':key==='ink'?'color':key==='progression'||key==='distributionAxis'?'horizontal':'motif');});return row;}
+    const swatches=motifSwatches((candidate,enabled)=>attempt(()=>host.change(world=>setMotifMembership(world,target,candidate.id,enabled,host.motifs?.(target)??[]))));body.append(swatches.root);
+    function numeric(label:string,read:()=>number,min:number,max:()=>number,write:(n:number)=>PaletteSettings,step=1){
+      const row=document.createElement('label'),input=document.createElement('input');input.type='button';input.setAttribute('aria-label',label);row.append(label,input);body.append(row);paletteControls.push(input);
+      subscriptions.push(bindOperationValueControl(input,{label,min,get max(){return max();},integer:step===1,step,read,preview:n=>host.previewTheme?.(target,n===undefined?undefined:manual(write(n))),commit:n=>edit(write(n)),feedback:host.feedback,loadDial:()=>import('../ui/operationMathDial.tsx')}));
+      numberSync.push(()=>{input.value=String(read());input.setAttribute('aria-valuemax',String(max()));});return row;
+    }
+    select('ink','Text color',PALETTE_INKS);
+    const pale=numeric('Pale %',()=>Math.round(palettePaleAmount(current())*100),0,()=>99,n=>({paleAmount:n/100}));
+    numberSync.push(()=>{pale.hidden=(current().ink??'color')!=='pale';});
+    numeric('Text fill %',()=>Math.round(paletteFillOpacity(current())*100),0,()=>100,n=>({fillOpacity:n/100}));
+    const inverse=(label:string,key:'inverseDistribution'|'inverseOccupation',row?:HTMLElement)=>{const input=button('Inverse',()=>edit({[key]:!current()[key]}),row);input.className='theme-inverse';input.setAttribute('aria-label',`Inverse ${label}`);paletteControls.push(input);numberSync.push(()=>input.setAttribute('aria-pressed',String(!!current()[key])));};
+    inverse('distribution','inverseDistribution',select('distribution','Distribution',FOCUS_DISTRIBUTIONS));
+    const occupation=document.createElement('label');occupation.append('% occupation');body.append(occupation);inverse('occupation','inverseOccupation',occupation);
+    const direction=select('distributionAxis','Distribution direction',PALETTE_DISTRIBUTION_AXES);
+    const progression=select('progression','Progression',PALETTE_PROGRESSIONS);numberSync.push(()=>{direction.hidden=progression.hidden=isImageField(resolved());});
+    const debug=button('Show pattern',()=>edit({debugPattern:!current().debugPattern}));paletteControls.push(debug);numberSync.push(()=>{debug.setAttribute('aria-pressed',String(!!current().debugPattern));});
+    const strip=document.createElement('div');strip.className='theme-pattern-preview';strip.dataset.uiPaintOwner='geometry';body.append(strip);numberSync.push(()=>{const p=resolved();strip.hidden=!current().debugPattern||!p;const pixels=!strip.hidden&&p?.distribution==='pixels';useDocumentWallpaper(strip,pixels?p:undefined);if(!strip.hidden&&p){strip.style.backgroundImage=pixels?'var(--document-image-frame)':focusPaletteCSS(p,true);strip.style.height=pixels||isImageField(p)?'96px':'18px';}});
+    subscriptions.push(()=>useDocumentWallpaper(strip));
+    const motifRow=document.createElement('div');body.append(motifRow);
+    const repeat=button('Repeat motifs',()=>edit({repeatMotifs:!current().repeatMotifs,centerImagePixels:undefined}),motifRow);
+    const centered=button('Center on text',()=>edit({centerImagePixels:!current().centerImagePixels,repeatMotifs:undefined}),motifRow);
+    repeat.className=centered.className='theme-inverse';
+    const cropping=()=>!!(current().repeatMotifs||current().centerImagePixels);
+    let cropRevision=0,closeCrop:(()=>void)|undefined,cropSource:string|undefined;
+    const cancelCrop=()=>{cropRevision++;closeCrop?.();closeCrop=undefined;cropSource=undefined;};
+    subscriptions.push(cancelCrop);
+    const crop=button('Pick crop',async()=>{
+      const image=autoColorImage(host.read(),autoColorKey(target));if(!image)return;
+      cancelCrop();cropSource=image;const revision=cropRevision;
+      const active=()=>live&&version===imageVersion&&revision===cropRevision&&image===autoColorImage(host.read(),autoColorKey(target))&&current().distribution==='pixels'&&cropping();
+      const previous=current().motifCrop;
+      const close=await openMotifCropPicker(await localSceneBlob(image),previous?.image===image?previous.rect:undefined,active,
+        rect=>attempt(()=>edit({motifCrop:{image,rect}})),()=>{if(revision===cropRevision){closeCrop=undefined;cropSource=undefined;}});
+      if(revision===cropRevision)closeCrop=close;else close?.();
+    },motifRow);
+    const automatic=button('Auto crop',()=>{cancelCrop();edit({motifCrop:undefined});},motifRow);
+    paletteControls.push(repeat,centered,crop,automatic);
+    numberSync.push(()=>{
+      const {distribution,repeatMotifs,motifCrop,centerImagePixels}=current(),image=autoColorImage(host.read(),autoColorKey(target));
+      motifRow.hidden=distribution!=='pixels';repeat.setAttribute('aria-pressed',String(!!repeatMotifs));centered.setAttribute('aria-pressed',String(!!centerImagePixels));
+      crop.hidden=!cropping()||!image;automatic.hidden=crop.hidden||motifCrop?.image!==image;
+      if(cropSource&&(motifRow.hidden||crop.hidden||!auto.checked||cropSource!==image))cancelCrop();
+    });
+    numeric('Scale ×',()=>current().scale??1,PALETTE_SCALE.min,()=>PALETTE_SCALE.max,n=>({scale:n}),PALETTE_SCALE.step);
+    numeric('Saturation',()=>Math.round((current().saturation??1)*100),0,()=>PALETTE_SATURATION_MAX*100,n=>({saturation:n/100}));
+    function syncTheme(){auto.checked=!!host.read().appearance?.imageColors?.[autoColorKey(target)]?.enabled;for(const input of paletteControls)input.disabled=!auto.checked;for(const sync of numberSync)sync();swatches.render(host.motifs?.(target)??[],!auto.checked);}
+    button('Restore auto colors',()=>{host.change(world=>configureAutoColors(world,target,true,true,{motifOverrides:undefined}));syncTheme();});
+    if(host.subscribeMotifs)subscriptions.push(host.subscribeMotifs(syncTheme));
+    syncTheme();let lastTheme='';subscriptions.push(host.subscribe(()=>{const world=host.read(),key=autoColorKey(target),next=JSON.stringify([world.appearance?.imageColors?.[key],resolved(),autoColorImage(world,key)]);if(next!==lastTheme){lastTheme=next;syncTheme();}}));
     button('Clear background', () => assign(null));
     if (target) button('Use default background', () => host.change(world => { const node = locate(world, target!); if (node) delete node.scene; }));
     const list = document.createElement('div'); body.append(list);
+    if(library===localSceneStorage)subscriptions.push(imageTrash().subscribe(()=>{if(live)queueMicrotask(()=>attempt(images));}));
     const items = await library.list(); if (!live || !list.isConnected||version!==imageVersion||!library.current()) return;
     for (const item of items) {
       const row = document.createElement('div'); row.className = 'scene-image-row';
@@ -80,9 +149,8 @@ export function scenePanel(host: Host,initialTab:SceneTab='image') {
       button('↓', async () => {const blob=await library.download(item);if(live&&library.current())downloadScene(blob,item.name);}, row).disabled=!!item.state&&item.state!=='ready';
       if(library.finalize&&item.state==='pending')button('Finish upload',async()=>{await library.finalize!(item);if(live)await images();},row).disabled=!library.canFinalize?.(item);
       if(item.id!==DEFAULT_BACKGROUND.id)button('×', async () => {
-        if(!library.current()||!confirm(`Delete “${item.name}”?${library===localSceneStorage?' The next Push also removes unused shared copies.':''} Download it first to keep the original.`))return;
-        await library.remove(item);
-        if(library===localSceneStorage)host.change(world=>{if(world.scene?.image===item.id)world.scene.image=null;for(const node of world.nodes)if(node.scene===item.id)delete node.scene;});
+        if(!library.current())return;
+        await library.remove(item,library===localSceneStorage?()=>host.change(world=>{if(world.scene?.image===item.id)world.scene.image=null;for(const node of world.nodes)if(node.scene===item.id)delete node.scene;}):undefined);
         if(live)await images();
       }, row).disabled=!library.writable();list.append(row);
     }
@@ -152,5 +220,5 @@ export function scenePanel(host: Host,initialTab:SceneTab='image') {
   }
   const show=(tab:SceneTab)=>{view.root.dispatchEvent(new CustomEvent(VIEW_ROUTE,{detail:[tab]}));if(tab==='image')attempt(images);else if(tab==='audio')audio();else controls(tab);};
   for(const [tab,label]of SCENE_TABS)button(label,()=>show(tab),navigation);
-  show(initialTab);return view;
+  show(initialTab);return {...view,themeTarget:()=>target};
 }
