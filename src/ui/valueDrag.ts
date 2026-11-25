@@ -50,6 +50,7 @@ export function installValueDrag(){
   window.addEventListener('pointermove',event=>{if(drag&&!relative.locked)lastPoint={x:event.clientX,y:event.clientY};},true);
   const relative=createRelativePointer(()=>finish(true));
   const stop=(event:Event)=>{event.preventDefault();event.stopImmediatePropagation();};
+  const shiftOrigin=(current:Drag,distance:number)=>{const axis=current.config.axis&&Math.hypot(current.config.axis.x,current.config.axis.y)>0?current.config.axis:{x:1,y:0},length=Math.hypot(axis.x,axis.y);current.x+=distance*axis.x/length;current.y+=distance*axis.y/length;};
   const finish=(cancel=false)=>{
     const current=drag;if(!current)return;
     if(!cancel&&current.text!==undefined){if(!current.adapter.text?.accept(current.text))return;current.next=Number(current.text);}
@@ -86,7 +87,7 @@ export function installValueDrag(){
     // Shift the origin by discarded movement, keeping the original sensitivity
     // and fractional steps so reversing at either limit responds immediately.
     const overflow=distance-bounded;
-    if(overflow){const axis=config.axis&&Math.hypot(config.axis.x,config.axis.y)>0?config.axis:{x:1,y:0},length=Math.hypot(axis.x,axis.y);current.x+=overflow*axis.x/length;current.y+=overflow*axis.y/length;}
+    if(overflow)shiftOrigin(current,overflow);
     const next=horizontalValue(config,bounded);if(next!==current.next){current.next=next;current.adapter.input(next);}
   };
   relative.observeMove(move);
@@ -103,6 +104,16 @@ export function installValueDrag(){
    if(event.key==='Shift'&&!event.repeat&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&suspended.length){stop(event);selectionLatch.use();finish();resume();return;}
    const current=drag;if(!current?.active)return;
    if(event.key==='Shift'&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&current.adapter.configure){stop(event);selectionLatch.use();if(event.repeat)return;if(current.text!==undefined){if(!current.adapter.text?.accept(current.text))return;current.text=undefined;}if(current.configuring){resume();}else{current.configuring=true;relative.stop();suppressClick=false;document.documentElement.classList.remove('value-dragging');current.adapter.configure.open(resume);}return;}
+   if(!current.configuring&&(event.key==='ArrowLeft'||event.key==='ArrowRight')&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&!event.shiftKey&&!event.isComposing){
+    stop(event);const point=relative.sample({clientX:0,clientY:0});
+    if(current.text!==undefined){if(!current.adapter.text?.accept(current.text))return;const config=current.adapter.read();if(!config){finish(true);return;}current.text=undefined;current.config=config;current.next=config.value;current.x=point.x;current.y=point.y;}
+    const config={...current.config,value:current.next},step=config.step&&config.step>0?config.step:1;
+    const next=horizontalValue(config,(event.key==='ArrowRight'?1:-1)*step/valueDragUnit(config));
+    // Keyboard and mouse share one parameter and origin: returning to the mouse
+    // must continue from this step instead of restoring the previous sample.
+    shiftOrigin(current,valueDragDistance(current.config,point.x-current.x,point.y-current.y)-(next-current.config.value)/valueDragUnit(current.config));
+    if(next!==current.next){current.next=next;current.adapter.input(next);}return;
+   }
    if(!current.configuring&&current.adapter.text&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&!event.isComposing){
     const key=event.key;if(/^[\d.,+-]$/.test(key)||key==='Backspace'||key==='Delete'||current.text!==undefined&&/^[eE]$/.test(key)){
      stop(event);const before=current.text??'';current.text=key==='Backspace'?before.slice(0,-1):key==='Delete'?'':before+(key===','?'.':key);current.adapter.text.input(current.text);return;

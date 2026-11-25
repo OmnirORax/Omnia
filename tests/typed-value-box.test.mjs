@@ -158,3 +158,31 @@ test('limit reversal preserves fractional steps, diagonal handles and one-sided 
   }
  }finally{dispose?.();f.restore();}
 });
+
+test('arrow keys step the active parameter and hand back to mouse movement without a jump',()=>{
+ const f=environment(),writes=[],previews=[];let value=12,dispose;
+ try{
+  dispose=bindOperationValueControl(f.input,{label:'Size',min:6,max:72,integer:true,step:1,read:()=>value,preview:n=>previews.push(n),commit:n=>{value=n;writes.push(n);},feedback:message=>assert.fail(message),loadDial:async()=>assert.fail('no dial')});
+  assert.equal(f.send('keydown',{key:'ArrowRight'}).prevented,undefined,'inactive arrows remain available to their context');
+  f.send('pointerdown');f.send('pointerup');assert.equal(f.send('keydown',{key:'ArrowRight'}).prevented,true);assert.equal(previews.at(-1),13);f.send('keydown',{key:'ArrowLeft'});assert.equal(previews.at(-1),12);assert.deepEqual(writes,[]);
+  f.send('mousemove',{movementX:12});assert.equal(previews.at(-1),14);f.send('keydown',{key:'ArrowRight'});assert.equal(previews.at(-1),15);f.send('mousemove',{movementY:100});assert.equal(previews.at(-1),15);f.send('mousemove',{movementX:-6});assert.equal(previews.at(-1),14);f.send('keydown',{key:'Enter'});assert.deepEqual(writes,[14]);
+ }finally{dispose?.();f.restore();}
+});
+test('arrow stepping respects fractional increments, limits, typing and cancellation',()=>{
+ const f=environment();f.input.type='number';f.input.value='.3';f.input.min='0';f.input.max='1';f.input.step='.05';
+ try{
+  f.send('pointerdown');f.send('pointerup');f.send('keydown',{key:'ArrowRight'});assert.equal(f.input.value,'0.35');f.send('keydown',{key:'ArrowLeft'});assert.equal(f.input.value,'0.3');
+  f.send('mousemove',{movementX:10000});f.send('keydown',{key:'ArrowRight',repeat:true});assert.equal(f.input.value,'1');f.send('keydown',{key:'ArrowLeft'});assert.equal(f.input.value,'0.95');f.send('mousemove',{movementX:0});assert.equal(f.input.value,'0.95');
+  f.type('.5');f.send('keydown',{key:'ArrowRight'});assert.equal(f.input.value,'0.55');f.send('keydown',{key:'Escape'});assert.equal(f.input.value,'0.3');
+  f.input.step='any';f.input.max='100';f.input.value='12.25';f.send('pointerdown');f.send('pointerup');f.send('keydown',{key:'ArrowRight'});assert.equal(f.input.value,'13.25');f.send('keydown',{key:'ArrowLeft',ctrlKey:true});assert.equal(f.input.value,'13.25');f.send('keydown',{key:'Enter'});assert.equal(f.input.value,'13.25');
+ }finally{f.restore();}
+});
+test('arrow steps inherit the configured numeral base and arithmetic',async()=>{
+ const f=environment();let dispose;
+ try{
+  for(const config of [{mode:'value',base:2,anchor:10,count:0,value:10},{mode:'halving',base:1,anchor:24,count:1,value:12}]){
+   let value=config.value;dispose=bindOperationValueControl(f.input,{label:'Value',min:0,max:100,integer:true,step:1,read:()=>value,preview(){},commit:n=>value=n,feedback:message=>assert.fail(message),loadDial:async()=>({mountOperationMathDial(_host,number){number.commit(config.value,config);return()=>number.restore();}})});
+   f.send('pointerdown');f.send('pointerup');f.send('keydown',{key:'Shift'});await Promise.resolve();f.send('keydown',{key:'Shift'});f.send('keydown',{key:'ArrowRight'});assert.equal(f.input.value,config.mode==='value'?'12':'6');f.send('keydown',{key:'ArrowLeft'});assert.equal(f.input.value,String(config.value));f.send('keydown',{key:'Enter'});assert.equal(value,config.value);dispose();dispose=undefined;
+  }
+ }finally{dispose?.();f.restore();}
+});
