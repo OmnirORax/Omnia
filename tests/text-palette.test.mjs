@@ -33,8 +33,8 @@ test('pale amount changes the shared ink mix and leaves colored ink unchanged',a
 });
 
 test('Image pixels permits fractional scale and the exposed maximum pale amount survives validation',()=>{
- const p={mode:'text',colors:['#ff0000'],distribution:'pixels',scale:.25,paleAmount:.99,strength:.01};
+ const p={mode:'text',colors:['#ff0000'],distribution:'pixels',scale:.05,paleAmount:.99,strength:.01};
  assert.ok(validTextPalette(p));
- assert.ok(!validTextPalette({...p,scale:0}));
+ assert.ok(!validTextPalette({...p,scale:.049}));
  assert.ok(validTextPalette({...p,distribution:'balanced'}),'switching distribution retains the fractional scale');
 });
