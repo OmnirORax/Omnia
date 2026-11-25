@@ -49,7 +49,7 @@ export function focusPattern(p:TextPalette){
  for(let i=0;i<indices.length;i++){for(let c=0;c<3;c++){glow[i*4+c]=colors[indices[i]][c];ink[i*4+c]=Math.round(255*(1-strength)+glow[i*4+c]*strength);}glow[i*4+3]=ink[i*4+3]=255;}
  found={key,indices,width:field?.width??indices.length,height:field?.height??1,glow,ink};patterns.set(key,found);if(patterns.size>16)patterns.delete(patterns.keys().next().value!);return found;
 }
-export const focusPaletteAxis=(p:TextPalette)=>p.distributionAxis==='vertical'?1:0;
+export const focusPaletteAxis=(p:TextPalette)=>p.distribution!=='pixels'&&p.distributionAxis==='vertical'?1:0;
 export function focusPaletteCSS(p:TextPalette,straightStream=false){const pattern=focusPattern(p),vertical=!isImageField(p)&&!straightStream&&focusPaletteAxis(p)===1,key=vertical?'verticalCSS':'css';if(!pattern[key]){const canvas=document.createElement('canvas');canvas.width=isImageField(p)?pattern.width:vertical?1:pattern.indices.length;canvas.height=isImageField(p)?pattern.height:vertical?pattern.indices.length:1;const ctx=canvas.getContext('2d')!,pixels=ctx.createImageData(canvas.width,canvas.height);pixels.data.set(pattern.ink);ctx.putImageData(pixels,0,0);pattern[key]=`url("${canvas.toDataURL('image/png')}")`;}return pattern[key]!;}
 export function focusPaletteGeometry(p:TextPalette){if(isImageField(p)){const f=focusPattern(p),scale=p.scale??1;return {size:`${f.width*scale}px ${f.height*scale}px`,repeat:'repeat'};}const period=focusPeriod(p);return focusPaletteAxis(p)===1?{size:`100% ${period}px`,repeat:'repeat-y'}:{size:`${period}px 100%`,repeat:'repeat-x'};}
 export const focusPeriod=(p:TextPalette)=>focusPattern(p).indices.length*(p.scale??1);

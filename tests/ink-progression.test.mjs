@@ -102,7 +102,10 @@ test('Image pixels retains its text-coordinate modes even with one enabled hue a
   assert.equal(shader.uniforms.textInkScan.value,progression==='ink-serpentine'?1:0);
   assert.equal(shader.uniforms.textStream.value,progression==='start-end'?1:0);
   assert.equal(shader.uniforms.textStreamScale.value,1);
-  updateTextureTextPalette(material,{...palette,scale:4});assert.equal(reads,1,'scaling the image must reuse glyph geometry');
+  updateTextureTextPalette(material,{...palette,scale:4,distributionAxis:'vertical'});
+  assert.equal(shader.uniforms.textInkAxis.value,0,'Image pixels ignores saved vertical direction');
+  assert.equal(shader.uniforms.textPaletteAxis.value,0);
+  assert.equal(reads,1,'scale and saved direction changes reuse glyph geometry');
   material.dispose();material.map.dispose();
  }
 });

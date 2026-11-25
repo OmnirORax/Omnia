@@ -101,7 +101,7 @@ export function scenePanel(host: Host,initialTab:SceneTab='image') {
     inverse('distribution','inverseDistribution',select('distribution','Distribution',FOCUS_DISTRIBUTIONS));
     const occupation=document.createElement('label');occupation.append('% occupation');body.append(occupation);inverse('occupation','inverseOccupation',occupation);
     const direction=select('distributionAxis','Distribution direction',PALETTE_DISTRIBUTION_AXES);
-    const progression=select('progression','Progression',PALETTE_PROGRESSIONS);numberSync.push(()=>{direction.hidden=progression.hidden=isImageField(resolved());});
+    const progression=select('progression','Progression',PALETTE_PROGRESSIONS);numberSync.push(()=>{progression.hidden=isImageField(resolved());direction.hidden=progression.hidden||current().distribution==='pixels';});
     const debug=button('Show pattern',()=>edit({debugPattern:!current().debugPattern}));paletteControls.push(debug);numberSync.push(()=>{debug.setAttribute('aria-pressed',String(!!current().debugPattern));});
     const strip=document.createElement('div');strip.className='theme-pattern-preview';strip.dataset.uiPaintOwner='geometry';body.append(strip);numberSync.push(()=>{const p=resolved();strip.hidden=!current().debugPattern||!p;const pixels=!strip.hidden&&p?.distribution==='pixels';useDocumentWallpaper(strip,pixels?p:undefined);if(!strip.hidden&&p){strip.style.backgroundImage=pixels?'var(--document-image-frame)':focusPaletteCSS(p,true);strip.style.height=pixels||isImageField(p)?'96px':'18px';}});
     subscriptions.push(()=>useDocumentWallpaper(strip));
