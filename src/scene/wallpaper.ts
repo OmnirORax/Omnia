@@ -82,8 +82,8 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
 
       requestPaint();schedule();
     },
-    setURL(url:string|null){return this.setSource(url);},
-    async setSource(url:string|HTMLCanvasElement|null,keepPrevious=false){
+    setURL(url:string|null,image?:string){return this.setSource(url,false,image);},
+    async setSource(url:string|HTMLCanvasElement|null,keepPrevious=false,image?:string){
       const mine=++epoch;
       if(!url||!keepPrevious){
         configureSceneCorrection(correction,null);cancel();elapsed=0;
@@ -96,7 +96,7 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
         if(!alive||mine!==epoch){loaded.dispose();return;}
         loaded.colorSpace=THREE.SRGBColorSpace;const previous=texture;texture=loaded;previous?.dispose();
         material.uniforms.image.value=loaded;material.uniforms.imageAspect.value=loaded.image.width/loaded.image.height;
-        mesh.visible=true;documentWallpaper.reset();requestPaint();schedule();
+        mesh.visible=true;documentWallpaper.reset(image);requestPaint();schedule();
       }catch{/* Preserve the current same-source image if replacement fails. */}
     },
     setCorrection(value:Corrections|null){configureSceneCorrection(correction,value);documentWallpaper.refresh();requestPaint();},

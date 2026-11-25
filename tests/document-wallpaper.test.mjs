@@ -131,3 +131,28 @@ test('Image pixels scale changes the shared centered crop while reusing the colo
   assert.equal(lookups[0],lookups.at(-1),'inverse and scale share the same color lookup');
  }finally{directionOnly?.release();vertical?.release();same?.release();b?.release();a?.release();wallpaper.dispose();uniforms.image.value.dispose();globalThis.document=previousDocument;}
 });
+
+test('a picked crop repeats at its source size on the shared frame for its own image',{timeout:3000},async()=>{
+ const originalDocument=globalThis.document;
+ globalThis.document={documentElement:{style:{removeProperty(){}}}};
+ const {uniforms}=createWallpaperSampling();uniforms.image.value=new T.Texture();
+ const rect=[.15,.2,.25,.3];
+ const palette={mode:'text',distribution:'pixels',colors:['#ff0000','#000000'],pixelMotifs:{image:'scene-a',owners:[0,-1,-1,-1,-1,-1,-1,-1,1,-1,-1],size:rect.slice(2),patches:[{source:rect,x:0,y:0}]}};
+ let target=null,redrawn;
+ const draws=[];
+ const renderer={getRenderTarget:()=>target,setRenderTarget(next){target=next;},render({material:{uniforms:u}}){
+  draws.push({count:u.motifCount.value,size:u.motifSize.value.toArray(),source:u.motifSources.value[0].toArray(),gap:u.motifGap.value,scale:u.imagePixelScale.value});
+ }};
+ const wallpaper=createDocumentWallpaper(renderer,uniforms,()=>redrawn());
+ const nextDraw=()=>new Promise(resolve=>{redrawn=resolve;});
+ let frame,half;
+ try{
+  wallpaper.resize(640,480);wallpaper.reset('scene-a');
+  const initial=nextDraw();frame=acquireTextWallpaper(palette);await initial;
+  assert.deepEqual(draws[0],{count:1,size:rect.slice(2),source:rect,gap:.18,scale:1});
+  const scaled=nextDraw();half=acquireTextWallpaper({...palette,scale:.5});await scaled;
+  assert.deepEqual(draws.at(-1),{...draws[0],scale:.5});
+  const replacement=nextDraw();wallpaper.reset('scene-b');await replacement;
+  assert.equal(draws.at(-1).count,0);
+ }finally{half?.release();frame?.release();wallpaper.dispose();uniforms.image.value.dispose();globalThis.document=originalDocument;}
+});

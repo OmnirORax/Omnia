@@ -31,16 +31,20 @@ export const wallpaperSampleGLSL=`
  ${sceneCorrectionGLSL}
  ${REFERENCE_PULSE_GLSL}
  ${SCENE_COLOR_SPACE_GLSL}
+ vec2 wallpaperCover(){
+  return min(vec2(1.0),vec2(viewportAspect/imageAspect,imageAspect/viewportAspect));
+ }
+ vec3 colourWallpaperPixel(vec3 source){
+  vec3 visible=displayColour(correctSceneImage(source));
+  vec3 pulsed=referencePulse(visible,pulseTintLow,pulseTintHigh,light);
+  if(imageTintEnabled>.5) pulsed*=imageTint;
+  return mix(linearColour(pulsed),feedbackColor,feedbackStrength);
+ }
  vec3 sampleWallpaper(vec2 screenUV){
   vec2 uv=(screenUV-.5)/bounce+.5;
   uv.x+=waves*waveAudio*waveAmplitudeX*.01*sin(uv.y*6.28318530718*waveFrequencyX+time*waveSpeedX);
   uv.y+=waves*waveAudio*waveAmplitudeY*.01*sin(uv.x*6.28318530718*waveFrequencyY+time*waveSpeedY);
-  vec2 coverUV=uv-.5;
-  if(viewportAspect>imageAspect) coverUV.y*=imageAspect/viewportAspect;
-  else coverUV.x*=viewportAspect/imageAspect;
-  vec3 visible=displayColour(correctSceneImage(texture2D(image,clamp(coverUV+.5,vec2(.001),vec2(.999))).rgb));
-  vec3 pulsed=referencePulse(visible,pulseTintLow,pulseTintHigh,light);
-  if(imageTintEnabled>.5) pulsed*=imageTint;
-  return mix(linearColour(pulsed),feedbackColor,feedbackStrength);
+  vec2 coverUV=(uv-.5)*wallpaperCover()+.5;
+  return colourWallpaperPixel(texture2D(image,clamp(coverUV,vec2(.001),vec2(.999))).rgb);
  }
 `;

@@ -6,7 +6,8 @@ import {motifSwatches} from './motifSwatches.ts';
 import type {MotifCandidate} from './colorCombo.ts';
 import {focusTheme,setThemeFocus,setMotifMembership} from './themeControls.ts';
 import {palettePaleAmount,paletteFillOpacity,PALETTE_INKS,PALETTE_SCALE,PALETTE_SATURATION_MAX,PALETTE_PROGRESSIONS,PALETTE_DISTRIBUTION_AXES,type PaletteSettings} from '../properties/textPalette.ts';
-import {configureAutoColors,autoColorKey} from './autoColors.ts';
+import {configureAutoColors,autoColorKey,autoColorImage} from './autoColors.ts';
+import {openMotifCropPicker} from './motifCropPicker.ts';
 import {imageTrash} from './imageTrash.ts';
 import {localSceneStorage,type SceneStorage,type SceneImage} from './storage.ts';
 import {watchFields} from '../ui/formState.ts';
@@ -23,7 +24,7 @@ import { defaultScene, type SceneSettings } from './state.ts';
 import { NORMALIZATION_FIELDS, normalizationProperty, editNormalization } from './normalization.ts';
 import { WAVE_CONTROLS, WAVE_PRESETS, serializeSceneVfx } from './vfx.ts';
 import { readWavePresets, appendWavePreset } from './wavePresets.ts';
-import { importLocalScene, downloadScene, saveCopiedPrompt, type ScenePromptSnapshot } from './library.ts';
+import { importLocalScene, downloadScene, localSceneBlob, saveCopiedPrompt, type ScenePromptSnapshot } from './library.ts';
 import { sceneAudioSnapshot, subscribeSceneAudio, toggleSceneSystemAudio, forgetSceneSystemAudio } from './audio.ts';
 import { readSystemAudioPreference } from './systemAudioPreference.ts';
 import { resolveScenePrompt } from './contracts.ts';
@@ -105,12 +106,35 @@ export function scenePanel(host: Host,initialTab:SceneTab='image') {
     const debug=button('Show pattern',()=>edit({debugPattern:!current().debugPattern}));paletteControls.push(debug);numberSync.push(()=>{debug.setAttribute('aria-pressed',String(!!current().debugPattern));});
     const strip=document.createElement('div');strip.className='theme-pattern-preview';strip.dataset.uiPaintOwner='geometry';body.append(strip);numberSync.push(()=>{const p=resolved();strip.hidden=!current().debugPattern||!p;const pixels=!strip.hidden&&p?.distribution==='pixels';useDocumentWallpaper(strip,pixels?p:undefined);if(!strip.hidden&&p){strip.style.backgroundImage=pixels?'var(--document-image-frame)':focusPaletteCSS(p,true);strip.style.height=pixels||isImageField(p)?'96px':'18px';}});
     subscriptions.push(()=>useDocumentWallpaper(strip));
+    const motifRow=document.createElement('div');body.append(motifRow);
+    const repeat=button('Repeat motifs',()=>edit({repeatMotifs:!current().repeatMotifs}),motifRow);
+    repeat.className='theme-inverse';
+    let cropRevision=0,closeCrop:(()=>void)|undefined,cropSource:string|undefined;
+    const cancelCrop=()=>{cropRevision++;closeCrop?.();closeCrop=undefined;cropSource=undefined;};
+    subscriptions.push(cancelCrop);
+    const crop=button('Pick crop',async()=>{
+      const image=autoColorImage(host.read(),autoColorKey(target));if(!image)return;
+      cancelCrop();cropSource=image;const revision=cropRevision;
+      const active=()=>live&&version===imageVersion&&revision===cropRevision&&image===autoColorImage(host.read(),autoColorKey(target))&&current().distribution==='pixels'&&!!current().repeatMotifs;
+      const previous=current().motifCrop;
+      const close=await openMotifCropPicker(await localSceneBlob(image),previous?.image===image?previous.rect:undefined,active,
+        rect=>attempt(()=>edit({motifCrop:{image,rect}})),()=>{if(revision===cropRevision){closeCrop=undefined;cropSource=undefined;}});
+      if(revision===cropRevision)closeCrop=close;else close?.();
+    },motifRow);
+    const automatic=button('Auto crop',()=>{cancelCrop();edit({motifCrop:undefined});},motifRow);
+    paletteControls.push(repeat,crop,automatic);
+    numberSync.push(()=>{
+      const {distribution,repeatMotifs,motifCrop}=current(),image=autoColorImage(host.read(),autoColorKey(target));
+      motifRow.hidden=distribution!=='pixels';repeat.setAttribute('aria-pressed',String(!!repeatMotifs));
+      crop.hidden=!repeatMotifs||!image;automatic.hidden=crop.hidden||motifCrop?.image!==image;
+      if(cropSource&&(motifRow.hidden||crop.hidden||!auto.checked||cropSource!==image))cancelCrop();
+    });
     numeric('Scale ×',()=>current().scale??1,PALETTE_SCALE.min,()=>PALETTE_SCALE.max,n=>({scale:n}),PALETTE_SCALE.step);
     numeric('Saturation',()=>Math.round((current().saturation??1)*100),0,()=>PALETTE_SATURATION_MAX*100,n=>({saturation:n/100}));
     function syncTheme(){auto.checked=!!host.read().appearance?.imageColors?.[autoColorKey(target)]?.enabled;for(const input of paletteControls)input.disabled=!auto.checked;for(const sync of numberSync)sync();swatches.render(host.motifs?.(target)??[],!auto.checked);}
     button('Restore auto colors',()=>{host.change(world=>configureAutoColors(world,target,true,true,{motifOverrides:undefined}));syncTheme();});
     if(host.subscribeMotifs)subscriptions.push(host.subscribeMotifs(syncTheme));
-    syncTheme();let lastTheme='';subscriptions.push(host.subscribe(()=>{const next=JSON.stringify([host.read().appearance?.imageColors?.[autoColorKey(target)],resolved()]);if(next!==lastTheme){lastTheme=next;syncTheme();}}));
+    syncTheme();let lastTheme='';subscriptions.push(host.subscribe(()=>{const world=host.read(),key=autoColorKey(target),next=JSON.stringify([world.appearance?.imageColors?.[key],resolved(),autoColorImage(world,key)]);if(next!==lastTheme){lastTheme=next;syncTheme();}}));
     button('Clear background', () => assign(null));
     if (target) button('Use default background', () => host.change(world => { const node = locate(world, target!); if (node) delete node.scene; }));
     const list = document.createElement('div'); body.append(list);

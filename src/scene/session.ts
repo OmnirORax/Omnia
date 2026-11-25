@@ -42,7 +42,7 @@ export function createSceneSession(wallpaper: ReturnType<typeof createWallpaper>
         if (url) URL.revokeObjectURL(url); url = undefined; void wallpaper.setURL(null); publish();
         if (next) void localSceneBlob(next).then(async blob => {
           if (mine !== epoch) return;
-          original = blob; url = URL.createObjectURL(blob); await wallpaper.setURL(url);
+          original = blob; url = URL.createObjectURL(blob); await wallpaper.setURL(url,next);
           if (mine === epoch) void normalize();
         }).catch(error => { if (mine === epoch) feedback(error instanceof Error ? error.message : String(error)); });
       } else void normalize();

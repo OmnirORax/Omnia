@@ -34,11 +34,12 @@ export function paletteFamily(rgb:readonly number[]){
  const high=Math.max(...rgb);
  return isChromaticPixel(rgb)?`h${paletteHueFamily(colorHue(rgb))}`:`n${high<64?0:high<190?1:2}`;
 }
+export const PALETTE_FAMILIES:readonly string[]=['h0','h1','h2','h3','h4','h5','h6','h7','n0','n1','n2'];
 export type ScenePalette={spatial?:{width:number;height:number;families:readonly string[];cells:Uint8Array};tones:SceneTones;accents:{id?:string;color:string;weight:number;salience?:number;meanColor?:string}[];neutrals:{id?:string;color:string;weight:number;salience?:number;meanColor?:string}[]};
 /** Count color families together, so many nearby blues cannot displace an orange accent. */
 export function extractScenePalette(signal:SceneSignal):ScenePalette{
  const pixels=signal instanceof Uint8ClampedArray?signal:signal.pixels,width=signal instanceof Uint8ClampedArray?pixels.length/4:signal.width,height=signal instanceof Uint8ClampedArray?1:signal.height;
- const families=['h0','h1','h2','h3','h4','h5','h6','h7','n0','n1','n2'],cells=new Uint8Array(pixels.length/4).fill(255);
+ const families=PALETTE_FAMILIES,cells=new Uint8Array(pixels.length/4).fill(255);
  const attention=new Map<string,{energy:number;count:number;tiles:Set<number>}>();
  // Neighbor differences capture edges, gradients and recurring color pairings
  // at two small scales. Uniform areas receive no special semantic treatment.
