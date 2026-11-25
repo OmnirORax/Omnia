@@ -545,14 +545,14 @@ function openThemeInclusions(restore?:ViewSpec){
  if(!viewHistory.performing){viewHistory.perform(()=>openThemeInclusions(restore));return;}
  if(colorInclusions?.root.isConnected&&!restore){colorInclusions.openPicker();return;}
  const origin=restore?(restore.selection as Origin[]|undefined)?.[0]:themeTarget();colorInclusions?.close();view?.cancel();
- colorInclusions=colorInclusionPanel({read:()=>store.world,change:edit=>store.change(edit),subscribe:store.subscribe,feedback},origin);
+ colorInclusions=colorInclusionPanel({motifs:origin=>autoImageColors.motifs(store.world,origin),subscribeMotifs:autoImageColors.subscribe,read:()=>store.world,change:edit=>store.change(edit),subscribe:store.subscribe,feedback},origin);
  colorInclusions.root.classList.add('theme-color-inclusions');viewHistory.adopt('themeColors',{kind:'themeColors',selection:origin?[origin]:[]},colorInclusions,restore);if(!restore)colorInclusions.openPicker();
 }
 let sceneView: ReturnType<typeof scenePanel> | undefined;
 function openScene(tab:SceneTab='image',restore?:ViewSpec) {
   if(!viewHistory.performing){viewHistory.perform(()=>openScene(tab,restore));return;}
   renderClose(); if (!view) return; sceneView?.close();
-  sceneView = scenePanel({previewTheme:(origin,settings)=>previewPaint(origin?'nodeText':'text',origin?[origin]:[],settings?autoImageColors.preview(store.world,origin,settings):undefined),account:openAccount, subscribe:store.subscribe, read: () => store.world, selected: ()=>restore?.selection as Origin[]??selectedOrigins(), change: (edit, group) => store.change(edit, group), preview: candidate => view.session.update(candidate, selectedOrigins()[0]), session: view.session, feedback },tab);
+  sceneView = scenePanel({motifs:origin=>autoImageColors.motifs(store.world,origin),subscribeMotifs:autoImageColors.subscribe,previewTheme:(origin,settings)=>previewPaint(origin?'nodeText':'text',origin?[origin]:[],settings?autoImageColors.preview(store.world,origin,settings):undefined),account:openAccount, subscribe:store.subscribe, read: () => store.world, selected: ()=>restore?.selection as Origin[]??selectedOrigins(), change: (edit, group) => store.change(edit, group), preview: candidate => view.session.update(candidate, selectedOrigins()[0]), session: view.session, feedback },tab);
   viewHistory.adopt('scene',{kind:'scene',args:[tab],selection:[...selectedOrigins()]},sceneView,restore);
 }
 const documents = new Map<string, ReturnType<typeof editDocument>>(), openingDocuments = new Set<string>();
@@ -816,5 +816,5 @@ function restoreWorkspaceSession(){
 store.subscribeReplace(restoreWorkspaceSession);
 if(!(location.hostname==='omnium.nexus'||location.hostname==='omnia-web-bae.pages.dev'||location.hostname.endsWith('.omnia-web-bae.pages.dev')))restoreWorkspaceSession();
 
-const autoImageColors=createAutoColors({read:()=>store.world,change:edit=>store.change(edit),sample:async image=>{const [{localSceneBlob},{sceneSourceSample}]=await Promise.all([import('./scene/library.ts'),import('./scene/normalizationCache.ts')]);return (await sceneSourceSample(await localSceneBlob(image))).pixels;},error:error=>feedback(String(error))});
+const autoImageColors=createAutoColors({read:()=>store.world,change:edit=>store.change(edit),sample:async image=>{const [{localSceneBlob},{sceneSourceSample}]=await Promise.all([import('./scene/library.ts'),import('./scene/normalizationCache.ts')]);return await sceneSourceSample(await localSceneBlob(image));},error:error=>feedback(String(error))});
 store.subscribe(autoImageColors.update);autoImageColors.update();

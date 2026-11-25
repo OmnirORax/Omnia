@@ -20,30 +20,27 @@ export function focusRatio(p:TextPalette){return minimumRatio(p.imageRatio?.leng
 export type FocusPattern={key:string;indices:number[];glow:Uint8Array;ink:Uint8Array;css?:string;verticalCSS?:string};
 const patterns=new Map<string,FocusPattern>();
 /** Every arrangement owns only order; the image-derived integer counts stay fixed. */
-export function focusSequence(ratio:readonly number[],distribution:TextPalette['distribution']='balanced'){
- const total=ratio.reduce((a,b)=>a+b,0),indices:number[]=[];
- if(distribution==='grouped'||distribution==='centered'){
-  for(let i=0;i<ratio.length;i++)for(let j=0;j<ratio[i];j++)indices.push(i);
-  if(distribution==='centered'){const largest=ratio.indexOf(Math.max(...ratio)),at=ratio.slice(0,largest).reduce((a,b)=>a+b,0)+Math.ceil(ratio[largest]/2);indices.push(...indices.splice(0,at));}
- }else if(distribution==='alternating'||distribution==='alternating-end'||distribution==='paired'||distribution==='growing'){
-  const remaining=[...ratio];let run=distribution==='paired'?2:1;
-  while(remaining.filter(n=>n>0).length>1){
-   for(let i=0;i<remaining.length;i++){const take=Math.min(run,remaining[i]);for(let j=0;j<take;j++)indices.push(i);remaining[i]-=take;}
-   if(distribution==='growing')run++;
-  }
-  const color=remaining.findIndex(n=>n>0),tail=color<0?[]:Array<number>(remaining[color]).fill(color);
-  if(distribution==='alternating-end')indices.unshift(...tail);else indices.push(...tail);
+export function focusSequence(ratio:readonly number[],distribution:TextPalette['distribution']='balanced',inverse=false){
+ const base=ratio.reduce((a,b)=>a+b,0),repeat=distribution==='growing'||inverse?Math.min(4,Math.max(1,Math.floor(RATIO_BUDGET/base))):1,counts=ratio.map(n=>n*repeat),total=base*repeat,indices:number[]=[],remaining=[...counts];
+ if(inverse&&distribution==='balanced'){
+  // Cluster the same counts; choose the cyclic color order with least overlap.
+  const cycle=focusSequence(ratio,distribution),original=Array.from({length:total},(_,i)=>cycle[i%cycle.length]);let best:number[]=[];let overlap=Infinity;
+  for(let shift=0;shift<ratio.length;shift++){const candidate:number[]=[];for(let j=0;j<ratio.length;j++){const i=(j+shift)%ratio.length;for(let n=0;n<counts[i];n++)candidate.push(i);}const score=candidate.reduce((n,color,i)=>n+Number(color===original[i]),0);if(score<overlap){overlap=score;best=candidate;}}
+  return best;
+ }
+ if(distribution==='growing'&&!inverse){
+  let run=1;
+  while(remaining.some(n=>n>0)){for(let i=0;i<remaining.length;i++){const take=Math.min(run,remaining[i]);for(let j=0;j<take;j++)indices.push(i);remaining[i]-=take;}run++;}
  }else{
   const used=ratio.map(()=>0);
-  for(let at=0;at<total;at++){let best=-Infinity,color=0;for(let i=0;i<ratio.length;i++){if(used[i]>=ratio[i])continue;const deficit=(at+1)*ratio[i]-used[i]*total;if(deficit>best){best=deficit;color=i;}}indices.push(color);used[color]++;}
-  if(distribution==='mirrored')indices.push(...[...indices].reverse());
+  for(let at=0;at<total;at++){let best=-Infinity,color=0;for(let i=0;i<ratio.length;i++){if(used[i]>=counts[i])continue;const deficit=(at+1)*counts[i]-used[i]*total;if(deficit>best){best=deficit;color=i;}}indices.push(color);used[color]++;}
  }
  return indices;
 }
 /** One bounded pixel cycle is shared by DOM text, window contours and world labels. */
 export function focusPattern(p:TextPalette){
- const ratio=focusRatio(p),key=JSON.stringify([p.colors,ratio,p.distribution,paletteInk(p)]);let found=patterns.get(key);if(found)return found;
- const indices=focusSequence(ratio,p.distribution);
+ const ratio=focusRatio(p),key=JSON.stringify([p.colors,ratio,p.distribution,p.inverseDistribution,paletteInk(p)]);let found=patterns.get(key);if(found)return found;
+ const indices=focusSequence(ratio,p.distribution,p.inverseDistribution);
  const glow=new Uint8Array(indices.length*4),ink=new Uint8Array(glow.length),strength=paletteInk(p),colors=p.colors.map(paletteRGB);
  for(let i=0;i<indices.length;i++){for(let c=0;c<3;c++){glow[i*4+c]=colors[indices[i]][c];ink[i*4+c]=Math.round(255*(1-strength)+glow[i*4+c]*strength);}glow[i*4+3]=ink[i*4+3]=255;}
  found={key,indices,glow,ink};patterns.set(key,found);if(patterns.size>16)patterns.delete(patterns.keys().next().value!);return found;

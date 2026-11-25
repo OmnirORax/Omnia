@@ -154,3 +154,6 @@ input[type="number"]:enabled:not([readonly]), input[inputmode="numeric"]:enabled
 :root[data-focus-theme] .panel::after,.panel[data-focus-theme]::after{content:"";position:absolute;inset:0;border-radius:inherit;padding:1px;transform:translateY(var(--panel-scroll-y,0px));pointer-events:none;z-index:2;background-image:var(--document-palette-gradient);background-size:var(--document-palette-size);background-repeat:var(--document-palette-repeat,repeat-x);image-rendering:auto;mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);mask-composite:exclude}
 
 .scene-content label[hidden]{display:none}
+
+.motif-swatches{grid-template-columns:repeat(4,40px)}.theme-inclusions.motif-swatches button{width:40px;height:28px;font-size:10px;text-shadow:none;line-height:1;padding:0}.motif-swatches button[aria-pressed=false]{opacity:.3}.motif-swatches button[aria-pressed=true]{outline:1px solid currentColor}
+ .theme-inverse[aria-pressed=true]{outline:1px solid currentColor}

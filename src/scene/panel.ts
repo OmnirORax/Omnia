@@ -1,8 +1,10 @@
 import {FOCUS_DISTRIBUTIONS} from '../properties/focusPalette.ts';
 import {bindOperationValueControl} from '../ui/operationValueControl.ts';
 import {readPaint} from '../core/appearance.ts';
-import {focusTheme,setThemeFocus} from './themeControls.ts';
-import {PALETTE_SELECTIONS,PALETTE_INKS,PALETTE_PROGRESSIONS,PALETTE_DISTRIBUTION_AXES,type PaletteSettings} from '../properties/textPalette.ts';
+import {motifSwatches} from './motifSwatches.ts';
+import type {MotifCandidate} from './colorCombo.ts';
+import {focusTheme,setThemeFocus,setMotifMembership} from './themeControls.ts';
+import {PALETTE_INKS,PALETTE_PROGRESSIONS,PALETTE_DISTRIBUTION_AXES,type PaletteSettings} from '../properties/textPalette.ts';
 import {configureAutoColors,autoColorKey} from './autoColors.ts';
 import {imageTrash} from './imageTrash.ts';
 import {localSceneStorage,type SceneStorage,type SceneImage} from './storage.ts';
@@ -27,7 +29,7 @@ import { resolveScenePrompt } from './contracts.ts';
 import { locate, sameOrigin, type Origin, type World } from '../core/model.ts';
 import type { createSceneSession } from './session.ts';
 
-type Host = { previewTheme?:(origin:Origin|undefined,settings?:PaletteSettings)=>void; account?:()=>void; subscribe:(listener:()=>void)=>()=>void; read: () => World; selected: () => readonly Origin[]; change: (edit: (world: World) => void, group?: string) => void; preview: (world: World) => void; session: ReturnType<typeof createSceneSession>; feedback: (text: string) => void };
+type Host = { motifs?:(origin?:Origin)=>readonly MotifCandidate[];subscribeMotifs?:(listener:()=>void)=>()=>void; previewTheme?:(origin:Origin|undefined,settings?:PaletteSettings)=>void; account?:()=>void; subscribe:(listener:()=>void)=>()=>void; read: () => World; selected: () => readonly Origin[]; change: (edit: (world: World) => void, group?: string) => void; preview: (world: World) => void; session: ReturnType<typeof createSceneSession>; feedback: (text: string) => void };
 export const SCENE_TABS=[['image','Image'],['waves','Waves'],['pulse','Pulse'],['audio','Audio'],['normalization','Normalize'],['prompt','Prompt']]as const;
 export type SceneTab=typeof SCENE_TABS[number][0];
 export function scenePanel(host: Host,initialTab:SceneTab='image') {
@@ -77,29 +79,30 @@ export function scenePanel(host: Host,initialTab:SceneTab='image') {
       throw Error('No image found on the clipboard.');
     }).disabled=!library.writable();
     const autoRow=document.createElement('label'),auto=document.createElement('input');auto.type='checkbox';auto.checked=!!host.read().appearance?.imageColors?.[autoColorKey(target)]?.enabled;autoRow.append(document.createTextNode('Auto image colors'),auto);body.append(autoRow);
-    const paletteControls:(HTMLSelectElement|HTMLInputElement)[]=[],numberSync:(()=>void)[]=[];
+    const paletteControls:(HTMLSelectElement|HTMLInputElement|HTMLButtonElement)[]=[],numberSync:(()=>void)[]=[];
     const current=()=>host.read().appearance?.imageColors?.[autoColorKey(target)]?.palette??{};
     const resolved=()=>readPaint(host.read(),target?'nodeText':'text',target).palette;
     const manual=(delta:PaletteSettings)=>focusTheme(current(),delta);
     function edit(delta:PaletteSettings){host.change(world=>setThemeFocus(world,target,delta));syncTheme();}
     auto.onchange=()=>{host.change(world=>configureAutoColors(world,target,auto.checked));syncTheme();};
-    function select(key:'selection'|'distribution'|'ink'|'progression'|'distributionAxis',label:string,options:readonly(readonly[string,string])[]){const row=document.createElement('label'),input=document.createElement('select');row.append(label,input);input.setAttribute('aria-label',label);for(const [id,text]of options){const option=document.createElement('option');option.value=id;option.textContent=text;input.append(option);}input.onchange=()=>edit({[key]:input.value} as PaletteSettings);paletteControls.push(input);body.append(row);numberSync.push(()=>{input.value=(key==='selection'&&current().selection==='pair'?'top-motif':current()[key])??(key==='distribution'?'balanced':key==='ink'?'color':key==='progression'||key==='distributionAxis'?'horizontal':'motif');});return row;}
-    select('selection','Focus',PALETTE_SELECTIONS.filter(([id])=>id!=='pair'));
+    function select(key:'distribution'|'ink'|'progression'|'distributionAxis',label:string,options:readonly(readonly[string,string])[]){const row=document.createElement('label'),input=document.createElement('select');row.append(label,input);input.setAttribute('aria-label',label);for(const [id,text]of options){const option=document.createElement('option');option.value=id;option.textContent=text;input.append(option);}input.onchange=()=>edit({[key]:input.value} as PaletteSettings);paletteControls.push(input);body.append(row);numberSync.push(()=>{input.value=current()[key]??(key==='distribution'?'balanced':key==='ink'?'color':key==='progression'||key==='distributionAxis'?'horizontal':'motif');});return row;}
+    const swatches=motifSwatches((candidate,enabled)=>attempt(()=>host.change(world=>setMotifMembership(world,target,candidate.id,enabled,host.motifs?.(target)??[]))));body.append(swatches.root);
     function numeric(label:string,read:()=>number,min:number,max:()=>number,write:(n:number)=>PaletteSettings,step=1){
       const row=document.createElement('label'),input=document.createElement('input');input.type='button';input.setAttribute('aria-label',label);row.append(label,input);body.append(row);paletteControls.push(input);
       subscriptions.push(bindOperationValueControl(input,{label,min,get max(){return max();},integer:step===1,step,read,preview:n=>host.previewTheme?.(target,n===undefined?undefined:manual(write(n))),commit:n=>edit(write(n)),feedback:host.feedback,loadDial:()=>import('../ui/operationMathDial.tsx')}));
       numberSync.push(()=>{input.value=String(read());input.setAttribute('aria-valuemax',String(max()));});return row;
     }
-    const top=numeric('Top colors',()=>Math.min(current().top??2,resolved()?.available??8),1,()=>resolved()?.available??8,n=>({top:n}));
-    const maximum=document.createElement('span');top.append(maximum);
     select('ink','Text color',PALETTE_INKS);
-    select('distribution','Distribution',FOCUS_DISTRIBUTIONS);
+    const inverse=(label:string,key:'inverseDistribution'|'inverseOccupation',row?:HTMLElement)=>{const input=button('Inverse',()=>edit({[key]:!current()[key]}),row);input.className='theme-inverse';input.setAttribute('aria-label',`Inverse ${label}`);paletteControls.push(input);numberSync.push(()=>input.setAttribute('aria-pressed',String(!!current()[key])));};
+    inverse('distribution','inverseDistribution',select('distribution','Distribution',FOCUS_DISTRIBUTIONS));
+    const occupation=document.createElement('label');occupation.append('% occupation');body.append(occupation);inverse('occupation','inverseOccupation',occupation);
     select('distributionAxis','Distribution direction',PALETTE_DISTRIBUTION_AXES);
     select('progression','Progression',PALETTE_PROGRESSIONS);
     numeric('Scale ×',()=>current().scale??1,1,()=>4096,n=>({scale:n}),.25);
     numeric('Saturation',()=>Math.round((current().saturation??1)*100),0,()=>100,n=>({saturation:n/100}));
-    function syncTheme(){auto.checked=!!host.read().appearance?.imageColors?.[autoColorKey(target)]?.enabled;for(const input of paletteControls)input.disabled=!auto.checked;for(const sync of numberSync)sync();top.hidden=current().selection!=='top'&&current().selection!=='top-motif';maximum.textContent=`max ${resolved()?.available??8}`;}
-    button('Restore auto colors',()=>{host.change(world=>configureAutoColors(world,target,true,true));syncTheme();});
+    function syncTheme(){auto.checked=!!host.read().appearance?.imageColors?.[autoColorKey(target)]?.enabled;for(const input of paletteControls)input.disabled=!auto.checked;for(const sync of numberSync)sync();swatches.render(host.motifs?.(target)??[],!auto.checked);}
+    button('Restore auto colors',()=>{host.change(world=>configureAutoColors(world,target,true,true,{motifOverrides:undefined}));syncTheme();});
+    if(host.subscribeMotifs)subscriptions.push(host.subscribeMotifs(syncTheme));
     syncTheme();let lastTheme='';subscriptions.push(host.subscribe(()=>{const next=JSON.stringify([host.read().appearance?.imageColors?.[autoColorKey(target)],resolved()]);if(next!==lastTheme){lastTheme=next;syncTheme();}}));
     button('Clear background', () => assign(null));
     if (target) button('Use default background', () => host.change(world => { const node = locate(world, target!); if (node) delete node.scene; }));
