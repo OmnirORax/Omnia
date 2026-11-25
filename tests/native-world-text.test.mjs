@@ -23,6 +23,14 @@ test('Image pixels reads the live wallpaper at the native text viewport and pres
  assert.ok(shader.fragmentShader.includes(wallpaperSampleGLSL));
  assert.ok(shader.fragmentShader.includes('sampleWallpaper(gl_FragCoord.xy/wallpaperViewport)'));
  assert.equal(shader.uniforms.textPaletteInk.value,.25);
+ assert.equal(shader.uniforms.textFillOpacity.value,1);
+ const usesOutline=shader.fragmentShader.match(/if\((liveImage\|\|.*)\)\{/)[1];
+ assert.equal(Function('liveImage','textFillOpacity','textPatternDebug',`return ${usesOutline};`)(true,1,false),true);
+ const edge=shader.fragmentShader.match(/vec3 outlineInk=(.*);/)[1];
+ const stroke=Function('liveImage','glow','ink','vec3','step','dot','clamp',`return ${edge};`);
+ const contrast=(glow)=>stroke(true,glow,0,(...values)=>values.length===1?values[0]:values,(edge,value)=>Number(value>=edge),(a,b)=>a.reduce((sum,n,i)=>sum+n*b[i],0),value=>value);
+ assert.equal(contrast([.05,.05,.05]),1);
+ assert.equal(contrast([.85,.85,.85]),0);
  let draws=0;
  const renderer={autoClear:true,setRenderTarget(){},clearDepth(){},getDrawingBufferSize:size=>size.set(1280,720),render(){
   draws++;
@@ -37,6 +45,9 @@ test('Image pixels reads the live wallpaper at the native text viewport and pres
  assert.equal(shader.uniforms.image.value,null);
  updateTextureTextPalette(material,{mode:'text',distribution:'growing',colors:['#222222']});
  assert.equal(material.customProgramCacheKey(),defaultKey);
+ const normal={uniforms:{},fragmentShader:T.ShaderLib.basic.fragmentShader};
+ material.onBeforeCompile(normal,{});
+ assert.ok(!normal.fragmentShader.includes('outlineInk'));
  material.dispose();depth.dispose();image.dispose();
 });
 test('budgeted graph pass excludes native labels and restores camera layers on failure',()=>{const camera=new T.PerspectiveCamera();camera.layers.enable(WORLD_TEXT_LAYER);const initial=camera.layers.mask;assert.throws(()=>withoutWorldText(camera,()=>{assert.equal(camera.layers.isEnabled(WORLD_TEXT_LAYER),false);assert.equal(camera.layers.isEnabled(0),true);throw Error('fail');}));assert.equal(camera.layers.mask,initial);});

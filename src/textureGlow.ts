@@ -1,3 +1,4 @@
+import {IMAGE_PIXEL_CONTRAST_THRESHOLD,IMAGE_PIXEL_LUMINANCE} from './properties/imagePixelContrast.ts';
 import {createWallpaperSampling,wallpaperSampleGLSL,type WallpaperSampleUniforms} from './scene/wallpaperSample.ts';
 import {initializeTextureInkProgression,updateTextureInkProgression,inkProgressionShader} from './textureInkProgression.ts';
 import {isFocusPalette,focusPattern,focusPeriod,focusPaletteAxis,isImageField} from './properties/focusPalette.ts';
@@ -86,9 +87,11 @@ export function packedTextureGlow(material:T.MeshBasicMaterial){
     float clean=coverage.r;
     float halo=max(0.0,coverage.g-clean);
     float outline=0.0,fill=1.0;
-    if(textFillOpacity<1.0&&!textPatternDebug){
+    ${imagePixels?'bool liveImage=wallpaperAvailable>.5;':''}
+    if(${imagePixels?'liveImage||':''}(textFillOpacity<1.0&&!textPatternDebug)){
      // Dilate the existing coverage at its filtered resolution, then keep only the new edge.
      vec2 radius=1.5/vec2(textureSize(map,0));
+     ${imagePixels?'if(liveImage) radius=max(radius,fwidth(vMapUv)*textPixelRatio);':''}
      vec2 dx=vec2(radius.x,0.0),dy=vec2(0.0,radius.y);
      float horizontal=max(texture2D(map,vMapUv-dx,-0.5).r,texture2D(map,vMapUv+dx,-0.5).r);
      float vertical=max(texture2D(map,vMapUv-dy,-0.5).r,texture2D(map,vMapUv+dy,-0.5).r);
@@ -98,14 +101,15 @@ export function packedTextureGlow(material:T.MeshBasicMaterial){
     }
     float inkCoverage=clean*fill+outline;
     vec3 ink=diffuseColor.rgb,glow=glowInkColor;
-    ${imagePixels?`if(wallpaperAvailable>.5){
+    ${imagePixels?`if(liveImage){
      glow=sampleWallpaper(gl_FragCoord.xy/wallpaperViewport);
      ink=linearColour(mix(vec3(1.0),displayColour(clamp(glow,0.0,1.0)),textPaletteInk));
     }else`:''}
     if(textPaletteCount>1&&inkCoverage+halo>0.0){vec3 hue=paletteGlow(vMapUv,coverage);ink=paletteLinear(mix(vec3(1.0),hue,textPaletteInk));glow=paletteLinear(hue);}
     halo*=step(${TEXT_EMISSION_THRESHOLD},max(glow.r,max(glow.g,glow.b)));
     float total=inkCoverage+halo;
-    diffuseColor.rgb=(ink*inkCoverage+glow*halo)/max(total,.00001);
+    ${imagePixels?`vec3 outlineInk=liveImage?vec3(1.0-step(${IMAGE_PIXEL_CONTRAST_THRESHOLD},dot(clamp(glow,0.0,1.0),vec3(${IMAGE_PIXEL_LUMINANCE.join(',')})))):ink;
+    diffuseColor.rgb=(ink*(clean*fill)+outlineInk*outline+glow*halo)/max(total,.00001);`:`diffuseColor.rgb=(ink*inkCoverage+glow*halo)/max(total,.00001);`}
     diffuseColor.a*=total;
     if(textPatternDebug&&textPaletteCount>1){diffuseColor.rgb=paletteLinear(paletteGlow(vMapUv,coverage));diffuseColor.a=max(diffuseColor.a,0.4*opacity);}
    `:'diffuseColor.a*=coverage.r;';
@@ -119,6 +123,6 @@ export function packedTextureGlow(material:T.MeshBasicMaterial){
     ${coverage}
     #endif
    `);
-  };target.customProgramCacheKey=()=>target===material?`omnium.packed-text-glow.base.v18.${Number(state.imagePixels)}`:'omnium.packed-text-glow.mask.v3';
+  };target.customProgramCacheKey=()=>target===material?`omnium.packed-text-glow.base.v19.${Number(state.imagePixels)}`:'omnium.packed-text-glow.mask.v3';
  });
 }
