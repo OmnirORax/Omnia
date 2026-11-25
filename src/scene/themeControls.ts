@@ -7,4 +7,14 @@ export function setThemeInclusions(world:World,origin:Origin|undefined,colors:re
 /** Settings edits retain the chosen membership and retire old layout deltas. */
 export function focusTheme(current:PaletteSettings,delta:PaletteSettings):PaletteSettings{const next={...current,distribution:current.distribution??'image',ink:current.ink??'color',...delta,pattern:undefined,layout:undefined,spread:undefined,match:undefined,balance:undefined,softness:undefined,seed:undefined};migratePaletteSettings(next);return next;}
 export function setThemeFocus(world:World,origin:Origin|undefined,delta:PaletteSettings){validTarget(world,origin);configureAutoColors(world,origin,true,false,focusTheme(themeSettings(world,origin),delta));}
-export function setMotifMembership(world:World,origin:Origin|undefined,id:string,enabled:boolean,candidates:readonly {id:string;enabled:boolean}[]){const count=candidates.filter(c=>c.id===id?enabled:c.enabled).length;if(count<1)throw Error('Keep at least one motif color.');setThemeFocus(world,origin,{motifOverrides:{...themeSettings(world,origin).motifOverrides,[id]:enabled}});}
+export function setMotifMembership(world:World,origin:Origin|undefined,id:string,selection:boolean|'only',candidates:readonly {id:string;enabled:boolean}[]){
+ const motifOverrides={...themeSettings(world,origin).motifOverrides};
+ if(selection==='only'){
+  if(!candidates.some(candidate=>candidate.id===id))return;
+  for(const candidate of candidates)motifOverrides[candidate.id]=candidate.id===id;
+ }else{
+  if(!candidates.some(candidate=>candidate.id===id?selection:candidate.enabled))throw Error('Keep at least one motif color.');
+  motifOverrides[id]=selection;
+ }
+ setThemeFocus(world,origin,{motifOverrides});
+}
