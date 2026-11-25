@@ -14,7 +14,7 @@ export {PALETTE_COLOR_LIMIT} from './colorRelations.ts';
 export type PaletteSettings={paleAmount?:number;fillOpacity?:number;debugPattern?:boolean;included?:readonly string[];motifOverrides?:Readonly<Record<string,boolean>>;inverseOccupation?:boolean;inverseDistribution?:boolean;distributionAxis?:typeof PALETTE_DISTRIBUTION_AXES[number][0];progression?:typeof PALETTE_PROGRESSIONS[number][0];distribution?:typeof FOCUS_DISTRIBUTIONS[number][0];scale?:number;softness?:number;balance?:number;saturation?:number;layout?:typeof PALETTE_LAYOUTS[number][0];pattern?:typeof PALETTE_PATTERNS[number][0]|'generated';match?:typeof PALETTE_MATCHES[number][0];ink?:typeof PALETTE_INKS[number][0];spread?:typeof PALETTE_SPREADS[number][0];seed?:number};
 export type TextPalette=PaletteSettings&{field?:ImageField;relations?:ColorRelations;mode:'text';colors:readonly string[];pixelSources?:readonly string[];weights?:readonly number[];strength?:number;darkSupport?:boolean;available?:number;imageRatio?:readonly number[]};
 export const PALETTE_STOP_LIMIT=24;
-export const PALETTE_SCALE={min:.05,max:4096,step:.05} as const;
+export const PALETTE_SCALE={min:.01,max:4096,step:.01} as const;
 /** Discard only settings written by the removed motif-field experiment. */
 export function retirePaletteRework(value:unknown){
  const p=value as PaletteSettings&Record<string,unknown>;
