@@ -45,6 +45,10 @@ test('indexed glyph pixels resolve through a tiny palette lookup with glow deriv
   }
   sink.render({color:'#ff0000',palette:{...p,colors:['#ff0000'],fillOpacity:0}});
   assert.equal(body.children[0].children[0].children.find(node=>node.attrs.result==='outlineColor').attrs['flood-color'],'#ff0000');
+  sink.render({color:'#ff0000',palette:{mode:'text',distribution:'pixels',ink:'pale',colors:['#ff0000'],fillOpacity:0}});
+  assert.ok('data-document-image-pixels' in host.attrs);
+  assert.equal(host.style['--document-image-pale'],'0.75');
+  assert.equal(body.children[0].children[0].children.find(node=>node.attrs.result==='outlineColor').attrs.in,'edgeInk');
   sink.dispose();
  }finally{globalThis.document=previous;}
 });

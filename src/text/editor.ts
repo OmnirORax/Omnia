@@ -154,7 +154,7 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
     host.style.setProperty('--document-text-color',host.style.color);
     host.style.setProperty('--document-text-shadow',host.style.textShadow);
     host.style.setProperty('--visual-text-bold-stroke',`${emboldenStrokeEm(paint.embolden)}em currentColor`);
-    const palette=paint.palette&&paint.palette.colors.length>1?paint.palette:undefined;
+    const palette=paint.palette&&paint.palette.distribution!=='pixels'&&paint.palette.colors.length>1?paint.palette:undefined;
     const changed=palettePaint.render(paint);editor?.dispatch({effects:[setDocumentPalette.of(palette),setDocumentInkTypography.of(JSON.stringify([paint.font,paint.fontSize,paint.embolden,fontSize])),...(changed?[showDocumentPalette.of(palettePaint.enabled)]:[])]});
   }
   refreshAppearance();queueMicrotask(()=>{if(view.root.isConnected)editor?.dispatch({effects:refreshLexicon.of()});});editor.focus(); return {...view,refreshAppearance,previewAppearance(world:World){paintSession.render(readPaint(world,'nodeText',origin));}};

@@ -9,7 +9,7 @@ export const PALETTE_INKS=[['pale','Pale text'],['color','Colored text']] as con
 export const PALETTE_SPREADS=[['wide','Wide'],['repeat','Repeat'],['dense','Dense']] as const;
 export const PALETTE_DISTRIBUTION_AXES=[['horizontal','Horizontal'],['vertical','Vertical']] as const;
 export const PALETTE_PROGRESSIONS=[['horizontal','Straight'],['ink-serpentine','Ink serpentine'],['start-end','Start–end']] as const;
-export const FOCUS_DISTRIBUTIONS=[['image','Image relations'],['balanced','Balanced'],['growing','Growing rows']] as const;
+export const FOCUS_DISTRIBUTIONS=[['image','Image relations'],['pixels','Image pixels'],['balanced','Balanced'],['growing','Growing rows']] as const;
 export {PALETTE_COLOR_LIMIT} from './colorRelations.ts';
 export type PaletteSettings={fillOpacity?:number;debugPattern?:boolean;included?:readonly string[];motifOverrides?:Readonly<Record<string,boolean>>;inverseOccupation?:boolean;inverseDistribution?:boolean;distributionAxis?:typeof PALETTE_DISTRIBUTION_AXES[number][0];progression?:typeof PALETTE_PROGRESSIONS[number][0];distribution?:typeof FOCUS_DISTRIBUTIONS[number][0];scale?:number;softness?:number;balance?:number;saturation?:number;layout?:typeof PALETTE_LAYOUTS[number][0];pattern?:typeof PALETTE_PATTERNS[number][0]|'generated';match?:typeof PALETTE_MATCHES[number][0];ink?:typeof PALETTE_INKS[number][0];spread?:typeof PALETTE_SPREADS[number][0];seed?:number};
 export type TextPalette=PaletteSettings&{field?:ImageField;relations?:ColorRelations;mode:'text';colors:readonly string[];weights?:readonly number[];strength?:number;darkSupport?:boolean;available?:number;imageRatio?:readonly number[]};

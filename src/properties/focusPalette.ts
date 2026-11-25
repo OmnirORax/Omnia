@@ -22,7 +22,7 @@ export function focusRatio(p:TextPalette){return minimumRatio(p.imageRatio?.leng
 export type FocusPattern={key:string;width:number;height:number;indices:readonly number[];glow:Uint8Array;ink:Uint8Array;css?:string;verticalCSS?:string};
 const patterns=new Map<string,FocusPattern>();
 /** Every arrangement owns only order; the image-derived integer counts stay fixed. */
-export function focusSequence(ratio:readonly number[],distribution:Exclude<TextPalette['distribution'],'image'>='balanced',inverse=false,repetition?:number){
+export function focusSequence(ratio:readonly number[],distribution:Exclude<TextPalette['distribution'],'image'|'pixels'>='balanced',inverse=false,repetition?:number){
  const base=ratio.reduce((a,b)=>a+b,0),repeat=repetition??(distribution==='growing'||inverse?Math.min(4,Math.max(1,Math.floor(RATIO_BUDGET/base))):1),counts=ratio.map(n=>n*repeat),total=base*repeat,indices:number[]=[],remaining=[...counts];
  if(inverse&&distribution==='balanced'){
   // Cluster the same counts; choose the cyclic color order with least overlap.
@@ -44,7 +44,7 @@ export const isImageField=(p:TextPalette|undefined)=>p?.distribution==='image'&&
 export function focusPattern(p:TextPalette){
  const ratio=focusRatio(p),relations=p.distribution==='image'&&!isImageField(p)?p.relations?.[p.distributionAxis==='vertical'?'vertical':'horizontal']:undefined,key=JSON.stringify([p.colors,ratio,p.distribution,p.inverseDistribution,paletteInk(p),relations,isImageField(p)?p.field:undefined]);let found=patterns.get(key);if(found)return found;
  const field=isImageField(p)?(p.inverseDistribution?inverseField(p.field!):p.field):undefined;
- const indices=field?field.cells:relations&&p.colors.length>1?relationPattern(ratio,relations,!!p.inverseDistribution,(counts,growing)=>focusSequence(counts,growing?'growing':'balanced',false,1),RATIO_BUDGET):focusSequence(ratio,p.distribution==='image'?'balanced':p.distribution,p.inverseDistribution);
+ const indices=field?field.cells:relations&&p.colors.length>1?relationPattern(ratio,relations,!!p.inverseDistribution,(counts,growing)=>focusSequence(counts,growing?'growing':'balanced',false,1),RATIO_BUDGET):focusSequence(ratio,p.distribution==='growing'?'growing':'balanced',p.inverseDistribution);
  const glow=new Uint8Array(indices.length*4),ink=new Uint8Array(glow.length),strength=paletteInk(p),colors=p.colors.map(paletteRGB);
  for(let i=0;i<indices.length;i++){for(let c=0;c<3;c++){glow[i*4+c]=colors[indices[i]][c];ink[i*4+c]=Math.round(255*(1-strength)+glow[i*4+c]*strength);}glow[i*4+3]=ink[i*4+3]=255;}
  found={key,indices,width:field?.width??indices.length,height:field?.height??1,glow,ink};patterns.set(key,found);if(patterns.size>16)patterns.delete(patterns.keys().next().value!);return found;

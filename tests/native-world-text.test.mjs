@@ -1,12 +1,43 @@
 import test from 'node:test';import assert from 'node:assert/strict';import * as T from 'three';
 import {WORLD_TEXT_LAYER,nativeTextMaterial,withoutWorldText,renderWorldText} from '../src/world/textPass.ts';
-import {packedTextureGlow} from '../src/textureGlow.ts';import {emptyWorld,addStructure} from '../src/core/model.ts';import {writePaint,readPaint,nodeTextPaint} from '../src/core/appearance.ts';
+import {packedTextureGlow,updateTextureTextPalette} from '../src/textureGlow.ts';
+import {createWallpaperSampling,wallpaperSampleGLSL} from '../src/scene/wallpaperSample.ts';import {emptyWorld,addStructure} from '../src/core/model.ts';import {writePaint,readPaint,nodeTextPaint} from '../src/core/appearance.ts';
 import {sceneOutputPixelRatio,budgetPixelRatio,RENDER_BUDGET} from '../src/renderBudget.ts';
 test('native text pass uses output pixels, graph depth and restores renderer state after rendering or failure',()=>{
  const scene=new T.Scene(),camera=new T.PerspectiveCamera();scene.background=new T.Color('red');camera.layers.enable(WORLD_TEXT_LAYER);const mask=camera.layers.mask,background=scene.background,depth=new T.DepthTexture(),material=new T.MeshBasicMaterial();nativeTextMaterial(material);const shader={uniforms:{},fragmentShader:T.ShaderLib.basic.fragmentShader};material.onBeforeCompile(shader,{});
  let draws=0;const renderer={autoClear:true,setRenderTarget:target=>assert.equal(target,null),clearDepth(){},getDrawingBufferSize:size=>size.set(3840,2160),render(s,c){draws++;assert.equal(s,scene);assert.equal(c.layers.mask,1<<WORLD_TEXT_LAYER);assert.equal(s.background,null);assert.equal(renderer.autoClear,false);assert.equal(shader.uniforms.worldTextDepth.value,depth);assert.deepEqual(shader.uniforms.worldTextViewport.value.toArray(),[3840,2160]);assert.equal(shader.uniforms.worldTextDepthEnabled.value,1);}};
  renderWorldText(renderer,scene,camera,depth);assert.equal(draws,1);assert.equal(camera.layers.mask,mask);assert.equal(scene.background,background);assert.equal(renderer.autoClear,true);assert.equal(shader.uniforms.worldTextDepthEnabled.value,0);
  renderer.render=()=>{throw Error('gpu failure');};assert.throws(()=>renderWorldText(renderer,scene,camera,depth));assert.equal(camera.layers.mask,mask);assert.equal(scene.background,background);assert.equal(shader.uniforms.worldTextDepthEnabled.value,0);depth.dispose();material.dispose();
+});
+test('Image pixels reads the live wallpaper at the native text viewport and preserves Pale ink',()=>{
+ const scene=new T.Scene(),camera=new T.PerspectiveCamera(),depth=new T.DepthTexture(),material=new T.MeshBasicMaterial();
+ const {uniforms}=createWallpaperSampling(),image=new T.Texture();
+ uniforms.image.value=image;
+ uniforms.bounce.value=1.25;
+ packedTextureGlow(material);
+ const defaultKey=material.customProgramCacheKey();
+ updateTextureTextPalette(material,{mode:'text',distribution:'pixels',ink:'pale',colors:['#222222']});
+ assert.notEqual(material.customProgramCacheKey(),defaultKey);
+ const shader={uniforms:{},fragmentShader:T.ShaderLib.basic.fragmentShader};
+ material.onBeforeCompile(shader,{});
+ assert.ok(shader.fragmentShader.includes(wallpaperSampleGLSL));
+ assert.ok(shader.fragmentShader.includes('sampleWallpaper(gl_FragCoord.xy/wallpaperViewport)'));
+ assert.equal(shader.uniforms.textPaletteInk.value,.25);
+ let draws=0;
+ const renderer={autoClear:true,setRenderTarget(){},clearDepth(){},getDrawingBufferSize:size=>size.set(1280,720),render(){
+  draws++;
+  assert.equal(shader.uniforms.wallpaperAvailable.value,1);
+  assert.equal(shader.uniforms.image.value,image);
+  assert.equal(shader.uniforms.bounce.value,1.25);
+  assert.deepEqual(shader.uniforms.wallpaperViewport.value.toArray(),[1280,720]);
+ }};
+ renderWorldText(renderer,scene,camera,depth,uniforms);
+ assert.equal(draws,1);
+ assert.equal(shader.uniforms.wallpaperAvailable.value,0);
+ assert.equal(shader.uniforms.image.value,null);
+ updateTextureTextPalette(material,{mode:'text',distribution:'growing',colors:['#222222']});
+ assert.equal(material.customProgramCacheKey(),defaultKey);
+ material.dispose();depth.dispose();image.dispose();
 });
 test('budgeted graph pass excludes native labels and restores camera layers on failure',()=>{const camera=new T.PerspectiveCamera();camera.layers.enable(WORLD_TEXT_LAYER);const initial=camera.layers.mask;assert.throws(()=>withoutWorldText(camera,()=>{assert.equal(camera.layers.isEnabled(WORLD_TEXT_LAYER),false);assert.equal(camera.layers.isEnabled(0),true);throw Error('fail');}));assert.equal(camera.layers.mask,initial);});
 test('native depth hook retains the existing coverage shader and logarithmic depth conversion',()=>{const material=new T.MeshBasicMaterial();packedTextureGlow(material);nativeTextMaterial(material);const shader={uniforms:{},fragmentShader:T.ShaderLib.basic.fragmentShader};material.onBeforeCompile(shader,{});assert.ok(shader.fragmentShader.includes('float clean=coverage.r'));assert.ok(shader.fragmentShader.includes('USE_LOGARITHMIC_DEPTH_BUFFER'));assert.ok(shader.fragmentShader.includes('log2(vFragDepth)*logDepthBufFC*.5'));assert.ok(shader.fragmentShader.includes('texture2D(worldTextDepth'));assert.ok(shader.fragmentShader.includes('#include <colorspace_fragment>'));material.dispose();});

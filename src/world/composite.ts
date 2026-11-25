@@ -63,7 +63,7 @@ export function createSceneComposite(renderer:THREE.WebGLRenderer,scene:THREE.Sc
             // output colour conversion once, in the wallpaper's final shader.
             wallpaper.renderComposite(composer.readBuffer.texture);
           }else withoutWorldText(camera,()=>composer!.render());
-          if(depth)renderWorldText(renderer,scene,camera,depth);
+          if(depth)renderWorldText(renderer,scene,camera,depth,nativeWallpaper?wallpaper?.sampleUniforms:undefined);
           return;
         } catch {
           failed = true;disposeBloom();renderer.setRenderTarget(null);

@@ -98,9 +98,9 @@ export function scenePanel(host: Host,initialTab:SceneTab='image') {
     inverse('distribution','inverseDistribution',select('distribution','Distribution',FOCUS_DISTRIBUTIONS));
     const occupation=document.createElement('label');occupation.append('% occupation');body.append(occupation);inverse('occupation','inverseOccupation',occupation);
     const direction=select('distributionAxis','Distribution direction',PALETTE_DISTRIBUTION_AXES);
-    const progression=select('progression','Progression',PALETTE_PROGRESSIONS);numberSync.push(()=>{direction.hidden=progression.hidden=isImageField(resolved());});
-    const debug=button('Show pattern',()=>edit({debugPattern:!current().debugPattern}));paletteControls.push(debug);numberSync.push(()=>debug.setAttribute('aria-pressed',String(!!current().debugPattern)));
-    const strip=document.createElement('div');strip.className='theme-pattern-preview';strip.dataset.uiPaintOwner='geometry';body.append(strip);numberSync.push(()=>{const p=resolved();strip.hidden=!current().debugPattern||!p;if(!strip.hidden&&p){strip.style.backgroundImage=focusPaletteCSS(p,true);strip.style.height=isImageField(p)?'96px':'18px';}});
+    const progression=select('progression','Progression',PALETTE_PROGRESSIONS);numberSync.push(()=>{direction.hidden=progression.hidden=current().distribution==='pixels'||isImageField(resolved());});
+    const debug=button('Show pattern',()=>edit({debugPattern:!current().debugPattern}));paletteControls.push(debug);numberSync.push(()=>{debug.hidden=current().distribution==='pixels';debug.setAttribute('aria-pressed',String(!!current().debugPattern));});
+    const strip=document.createElement('div');strip.className='theme-pattern-preview';strip.dataset.uiPaintOwner='geometry';body.append(strip);numberSync.push(()=>{const p=resolved();strip.hidden=current().distribution==='pixels'||!current().debugPattern||!p;if(!strip.hidden&&p){strip.style.backgroundImage=focusPaletteCSS(p,true);strip.style.height=isImageField(p)?'96px':'18px';}});
     numeric('Scale ×',()=>current().scale??1,1,()=>4096,n=>({scale:n}),.25);
     numeric('Saturation',()=>Math.round((current().saturation??1)*100),0,()=>100,n=>({saturation:n/100}));
     function syncTheme(){auto.checked=!!host.read().appearance?.imageColors?.[autoColorKey(target)]?.enabled;for(const input of paletteControls)input.disabled=!auto.checked;for(const sync of numberSync)sync();swatches.render(host.motifs?.(target)??[],!auto.checked);}

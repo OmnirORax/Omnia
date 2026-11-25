@@ -66,3 +66,24 @@ test('warm sparks remain a visible saturated motif alongside a dominant blue sce
 test('dark green foliage is retained beside vivid sky instead of losing to brightness alone',async()=>{
  const {matchedImageColors}=await import('../src/scene/colorCombo.ts'),source=imageColorCombo(scene([[700,[15,95,240]],[150,[35,90,15]],[150,[220,220,210]]]));const combo=matchedImageColors(source,{ink:'color',pattern:'generated',seed:42}),green=combo.textPalette.findIndex(c=>{const [r,g,b]=paletteRGB(c);return g>r&&g>b;});assert.ok(green>=0);assert.ok(combo.textWeights[green]>.1);
 });
+
+test('Image pixels survives saving and tracks the Auto image colors toggle',async()=>{
+ const {setThemeFocus}=await import('../src/scene/themeControls.ts');
+ const {controller,store,calls}=fixture();
+ store.change(world=>setThemeFocus(world,undefined,{distribution:'pixels',ink:'pale',fillOpacity:.5}));
+ await controller.settle();
+ const saved=JSON.parse(JSON.stringify(store.world));
+ validateWorld(saved);
+ assert.equal(readPaint(saved,'text').palette.distribution,'pixels');
+ assert.equal(readPaint(saved,'text').palette.strength,.25);
+ assert.equal(readPaint(saved,'text').palette.fillOpacity,.5);
+ store.change(world=>configureAutoColors(world,undefined,false));
+ await controller.settle();
+ assert.equal(readPaint(store.world,'text').palette.distribution,'balanced');
+ assert.equal(store.world.appearance.imageColors.default.palette.distribution,'pixels');
+ store.change(world=>configureAutoColors(world,undefined,true));
+ await controller.settle();
+ assert.equal(readPaint(store.world,'text').palette.distribution,'pixels');
+ assert.equal(calls(),1);
+ controller.dispose();
+});
