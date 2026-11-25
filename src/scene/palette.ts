@@ -12,7 +12,7 @@ export function sampleSceneGrid(pixels:Uint8ClampedArray,width:number,height:num
  return {pixels:out,width:w,height:h};
 }
 export function paletteFamily(rgb:readonly number[]){const hi=Math.max(...rgb),lo=Math.min(...rgb),hue=colorHue(rgb);return (hi<32||hi===0||(hi-lo)/hi<.18)?`n${hi<64?0:hi<190?1:2}`:`h${hue<15||hue>=345?0:hue<55?1:hue<85?2:hue<165?3:hue<205?4:hue<255?5:hue<290?6:7}`;}
-export type ScenePalette={spatial?:{width:number;height:number;families:readonly string[];cells:Uint8Array};tones:SceneTones;accents:{id?:string;color:string;weight:number;salience?:number;meanColor?:string}[];neutrals:{id?:string;color:string;weight:number;salience?:number;meanColor?:string}[]};
+export type ScenePalette={spatial?:{width:number;height:number;families:readonly string[];cells:Uint8Array;rgb?:string};tones:SceneTones;accents:{id?:string;color:string;weight:number;salience?:number;meanColor?:string}[];neutrals:{id?:string;color:string;weight:number;salience?:number;meanColor?:string}[]};
 /** Count color families together, so many nearby blues cannot displace an orange accent. */
 export function extractScenePalette(signal:SceneSignal):ScenePalette{
  const pixels=signal instanceof Uint8ClampedArray?signal:signal.pixels,width=signal instanceof Uint8ClampedArray?pixels.length/4:signal.width,height=signal instanceof Uint8ClampedArray?1:signal.height;
@@ -32,7 +32,8 @@ export function extractScenePalette(signal:SceneSignal):ScenePalette{
  }
  const ranked=(bins:typeof accents)=>[...bins.entries()].filter(([,bin])=>bin.weight>=Math.max(1,total*.001)).map(([key,bin])=>{const id=`${bins===accents?'h':'n'}${key}`,signal=attention.get(id);return {id,color:paletteHex((bin.signalWeight?bin.signal.map(v=>v/bin.signalWeight):bin.rgb.map(v=>v/bin.weight))),meanColor:paletteHex(bin.rgb.map(v=>v/bin.weight)),weight:bin.weight/Math.max(1,total),salience:signal?signal.energy/Math.max(1,signal.count)*Math.sqrt(signal.tiles.size):0};}).sort((a,b)=>b.weight-a.weight||a.color.localeCompare(b.color));
  let covered=0,background=0;for(let i=0;i<64;i++){covered+=toneWeight[i];if(covered>=total*.4&&toneWeight[i]){background=toneSum[i]/toneWeight[i];break;}}
- return {spatial:{width,height,families,cells},accents:ranked(accents),neutrals:ranked(neutrals),tones:{background,low:dark?darkSum/dark:background,high:light?lightSum/light:background,darkSupport:dark/Math.max(1,total)>=.04&&light/Math.max(1,total)>=.15}};
+ const rgb=Array.from({length:pixels.length/4},(_,i)=>paletteHex([pixels[i*4],pixels[i*4+1],pixels[i*4+2]]).slice(1)).join('');
+ return {spatial:{width,height,families,cells,rgb},accents:ranked(accents),neutrals:ranked(neutrals),tones:{background,low:dark?darkSum/dark:background,high:light?lightSum/light:background,darkSupport:dark/Math.max(1,total)>=.04&&light/Math.max(1,total)>=.15}};
 }
 /** Compatibility pair for pattern consumers; full palettes remain available to color suggestions. */
 export function scenePalette(pixels:Uint8ClampedArray):readonly[string,string]{const palette=extractScenePalette(pixels),colors=[...palette.accents,...palette.neutrals].map(item=>item.color),first=colors[0]??'#32c890',rgb=paletteRGB(first);return [first,colors[1]??paletteHex(rgb.map(v=>Math.max(...rgb)<128?v*.35+165:v*.25))];}

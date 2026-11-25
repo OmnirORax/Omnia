@@ -1,3 +1,4 @@
+import {hasPalettePaint} from '../properties/focusPalette.ts';
 import {documentPalette,showDocumentPalette,setDocumentPalette,setDocumentInkTypography,createDocumentPalettePaint} from './palettePresentation.ts';
 import {createDocumentPaintSession} from './paintSession.ts';
 import {fontSizeScale} from '../properties/visual.ts';
@@ -154,7 +155,7 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
     host.style.setProperty('--document-text-color',host.style.color);
     host.style.setProperty('--document-text-shadow',host.style.textShadow);
     host.style.setProperty('--visual-text-bold-stroke',`${emboldenStrokeEm(paint.embolden)}em currentColor`);
-    const changed=palettePaint.render(paint);editor?.dispatch({effects:[setDocumentPalette.of(paint.palette),setDocumentInkTypography.of(JSON.stringify([paint.font,paint.fontSize,paint.embolden,fontSize])),...(changed?[showDocumentPalette.of(paint.palette?.mode==='text'&&paint.palette.colors.length>1)]:[])]});
+    const changed=palettePaint.render(paint);editor?.dispatch({effects:[setDocumentPalette.of(paint.palette),setDocumentInkTypography.of(JSON.stringify([paint.font,paint.fontSize,paint.embolden,fontSize])),...(changed?[showDocumentPalette.of(paint.palette?.mode==='text'&&hasPalettePaint(paint.palette))]:[])]});
   }
   refreshAppearance();queueMicrotask(()=>{if(view.root.isConnected)editor?.dispatch({effects:refreshLexicon.of()});});editor.focus(); return {...view,refreshAppearance,previewAppearance(world:World){paintSession.render(readPaint(world,'nodeText',origin));}};
 }

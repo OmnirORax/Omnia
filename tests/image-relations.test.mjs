@@ -10,7 +10,7 @@ import {validateWorld} from '../src/core/model.ts';
 import {validTextPalette} from '../src/properties/textPalette.ts';
 const colors=[[255,0,0],[0,0,255],[0,255,0],[255,255,0]];
 function image(pixel){const width=64,height=64,pixels=new Uint8ClampedArray(width*height*4);for(let y=0;y<height;y++)for(let x=0;x<width;x++)pixels.set([...(typeof pixel(x,y)==='number'?colors[pixel(x,y)]:pixel(x,y)),255],(y*width+x)*4);return {pixels,width,height};}
-function paint(sample,settings={}){const combo=imageColorCombo(sample);for(const c of [...combo.source.accents,...combo.source.neutrals])c.salience=1;return comboPalette(matchedImageColors(combo,{distribution:'image',...settings}),{distribution:'image',...settings});}
+function paint(sample,settings={}){const combo=imageColorCombo(sample);delete combo.source.spatial.rgb;for(const c of [...combo.source.accents,...combo.source.neutrals])c.salience=1;return comboPalette(matchedImageColors(combo,{distribution:'image',...settings}),{distribution:'image',...settings});}
 function profile(p){const counts=relationCounts(p.colors.length);addRelationRow(counts,focusPattern(p).indices);return relationProfile(counts);}
 const proportions=p=>{const indices=focusPattern(p).indices;return p.colors.map((_,i)=>indices.filter(c=>c===i).length/indices.length);};
 test('equal occupation with alternating versus clustered image structure produces different matched layouts',()=>{
@@ -31,7 +31,7 @@ test('unselected colors do not create partners or consume relation positions',()
  const compact=paint(image(x=>x%2)),gaps=paint(image(x=>x%2?[0,0,0]:colors[Math.floor(x/2)%2]),{motifOverrides:{h0:true,h5:true,n0:false}});assert.deepEqual(gaps.colors,compact.colors);assert.deepEqual(gaps.relations,compact.relations);assert.deepEqual(proportions(gaps),proportions(compact));
 });
 test('relation projection and layout caches survive tonal and scale edits; quotas survive occupation inversion',()=>{
- const combo=imageColorCombo(image(x=>x<32?0:x<48?1:2)),settings={distribution:'image',ink:'color'},a=matchedImageColors(combo,settings),b=matchedImageColors(combo,{...settings,saturation:.4}),p=comboPalette(a,settings),q=comboPalette(b,{...settings,saturation:.4});assert.equal(a.textRelations,b.textRelations);assert.equal(focusPattern(p).indices,focusPattern(q).indices);assert.equal(focusPattern({...p,scale:3}),focusPattern(p));assert.equal(focusPeriod({...p,scale:3}),focusPattern(p).indices.length*3);
+ const combo=imageColorCombo(image(x=>x<32?0:x<48?1:2));delete combo.source.spatial.rgb;const settings={distribution:'image',ink:'color'},a=matchedImageColors(combo,settings),b=matchedImageColors(combo,{...settings,saturation:.4}),p=comboPalette(a,settings),q=comboPalette(b,{...settings,saturation:.4});assert.equal(a.textRelations,b.textRelations);assert.equal(focusPattern(p).indices,focusPattern(q).indices);assert.equal(focusPattern({...p,scale:3}),focusPattern(p));assert.equal(focusPeriod({...p,scale:3}),focusPattern(p).indices.length*3);
  for(const inverseOccupation of [false,true])for(const inverseDistribution of [false,true]){const settings={distribution:'image',inverseOccupation,inverseDistribution},paint=comboPalette(matchedImageColors(combo,settings),settings),ratio=focusRatio(paint),total=ratio.reduce((a,b)=>a+b,0);assert.deepEqual(proportions(paint),ratio.map(n=>n/total));}
 });
 test('automatic image relations persist through shared rendering without replacing explicit manual arrangements',async()=>{
