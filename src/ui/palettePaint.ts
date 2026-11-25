@@ -1,4 +1,5 @@
-import {isFocusPalette,focusPaletteCSS,focusPaletteGeometry,isImageField,isSourceField,hasPalettePaint} from '../properties/focusPalette.ts';
+import {subscribeNativeFields} from '../properties/nativeField.ts';
+import {isFocusPalette,focusPaletteCSS,focusPaletteGeometry,isImageField,isSourceField,hasPalettePaint,focusPattern,retainFocusPattern} from '../properties/focusPalette.ts';
 import {generatedTextPaletteCSS} from '../properties/generatedTextPalette.ts';
 import {textPaletteCSS,paletteInk} from '../properties/textPalette.ts';
 import {paletteRGB} from '../scene/palette.ts';
@@ -23,8 +24,8 @@ function paletteFilter(){const id=`document-palette-${++sequence}`;let svg:SVGSV
   }return `url(#${id})`;
  },dispose(){svg?.remove();}};}
 /** Palette tiles and glow filters update only when their owning paint changes. */
-export function createPalettePaint(host:HTMLElement,inkEnabled=false){const normal=paletteFilter(),ink=paletteFilter();let enabled=false;return {
- render(paint:Paint){const active=paint.palette?.mode==='text'&&hasPalettePaint(paint.palette),changed=active!==enabled;enabled=active;
-  if(active){const p=paint.palette!,focus=isFocusPalette(p),geometry=focus?focusPaletteGeometry(p):undefined;host.toggleAttribute('data-focus-theme',focus);host.toggleAttribute('data-pattern-debug',!!p.debugPattern);host.style.setProperty('--document-palette-size',geometry?.size??'100% 100%');host.style.setProperty('--document-palette-repeat',geometry?.repeat??'no-repeat');host.style.setProperty('--document-palette-gradient',focus?focusPaletteCSS(p):p.pattern==='generated'?generatedTextPaletteCSS(p):textPaletteCSS(p));host.style.setProperty('--document-palette-filter',normal.render(paint));host.style.setProperty('--document-ink-filter',inkEnabled&&!isImageField(p)&&p.progression==='ink-serpentine'?ink.render(paint,true):'none');
-  }else{host.toggleAttribute('data-focus-theme',false);host.toggleAttribute('data-pattern-debug',false);for(const name of ['--document-palette-gradient','--document-palette-filter','--document-ink-filter'])host.style.removeProperty(name);}return changed;
- },dispose(){normal.dispose();ink.dispose();}};}
+export function createPalettePaint(host:HTMLElement,inkEnabled=false){const normal=paletteFilter(),ink=paletteFilter();let enabled=false,last:Paint|undefined,pinned='',release=()=>{};const stop=subscribeNativeFields(()=>{if(last)sink.render(last);});const sink={
+ render(paint:Paint){last=paint;const active=paint.palette?.mode==='text'&&hasPalettePaint(paint.palette),changed=active!==enabled;enabled=active;
+  if(active){const p=paint.palette!,focus=isFocusPalette(p),patternKey=focus?focusPattern(p).key:'';if(patternKey!==pinned){const previous=release;pinned=patternKey;release=focus?retainFocusPattern(p):()=>{};previous();}const geometry=focus?focusPaletteGeometry(p):undefined;host.toggleAttribute('data-focus-theme',focus);host.toggleAttribute('data-pattern-debug',!!p.debugPattern);host.style.setProperty('--document-palette-size',geometry?.size??'100% 100%');host.style.setProperty('--document-palette-repeat',geometry?.repeat??'no-repeat');host.style.setProperty('--document-palette-gradient',focus?focusPaletteCSS(p):p.pattern==='generated'?generatedTextPaletteCSS(p):textPaletteCSS(p));host.style.setProperty('--document-palette-filter',normal.render(paint));host.style.setProperty('--document-ink-filter',inkEnabled&&!isImageField(p)&&p.progression==='ink-serpentine'?ink.render(paint,true):'none');
+  }else{release();release=()=>{};pinned='';host.toggleAttribute('data-focus-theme',false);host.toggleAttribute('data-pattern-debug',false);for(const name of ['--document-palette-gradient','--document-palette-filter','--document-ink-filter'])host.style.removeProperty(name);}return changed;
+ },dispose(){stop();release();normal.dispose();ink.dispose();}};return sink;}

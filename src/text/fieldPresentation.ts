@@ -1,6 +1,7 @@
+import {fieldCover} from '../properties/nativeField.ts';
 import type {EditorView} from '@codemirror/view';
 import type {TextPalette} from '../properties/textPalette.ts';
-import {focusPaletteCSS,focusPaletteGeometry,isFittedField} from '../properties/focusPalette.ts';
+import {focusPaletteCSS,focusPaletteGeometry,isFittedField,focusPattern} from '../properties/focusPalette.ts';
 import {textSlices} from './textSlices.ts';
 export type FieldSlice={element:HTMLElement;from:number;to:number;x:number;y:number;width?:number;visibleWidth?:number;bounds?:{width:number;height:number}};
 type VisibleSlice={element:HTMLElement;from:number;to:number;left:number;top:number;right:number;bottom:number};
@@ -18,5 +19,5 @@ export function readVisibleFieldSlices(view:EditorView){const clip=view.scrollDO
 }
 export function createDocumentFieldPainter(){let painted=new Set<HTMLElement>();
  const clear=()=>{for(const element of painted)for(const name of ['background-image','background-size','background-position','background-repeat','filter','box-decoration-break','-webkit-box-decoration-break'])element.style.removeProperty(name);painted.clear();};
- return {read:readVisibleFieldSlices,render(slices:FieldSlice[],palette:TextPalette){clear();const image=focusPaletteCSS(palette),geometry=focusPaletteGeometry(palette);for(const {element,x,y,bounds}of slices){element.style.backgroundImage=image;element.style.backgroundSize=isFittedField(palette)&&bounds?`${bounds.width}px ${Math.max(1,bounds.height)}px`:geometry.size;element.style.backgroundPosition=`${-x}px ${-y}px`;element.style.backgroundRepeat=geometry.repeat;element.style.filter='var(--document-palette-filter,none)';element.style.setProperty('box-decoration-break','clone');element.style.setProperty('-webkit-box-decoration-break','clone');painted.add(element);}},clear,invalidate(){}};
+ return {read:readVisibleFieldSlices,render(slices:FieldSlice[],palette:TextPalette){clear();const image=focusPaletteCSS(palette),geometry=focusPaletteGeometry(palette);const pattern=focusPattern(palette);for(const {element,x,y,bounds}of slices){const cover=isFittedField(palette)&&bounds?fieldCover(pattern,bounds):undefined;element.style.backgroundImage=image;element.style.backgroundSize=cover?`${cover.width}px ${cover.height}px`:geometry.size;element.style.backgroundPosition=`${-x-(cover?.x??0)}px ${-y-(cover?.y??0)}px`;element.style.backgroundRepeat=geometry.repeat;element.style.filter='var(--document-palette-filter,none)';element.style.setProperty('box-decoration-break','clone');element.style.setProperty('-webkit-box-decoration-break','clone');painted.add(element);}},clear,invalidate(){}};
 }

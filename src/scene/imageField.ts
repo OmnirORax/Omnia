@@ -22,5 +22,6 @@ export function imageField(source:ScenePalette,mapping:readonly number[],weights
  // Reverse the assignment of existing region shares, rather than moving pixels.
  if(inverseOccupation){const counts=weights.map(()=>0);for(const c of cells)counts[c]++;const order=counts.map((_,i)=>i).sort((a,b)=>counts[b]-counts[a]||a-b),swap=weights.map((_,i)=>i);for(let i=0;i<order.length;i++)swap[order[i]]=order[order.length-1-i];for(let i=0;i<cells.length;i++)cells[i]=swap[cells[i]];}
 
- const result={width:w,height:h,cells,fit:true};variants.set(key,result);if(variants.size>16)variants.delete(variants.keys().next().value!);return result;
+ const native=grid.native?{...grid.native,mapping:[...mapping]}:undefined;if(native&&inverseOccupation){const counts=weights.map(()=>0);for(const c of owners)counts[c]++;const order=counts.map((_,i)=>i).sort((a,b)=>counts[b]-counts[a]||a-b),swap=weights.map((_,i)=>i);for(let i=0;i<order.length;i++)swap[order[i]]=order[order.length-1-i];native.mapping=native.mapping.map(c=>c<0?c:swap[c]);}
+ const result={width:w,height:h,cells,fit:true,native};variants.set(key,result);if(variants.size>16)variants.delete(variants.keys().next().value!);return result;
 }

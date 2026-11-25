@@ -99,7 +99,7 @@ export function scenePanel(host: Host,initialTab:SceneTab='image') {
     const direction=select('distributionAxis','Distribution direction',PALETTE_DISTRIBUTION_AXES);
     const progression=select('progression','Progression',PALETTE_PROGRESSIONS);numberSync.push(()=>{direction.hidden=progression.hidden=isImageField(resolved());});
     const debug=button('Show pattern',()=>edit({debugPattern:!current().debugPattern}));paletteControls.push(debug);numberSync.push(()=>debug.setAttribute('aria-pressed',String(!!current().debugPattern)));
-    const strip=document.createElement('div');strip.className='theme-pattern-preview';strip.dataset.uiPaintOwner='geometry';body.append(strip);numberSync.push(()=>{const p=resolved();strip.hidden=!current().debugPattern||!p;if(!strip.hidden&&p){strip.style.backgroundImage=focusPaletteCSS(p,true);strip.style.height=isImageField(p)?'96px':'18px';}});
+    const strip=document.createElement('div');strip.className='theme-pattern-preview';strip.dataset.uiPaintOwner='geometry';body.append(strip);numberSync.push(()=>{const p=resolved();strip.hidden=!current().debugPattern||!p;if(!strip.hidden&&p){strip.style.backgroundImage=focusPaletteCSS(p,true);strip.style.height=isImageField(p)?'96px':'18px';strip.style.backgroundSize=isImageField(p)?'contain':'100% 100%';}});
     const scaleControl=numeric('Scale ×',()=>current().scale??1,1,()=>4096,n=>({scale:n}),.25);
     const saturationControl=numeric('Saturation',()=>Math.round((current().saturation??1)*100),0,()=>100,n=>({saturation:n/100}));
     numberSync.push(()=>{const source=isSourceField(resolved());swatches.root.hidden=occupation.hidden=saturationControl.hidden=source;scaleControl.hidden=isFittedField(resolved());});

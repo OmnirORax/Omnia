@@ -816,5 +816,5 @@ function restoreWorkspaceSession(){
 store.subscribeReplace(restoreWorkspaceSession);
 if(!(location.hostname==='omnium.nexus'||location.hostname==='omnia-web-bae.pages.dev'||location.hostname.endsWith('.omnia-web-bae.pages.dev')))restoreWorkspaceSession();
 
-const autoImageColors=createAutoColors({read:()=>store.world,change:edit=>store.change(edit),sample:async image=>{const [{localSceneBlob},{sceneSourceSample}]=await Promise.all([import('./scene/library.ts'),import('./scene/normalizationCache.ts')]);return await sceneSourceSample(await localSceneBlob(image));},error:error=>feedback(String(error))});
+const autoImageColors=createAutoColors({read:()=>store.world,change:edit=>store.change(edit),sample:async image=>{const [{localSceneBlob},{sceneSourceSample}]=await Promise.all([import('./scene/library.ts'),import('./scene/normalizationCache.ts')]);return await sceneSourceSample(await localSceneBlob(image),undefined,true);},error:error=>feedback(String(error))});
 store.subscribe(autoImageColors.update);autoImageColors.update();
