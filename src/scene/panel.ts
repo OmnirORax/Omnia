@@ -1,4 +1,4 @@
-import {FOCUS_DISTRIBUTIONS} from '../properties/focusPalette.ts';
+import {focusPaletteCSS,FOCUS_DISTRIBUTIONS} from '../properties/focusPalette.ts';
 import {bindOperationValueControl} from '../ui/operationValueControl.ts';
 import {readPaint} from '../core/appearance.ts';
 import {motifSwatches} from './motifSwatches.ts';
@@ -98,6 +98,8 @@ export function scenePanel(host: Host,initialTab:SceneTab='image') {
     const occupation=document.createElement('label');occupation.append('% occupation');body.append(occupation);inverse('occupation','inverseOccupation',occupation);
     select('distributionAxis','Distribution direction',PALETTE_DISTRIBUTION_AXES);
     select('progression','Progression',PALETTE_PROGRESSIONS);
+    const debug=button('Show pattern',()=>edit({debugPattern:!current().debugPattern}));paletteControls.push(debug);numberSync.push(()=>debug.setAttribute('aria-pressed',String(!!current().debugPattern)));
+    const strip=document.createElement('div');strip.className='theme-pattern-preview';strip.dataset.uiPaintOwner='geometry';body.append(strip);numberSync.push(()=>{const p=resolved();strip.hidden=!current().debugPattern||!p;if(!strip.hidden&&p)strip.style.backgroundImage=focusPaletteCSS(p,true);});
     numeric('Scale ×',()=>current().scale??1,1,()=>4096,n=>({scale:n}),.25);
     numeric('Saturation',()=>Math.round((current().saturation??1)*100),0,()=>100,n=>({saturation:n/100}));
     function syncTheme(){auto.checked=!!host.read().appearance?.imageColors?.[autoColorKey(target)]?.enabled;for(const input of paletteControls)input.disabled=!auto.checked;for(const sync of numberSync)sync();swatches.render(host.motifs?.(target)??[],!auto.checked);}

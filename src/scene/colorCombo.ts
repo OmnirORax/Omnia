@@ -23,8 +23,8 @@ export type MotifCandidate={id:string;color:string;weight:number;attention:numbe
 /** Membership is ranked by attention; coverage is used only after membership. */
 export function motifCandidates(palette:ScenePalette,settings:PaletteSettings={}):MotifCandidate[]{
  const candidates:MotifCandidate[]=(settings.included?.length?includedPalette(palette,settings.included).map(c=>({...c,id:c.color.toLowerCase()})):[...palette.accents,...palette.neutrals].map(c=>({...c,id:c.id??paletteFamily(paletteRGB(c.color))}))).map(c=>({id:c.id,color:c.id==='n0'?'#000000':c.id==='n2'?'#ffffff':c.id==='n1'?paletteHex(Array(3).fill(paletteRGB(c.color).reduce((a,b)=>a+b,0)/3)):c.color,weight:c.weight,attention:c.salience??0,enabled:false})).sort((a,b)=>b.attention-a.attention||a.id.localeCompare(b.id));
- const scores=candidates.map(c=>c.attention).filter(n=>n>0).sort((a,b)=>a-b),middle=Math.floor(scores.length/2),threshold=scores.length?(scores[middle]+scores[Math.floor((scores.length-1)/2)])/16:0;let selected=0;
- for(const c of candidates){c.enabled=settings.motifOverrides?.[c.id]??(settings.included?.length?true:threshold===0||c.attention>=threshold);if(c.enabled&&selected++>=8)c.enabled=false;}
+ const scores=candidates.map(c=>c.attention).filter(n=>n>0).sort((a,b)=>a-b),middle=Math.floor(scores.length/2),threshold=scores.length?(scores[middle]+scores[Math.floor((scores.length-1)/2)])/16:0;
+ for(const c of candidates){c.enabled=settings.motifOverrides?.[c.id]??(settings.included?.length?true:threshold===0||c.attention>=threshold);}
  const members=candidates.filter(c=>c.enabled),order=members.map((_,i)=>i).sort((a,b)=>members[b].weight-members[a].weight||a-b),total=members.reduce((sum,c)=>sum+c.weight,0);
  for(let rank=0;rank<order.length;rank++)members[order[rank]].occupation=members[order[settings.inverseOccupation?order.length-1-rank:rank]].weight/total;
  return candidates;
@@ -35,7 +35,7 @@ export function imageTextPalette(palette:ScenePalette,settings:PaletteSettings={
  return selected.map(c=>{const rgb=paletteRGB(c.color),neutral=Math.max(...rgb)===Math.min(...rgb),textGlow=readableAccent(neutral?c.color:vivid(c.color,saturation),ink,palette.tones);return {textGlow,text:paletteHex(paletteRGB(textGlow).map(v=>255*(1-ink)+v*ink)),weight:c.occupation!,strength:ink,darkSupport:selected.some(c=>c.id==='n0'||c.color==='#000000')};});
 }
 export function matchedImageColors(combo:ImageColorCombo,settings:PaletteSettings={}){
- const palette=imageTextPalette(combo.source,settings),first=palette[0],candidates=motifCandidates(combo.source,settings),members=candidates.filter(c=>c.enabled),available=Math.min(8,candidates.length);
+ const palette=imageTextPalette(combo.source,settings),first=palette[0],candidates=motifCandidates(combo.source,settings),members=candidates.filter(c=>c.enabled),available=candidates.length;
  let textRelations:ColorRelations|undefined;
  if(settings.distribution==='image'&&combo.source.spatial){const destinations=new Map([...combo.source.accents,...combo.source.neutrals].map(c=>[c.id??paletteFamily(paletteRGB(c.color)),settings.included?.length?settings.included[nearestIncluded(c.color,settings.included)].toLowerCase():c.id??paletteFamily(paletteRGB(c.color))]));textRelations=imageRelations(combo.source,combo.source.spatial.families.map(id=>members.findIndex(c=>c.id===destinations.get(id))),members.length);}
  return {...combo,text:first.text,textGlow:first.textGlow,textPalette:palette.map(c=>c.textGlow),textWeights:palette.map(c=>c.weight),textStrength:first.strength,textDarkSupport:first.darkSupport,textAvailable:available,textRatio:imageRatio(palette.map(c=>c.weight)),textRelations,node:first.textGlow,nodeGlow:first.textGlow};

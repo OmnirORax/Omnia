@@ -18,7 +18,7 @@ test('balanced spacing is stable; distribution and scale preserve measured count
  const p={...palette,imageRatio:[4095,1]};assert.equal(focusPattern(p).indices.length,4096);
 });
 test('saved ratios, counts and scale reject unbounded or invalid pixel allocations',()=>{
- for(const extra of [{imageRatio:[0,1]},{imageRatio:[1.2,2]},{imageRatio:[4096,1]},{imageRatio:[1]},{available:9},{scale:0},{distribution:'junk'},{distributionAxis:'junk'}])assert.equal(validTextPalette({...palette,...extra}),false);
+ for(const extra of [{imageRatio:[0,1]},{imageRatio:[1.2,2]},{imageRatio:[4096,1]},{imageRatio:[1]},{available:257},{scale:0},{distribution:'junk'},{distributionAxis:'junk'}])assert.equal(validTextPalette({...palette,...extra}),false);
  assert.equal(validTextPalette({...palette,imageRatio:[7,3],available:2,scale:1,top:2}),true);
 });
 test('world labels consume the canonical pixel cycle and separate screen pixels from DPI',()=>{

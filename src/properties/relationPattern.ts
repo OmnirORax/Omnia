@@ -26,6 +26,6 @@ export function relationPattern(ratio:readonly number[],target:RelationProfile,i
  const adjust=(a:number,b:number,sign:number)=>{for(let k=0;k<RELATION_LAGS.length;k++){const lag=RELATION_LAGS[k]%length,starts=new Set([a,b,(a-lag+length)%length,(b-lag+length)%length]);for(const at of starts)stats.same[k]+=sign*Number(best[at]===best[(at+lag)%length]);}
   for(const at of new Set([a,b,(a-1+length)%length,(b-1+length)%length])){const x=best[at],y=best[(at+1)%length];if(x!==y)stats.pairs[relationPair(x,y)]+=sign;}
  };
- for(let trial=0;trial<Math.min(512,length*8);trial++){const a=nextIndex(),b=nextIndex();if(a===b||best[a]===best[b])continue;adjust(a,b,-1);[best[a],best[b]]=[best[b],best[a]];adjust(a,b,1);const next=relationError(relationProfile(stats),target,inverse);if(next<error-1e-9)error=next;else{adjust(a,b,-1);[best[a],best[b]]=[best[b],best[a]];adjust(a,b,1);}}
+ for(let trial=0;trial<Math.min(512,length*8,Math.max(8,Math.floor(32768/Math.max(1,target.pairs.length))));trial++){const a=nextIndex(),b=nextIndex();if(a===b||best[a]===best[b])continue;adjust(a,b,-1);[best[a],best[b]]=[best[b],best[a]];adjust(a,b,1);const next=relationError(relationProfile(stats),target,inverse);if(next<error-1e-9)error=next;else{adjust(a,b,-1);[best[a],best[b]]=[best[b],best[a]];adjust(a,b,1);}}
  return remember(best);
 }

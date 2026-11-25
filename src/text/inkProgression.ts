@@ -1,5 +1,5 @@
 import {scanInk,paintInkScan,type InkScan} from '../properties/inkProgression.ts';
-import {focusRatio,focusPaletteAxis} from '../properties/focusPalette.ts';
+import {focusRatio,focusPaletteAxis,focusPattern} from '../properties/focusPalette.ts';
 import type {TextPalette} from '../properties/textPalette.ts';
 import {reportSystemMessage} from '../ui/systemMessage.ts';
 const canvasFont=(style:CSSStyleDeclaration)=>style.font||`${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
@@ -26,7 +26,7 @@ export function readInkRows(root:HTMLElement){
 const clear=(element:HTMLElement)=>{for(const name of ['background-image','background-size','background-position','background-repeat','filter','box-decoration-break','-webkit-box-decoration-break'])element.style.removeProperty(name);};
 export function createInkTextPainter(){
  let cache=new Map<string,{scan:InkScan;paintKey?:string;url?:string}>(),painted=new Set<HTMLElement>(),warned='';
- return {render(rows:Row[],palette:TextPalette){const next=new Map<string,{scan:InkScan;paintKey?:string;url?:string}>(),elements=new Set<HTMLElement>();let pixels=0;const axis=focusPaletteAxis(palette),paintKey=JSON.stringify([palette.colors.length,focusRatio(palette),palette.distribution,palette.scale]);
+ return {render(rows:Row[],palette:TextPalette){const next=new Map<string,{scan:InkScan;paintKey?:string;url?:string}>(),elements=new Set<HTMLElement>();let pixels=0;const axis=focusPaletteAxis(palette),paintKey=JSON.stringify([palette.colors.length,focusRatio(palette),palette.distribution,palette.scale,focusPattern(palette).indices]);
   for(const row of rows){const count=row.width*row.height;if(row.width>EDGE_LIMIT||row.height>EDGE_LIMIT||pixels+count>PIXEL_BUDGET){if(warned!==row.key){warned=row.key;reportSystemMessage('Ink serpentine reached the visible text scan limit. Shorten the long line or use Horizontal.');}continue;}pixels+=count;
    let entry=cache.get(row.key);if(entry?.scan.axis!==axis)entry=undefined;let canvas:HTMLCanvasElement|undefined,ctx:CanvasRenderingContext2D|undefined;const context=()=>{if(ctx)return ctx;canvas=document.createElement('canvas');canvas.width=row.width;canvas.height=row.height;return ctx=canvas.getContext('2d',{willReadFrequently:true})!;};
    if(!entry){const ctx=context();ctx.textBaseline='alphabetic';ctx.fillStyle='#fff';let x=0;for(const fragment of row.fragments){ctx.font=fragment.font;ctx.letterSpacing=fragment.spacing==='normal'?'0px':fragment.spacing;ctx.wordSpacing=fragment.wordSpacing==='normal'?'0px':fragment.wordSpacing;if(fragment.stroke){ctx.strokeStyle='#fff';ctx.lineWidth=fragment.stroke;ctx.strokeText(fragment.text,x,row.ascent);}ctx.fillText(fragment.text,x,row.ascent);x+=fragment.width;}entry={scan:scanInk(row.width,row.height,ctx.getImageData(0,0,row.width,row.height).data,3,4,[0,row.height],axis)};}
