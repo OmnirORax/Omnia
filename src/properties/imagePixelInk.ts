@@ -1,5 +1,5 @@
 import * as T from 'three';
-import {nearestPaletteTrait,paletteColorTraits,paletteHueFamily,paletteRGB,PALETTE_CHROMA_THRESHOLD} from '../scene/palette.ts';
+import {nearestPaletteTrait,paletteColorTraits,paletteHueFamily,paletteRGB,PALETTE_DARK_THRESHOLD,PALETTE_CHROMA_THRESHOLD} from '../scene/palette.ts';
 import type {TextPalette} from './textPalette.ts';
 
 const HUES=360,TONES=256,WIDTH=HUES+TONES;
@@ -19,11 +19,17 @@ export function acquireImagePixelInk(p:TextPalette):ImagePixelInk{
   const destinations=rgb.map((_,i)=>p.inverseOccupation?order[order.length-1-order.indexOf(i)]:i);
   const data=new Uint8Array(WIDTH*2*4);
   for(let slot=0;slot<WIDTH;slot++){
-   const chromatic=slot<HUES,hue=slot+.5;
-   const nearest=nearestPaletteTrait({chromatic,hue,value:chromatic?1:(slot-HUES)/255},traits);
-   data.set([...colors[destinations[nearest]],255],slot*4);
+   const chromatic=slot<HUES,hue=slot+.5,tone=slot-HUES;
+   const nearest=nearestPaletteTrait({chromatic,hue,value:chromatic?1:tone/255},traits);
+   const destination=destinations[nearest];
+   if(!chromatic&&tone<PALETTE_DARK_THRESHOLD&&traits[nearest].chromatic&&destination===nearest){
+    // Without an enabled neutral, keep shadow tones neutral instead of borrowing a vivid hue.
+    data.set([tone,tone,tone,255],slot*4);
+    continue;
+   }
+   data.set([...colors[destination],255],slot*4);
    // An excluded hue inherits its selected source's hue before carrying shade detail.
-   data.set([...rgb[nearest],p.inverseOccupation&&destinations[nearest]!==nearest?255:traits[nearest].chromatic&&(!chromatic||!enabled.has(paletteHueFamily(hue)))?128:0],(WIDTH+slot)*4);
+   data.set([...rgb[nearest],p.inverseOccupation&&destination!==nearest?255:traits[nearest].chromatic&&(!chromatic||!enabled.has(paletteHueFamily(hue)))?128:0],(WIDTH+slot)*4);
   }
   const texture=new T.DataTexture(data,WIDTH,2);
   texture.needsUpdate=true;
@@ -42,7 +48,7 @@ export const imagePixelInkGLSL=`
   float high=max(rgb.r,max(rgb.g,rgb.b)),low=min(rgb.r,min(rgb.g,rgb.b));
   float delta=high-low;
   float slot=${HUES}.0+floor(high*255.0+.5);
-  if(high>0.0&&delta>=high*${PALETTE_CHROMA_THRESHOLD}){
+  if(high>=${PALETTE_DARK_THRESHOLD}.0/255.0&&delta>=high*${PALETTE_CHROMA_THRESHOLD}){
    float hue=high==rgb.r?(rgb.g-rgb.b)/delta:high==rgb.g?2.0+(rgb.b-rgb.r)/delta:4.0+(rgb.r-rgb.g)/delta;
    slot=min(${HUES - 1}.0,floor(mod(hue*60.0+360.0,360.0)));
   }

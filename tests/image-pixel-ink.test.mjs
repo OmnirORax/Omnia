@@ -12,7 +12,9 @@ const expression=(pattern,values)=>{
 function shade(ink,rgb){
  const {width,data}=ink.texture.image,traits=paletteColorTraits(rgb.map(c=>c*255));
  const high=Math.max(...rgb),low=Math.min(...rgb),delta=high-low;
- const slot=high>0&&delta>=high*.18?Math.floor(traits.hue):360+Math.floor(high*255+.5);
+ const condition=imagePixelInkGLSL.match(/if\((high[^)]+)\)\{/)[1];
+ const chromatic=Function('high','delta',`return ${condition};`)(high,delta);
+ const slot=chromatic?Math.floor(traits.hue):360+Math.floor(high*255+.5);
  const texel=row=>Array.from(data.slice((row*width+slot)*4,(row*width+slot)*4+4),c=>c/255);
  const target=texel(0),source=texel(1),sourceHigh=Math.max(...source.slice(0,3)),sourceLow=Math.min(...source.slice(0,3)),sourceDelta=sourceHigh-sourceLow;
  const inkHigh=Math.max(...target.slice(0,3)),inkLow=Math.min(...target.slice(0,3));
@@ -35,13 +37,22 @@ test('dark live samples retain resolved ink brightness and continuous hue detail
   assert.equal(Math.max(...output[2]),Math.max(...output[3]),'the red swatch supplies brightness across both shades');
  }finally{ink.release();}
 });
-test('a dark colored pixel does not become the black neutral swatch',()=>{
+test('near-black tinted pixels use the black swatch while darker accents above the cutoff keep their hue',()=>{
  const ink=acquireImagePixelInk({...palette,pixelSources:[...palette.pixelSources,'#000000'],colors:[...palette.colors,'#000000']});
  try{
-  const dark=[3,6,15].map(c=>c/255),output=shade(ink,dark);
+  for(const sample of [[0,0,0],[3,6,15],[8,10,18],[12,20,31]]){
+   assert.deepEqual(shade(ink,sample.map(c=>c/255)),[0,0,0]);
+  }
+  const accent=[12,20,32].map(c=>c/255),output=shade(ink,accent);
   assert.ok(Math.max(...output)>.8);
-  assert.ok(Math.abs(colorHue(output)-colorHue(dark))<.0001);
+  assert.ok(Math.abs(colorHue(output)-colorHue(accent))<.0001);
+ }finally{ink.release();}
+});
+test('near-black stays dark and neutral when all enabled swatches are chromatic',()=>{
+ const ink=acquireImagePixelInk(palette);
+ try{
   assert.deepEqual(shade(ink,[0,0,0]),[0,0,0]);
+  assert.deepEqual(shade(ink,[8,10,18].map(c=>c/255)),Array(3).fill(18/255));
  }finally{ink.release();}
 });
 test('excluded families inherit an enabled hue and swatch brightness',()=>{
@@ -93,7 +104,7 @@ test('occupation inverse reverses color ownership while keeping swatch brightnes
 
 test('dark wallpaper detail keeps bright ink and honors explicit saturation',()=>{
  const p={...palette,pixelSources:['#10cc55'],colors:['#66ff98']};
- const dark=[.02,.1,.04],light=[.08,.8,.25];
+ const dark=[.02,.14,.04],light=[.08,.8,.25];
  for(const saturation of [0,.45,1]){
   const ink=acquireImagePixelInk({...p,saturation});
   try{
