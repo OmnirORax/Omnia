@@ -12,15 +12,16 @@ export function sampleSceneGrid(pixels:Uint8ClampedArray,width:number,height:num
  return {pixels:out,width:w,height:h};
 }
 export function paletteFamily(rgb:readonly number[]){const hi=Math.max(...rgb),lo=Math.min(...rgb),hue=colorHue(rgb);return (hi<32||hi===0||(hi-lo)/hi<.18)?`n${hi<64?0:hi<190?1:2}`:`h${hue<15||hue>=345?0:hue<55?1:hue<85?2:hue<165?3:hue<205?4:hue<255?5:hue<290?6:7}`;}
-export type ScenePalette={tones:SceneTones;accents:{id?:string;color:string;weight:number;salience?:number;meanColor?:string}[];neutrals:{id?:string;color:string;weight:number;salience?:number;meanColor?:string}[]};
+export type ScenePalette={spatial?:{width:number;height:number;families:readonly string[];cells:Uint8Array};tones:SceneTones;accents:{id?:string;color:string;weight:number;salience?:number;meanColor?:string}[];neutrals:{id?:string;color:string;weight:number;salience?:number;meanColor?:string}[]};
 /** Count color families together, so many nearby blues cannot displace an orange accent. */
 export function extractScenePalette(signal:SceneSignal):ScenePalette{
  const pixels=signal instanceof Uint8ClampedArray?signal:signal.pixels,width=signal instanceof Uint8ClampedArray?pixels.length/4:signal.width,height=signal instanceof Uint8ClampedArray?1:signal.height;
+ const families=['h0','h1','h2','h3','h4','h5','h6','h7','n0','n1','n2'],cells=new Uint8Array(pixels.length/4).fill(255);
  const attention=new Map<string,{energy:number;count:number;tiles:Set<number>}>();
  // Neighbor differences capture edges, gradients and recurring color pairings
  // at two small scales. Uniform areas receive no special semantic treatment.
  for(let y=0;y<height;y++)for(let x=0;x<width;x++){
-  const at=(y*width+x)*4;if(pixels[at+3]<13)continue;const rgb=[pixels[at],pixels[at+1],pixels[at+2]],id=paletteFamily(rgb);let energy=0,count=0;
+  const at=(y*width+x)*4;if(pixels[at+3]<13)continue;const rgb=[pixels[at],pixels[at+1],pixels[at+2]],id=paletteFamily(rgb);cells[y*width+x]=families.indexOf(id);let energy=0,count=0;
   for(const offset of [1,4])for(const [dx,dy]of [[offset,0],[0,offset],[-offset,0],[0,-offset]]){const nx=x+dx,ny=y+dy;if(nx<0||ny<0||nx>=width||ny>=height)continue;const other=(ny*width+nx)*4;if(pixels[other+3]<13)continue;energy+=Math.hypot(rgb[0]-pixels[other],rgb[1]-pixels[other+1],rgb[2]-pixels[other+2])/441.673;count++;}
   const value=attention.get(id)??{energy:0,count:0,tiles:new Set<number>()};value.energy+=count?energy/count:0;value.count++;if(energy>0)value.tiles.add(Math.floor(y*8/height)*8+Math.floor(x*8/width));attention.set(id,value);
  }
@@ -31,7 +32,7 @@ export function extractScenePalette(signal:SceneSignal):ScenePalette{
  }
  const ranked=(bins:typeof accents)=>[...bins.entries()].filter(([,bin])=>bin.weight>=Math.max(1,total*.001)).map(([key,bin])=>{const id=`${bins===accents?'h':'n'}${key}`,signal=attention.get(id);return {id,color:paletteHex((bin.signalWeight?bin.signal.map(v=>v/bin.signalWeight):bin.rgb.map(v=>v/bin.weight))),meanColor:paletteHex(bin.rgb.map(v=>v/bin.weight)),weight:bin.weight/Math.max(1,total),salience:signal?signal.energy/Math.max(1,signal.count)*Math.sqrt(signal.tiles.size):0};}).sort((a,b)=>b.weight-a.weight||a.color.localeCompare(b.color));
  let covered=0,background=0;for(let i=0;i<64;i++){covered+=toneWeight[i];if(covered>=total*.4&&toneWeight[i]){background=toneSum[i]/toneWeight[i];break;}}
- return {accents:ranked(accents),neutrals:ranked(neutrals),tones:{background,low:dark?darkSum/dark:background,high:light?lightSum/light:background,darkSupport:dark/Math.max(1,total)>=.04&&light/Math.max(1,total)>=.15}};
+ return {spatial:{width,height,families,cells},accents:ranked(accents),neutrals:ranked(neutrals),tones:{background,low:dark?darkSum/dark:background,high:light?lightSum/light:background,darkSupport:dark/Math.max(1,total)>=.04&&light/Math.max(1,total)>=.15}};
 }
 /** Compatibility pair for pattern consumers; full palettes remain available to color suggestions. */
 export function scenePalette(pixels:Uint8ClampedArray):readonly[string,string]{const palette=extractScenePalette(pixels),colors=[...palette.accents,...palette.neutrals].map(item=>item.color),first=colors[0]??'#32c890',rgb=paletteRGB(first);return [first,colors[1]??paletteHex(rgb.map(v=>Math.max(...rgb)<128?v*.35+165:v*.25))];}
