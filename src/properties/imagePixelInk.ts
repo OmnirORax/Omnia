@@ -52,10 +52,8 @@ export const imagePixelInkGLSL=`
   float sourceDelta=sourceHigh-sourceLow;
   float inkHigh=max(ink.r,max(ink.g,ink.b)),inkLow=min(ink.r,min(ink.g,ink.b));
   vec3 hue=source.a>.75?(ink.rgb-vec3(inkLow))/max(inkHigh-inkLow,.00001):source.a>.25?(source.rgb-vec3(sourceLow))/max(sourceDelta,.00001):(rgb-vec3(low))/max(delta,.00001);
-  // Keep local shade detail close to the resolved ink, even over dark wallpaper.
-  float value=clamp(inkHigh+.125*(high-sourceHigh),0.0,1.0);
   float saturation=(inkHigh-inkLow)/max(inkHigh,.00001);
   if(saturation>0.0&&imagePixelSaturation>=0.0)saturation=imagePixelSaturation;
-  return value*mix(vec3(1.0),hue,saturation);
+  return inkHigh*mix(vec3(1.0),hue,saturation);
  }
 `;

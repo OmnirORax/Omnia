@@ -16,14 +16,13 @@ function shade(ink,rgb){
  const texel=row=>Array.from(data.slice((row*width+slot)*4,(row*width+slot)*4+4),c=>c/255);
  const target=texel(0),source=texel(1),sourceHigh=Math.max(...source.slice(0,3)),sourceLow=Math.min(...source.slice(0,3)),sourceDelta=sourceHigh-sourceLow;
  const inkHigh=Math.max(...target.slice(0,3)),inkLow=Math.min(...target.slice(0,3));
- const value=expression(/float value=([^;]+);/,{inkHigh,high,sourceHigh});
  let saturation=expression(/float saturation=([^;]+);/,{inkHigh,inkLow});
  if(saturation>0&&ink.saturation>=0)saturation=ink.saturation;
  const hue=source[3]>.75?target.slice(0,3).map(v=>(v-inkLow)/Math.max(inkHigh-inkLow,.00001)):source[3]>.25?source.slice(0,3).map(v=>(v-sourceLow)/Math.max(sourceDelta,.00001)):rgb.map(v=>(v-low)/Math.max(delta,.00001));
- return hue.map(v=>value*(1-saturation+v*saturation));
+ return hue.map(v=>inkHigh*(1-saturation+v*saturation));
 }
 const palette={mode:'text',distribution:'pixels',ink:'color',saturation:1,pixelSources:['#10172b','#9c223f','#0b448b'],colors:['#5f87ff','#ff0044','#0080ff']};
-test('dark live samples retain resolved ink brightness and continuous hue/shade detail',()=>{
+test('dark live samples retain resolved ink brightness and continuous hue detail',()=>{
  const ink=acquireImagePixelInk(palette);
  try{
   const samples=[[11,18,45],[12,22,52],[71,15,28],[141,35,55],[9,65,139]].map(rgb=>rgb.map(c=>c/255));
@@ -33,7 +32,7 @@ test('dark live samples retain resolved ink brightness and continuous hue/shade 
    assert.ok(Math.abs(colorHue(rgb)-colorHue(samples[index]))<.0001,'enabled hues must not snap to a representative swatch');
   }
   assert.notDeepEqual(output[0],output[1]);
-  assert.ok(Math.max(...output[2])<Math.max(...output[3]),'different red shades must remain distinct');
+  assert.equal(Math.max(...output[2]),Math.max(...output[3]),'the red swatch supplies brightness across both shades');
  }finally{ink.release();}
 });
 test('a dark colored pixel does not become the black neutral swatch',()=>{
@@ -45,13 +44,13 @@ test('a dark colored pixel does not become the black neutral swatch',()=>{
   assert.deepEqual(shade(ink,[0,0,0]),[0,0,0]);
  }finally{ink.release();}
 });
-test('excluded families inherit an enabled hue while keeping local shade detail',()=>{
+test('excluded families inherit an enabled hue and swatch brightness',()=>{
  const ink=acquireImagePixelInk({...palette,pixelSources:['#9c223f'],colors:['#ff0044']});
  try{
   const dark=shade(ink,[.05,.1,.3]),light=shade(ink,[.1,.2,.6]);
   assert.ok(Math.abs(colorHue(dark)-colorHue([156,34,63]))<.001);
   assert.ok(Math.abs(colorHue(light)-colorHue(dark))<.001);
-  assert.ok(Math.max(...light)>Math.max(...dark));
+  assert.deepEqual(light,dark);
  }finally{ink.release();}
 });
 test('resolved saturation and neutral membership do not reintroduce excluded chroma',()=>{
@@ -79,7 +78,7 @@ test('resolved color edits invalidate ink; saturation-only edits reuse the sourc
  a.release();assert.equal(disposed,0);b.release();assert.equal(disposed,1);c.release();
 });
 
-test('occupation inverse reverses color ownership while retaining continuous shade detail',()=>{
+test('occupation inverse reverses color ownership while keeping swatch brightness',()=>{
  const p={...palette,pixelSources:['#cc2211','#1144cc'],colors:['#ff2000','#0044ff'],weights:[.8,.2]};
  const regular=acquireImagePixelInk(p),inverse=acquireImagePixelInk({...p,inverseOccupation:true});
  try{
@@ -88,7 +87,7 @@ test('occupation inverse reverses color ownership while retaining continuous sha
   assert.ok(shade(regular,red)[0]>shade(regular,red)[2]);
   assert.ok(shade(inverse,red)[2]>shade(inverse,red)[0]);
   assert.ok(shade(inverse,blue)[0]>shade(inverse,blue)[2]);
-  assert.notDeepEqual(shade(inverse,red),shade(inverse,[.65,.12,.06]));
+  assert.deepEqual(shade(inverse,red),shade(inverse,[.65,.12,.06]));
  }finally{regular.release();inverse.release();}
 });
 
@@ -99,8 +98,8 @@ test('dark wallpaper detail keeps bright ink and honors explicit saturation',()=
   const ink=acquireImagePixelInk({...p,saturation});
   try{
    const a=shade(ink,dark),b=shade(ink,light),peak=Math.max(...a);
-   assert.ok(peak>=.875,'dark wallpaper cannot substantially dim a bright palette anchor');
-   assert.ok(peak<Math.max(...b),'local shade variation is still visible');
+   assert.equal(peak,1,'dark wallpaper cannot dim a bright palette anchor');
+   assert.equal(peak,Math.max(...b));
    assert.ok(Math.abs(1-Math.min(...a)/peak-saturation)<1e-6);
   }finally{ink.release();}
  }
