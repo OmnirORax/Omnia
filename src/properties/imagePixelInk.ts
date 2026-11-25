@@ -4,12 +4,12 @@ import type {TextPalette} from './textPalette.ts';
 
 const HUES=360,TONES=256,WIDTH=HUES+TONES;
 export type ImagePixelInk={key:string;texture:T.DataTexture;saturation:number;release:()=>void};
-export const imagePixelInkKey=(p:TextPalette)=>JSON.stringify([p.pixelSources??p.colors,p.colors,p.saturation??1,!!p.inverseOccupation,p.inverseOccupation?p.weights:undefined]);
+export const imagePixelInkKey=(p:TextPalette)=>JSON.stringify([p.pixelSources??p.colors,p.colors,p.saturation??-1,!!p.inverseOccupation,p.inverseOccupation?p.weights:undefined]);
 const textures=new Map<string,{texture:T.DataTexture;uses:number}>();
 
 /** Resolve ink once per palette; retain the source beside it for continuous pixel detail. */
 export function acquireImagePixelInk(p:TextPalette):ImagePixelInk{
- const sources=p.pixelSources??p.colors,saturation=p.saturation??1;
+ const sources=p.pixelSources??p.colors,saturation=p.saturation??-1;
  const textureKey=JSON.stringify([sources,p.colors,!!p.inverseOccupation,p.inverseOccupation?p.weights:undefined]),key=imagePixelInkKey(p);
  let entry=textures.get(textureKey);
  if(!entry){
@@ -52,12 +52,10 @@ export const imagePixelInkGLSL=`
   float sourceDelta=sourceHigh-sourceLow;
   float inkHigh=max(ink.r,max(ink.g,ink.b)),inkLow=min(ink.r,min(ink.g,ink.b));
   vec3 hue=source.a>.75?(ink.rgb-vec3(inkLow))/max(inkHigh-inkLow,.00001):source.a>.25?(source.rgb-vec3(sourceLow))/max(sourceDelta,.00001):(rgb-vec3(low))/max(delta,.00001);
-  float value=clamp(inkHigh+.5*(high-sourceHigh),0.0,1.0);
+  // Keep local shade detail close to the resolved ink, even over dark wallpaper.
+  float value=clamp(inkHigh+.125*(high-sourceHigh),0.0,1.0);
   float saturation=(inkHigh-inkLow)/max(inkHigh,.00001);
-  if(sourceDelta>.00001&&saturation>0.0){
-   saturation=clamp(saturation+.5*imagePixelSaturation*(delta/max(high,.00001)-sourceDelta/sourceHigh),0.0,1.0);
-  }
-  // Resolved ink supplies readability; continuous local tone/chroma detail stays within its hue family.
+  if(saturation>0.0&&imagePixelSaturation>=0.0)saturation=imagePixelSaturation;
   return value*mix(vec3(1.0),hue,saturation);
  }
 `;

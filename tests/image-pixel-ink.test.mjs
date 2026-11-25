@@ -18,7 +18,7 @@ function shade(ink,rgb){
  const inkHigh=Math.max(...target.slice(0,3)),inkLow=Math.min(...target.slice(0,3));
  const value=expression(/float value=([^;]+);/,{inkHigh,high,sourceHigh});
  let saturation=expression(/float saturation=([^;]+);/,{inkHigh,inkLow});
- if(sourceDelta>.00001&&saturation>0)saturation=expression(/saturation=(clamp[^;]+);/,{saturation,imagePixelSaturation:ink.saturation,delta,high,sourceDelta,sourceHigh});
+ if(saturation>0&&ink.saturation>=0)saturation=ink.saturation;
  const hue=source[3]>.75?target.slice(0,3).map(v=>(v-inkLow)/Math.max(inkHigh-inkLow,.00001)):source[3]>.25?source.slice(0,3).map(v=>(v-sourceLow)/Math.max(sourceDelta,.00001)):rgb.map(v=>(v-low)/Math.max(delta,.00001));
  return hue.map(v=>value*(1-saturation+v*saturation));
 }
@@ -70,10 +70,11 @@ test('resolved saturation and neutral membership do not reintroduce excluded chr
 });
 test('resolved color edits invalidate ink; saturation-only edits reuse the source table and release safely',()=>{
  const a=acquireImagePixelInk(palette),b=acquireImagePixelInk({...palette,saturation:.5});
- const c=acquireImagePixelInk({...palette,colors:['#7faaff','#ff8888','#22aaff']});
+ const c=acquireImagePixelInk({...palette,colors:['#7faadd','#ff8888','#22aadd']});
  let disposed=0;a.texture.addEventListener('dispose',()=>disposed++);
  assert.equal(a.texture,b.texture);assert.notEqual(a.key,b.key);
  assert.notEqual(a.texture,c.texture);assert.notEqual(a.key,c.key);
+ assert.notDeepEqual(shade(a,[.1,.2,.5]),shade(b,[.1,.2,.5]));
  assert.notDeepEqual(shade(a,[.1,.2,.5]),shade(c,[.1,.2,.5]));
  a.release();assert.equal(disposed,0);b.release();assert.equal(disposed,1);c.release();
 });
@@ -89,4 +90,18 @@ test('occupation inverse reverses color ownership while retaining continuous sha
   assert.ok(shade(inverse,blue)[0]>shade(inverse,blue)[2]);
   assert.notDeepEqual(shade(inverse,red),shade(inverse,[.65,.12,.06]));
  }finally{regular.release();inverse.release();}
+});
+
+test('dark wallpaper detail keeps bright ink and honors explicit saturation',()=>{
+ const p={...palette,pixelSources:['#10cc55'],colors:['#66ff98']};
+ const dark=[.02,.1,.04],light=[.08,.8,.25];
+ for(const saturation of [0,.45,1]){
+  const ink=acquireImagePixelInk({...p,saturation});
+  try{
+   const a=shade(ink,dark),b=shade(ink,light),peak=Math.max(...a);
+   assert.ok(peak>=.875,'dark wallpaper cannot substantially dim a bright palette anchor');
+   assert.ok(peak<Math.max(...b),'local shade variation is still visible');
+   assert.ok(Math.abs(1-Math.min(...a)/peak-saturation)<1e-6);
+  }finally{ink.release();}
+ }
 });

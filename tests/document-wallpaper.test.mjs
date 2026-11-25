@@ -11,7 +11,7 @@ test('documents and world labels share one static capture; only authored changes
   setProperty(name,value){style.set(name,value);if(name==='--document-image-frame')publish();},removeProperty(name){style.delete(name);},
  }};
  let target=null,captures=0,draws=0,captured,ink,paints=0,publish;
- const palette={mode:'text',distribution:'pixels',ink:'color',colors:['#12347b']};
+ const palette={mode:'text',distribution:'pixels',ink:'color',saturation:1,colors:['#12347b']};
  const published=()=>new Promise(resolve=>{publish=resolve;});
  globalThis.document={documentElement:{style:{setProperty(name,value){style.set(name,value);},removeProperty(name){style.delete(name);}}}};
  globalThis.Image=class{async decode(){assert.match(this.src,/^blob:/);}};
