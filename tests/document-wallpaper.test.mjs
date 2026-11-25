@@ -7,12 +7,17 @@ import {createWallpaperSampling} from '../src/scene/wallpaperSample.ts';
 
 test('open image-pixel documents get display RGB at viewport coordinates from a bounded capture',{timeout:3000},async()=>{
  const previousDocument=globalThis.document,previousImage=globalThis.Image;
- const style=new Map(),attributes=new Set(),host={};let target=null,captures=0,captured,paleCapture=false;
+ const style=new Map(),attributes=new Set(),host={toggleAttribute(name,on){if(on)attributes.add(name);else attributes.delete(name);},style:{
+  setProperty(name,value){style.set(name,value);if(name==='--document-image-frame')publish();},
+  removeProperty(name){style.delete(name);},
+ }};
+ let target=null,captures=0,captured,ink;
+ const palette={mode:'text',distribution:'pixels',ink:'color',colors:['#12347b']};
  let publish;
  const published=()=>new Promise(resolve=>{publish=resolve;});
  globalThis.document={
   documentElement:{toggleAttribute(name,on){if(on)attributes.add(name);else attributes.delete(name);},style:{
-   setProperty(name,value){style.set(name,value);if(name==='--scene-text-frame-size')publish();},
+   setProperty(name,value){style.set(name,value);},
    removeProperty(name){style.delete(name);},
   }},
  };
@@ -21,11 +26,11 @@ test('open image-pixel documents get display RGB at viewport coordinates from a 
   getRenderTarget:()=>target,
   setRenderTarget(next){target=next;},
   render(mesh){
-   captured=target;paleCapture=mesh.material.uniforms.paleFrame.value===1;
-   assert.match(mesh.material.fragmentShader,/if\(paleFrame>\.5\)rgb=vividImagePixel\(rgb\);/);
+   captured=target;ink=mesh.material.uniforms.imagePixelInk.value.image.data[2];
+   assert.match(mesh.material.fragmentShader,/mapImagePixel\(displayColour\(sampleWallpaper\(screenUV\)\)\)/);
   },
   async readRenderTargetPixelsAsync(read,_x,_y,w,h,bytes){
-   captures++;assert.equal(target,null);assert.equal(read,captured);assert.equal(w,captures===2?960:1920);assert.equal(h,captures===2?540:1080);bytes[0]=paleCapture?255:captures===1?123:234;
+   captures++;assert.equal(target,null);assert.equal(read,captured);assert.equal(w,captures===2?960:1920);assert.equal(h,captures===2?540:1080);bytes[0]=ink;
   },
  };
  const {uniforms}=createWallpaperSampling(),image=new T.Texture();
@@ -34,12 +39,12 @@ test('open image-pixel documents get display RGB at viewport coordinates from a 
  try{
   wallpaper.resize(3840,2160);assert.equal(captures,0);
   const first=published();
-  useDocumentWallpaper(host,true);
+  useDocumentWallpaper(host,palette);
   await first;
-  assert.equal(captures,1);assert.match(style.get('--scene-text-frame'),/^url\("blob:/);
+  assert.equal(captures,1);assert.match(style.get('--document-image-frame'),/^url\("blob:/);
   assert.equal(style.get('--scene-text-frame-size'),'3840px 2160px');
   assert.ok(attributes.has('data-scene-text-frame'));
-  const bitmap=async(key='--scene-text-frame')=>{
+  const bitmap=async(key='--document-image-frame')=>{
    const fileUrl=JSON.parse(style.get(key).slice(4,-1));
    const response=await fetch(fileUrl);
    assert.equal(response.headers.get('content-type'),'image/bmp');
@@ -55,20 +60,19 @@ test('open image-pixel documents get display RGB at viewport coordinates from a 
   await next;
   const motion=await bitmap();
   assert.equal(motion.getInt32(18,true),960);
-  assert.equal(motion.getUint8(54),234);
+  assert.equal(motion.getUint8(54),123);
   await published();
   assert.equal((await bitmap()).getInt32(18,true),1920);
   assert.equal(captures,3);
   const pale=published();
-  useDocumentWallpaper(host,true,true);
+  useDocumentWallpaper(host,{...palette,ink:'pale',colors:['#1234ff']});
   await pale;
-  assert.ok(!attributes.has('data-scene-text-frame'));
-  assert.ok(attributes.has('data-scene-text-pale-frame'));
-  assert.equal((await bitmap('--scene-text-pale-frame')).getUint8(54),255);
-  useDocumentWallpaper(host,false);
+  assert.ok(attributes.has('data-scene-text-frame'));
+  assert.equal((await bitmap()).getUint8(54),255);
+  useDocumentWallpaper(host);
   assert.equal(style.size,0);assert.equal(attributes.size,0);
  }finally{
-  useDocumentWallpaper(host,false);wallpaper.dispose();image.dispose();
+  useDocumentWallpaper(host);wallpaper.dispose();image.dispose();
   globalThis.document=previousDocument;globalThis.Image=previousImage;
  }
 });

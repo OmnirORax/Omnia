@@ -2,7 +2,7 @@ import test from 'node:test';import assert from 'node:assert/strict';import * as
 import {WORLD_TEXT_LAYER,nativeTextMaterial,withoutWorldText,renderWorldText} from '../src/world/textPass.ts';
 import {packedTextureGlow,updateTextureTextPalette} from '../src/textureGlow.ts';
 import {createWallpaperSampling,wallpaperSampleGLSL} from '../src/scene/wallpaperSample.ts';
-import {vividImagePixelGLSL} from '../src/properties/imagePixelInk.ts';
+import {imagePixelInkGLSL} from '../src/properties/imagePixelInk.ts';
 import {textPalettePair} from '../src/properties/textPalette.ts';import {emptyWorld,addStructure} from '../src/core/model.ts';import {writePaint,readPaint,nodeTextPaint} from '../src/core/appearance.ts';
 import {sceneOutputPixelRatio,budgetPixelRatio,RENDER_BUDGET} from '../src/renderBudget.ts';
 test('native text pass uses output pixels, graph depth and restores renderer state after rendering or failure',()=>{
@@ -23,15 +23,21 @@ test('Image pixels reads the live wallpaper at the native text viewport and pres
  const shader={uniforms:{},fragmentShader:T.ShaderLib.basic.fragmentShader};
  material.onBeforeCompile(shader,{});
  assert.ok(shader.fragmentShader.includes(wallpaperSampleGLSL));
- assert.match(shader.fragmentShader,/ink=glow;\s*if\(textPaletteInk<1.0\)\{/);
+ assert.ok(shader.fragmentShader.includes(imagePixelInkGLSL));
+ assert.match(shader.fragmentShader,/mapImagePixel\(displayColour\(sampleWallpaper\(/);
  assert.match(shader.fragmentShader,/glow=linearColour\(hue\);\s*ink=linearColour\(mix\(vec3\(1.0\),hue,textPaletteInk\)\);/);
- const channel=Function('rgb','low','span','max',`return ${vividImagePixelGLSL.match(/vec3 vivid=([^;]+);/)[1]};`);
- const boost=(rgb)=>rgb.map(c=>channel(c,Math.min(...rgb),Math.max(...rgb)-Math.min(...rgb),Math.max));
- for(const [sample,swatch] of [[[.8,.55,.55],'#ff0000'],[[.48,.48,.82],'#0000ff']]){
-  const vivid=boost(sample);
-  const pale=vivid.map(c=>Math.round((.75+.25*c)*255).toString(16)).join('');
+ const palette={mode:'text',distribution:'pixels',ink:'pale',pixelSources:['#a15555','#3366bb'],colors:['#ff0000','#0000ff']};
+ updateTextureTextPalette(material,palette);
+ const pixelAt=hue=>Array.from(shader.uniforms.imagePixelInk.value.image.data.slice(hue*4,hue*4+3));
+ for(const [hue,swatch] of [[0,'#ff0000'],[220,'#0000ff']]){
+  const pale=pixelAt(hue).map(c=>Math.round(.75*255+.25*c).toString(16)).join('');
   assert.equal(`#${pale}`,textPalettePair({mode:'text',ink:'pale',colors:[swatch]},0).color);
  }
+ updateTextureTextPalette(material,{...palette,ink:'color',colors:['#ff8080','#8080ff']});
+ assert.deepEqual(pixelAt(220),[128,128,255]);
+ assert.equal(shader.uniforms.textPaletteInk.value,1);
+ updateTextureTextPalette(material,{...palette,colors:['#ff0000'],pixelSources:['#a15555']});
+ assert.deepEqual(pixelAt(220),[255,0,0]);
  assert.ok(shader.fragmentShader.includes('sampleWallpaper(gl_FragCoord.xy/wallpaperViewport)'));
  assert.equal(shader.uniforms.textPaletteInk.value,.25);
  let draws=0;

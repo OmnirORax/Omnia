@@ -1,4 +1,4 @@
-import {vividImagePixelGLSL} from './properties/imagePixelInk.ts';
+import {acquireImagePixelInk,imagePixelInkGLSL,type ImagePixelInk} from './properties/imagePixelInk.ts';
 import {createWallpaperSampling,wallpaperSampleGLSL,type WallpaperSampleUniforms} from './scene/wallpaperSample.ts';
 import {initializeTextureInkProgression,updateTextureInkProgression,inkProgressionShader} from './textureInkProgression.ts';
 import {isFocusPalette,focusPattern,focusPeriod,focusPaletteAxis,isImageField} from './properties/focusPalette.ts';
@@ -24,7 +24,7 @@ export function bindTextWallpaper(source:WallpaperSampleUniforms|undefined,width
  wallpaperAvailable.value=Number(!!source?.image.value);
  if(source?.image.value)wallpaperViewport.value.set(width,height);
 }
-const sizes=new WeakMap<T.Material,{imagePixels:boolean;fillOpacity:{value:number};fieldSize:{value:T.Vector2};field:{value:number};scale:{value:number};debug:{value:number};detail:{value:number};color:{value:T.Color};count:{value:number};stops:{value:T.Vector4[]};layout:{value:number};spread:{value:number};strength:{value:number};generated:{value:number};focus:{value:number};axis:{value:number};period:{value:number};pattern:{value:T.Texture};releasePattern?:()=>void;paletteKey?:string}>();
+const sizes=new WeakMap<T.Material,{imagePixels:boolean;imageInk?:ImagePixelInk;imagePixelInk:{value:T.Texture};fillOpacity:{value:number};fieldSize:{value:T.Vector2};field:{value:number};scale:{value:number};debug:{value:number};detail:{value:number};color:{value:T.Color};count:{value:number};stops:{value:T.Vector4[]};layout:{value:number};spread:{value:number};strength:{value:number};generated:{value:number};focus:{value:number};axis:{value:number};period:{value:number};pattern:{value:T.Texture};releasePattern?:()=>void;paletteKey?:string}>();
 export function updateTextureGlowSize(material:T.MeshBasicMaterial){
  const state=sizes.get(material),image=material.map?.image as {width:number;height:number}|undefined;
  if(state&&image)state.detail.value=TEXT_STEM_PIXELS/Math.max(1,image.height);
@@ -38,7 +38,12 @@ export function updateTextureTextPalette(material:T.Material,palette?:TextPalett
  const state=sizes.get(material);if(!state)return;
  const imagePixels=palette?.distribution==='pixels';
  if(state.imagePixels!==imagePixels){state.imagePixels=imagePixels;material.needsUpdate=true;}
- state.fillOpacity.value=paletteFillOpacity(palette);let data=palette&&paletteData.get(palette);if(palette&&!data){data={key:JSON.stringify({...palette,fillOpacity:undefined}),stops:palette.colors.length>1?textPaletteStops(palette):[]};paletteData.set(palette,data);}const key=data?.key??'';if(state.paletteKey===key)return;updateTextureInkProgression(material,imagePixels?undefined:palette);state.field.value=Number(isImageField(palette));state.scale.value=palette?.scale??1;if(isImageField(palette)){const f=focusPattern(palette!);state.fieldSize.value.set(f.width,f.height);}state.debug.value=Number(!imagePixels&&!!palette?.debugPattern&&palette.colors.length>1);state.paletteKey=key;const release=state.releasePattern;state.releasePattern=undefined;state.pattern.value=emptyPattern;state.generated.value=0;state.focus.value=0;state.axis.value=palette?focusPaletteAxis(palette):0;state.strength.value=palette?paletteInk(palette):.25;if(palette&&(isFocusPalette(palette)||palette.pattern==='generated')&&palette.colors.length>1){const pattern=acquirePattern(palette);state.pattern.value=pattern.texture;state.releasePattern=pattern.release;state.generated.value=isFocusPalette(palette)?0:1;state.focus.value=isFocusPalette(palette)?1:0;state.period.value=isFocusPalette(palette)?focusPeriod(palette):1;}
+ state.fillOpacity.value=paletteFillOpacity(palette);let data=palette&&paletteData.get(palette);if(palette&&!data){data={key:JSON.stringify({...palette,fillOpacity:undefined}),stops:palette.colors.length>1?textPaletteStops(palette):[]};paletteData.set(palette,data);}const key=data?.key??'';if(state.paletteKey===key)return;
+ const previousInk=state.imageInk;
+ state.imageInk=imagePixels&&palette?acquireImagePixelInk(palette):undefined;
+ state.imagePixelInk.value=state.imageInk?.texture??emptyPattern;
+ previousInk?.release();
+ updateTextureInkProgression(material,imagePixels?undefined:palette);state.field.value=Number(isImageField(palette));state.scale.value=palette?.scale??1;if(isImageField(palette)){const f=focusPattern(palette!);state.fieldSize.value.set(f.width,f.height);}state.debug.value=Number(!imagePixels&&!!palette?.debugPattern&&palette.colors.length>1);state.paletteKey=key;const release=state.releasePattern;state.releasePattern=undefined;state.pattern.value=emptyPattern;state.generated.value=0;state.focus.value=0;state.axis.value=palette?focusPaletteAxis(palette):0;state.strength.value=palette?paletteInk(palette):.25;if(palette&&(isFocusPalette(palette)||palette.pattern==='generated')&&palette.colors.length>1){const pattern=acquirePattern(palette);state.pattern.value=pattern.texture;state.releasePattern=pattern.release;state.generated.value=isFocusPalette(palette)?0:1;state.focus.value=isFocusPalette(palette)?1:0;state.period.value=isFocusPalette(palette)?focusPeriod(palette):1;}
  release?.();const stops=data?.stops??[];state.count.value=stops.length;state.layout.value=palette?paletteLayout(palette):0;state.spread.value=palette?paletteSpread(palette):1;
  if(!stops.length){state.stops.value=emptyPaletteStops;return;}if(state.stops.value===emptyPaletteStops)state.stops.value=Array.from({length:PALETTE_STOP_LIMIT},()=>new T.Vector4());for(let i=0;i<PALETTE_STOP_LIMIT;i++){const stop=stops[i]??stops.at(-1)!;state.stops.value[i].set(...stop.rgb as [number,number,number],stop.at);}
 }
@@ -76,13 +81,13 @@ vec3 paletteGlow(vec2 uv,vec4 coverage){
  * coverage at every zoom, just as document shadows follow their text. */
 export function packedTextureGlow(material:T.MeshBasicMaterial){
  const inkUniforms=initializeTextureInkProgression(material);
- const state={imagePixels:false,fillOpacity:{value:1},field:{value:0},fieldSize:{value:new T.Vector2(1,1)},scale:{value:1},debug:{value:0},detail:{value:0},color:{value:material.color.clone()},count:{value:0},stops:{value:emptyPaletteStops},layout:{value:0},spread:{value:1},strength:{value:.25},generated:{value:0},focus:{value:0},axis:{value:0},period:{value:1},pattern:{value:emptyPattern},releasePattern:undefined as (()=>void)|undefined};material.addEventListener('dispose',()=>{state.releasePattern?.();state.releasePattern=undefined;});sizes.set(material,state);updateTextureGlowSize(material);declareGlowDetail(material,state.detail);
+ const state={imagePixels:false,imageInk:undefined as ImagePixelInk|undefined,imagePixelInk:{value:emptyPattern as T.Texture},fillOpacity:{value:1},field:{value:0},fieldSize:{value:new T.Vector2(1,1)},scale:{value:1},debug:{value:0},detail:{value:0},color:{value:material.color.clone()},count:{value:0},stops:{value:emptyPaletteStops},layout:{value:0},spread:{value:1},strength:{value:.25},generated:{value:0},focus:{value:0},axis:{value:0},period:{value:1},pattern:{value:emptyPattern},releasePattern:undefined as (()=>void)|undefined};material.addEventListener('dispose',()=>{state.releasePattern?.();state.releasePattern=undefined;state.imageInk?.release();state.imageInk=undefined;});sizes.set(material,state);updateTextureGlowSize(material);declareGlowDetail(material,state.detail);
  attachMaterialCoverage(material,target=>{
   const before=target.onBeforeCompile;
   target.onBeforeCompile=(shader,renderer)=>{
    before.call(target,shader,renderer);Object.assign(shader.uniforms,inkUniforms);shader.uniforms.textFillOpacity=state.fillOpacity;shader.uniforms.textPaletteField=state.field;shader.uniforms.textFieldSize=state.fieldSize;shader.uniforms.textFieldScale=state.scale;shader.uniforms.textPatternDebug=state.debug;shader.uniforms.glowInkColor=state.color;shader.uniforms.textPaletteCount=state.count;shader.uniforms.textPaletteStops=state.stops;shader.uniforms.textPaletteLayout=state.layout;shader.uniforms.textPaletteSpread=state.spread;shader.uniforms.textPaletteInk=state.strength;shader.uniforms.textPaletteGenerated=state.generated;shader.uniforms.textPaletteFocus=state.focus;shader.uniforms.textPaletteAxis=state.axis;shader.uniforms.textPalettePeriod=state.period;shader.uniforms.textPixelRatio=textPixelRatio;shader.uniforms.textPalettePattern=state.pattern;
    const imagePixels=target===material&&state.imagePixels;
-   if(imagePixels)Object.assign(shader.uniforms,wallpaperUniforms,{wallpaperViewport,wallpaperAvailable});
+   if(imagePixels)Object.assign(shader.uniforms,wallpaperUniforms,{wallpaperViewport,wallpaperAvailable,imagePixelInk:state.imagePixelInk});
    const coverage=target===material?`
     float clean=coverage.r;
     float halo=max(0.0,coverage.g-clean);
@@ -100,13 +105,9 @@ export function packedTextureGlow(material:T.MeshBasicMaterial){
     float inkCoverage=clean*fill+outline;
     vec3 ink=diffuseColor.rgb,glow=glowInkColor;
     ${imagePixels?`if(wallpaperAvailable>.5){
-     glow=sampleWallpaper(gl_FragCoord.xy/wallpaperViewport);
-     ink=glow;
-     if(textPaletteInk<1.0){
-      vec3 hue=vividImagePixel(displayColour(glow));
-      glow=linearColour(hue);
-      ink=linearColour(mix(vec3(1.0),hue,textPaletteInk));
-     }
+     vec3 hue=mapImagePixel(displayColour(sampleWallpaper(gl_FragCoord.xy/wallpaperViewport)));
+     glow=linearColour(hue);
+     ink=linearColour(mix(vec3(1.0),hue,textPaletteInk));
     }else`:''}
     if(textPaletteCount>1&&inkCoverage+halo>0.0){vec3 hue=paletteGlow(vMapUv,coverage);ink=paletteLinear(mix(vec3(1.0),hue,textPaletteInk));glow=paletteLinear(hue);}
     halo*=step(${TEXT_EMISSION_THRESHOLD},max(glow.r,max(glow.g,glow.b)));
@@ -115,7 +116,7 @@ export function packedTextureGlow(material:T.MeshBasicMaterial){
     diffuseColor.a*=total;
     if(textPatternDebug&&textPaletteCount>1){diffuseColor.rgb=paletteLinear(paletteGlow(vMapUv,coverage));diffuseColor.a=max(diffuseColor.a,0.4*opacity);}
    `:'diffuseColor.a*=coverage.r;';
-   const wallpaperShader=imagePixels?wallpaperSampleGLSL+vividImagePixelGLSL+'uniform vec2 wallpaperViewport; uniform float wallpaperAvailable;\n':'';
+   const wallpaperShader=imagePixels?wallpaperSampleGLSL+imagePixelInkGLSL+'uniform vec2 wallpaperViewport; uniform float wallpaperAvailable;\n':'';
    shader.fragmentShader=wallpaperShader+paletteShader+'uniform vec3 glowInkColor;\n'+shader.fragmentShader.replace('#include <map_fragment>',`
     #ifdef USE_MAP
     // Keep text's fine strokes instead of blending too early into a coarser
@@ -125,6 +126,6 @@ export function packedTextureGlow(material:T.MeshBasicMaterial){
     ${coverage}
     #endif
    `);
-  };target.customProgramCacheKey=()=>target===material?`omnium.packed-text-glow.base.v21.${Number(state.imagePixels)}`:'omnium.packed-text-glow.mask.v3';
+  };target.customProgramCacheKey=()=>target===material?`omnium.packed-text-glow.base.v22.${Number(state.imagePixels)}`:'omnium.packed-text-glow.mask.v3';
  });
 }

@@ -145,9 +145,8 @@ input[type="number"]:enabled:not([readonly]), input[inputmode="numeric"]:enabled
 .infinity-panel .infinity-click { display:block; width:100%; min-height:90px; border:1px solid currentColor; margin:6px 0; }
 
 .cm-image-palette{background-size:var(--document-palette-size,100% 100%);background-repeat:var(--document-palette-repeat,no-repeat);image-rendering:auto;background-image:var(--document-palette-gradient);background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent;color:var(--document-text-color);text-shadow:none;filter:var(--document-palette-filter,none);box-decoration-break:clone;-webkit-box-decoration-break:clone}
-[data-document-image-pale] { --document-image-frame:var(--scene-text-pale-frame); }
-:is([data-scene-text-frame] [data-document-image-pixels]:not([data-document-image-pale]), [data-scene-text-pale-frame] [data-document-image-pale]) .cm-image-palette[data-image-pixel-position] {
-  background-image:linear-gradient(rgb(255 255 255 / var(--document-image-pale)),rgb(255 255 255 / var(--document-image-pale))),var(--document-image-frame,var(--scene-text-frame));
+[data-document-image-pixels] [data-scene-text-frame] .cm-image-palette[data-image-pixel-position] {
+  background-image:linear-gradient(rgb(255 255 255 / var(--document-image-pale)),rgb(255 255 255 / var(--document-image-pale))),var(--document-image-frame);
   background-position:0 0,calc(var(--document-image-x) + var(--image-pixel-x)) calc(var(--document-image-y) + var(--image-pixel-y));
   background-size:100% 100%,var(--scene-text-frame-size);
   background-repeat:no-repeat;

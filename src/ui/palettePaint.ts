@@ -55,16 +55,14 @@ function paletteFilter(){const id=`document-palette-${++sequence}`;let svg:SVGSV
   }return `url(#${id})`;
  },dispose(){svg?.remove();}};}
 /** Palette tiles and glow filters update only when their owning paint changes. */
-export function createPalettePaint(host:HTMLElement,inkEnabled=false){const normal=paletteFilter(),ink=paletteFilter();let enabled=false;return {
+export function createPalettePaint(host:HTMLElement,inkEnabled=false,frameHost=host){const normal=paletteFilter(),ink=paletteFilter();let enabled=false;return {
  get enabled(){return enabled;},
  render(paint:Paint){
   const p=paint.palette,patterned=!!p&&p.colors.length>1;
   const pixels=inkEnabled&&p?.distribution==='pixels',debug=patterned&&!pixels&&!!p.debugPattern;
-  const pale=pixels&&paletteInk(p)<1;
   if(pixels)host.style.setProperty('--document-image-pale',String(1-paletteInk(p)));
-  host.toggleAttribute('data-document-image-pale',pale);
   host.toggleAttribute('data-document-image-pixels',pixels);
-  if(inkEnabled)useDocumentWallpaper(host,pixels,pale);
+  if(inkEnabled)useDocumentWallpaper(frameHost,pixels?p:undefined);
   const fill=inkEnabled&&!debug?paletteFillOpacity(p):1;
   const active=patterned||pixels||fill<1,changed=active!==enabled;enabled=active;
   if(active&&p){
@@ -75,4 +73,4 @@ export function createPalettePaint(host:HTMLElement,inkEnabled=false){const norm
    host.style.setProperty('--document-palette-filter',normal.render(paint,false,fill));
    host.style.setProperty('--document-ink-filter',inkEnabled&&!pixels&&patterned&&!isImageField(p)&&p.progression==='ink-serpentine'?ink.render(paint,true,fill):'none');
   }else{host.toggleAttribute('data-focus-theme',false);host.toggleAttribute('data-pattern-debug',false);for(const name of ['--document-palette-gradient','--document-palette-filter','--document-ink-filter'])host.style.removeProperty(name);}return changed;
- },dispose(){if(inkEnabled)useDocumentWallpaper(host,false);normal.dispose();ink.dispose();}};}
+ },dispose(){if(inkEnabled)useDocumentWallpaper(frameHost);normal.dispose();ink.dispose();}};}

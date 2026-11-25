@@ -11,7 +11,25 @@ export function sampleSceneGrid(pixels:Uint8ClampedArray,width:number,height:num
  for(let y=0;y<h;y++)for(let x=0;x<w;x++){const at=(Math.min(height-1,Math.floor((y+.5)*height/h))*width+Math.min(width-1,Math.floor((x+.5)*width/w)))*4;out.set(pixels.subarray(at,at+4),(y*w+x)*4);}
  return {pixels:out,width:w,height:h};
 }
-export function paletteFamily(rgb:readonly number[]){const hi=Math.max(...rgb),lo=Math.min(...rgb),hue=colorHue(rgb);return (hi<32||hi===0||(hi-lo)/hi<.18)?`n${hi<64?0:hi<190?1:2}`:`h${hue<15||hue>=345?0:hue<55?1:hue<85?2:hue<165?3:hue<205?4:hue<255?5:hue<290?6:7}`;}
+export const PALETTE_DARK_THRESHOLD=32,PALETTE_CHROMA_THRESHOLD=.18;
+export function isChromaticPixel(rgb:readonly number[]){
+ const hi=Math.max(...rgb);
+ return hi>=PALETTE_DARK_THRESHOLD&&(hi-Math.min(...rgb))/hi>=PALETTE_CHROMA_THRESHOLD;
+}
+type PaletteColorTraits={hue:number;value:number;chromatic:boolean};
+export function paletteColorTraits(rgb:readonly number[]):PaletteColorTraits{
+ return {hue:colorHue(rgb),value:Math.max(...rgb)/255,chromatic:isChromaticPixel(rgb)};
+}
+export function nearestPaletteTrait(pixel:PaletteColorTraits,swatches:readonly PaletteColorTraits[]){
+ let nearest=0,best=Infinity;
+ for(const [index,swatch] of swatches.entries()){
+  const delta=Math.abs(swatch.hue-pixel.hue),tone=Math.abs(swatch.value-pixel.value);
+  const distance=swatch.chromatic!==pixel.chromatic?2+tone:swatch.chromatic?Math.min(delta,360-delta)/180:tone;
+  if(distance<best){nearest=index;best=distance;}
+ }
+ return nearest;
+}
+export function paletteFamily(rgb:readonly number[]){const hi=Math.max(...rgb),hue=colorHue(rgb);return !isChromaticPixel(rgb)?`n${hi<64?0:hi<190?1:2}`:`h${hue<15||hue>=345?0:hue<55?1:hue<85?2:hue<165?3:hue<205?4:hue<255?5:hue<290?6:7}`;}
 export type ScenePalette={spatial?:{width:number;height:number;families:readonly string[];cells:Uint8Array};tones:SceneTones;accents:{id?:string;color:string;weight:number;salience?:number;meanColor?:string}[];neutrals:{id?:string;color:string;weight:number;salience?:number;meanColor?:string}[]};
 /** Count color families together, so many nearby blues cannot displace an orange accent. */
 export function extractScenePalette(signal:SceneSignal):ScenePalette{
