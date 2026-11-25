@@ -1,18 +1,29 @@
 import {PIXEL_MOTIF_LIMIT,type MotifFill,type MotifRect,type PixelMotifs} from '../properties/pixelMotifs.ts';
 import type {ScenePalette} from './palette.ts';
 
-/** Keep all selected areas in their original coordinate system around one center. */
-export function selectedMotifExtent(spatial:ScenePalette['spatial'],owners:readonly number[]):MotifRect|undefined{
- if(!spatial)return;
+/** Center the selected color coverage without moving the surviving shapes relative to each other. */
+export function buildCenteredPixelMotifs(spatial:ScenePalette['spatial'],owners:readonly number[],image?:string,crop?:MotifRect):PixelMotifs|undefined{
+ if(!spatial)return buildPixelMotifs(spatial,owners,image,crop);
  const {width,height,cells}=spatial;
- let left=width,right=-1,top=height,bottom=-1;
+ const [cropX,cropY,cropW,cropH]=crop??[0,0,1,1];
+ let left=1,right=0,top=1,bottom=0,total=0,sumX=0,sumY=0;
  for(let i=0;i<cells.length;i++){
   if(!(owners[cells[i]]>=0))continue;
   const x=i%width,y=Math.floor(i/width);
-  left=Math.min(left,x);right=Math.max(right,x);top=Math.min(top,y);bottom=Math.max(bottom,y);
+  const x0=Math.max(x/width,cropX),x1=Math.min((x+1)/width,cropX+cropW);
+  const y0=Math.max(y/height,cropY),y1=Math.min((y+1)/height,cropY+cropH);
+  if(x0>=x1||y0>=y1)continue;
+  const area=(x1-x0)*(y1-y0);
+  total+=area;sumX+=area*(x0+x1)/2;sumY+=area*(y0+y1)/2;
+  left=Math.min(left,x0);right=Math.max(right,x1);top=Math.min(top,y0);bottom=Math.max(bottom,y1);
  }
- if(right<left)return;
- return [left/width,top/height,(right-left+1)/width,(bottom-top+1)/height];
+ if(!total)return buildPixelMotifs(spatial,owners,image,crop);
+ const source:MotifRect=[left,top,right-left,bottom-top];
+ const offsetX=sumX/total-left,offsetY=sumY/total-top;
+ // Fit the farthest edge on each axis so the complete selection stays visible at 1×.
+ const halfWidth=Math.max(offsetX,source[2]-offsetX),halfHeight=Math.max(offsetY,source[3]-offsetY);
+ return {image,owners,fill:motifFill(spatial,owners,source),size:[2*halfWidth,2*halfHeight],
+  patches:[{source,x:halfWidth-offsetX,y:halfHeight-offsetY}]};
 }
 
 /** Find islands in the existing bounded color map. One empty cell can separate neighbors. */

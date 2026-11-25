@@ -3,7 +3,7 @@ import type {ImageField} from '../properties/imageField.ts';
 import {imageRelations} from './imageRelations.ts';
 import type {ColorRelations} from '../properties/colorRelations.ts';
 import {extractScenePalette,paletteHex,paletteRGB,colorLuminance,nearestPaletteTrait,paletteColorTraits,paletteFamily,PALETTE_FAMILIES,type SceneSignal,type ScenePalette,type SceneTones} from './palette.ts';
-import {buildPixelMotifs,selectedMotifExtent} from './pixelMotifs.ts';
+import {buildCenteredPixelMotifs,buildPixelMotifs} from './pixelMotifs.ts';
 import type {PixelMotifs} from '../properties/pixelMotifs.ts';
 import {imageRatio} from '../properties/focusPalette.ts';
 import {paletteInk,type PaletteSettings} from '../properties/textPalette.ts';
@@ -47,8 +47,8 @@ function resolvedPixelMotifs(source:ScenePalette,owners:readonly number[],image:
  const key=JSON.stringify([owners,image,crop,!!settings.centerImagePixels]);
  if(!layouts.has(key)){
   if(layouts.size>=12)layouts.delete(layouts.keys().next().value!);
-  const extent=crop??(settings.centerImagePixels?selectedMotifExtent(source.spatial,owners):undefined);
-  layouts.set(key,buildPixelMotifs(source.spatial,owners,image,extent));
+  const build=settings.centerImagePixels?buildCenteredPixelMotifs:buildPixelMotifs;
+  layouts.set(key,build(source.spatial,owners,image,crop));
  }
  return layouts.get(key);
 }

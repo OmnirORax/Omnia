@@ -34,15 +34,34 @@ test('neighboring accents stay in one unscaled source patch and distant shapes s
  assert.equal(next.textPixelMotifs,motifs,'scale and Pale reuse the extracted layout');
 });
 
-test('center on text uses one extent for the selected shapes and retains a picked crop',()=>{
+test('center on text uses one extent for the selected shapes inside the picked crop',()=>{
  const combo=imageColorCombo(sample()),centered={...settings,centerImagePixels:true,repeatMotifs:false};
  const motifs=matchedImageColors(combo,centered,'scene-a').textPixelMotifs;
- assert.deepEqual(motifs.patches,[{source:[2/width,2/height,16/width,7/height],x:0,y:0}]);
- assert.deepEqual(motifs.size,[16/width,7/height]);
+ assert.equal(motifs.patches.length,1);
+ assert.deepEqual(motifs.patches[0].source,[2/width,2/height,16/width,7/height]);
  const rect=[.3,.2,.4,.5],picked={...centered,motifCrop:{image:'scene-a',rect}};
- assert.deepEqual(matchedImageColors(combo,picked,'scene-a').textPixelMotifs.patches[0].source,rect);
+ const [x,y,w,h]=matchedImageColors(combo,picked,'scene-a').textPixelMotifs.patches[0].source;
+ assert.ok(x>=rect[0]&&y>=rect[1]&&x+w<=rect[0]+rect[2]&&y+h<=rect[1]+rect[3]);
  assert.equal(validPaletteSettings({centerImagePixels:'true'}),false);
  assert.equal(validTextPalette(comboPalette(matchedImageColors(combo,centered,'scene-a'),centered)),true);
+});
+
+test('removing a swatch moves the source midpoint even when the surviving pixels reach the same edges',()=>{
+ const red=[255,0,0,255],green=[0,255,0,255],blue=[0,0,255,255];
+ const combo=imageColorCombo({width:8,height:1,pixels:new Uint8ClampedArray([...green,...green,...green,...red,...blue,...blue,...blue,...green])});
+ const centered=(includeBlue,rect)=>matchedImageColors(combo,{
+  ...settings,repeatMotifs:false,centerImagePixels:true,motifOverrides:{...settings.motifOverrides,h5:includeBlue},
+  motifCrop:rect?{image:'scene-a',rect}:undefined,
+ },'scene-a').textPixelMotifs;
+ const center=({size,patches:[patch]})=>patch.source[0]+size[0]/2-patch.x;
+ const close=(actual,expected)=>assert.ok(Math.abs(actual-expected)<1e-10,`${actual} should match ${expected}`);
+ const original=centered(true),remaining=centered(false);
+ assert.deepEqual(original.patches[0].source,remaining.patches[0].source);
+ close(center(original),28.5/56);
+ close(center(remaining),.375);
+ const crop=[.125,0,.75,1];
+ close(center(centered(true,crop)),.5125);
+ close(center(centered(false,crop)),.25);
 });
 
 test('the motif lookup preserves enabled pixels and gives adjacent colors the removed pixels',()=>{
