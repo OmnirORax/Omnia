@@ -42,7 +42,7 @@ function wallpaperBitmap(width:number,height:number,bytes:Uint8Array<ArrayBuffer
 /** Publish rendered wallpaper frames only while a document needs them. */
 export function createDocumentWallpaper(renderer:THREE.WebGLRenderer,uniforms:WallpaperSampleUniforms){
  let width=1,height=1,revision=0,timer:ReturnType<typeof setTimeout>|undefined,running=false,closed=false;
- const urls=new Map<string,string>(),imagePixelInk={value:null as THREE.Texture|null};
+ const urls=new Map<string,string>(),imagePixelInk={value:null as THREE.Texture|null},imagePixelSaturation={value:1};
  let quad:FullScreenQuad|undefined,material:THREE.ShaderMaterial|undefined,target:THREE.WebGLRenderTarget|undefined;
  let lastMotion=-Infinity,lastCapture=-Infinity,scheduledAt=Infinity,pending=false;
  const available=()=>!closed&&consumers.size>0&&!!uniforms.image.value;
@@ -83,7 +83,7 @@ export function createDocumentWallpaper(renderer:THREE.WebGLRenderer,uniforms:Wa
   if(!available())return;
   running=true;pending=false;lastCapture=performance.now();
   let nextUrl:string|undefined;
-  const requested=new Map([...consumers.values()].map(ink=>[ink.key,ink.texture]));
+  const requested=new Map([...consumers.values()].map(ink=>[ink.key,ink]));
   const scale=Math.min(1,Math.sqrt((moving?MOTION_PIXELS:STATIC_PIXELS)/(width*height*requested.size)));
   const w=Math.max(1,Math.floor(width*scale)),h=Math.max(1,Math.floor(height*scale));
   try{
@@ -91,7 +91,7 @@ export function createDocumentWallpaper(renderer:THREE.WebGLRenderer,uniforms:Wa
    target.setSize(w,h);
    if(!quad){
     material=new THREE.ShaderMaterial({
-     uniforms:{...uniforms,imagePixelInk},depthTest:false,depthWrite:false,toneMapped:false,
+     uniforms:{...uniforms,imagePixelInk,imagePixelSaturation},depthTest:false,depthWrite:false,toneMapped:false,
      vertexShader:'varying vec2 screenUV; void main(){screenUV=uv;gl_Position=vec4(position.xy,1.0,1.0);}',
      // Write display-space bytes in the order required by BMP.
      fragmentShader:`${wallpaperSampleGLSL}${imagePixelInkGLSL}
@@ -103,8 +103,9 @@ export function createDocumentWallpaper(renderer:THREE.WebGLRenderer,uniforms:Wa
     });
     quad=new FullScreenQuad(material);
    }
-   for(const [key,texture] of requested){
-    imagePixelInk.value=texture;
+   for(const [key,ink] of requested){
+    imagePixelInk.value=ink.texture;
+    imagePixelSaturation.value=ink.saturation;
     const previous=renderer.getRenderTarget();
     try{renderer.setRenderTarget(target);quad.render(renderer);}finally{renderer.setRenderTarget(previous);}
     const bytes=new Uint8Array(w*h*4);

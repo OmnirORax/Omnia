@@ -29,7 +29,11 @@ export function nearestPaletteTrait(pixel:PaletteColorTraits,swatches:readonly P
  }
  return nearest;
 }
-export function paletteFamily(rgb:readonly number[]){const hi=Math.max(...rgb),hue=colorHue(rgb);return !isChromaticPixel(rgb)?`n${hi<64?0:hi<190?1:2}`:`h${hue<15||hue>=345?0:hue<55?1:hue<85?2:hue<165?3:hue<205?4:hue<255?5:hue<290?6:7}`;}
+export function paletteHueFamily(hue:number){return hue<15||hue>=345?0:hue<55?1:hue<85?2:hue<165?3:hue<205?4:hue<255?5:hue<290?6:7;}
+export function paletteFamily(rgb:readonly number[]){
+ const high=Math.max(...rgb);
+ return isChromaticPixel(rgb)?`h${paletteHueFamily(colorHue(rgb))}`:`n${high<64?0:high<190?1:2}`;
+}
 export type ScenePalette={spatial?:{width:number;height:number;families:readonly string[];cells:Uint8Array};tones:SceneTones;accents:{id?:string;color:string;weight:number;salience?:number;meanColor?:string}[];neutrals:{id?:string;color:string;weight:number;salience?:number;meanColor?:string}[]};
 /** Count color families together, so many nearby blues cannot displace an orange accent. */
 export function extractScenePalette(signal:SceneSignal):ScenePalette{

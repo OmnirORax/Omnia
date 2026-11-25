@@ -26,7 +26,7 @@ test('open image-pixel documents get display RGB at viewport coordinates from a 
   getRenderTarget:()=>target,
   setRenderTarget(next){target=next;},
   render(mesh){
-   captured=target;ink=mesh.material.uniforms.imagePixelInk.value.image.data[2];
+   captured=target;ink=Math.round(123*mesh.material.uniforms.imagePixelSaturation.value);
    assert.match(mesh.material.fragmentShader,/mapImagePixel\(displayColour\(sampleWallpaper\(screenUV\)\)\)/);
   },
   async readRenderTargetPixelsAsync(read,_x,_y,w,h,bytes){
@@ -65,10 +65,10 @@ test('open image-pixel documents get display RGB at viewport coordinates from a 
   assert.equal((await bitmap()).getInt32(18,true),1920);
   assert.equal(captures,3);
   const pale=published();
-  useDocumentWallpaper(host,{...palette,ink:'pale',colors:['#1234ff']});
+  useDocumentWallpaper(host,{...palette,ink:'pale',saturation:.5});
   await pale;
   assert.ok(attributes.has('data-scene-text-frame'));
-  assert.equal((await bitmap()).getUint8(54),255);
+  assert.equal((await bitmap()).getUint8(54),62);
   useDocumentWallpaper(host);
   assert.equal(style.size,0);assert.equal(attributes.size,0);
  }finally{
