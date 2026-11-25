@@ -127,6 +127,6 @@ export function packedTextureGlow(material:T.MeshBasicMaterial){
     ${coverage}
     #endif
    `);
-  };target.customProgramCacheKey=()=>target===material?`omnium.packed-text-glow.base.v23.${Number(state.imagePixels)}`:'omnium.packed-text-glow.mask.v3';
+  };target.customProgramCacheKey=()=>target===material?`omnium.packed-text-glow.base.v24.${Number(state.imagePixels)}`:'omnium.packed-text-glow.mask.v3';
  });
 }

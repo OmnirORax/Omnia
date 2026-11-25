@@ -1,31 +1,28 @@
 import * as T from 'three';
-import {nearestPaletteTrait,paletteColorTraits,paletteHueFamily,paletteRGB,PALETTE_DARK_THRESHOLD,PALETTE_CHROMA_THRESHOLD} from '../scene/palette.ts';
+import {nearestPaletteTrait,paletteColorTraits,paletteHueFamily,paletteRGB,PALETTE_CHROMA_THRESHOLD} from '../scene/palette.ts';
 import type {TextPalette} from './textPalette.ts';
 
-const HUES=360;
+const HUES=360,TONES=256,WIDTH=HUES+TONES;
 export type ImagePixelInk={key:string;texture:T.DataTexture;saturation:number;release:()=>void};
 const textures=new Map<string,{texture:T.DataTexture;uses:number}>();
 
-/** Enabled hue families pass through. The lookup only steers excluded hues. */
+/** Resolve ink once per palette; retain the source beside it for continuous pixel detail. */
 export function acquireImagePixelInk(p:TextPalette):ImagePixelInk{
  const sources=p.pixelSources??p.colors,saturation=p.saturation??1;
- const textureKey=JSON.stringify(sources),key=JSON.stringify([sources,saturation]);
+ const textureKey=JSON.stringify([sources,p.colors]),key=JSON.stringify([textureKey,saturation]);
  let entry=textures.get(textureKey);
  if(!entry){
-  const rgb=sources.map(paletteRGB),traits=rgb.map(paletteColorTraits);
+  const rgb=sources.map(paletteRGB),traits=rgb.map(paletteColorTraits),colors=p.colors.map(paletteRGB);
   const enabled=new Set(traits.filter(swatch=>swatch.chromatic).map(swatch=>paletteHueFamily(swatch.hue)));
-  const data=new Uint8Array(HUES*4);
-  for(let slot=0;slot<HUES;slot++){
-   const hue=slot+.5,at=slot*4;
-   if(enabled.has(paletteHueFamily(hue)))continue;
-   // Alpha 0 keeps the pixel, 255 rotates its hue, and 128 removes its chroma.
-   if(!enabled.size){data[at+3]=128;continue;}
-   const swatch=rgb[nearestPaletteTrait({chromatic:true,hue,value:1},traits)];
-   const low=Math.min(...swatch),span=Math.max(...swatch)-low;
-   data.set(swatch.map(channel=>Math.round((channel-low)*255/span)),at);
-   data[at+3]=255;
+  const data=new Uint8Array(WIDTH*2*4);
+  for(let slot=0;slot<WIDTH;slot++){
+   const chromatic=slot<HUES,hue=slot+.5;
+   const nearest=nearestPaletteTrait({chromatic,hue,value:chromatic?1:(slot-HUES)/255},traits);
+   data.set([...colors[nearest],255],slot*4);
+   // An excluded hue inherits its selected source's hue before carrying shade detail.
+   data.set([...rgb[nearest],Number(traits[nearest].chromatic&&(!chromatic||!enabled.has(paletteHueFamily(hue))))*255],(WIDTH+slot)*4);
   }
-  const texture=new T.DataTexture(data,HUES,1);
+  const texture=new T.DataTexture(data,WIDTH,2);
   texture.needsUpdate=true;
   entry={texture,uses:0};textures.set(textureKey,entry);
  }
@@ -41,13 +38,23 @@ export const imagePixelInkGLSL=`
   rgb=clamp(rgb,0.0,1.0);
   float high=max(rgb.r,max(rgb.g,rgb.b)),low=min(rgb.r,min(rgb.g,rgb.b));
   float delta=high-low;
-  if(high>=${PALETTE_DARK_THRESHOLD}.0/255.0&&delta>=high*${PALETTE_CHROMA_THRESHOLD}){
+  float slot=${HUES}.0+floor(high*255.0+.5);
+  if(high>0.0&&delta>=high*${PALETTE_CHROMA_THRESHOLD}){
    float hue=high==rgb.r?(rgb.g-rgb.b)/delta:high==rgb.g?2.0+(rgb.b-rgb.r)/delta:4.0+(rgb.r-rgb.g)/delta;
-   float slot=min(${HUES - 1}.0,floor(mod(hue*60.0+360.0,360.0)));
-   vec4 swatch=texelFetch(imagePixelInk,ivec2(int(slot),0),0);
-   if(swatch.a>.75)rgb=vec3(low)+swatch.rgb*delta;
-   else if(swatch.a>.25)rgb=vec3(high);
+   slot=min(${HUES - 1}.0,floor(mod(hue*60.0+360.0,360.0)));
   }
-  return mix(vec3(high),rgb,imagePixelSaturation);
+  vec3 ink=texelFetch(imagePixelInk,ivec2(int(slot),0),0).rgb;
+  vec4 source=texelFetch(imagePixelInk,ivec2(int(slot),1),0);
+  float sourceHigh=max(source.r,max(source.g,source.b)),sourceLow=min(source.r,min(source.g,source.b));
+  float sourceDelta=sourceHigh-sourceLow;
+  float inkHigh=max(ink.r,max(ink.g,ink.b)),inkLow=min(ink.r,min(ink.g,ink.b));
+  vec3 hue=source.a>.5?(source.rgb-vec3(sourceLow))/max(sourceDelta,.00001):(rgb-vec3(low))/max(delta,.00001);
+  float value=clamp(inkHigh+.5*(high-sourceHigh),0.0,1.0);
+  float saturation=(inkHigh-inkLow)/max(inkHigh,.00001);
+  if(sourceDelta>.00001&&saturation>0.0){
+   saturation=clamp(saturation+.5*imagePixelSaturation*(delta/max(high,.00001)-sourceDelta/sourceHigh),0.0,1.0);
+  }
+  // Resolved ink supplies readability; continuous local tone/chroma detail stays within its hue family.
+  return value*mix(vec3(1.0),hue,saturation);
  }
 `;
