@@ -20,7 +20,7 @@ import { Strikethrough, TaskList } from '@lezer/markdown';
 import { HighlightStyle, syntaxHighlighting, codeFolding } from '@codemirror/language';
 import { tags } from '@lezer/highlight';
 import { closeSearchPanel, getSearchQuery, openSearchPanel, search, searchKeymap, SearchQuery, setSearchQuery } from '@codemirror/search';
-import { readPaint } from '../core/appearance.ts';
+import { readNodeTextPresentation } from '../core/appearance.ts';
 import { setDOMTextPaint } from '../ui/appearance.ts';
 import { emboldenStrokeEm } from '../properties/embolden.ts';
 import { panel } from '../ui/panel.ts';
@@ -63,7 +63,7 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
     host.before(headingMenu); return true;
   };
   let fontSize = 13;
-  const font = (delta: number) => () => { fontSize = Math.min(36, Math.max(9, fontSize+delta)); applyDocumentPaint(readPaint(read(),'nodeText',origin)); editor?.requestMeasure(); return true; };
+  const font = (delta: number) => () => { fontSize = Math.min(36, Math.max(9, fontSize+delta)); applyDocumentPaint(readNodeTextPresentation(read(),origin).paint); editor?.requestMeasure(); return true; };
   const regex = () => {
     if (!editor) return false;
     const q = getSearchQuery(editor.state); editor.dispatch({ effects: setSearchQuery.of(new SearchQuery({ search:q.search,replace:q.replace,caseSensitive:q.caseSensitive,regexp:true })) });
@@ -131,7 +131,14 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
     const seen=new Set<string>();return documentBindings(effectiveBindings).flatMap(({definition,binding})=>{if(seen.has(definition.id))return [];seen.add(definition.id);const label=labels.get(definition.id)??definition.label;return [{id:definition.id,defaultKey:definition.defaultKey,label,key:shortcutBinding('Document',definition.id,definition.defaultKey),run:()=>{if(editor){binding.run?.(editor);editor.focus();}}}];});
   }});
   let previousLexicon=workspaceLexicon(read()),previousGlyphs=createGlyphPresentation(read());
-  const paintSession=createDocumentPaintSession(paint=>{applyDocumentPaint(paint);editor?.requestMeasure();});
+  const paintSession=createDocumentPaintSession(
+    paint=>{applyDocumentPaint(paint);editor?.requestMeasure();},
+    opacity=>{if(editor)editor.contentDOM.style.opacity=String(opacity);},
+  );
+  function presentAppearance(world:World){
+    const {paint,opacity}=readNodeTextPresentation(world,origin);
+    paintSession.render(paint,opacity);
+  }
   function refreshAppearance(){
     if(editor&&!failed&&!syncing){
       const node=locate(read(),origin),latest=node&&inherited(node,read()),text=latest?.text;
@@ -146,7 +153,7 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
     if(!locate(read(),origin))return;
     const dictionary=workspaceLexicon(read());if(dictionary!==previousLexicon){previousLexicon=dictionary;queueMicrotask(()=>{if(view.root.isConnected)editor?.dispatch({effects:refreshLexicon.of()});});}
     const glyphs=createGlyphPresentation(read());if(glyphs!==previousGlyphs){previousGlyphs=glyphs;queueMicrotask(()=>{if(view.root.isConnected)editor?.dispatch({effects:refreshDocumentGlyphs.of()});});}
-    paintSession.render(readPaint(read(),'nodeText',origin));
+    presentAppearance(read());
   }
   function applyDocumentPaint(paint:import('../properties/visual.ts').Paint){
     setDOMTextPaint(host.style,paint);
@@ -157,7 +164,7 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
     const palette=paint.palette&&(paint.palette.distribution==='pixels'||paint.palette.colors.length>1)?paint.palette:undefined;
     const changed=palettePaint.render(paint);editor?.dispatch({effects:[setDocumentPalette.of(palette),setDocumentInkTypography.of(JSON.stringify([paint.font,paint.fontSize,paint.embolden,fontSize])),...(changed?[showDocumentPalette.of(palettePaint.enabled)]:[])]});
   }
-  refreshAppearance();queueMicrotask(()=>{if(view.root.isConnected)editor?.dispatch({effects:refreshLexicon.of()});});editor.focus(); return {...view,refreshAppearance,previewAppearance(world:World){paintSession.render(readPaint(world,'nodeText',origin));}};
+  refreshAppearance();queueMicrotask(()=>{if(view.root.isConnected)editor?.dispatch({effects:refreshLexicon.of()});});editor.focus(); return {...view,refreshAppearance,previewAppearance:presentAppearance};
 }
 
 const DOCUMENT_SHORTCUT_LABELS:Record<string,string>={'Alt-1':'Fold all headings','Alt-2':'Unfold all headings','Mod-b':'Bold','Mod-i':'Italic','Mod-ArrowUp':'Move line up','Mod-ArrowDown':'Move line down','Alt-Delete':'Delete line','Mod-Delete':'Remove heading','Mod-F7':'Choose heading','Mod-1':'Numbered list','Mod-2':'Bullet list','Mod-Shift-3':'Cycle list','Mod-Shift-4':'Strikethrough','Mod-5':'Inline code','Alt-Mod-1':'Code block','Mod-3':'Capitalize','Mod-4':'Uppercase','Alt-ArrowRight':'Regex search','Mod-PageUp':'Increase font size','Mod-PageDown':'Decrease font size','Escape':'Close / cancel'};

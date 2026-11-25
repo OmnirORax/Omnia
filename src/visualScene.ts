@@ -27,9 +27,11 @@ export function visualObject(
   const styleText = (label: THREE.Object3D) => {
     const update = () => {
       const ink=appearance.textColor??appearance.color??"#ffffff",glow=appearance.textGlow??0;
-      if(label instanceof THREE.Mesh&&label.userData.isLabel)updateLabelPaint(label as ReturnType<typeof textSprite>,{...label.userData.labelPaint,color:ink,glow,glowSpread:appearance.glowSpread??label.userData.labelPaint?.glowSpread,glowColor:appearance.glowColor,...appearance.textPaint});
-      else label.userData.setTextStyle?.(appearance.color??ink,ink,glow,appearance.glowSpread);
-      if (label instanceof THREE.Mesh) label.material.opacity = appearance.opacity ?? 1;
+      if(label instanceof THREE.Mesh&&label.userData.isLabel)updateLabelPaint(label as ReturnType<typeof textSprite>,{...label.userData.labelPaint,color:ink,glow,glowSpread:appearance.glowSpread??label.userData.labelPaint?.glowSpread,glowColor:appearance.glowColor,...appearance.textPaint},appearance.opacity);
+      else {
+        label.userData.setTextStyle?.(appearance.color??ink,ink,glow,appearance.glowSpread);
+        if(label instanceof THREE.Mesh)label.material.opacity=appearance.opacity??1;
+      }
     };
     restyle.push(update);
     if (appearance.textColor !== undefined||appearance.textPaint) update();

@@ -127,13 +127,13 @@ export function textSprite(value: string, color: string, selected = false, node 
 }
 /** Only typography changes text geometry. Color/opacity/glow reuse the label. */
 export const labelGeometryKey=(paint:Paint={},revision=0)=>JSON.stringify([paint.font??TEXT_DEFAULTS.font,revision]);
-export function updateLabelPaint(mesh:ReturnType<typeof textSprite>,paint:Paint={}){
+export function updateLabelPaint(mesh:ReturnType<typeof textSprite>,paint:Paint={},opacity=1){
  const style={...TEXT_DEFAULTS,...paint};
  const nextScale=fontSizeScale(style),oldScale=mesh.userData.labelFontScale??1;if(nextScale!==oldScale){mesh.scale.multiplyScalar(nextScale/oldScale);mesh.userData.labelFontScale=nextScale;}
  const rendered=setTextPaint({setColor:color=>{mesh.material.color.set(color);mesh.userData.textColor=color;},setGlow:(color,strength,spread)=>{const ink=mesh.userData.textColor as string;mesh.userData.setTextStyle(ink,ink,strength,spread);updateTextureGlowColor(mesh.material,color);}},paint);
  updateTextureTextPalette(mesh.material,paint.palette);
  mesh.userData.glowColor=style.glowColor===undefined?undefined:rendered.glowColor;
- mesh.material.opacity=1;
+ mesh.material.opacity=opacity;mesh.userData.labelOpacity=opacity;
  mesh.userData.labelPaint=style;mesh.userData.textColor=rendered.color;
 }
 export function label(caption:string,paint?:Paint){
@@ -147,7 +147,7 @@ export function label(caption:string,paint?:Paint){
    mesh.material.map?.dispose();mesh.material.dispose();mesh.material=fresh.material;
    for(const name of ['setTextStyle','setSurfaceStyle','setSelected','lightningMask','contentHull'])mesh.userData[name]=fresh.userData[name];
    mesh.userData.aspect=fresh.userData.aspect;mesh.scale.copy(fresh.scale);mesh.userData.labelFontScale=1;
-   updateLabelPaint(mesh,current);fresh.geometry.dispose();mesh.userData.requestRender?.();
+   updateLabelPaint(mesh,current,mesh.userData.labelOpacity);fresh.geometry.dispose();mesh.userData.requestRender?.();
  });
  return mesh;
 }

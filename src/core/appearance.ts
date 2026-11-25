@@ -16,10 +16,12 @@ export function nodePaint(world:World,node?:Structure):NodePaint {
   brightness:node.brightness??base.brightness,opacity:node.opacity??base.opacity,
   translucency:node.translucency??base.translucency,translucencyRadius:node.translucencyRadius??base.translucencyRadius,glowColor:node.glowColor??base.glowColor,glow:node.glow??base.glow};
 }
+function nodeTransmission(paint:NodePaint){return translucentOpacity(paint.opacity!,paint.translucency);}
+export function nodeTextOpacity(world:World,actual?:Structure){return nodeTransmission(nodePaint(world,actual));}
 /** Outgoing connections share their source's resolved visual channels. */
 export function connectorPaint(world:World,source:Structure,actual=inherited(source,world)) {
  const paint=nodePaint(world,actual);
- return {color:brightHex(paint.color!,paint.brightness!),opacity:translucentOpacity(paint.opacity!,paint.translucency),glow:paint.glow!,...(paint.glowColor?{glowColor:paint.glowColor}:{})};
+ return {color:brightHex(paint.color!,paint.brightness!),opacity:nodeTransmission(paint),glow:paint.glow!,...(paint.glowColor?{glowColor:paint.glowColor}:{})};
 }
 /** A fresh reader per render/preview pass avoids repeating inheritance per edge. */
 export function connectorPaintReader(world:World){
@@ -87,3 +89,9 @@ function resolvedNodeTextPaint(world:World,actual?:Structure,lookup:(origin:Orig
  return resolvedTextPaint(paint);
 }
 export function nodeTextPaint(world:World,actual:Structure,lookup?:(origin:Origin)=>Structure|undefined){return resolvedNodeTextPaint(world,actual,lookup);}
+
+/** Document paint and transmission resolve from the same inherited node. */
+export function readNodeTextPresentation(world:World,origin:Origin){
+ const node=locate(world,origin),actual=node&&inherited(node,world);
+ return {paint:resolvedNodeTextPaint(world,actual),opacity:nodeTextOpacity(world,actual)};
+}

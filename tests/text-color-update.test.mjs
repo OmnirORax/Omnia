@@ -57,13 +57,13 @@ test('surface-backed text retains canvas color painting',()=>{
  assert.ok(work.draw>before.draw);mesh.geometry.dispose();mesh.material.map.dispose();mesh.material.dispose();
 });
 
-test('late font completion preserves latest color and subsequent uniform-only updates',async()=>{
+test('late font completion preserves latest ink and coupled opacity',async()=>{
  const mesh=label('Font',{font:'electric',color:'#ffffff',glow:.5});
- updateLabelPaint(mesh,{font:'electric',color:'#ff0000',glow:.5,translucency:.4});
+ updateLabelPaint(mesh,{font:'electric',color:'#ff0000',glow:.5,translucency:.4},.42);
  finishFont([]);await Promise.resolve();
- assert.equal(mesh.material.color.getHexString(),'ff0000');assert.equal(mesh.material.opacity,1);
- const before=snapshot();updateLabelPaint(mesh,{font:'electric',color:'#00ff00',glow:.5});
- assert.equal(mesh.material.color.getHexString(),'00ff00');assert.deepEqual(snapshot(),before);
+ assert.equal(mesh.material.color.getHexString(),'ff0000');assert.equal(mesh.material.opacity,.42);
+ const before=snapshot();updateLabelPaint(mesh,{font:'electric',color:'#00ff00',glow:.5},.7);
+ assert.equal(mesh.material.color.getHexString(),'00ff00');assert.equal(mesh.material.opacity,.7);assert.deepEqual(snapshot(),before);
  disposeLabel(mesh);
 });
 
