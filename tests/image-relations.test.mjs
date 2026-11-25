@@ -17,15 +17,15 @@ test('equal occupation with alternating versus clustered image structure produce
  const alternating=paint(image(x=>x%2)),clustered=paint(image(x=>Number(x<32)));assert.deepEqual(focusRatio(alternating),focusRatio(clustered));assert.notDeepEqual(alternating.relations.horizontal,clustered.relations.horizontal);assert.notDeepEqual(focusPattern(alternating).indices,focusPattern(clustered).indices);
  for(const p of [alternating,clustered]){assert.ok(relationError(profile(p),p.relations.horizontal)<.02);assert.deepEqual(proportions(p),[.5,.5]);}
 });
-test('inverse changes grouping away from the image while retaining its color pairing graph',()=>{
- for(const sample of [image(x=>x%2),image(x=>Number(x<32))]){const matched=paint(sample),inverse={...matched,inverseDistribution:true},target=matched.relations.horizontal,a=profile(matched),b=profile(inverse),distance=p=>p.clustering.reduce((n,v,i)=>n+Math.abs(v-target.clustering[i]),0);assert.ok(distance(b)>distance(a));assert.deepEqual(a.pairs,target.pairs);assert.deepEqual(b.pairs,target.pairs);assert.deepEqual(proportions(inverse),proportions(matched));}
+test('spatial inverse offsets the source while preserving grouping, pairing and shares',()=>{
+ for(const sample of [image(x=>x%2),image(x=>Number(x<32))]){const matched=paint(sample),inverse={...matched,inverseDistribution:true};assert.deepEqual(proportions(inverse),proportions(matched));assert.deepEqual(profile(matched),profile(inverse));}
 });
 test('multicolor adjacency is matched independently of equal color shares',()=>{
  const a=paint(image(x=>x%4)),b=paint(image(x=>[0,2,1,3][x%4]));assert.deepEqual(a.colors,b.colors);assert.deepEqual(focusRatio(a),focusRatio(b));assert.notDeepEqual(a.relations.horizontal.pairs,b.relations.horizontal.pairs);assert.notDeepEqual(focusPattern(a).indices,focusPattern(b).indices);
  for(const p of [a,b]){const own=relationError(profile(p),p.relations.horizontal),other=relationError(profile(p),(p===a?b:a).relations.horizontal);assert.ok(own<other);assert.deepEqual(proportions(p),[.25,.25,.25,.25]);}
 });
-test('horizontal and vertical image relations select their own matching pattern',()=>{
- const p=paint(image(x=>x%2)),vertical={...p,distributionAxis:'vertical'};assert.notDeepEqual(p.relations.horizontal,p.relations.vertical);assert.notDeepEqual(focusPattern(p).indices,focusPattern(vertical).indices);assert.ok(relationError(profile(vertical),p.relations.vertical)<relationError(profile(p),p.relations.vertical));assert.deepEqual(proportions(p),proportions(vertical));
+test('two-dimensional fields retain both axes independently of legacy strip direction',()=>{
+ const p=paint(image(x=>x%2)),vertical={...p,distributionAxis:'vertical'};assert.notDeepEqual(p.relations.horizontal,p.relations.vertical);assert.deepEqual(focusPattern(p).indices,focusPattern(vertical).indices);assert.equal(focusPattern(p).width,64);assert.equal(focusPattern(p).height,64);
 });
 test('unselected colors do not create partners or consume relation positions',()=>{
  const compact=paint(image(x=>x%2)),gaps=paint(image(x=>x%2?[0,0,0]:colors[Math.floor(x/2)%2]),{motifOverrides:{h0:true,h5:true,n0:false}});assert.deepEqual(gaps.colors,compact.colors);assert.deepEqual(gaps.relations,compact.relations);assert.deepEqual(proportions(gaps),proportions(compact));

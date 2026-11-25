@@ -1,3 +1,4 @@
+import {textSlices} from './textSlices.ts';
 import {scanInk,paintInkScan,type InkScan} from '../properties/inkProgression.ts';
 import {focusRatio,focusPaletteAxis,focusPattern} from '../properties/focusPalette.ts';
 import type {TextPalette} from '../properties/textPalette.ts';
@@ -9,16 +10,12 @@ type Mark={element:HTMLElement;start:number;ascent:number};
 type Row={key:string;fragments:Fragment[];marks:Mark[];width:number;height:number;ascent:number};
 /** Geometry reads are separate from raster writes. Inline slices share one unwrapped ink stream. */
 export function readInkRows(root:HTMLElement){
- const groups=new Map<Element,Row>(),range=document.createRange(),measure=document.createElement('canvas').getContext('2d')!;
+ const groups=new Map<Element,Row>(),measure=document.createElement('canvas').getContext('2d')!;
  for(const element of root.querySelectorAll<HTMLElement>('.cm-image-palette')){
   const line=element.closest('.cm-line')??element;let row=groups.get(line);if(!row){row={key:'',fragments:[],marks:[],width:0,height:0,ascent:0};groups.set(line,row);}
   const markStyle=getComputedStyle(element);measure.font=canvasFont(markStyle);const markMetrics=measure.measureText('Mg');row.marks.push({element,start:row.width,ascent:markMetrics.fontBoundingBoxAscent??parseFloat(markStyle.fontSize)});
-  const walker=document.createTreeWalker(element,NodeFilter.SHOW_TEXT);let node:Node|null;
-  while((node=walker.nextNode())){const text=node.textContent??'';if(!text)continue;const style=getComputedStyle(node.parentElement!);measure.font=canvasFont(style);const metrics=measure.measureText('Mg'),ascent=metrics.fontBoundingBoxAscent??parseFloat(style.fontSize),descent=metrics.fontBoundingBoxDescent??parseFloat(style.fontSize)*.25;let from=0;
-   while(from<text.length){range.setStart(node,from);range.setEnd(node,text.length);let to=text.length;
-    if(range.getClientRects().length>1){let low=from+1,high=text.length;while(low<high){const mid=Math.ceil((low+high)/2);range.setEnd(node,mid);if(range.getClientRects().length<=1)low=mid;else high=mid-1;}to=low;range.setEnd(node,to);}
-    const rect=range.getBoundingClientRect(),fragment={text:text.slice(from,to),font:canvasFont(style),spacing:style.letterSpacing,wordSpacing:style.wordSpacing,width:rect.width,height:rect.height,ascent,descent,stroke:parseFloat(style.webkitTextStrokeWidth)||0};row.fragments.push(fragment);row.width+=rect.width;row.ascent=Math.max(row.ascent,ascent);row.height=Math.max(row.height,ascent+descent,rect.height);from=to;
-   }
+  for(const {node,text,rect}of textSlices(element)){const style=getComputedStyle(node.parentElement!);measure.font=canvasFont(style);const metrics=measure.measureText('Mg'),ascent=metrics.fontBoundingBoxAscent??parseFloat(style.fontSize),descent=metrics.fontBoundingBoxDescent??parseFloat(style.fontSize)*.25;
+   const fragment={text,font:canvasFont(style),spacing:style.letterSpacing,wordSpacing:style.wordSpacing,width:rect.width,height:rect.height,ascent,descent,stroke:parseFloat(style.webkitTextStrokeWidth)||0};row.fragments.push(fragment);row.width+=rect.width;row.ascent=Math.max(row.ascent,ascent);row.height=Math.max(row.height,ascent+descent,rect.height);
   }
  }
  for(const row of groups.values()){row.width=Math.max(1,Math.ceil(row.width));row.height=Math.max(1,Math.ceil(row.height));row.key=JSON.stringify([row.fragments,row.width,row.height,row.ascent]);}return [...groups.values()];

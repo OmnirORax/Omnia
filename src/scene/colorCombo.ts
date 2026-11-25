@@ -1,3 +1,5 @@
+import {imageField} from './imageField.ts';
+import type {ImageField} from '../properties/imageField.ts';
 import {imageRelations} from './imageRelations.ts';
 import type {ColorRelations} from '../properties/colorRelations.ts';
 import {extractScenePalette,paletteHex,paletteRGB,colorLuminance,colorHue,paletteFamily,type SceneSignal,type ScenePalette,type SceneTones} from './palette.ts';
@@ -5,7 +7,7 @@ import {imageRatio} from '../properties/focusPalette.ts';
 import {paletteInk,type PaletteSettings} from '../properties/textPalette.ts';
 import {writePaint} from '../core/appearance.ts';
 import type {World,Origin} from '../core/model.ts';
-export type ImageColorCombo={text:string;textGlow:string;node:string;nodeGlow:string;textPalette:string[];textWeights:number[];textStrength:number;textDarkSupport:boolean;textAvailable?:number;textRatio?:number[];textRelations?:ColorRelations;source:ScenePalette};
+export type ImageColorCombo={text:string;textGlow:string;node:string;nodeGlow:string;textPalette:string[];textWeights:number[];textStrength:number;textDarkSupport:boolean;textAvailable?:number;textRatio?:number[];textRelations?:ColorRelations;textField?:ImageField;source:ScenePalette};
 const vivid=(color:string,boost:boolean|number)=>{const rgb=paletteRGB(color),hi=Math.max(...rgb),lo=Math.min(...rgb),span=hi-lo;if(!hi)return '#ffffff';const saturation=typeof boost==='number'?boost:boost?Math.max(.85,span/hi):span/hi;return paletteHex(rgb.map(c=>span?255*(1-saturation+saturation*(c-lo)/span):255));};
 const contrast=(a:number,b:number)=>(Math.max(a,b)+.05)/(Math.min(a,b)+.05);
 /** Adjust only the failing accent, rather than bleaching every other motif color. */
@@ -36,13 +38,13 @@ export function imageTextPalette(palette:ScenePalette,settings:PaletteSettings={
 }
 export function matchedImageColors(combo:ImageColorCombo,settings:PaletteSettings={}){
  const palette=imageTextPalette(combo.source,settings),first=palette[0],candidates=motifCandidates(combo.source,settings),members=candidates.filter(c=>c.enabled),available=candidates.length;
- let textRelations:ColorRelations|undefined;
- if(settings.distribution==='image'&&combo.source.spatial){const destinations=new Map([...combo.source.accents,...combo.source.neutrals].map(c=>[c.id??paletteFamily(paletteRGB(c.color)),settings.included?.length?settings.included[nearestIncluded(c.color,settings.included)].toLowerCase():c.id??paletteFamily(paletteRGB(c.color))]));textRelations=imageRelations(combo.source,combo.source.spatial.families.map(id=>members.findIndex(c=>c.id===destinations.get(id))),members.length);}
- return {...combo,text:first.text,textGlow:first.textGlow,textPalette:palette.map(c=>c.textGlow),textWeights:palette.map(c=>c.weight),textStrength:first.strength,textDarkSupport:first.darkSupport,textAvailable:available,textRatio:imageRatio(palette.map(c=>c.weight)),textRelations,node:first.textGlow,nodeGlow:first.textGlow};
+ let textRelations:ColorRelations|undefined,textField:ImageField|undefined;
+ if(settings.distribution==='image'&&combo.source.spatial){const destinations=new Map([...combo.source.accents,...combo.source.neutrals].map(c=>[c.id??paletteFamily(paletteRGB(c.color)),settings.included?.length?settings.included[nearestIncluded(c.color,settings.included)].toLowerCase():c.id??paletteFamily(paletteRGB(c.color))]));const mapping=combo.source.spatial.families.map(id=>members.findIndex(c=>c.id===destinations.get(id)));textRelations=imageRelations(combo.source,mapping,members.length);textField=imageField(combo.source,mapping,palette.map(c=>c.weight));}
+ return {...combo,text:first.text,textGlow:first.textGlow,textPalette:palette.map(c=>c.textGlow),textWeights:palette.map(c=>c.weight),textStrength:first.strength,textDarkSupport:first.darkSupport,textAvailable:available,textRatio:imageRatio(palette.map(c=>c.weight)),textRelations,textField,node:first.textGlow,nodeGlow:first.textGlow};
 }
 export function imageColorCombo(pixels:SceneSignal):ImageColorCombo{
  const source=extractScenePalette(pixels);if(!source.accents.length&&!source.neutrals.length)throw Error('Image has no visible colours.');
  return matchedImageColors({source,text:'',textGlow:'',node:'',nodeGlow:'',textPalette:[],textWeights:[],textStrength:1,textDarkSupport:false});
 }
-export const comboPalette=(combo:ImageColorCombo,settings?:PaletteSettings)=>({...Object.fromEntries(Object.entries(settings??{}).filter(([,value])=>value!==undefined)) as PaletteSettings,mode:'text' as const,colors:combo.textPalette,weights:combo.textWeights,strength:combo.textStrength,darkSupport:combo.textDarkSupport,available:combo.textAvailable,imageRatio:combo.textRatio,relations:combo.textRelations});
+export const comboPalette=(combo:ImageColorCombo,settings?:PaletteSettings)=>({...Object.fromEntries(Object.entries(settings??{}).filter(([,value])=>value!==undefined)) as PaletteSettings,mode:'text' as const,colors:combo.textPalette,weights:combo.textWeights,strength:combo.textStrength,darkSupport:combo.textDarkSupport,available:combo.textAvailable,imageRatio:combo.textRatio,relations:combo.textRelations,field:combo.textField});
 export function applyImageColorCombo(world:World,combo:ImageColorCombo,origin?:Origin){writePaint(world,origin?'nodeText':'text',origin?[origin]:[],{color:combo.text,glowColor:combo.textGlow,palette:comboPalette(combo)});writePaint(world,origin?'nodes':'nodeDefaults',origin?[origin]:[],{color:combo.node,glowColor:combo.nodeGlow});}
