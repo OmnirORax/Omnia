@@ -18,8 +18,7 @@ function shade(ink,rgb){
  const texel=row=>Array.from(data.slice((row*width+slot)*4,(row*width+slot)*4+4),c=>c/255);
  const target=texel(0),source=texel(1),sourceHigh=Math.max(...source.slice(0,3)),sourceLow=Math.min(...source.slice(0,3)),sourceDelta=sourceHigh-sourceLow;
  const inkHigh=Math.max(...target.slice(0,3)),inkLow=Math.min(...target.slice(0,3));
- let saturation=expression(/float saturation=([^;]+);/,{inkHigh,inkLow});
- if(saturation>0&&ink.saturation>=0)saturation=ink.saturation;
+ const saturation=expression(/float saturation=([^;]+);/,{inkHigh,inkLow,high,delta,imagePixelSaturation:ink.saturation});
  const hue=source[3]>.75?target.slice(0,3).map(v=>(v-inkLow)/Math.max(inkHigh-inkLow,.00001)):source[3]>.25?source.slice(0,3).map(v=>(v-sourceLow)/Math.max(sourceDelta,.00001)):rgb.map(v=>(v-low)/Math.max(delta,.00001));
  return hue.map(v=>inkHigh*(1-saturation+v*saturation));
 }
@@ -98,7 +97,7 @@ test('occupation inverse reverses color ownership while keeping swatch brightnes
   assert.ok(shade(regular,red)[0]>shade(regular,red)[2]);
   assert.ok(shade(inverse,red)[2]>shade(inverse,red)[0]);
   assert.ok(shade(inverse,blue)[0]>shade(inverse,blue)[2]);
-  assert.deepEqual(shade(inverse,red),shade(inverse,[.65,.12,.06]));
+  assert.deepEqual(shade(inverse,red),shade(inverse,[.4,.07,.035]));
  }finally{regular.release();inverse.release();}
 });
 
@@ -111,7 +110,28 @@ test('dark wallpaper detail keeps bright ink and honors explicit saturation',()=
    const a=shade(ink,dark),b=shade(ink,light),peak=Math.max(...a);
    assert.equal(peak,1,'dark wallpaper cannot dim a bright palette anchor');
    assert.equal(peak,Math.max(...b));
-   assert.ok(Math.abs(1-Math.min(...a)/peak-saturation)<1e-6);
+   const sourceSaturation=(Math.max(...dark)-Math.min(...dark))/Math.max(...dark);
+   assert.ok(Math.abs(1-Math.min(...a)/peak-sourceSaturation*saturation)<1e-6);
   }finally{ink.release();}
  }
+});
+
+
+test('default and 100% preserve differing wallpaper saturation within one hue family',()=>{
+ const p={...palette,pixelSources:['#bb3355'],colors:['#ff0044']};
+ const ink=acquireImagePixelInk({...p,saturation:undefined});
+ const full=acquireImagePixelInk({...p,saturation:1});
+ const half=acquireImagePixelInk({...p,saturation:.5});
+ try{
+  assert.equal(ink.key,full.key);
+  assert.equal(ink.texture,half.texture);
+  for(const sample of [[.8,.6,.65],[.8,.15,.3125]]){
+   const saturation=rgb=>1-Math.min(...rgb)/Math.max(...rgb);
+   const normal=shade(ink,sample),muted=shade(half,sample);
+   assert.equal(Math.max(...normal),1);
+   assert.ok(Math.abs(saturation(normal)-saturation(sample))<1e-6);
+   assert.ok(Math.abs(saturation(muted)-.5*saturation(sample))<1e-6);
+  }
+  assert.notDeepEqual(shade(ink,[.8,.6,.65]),shade(ink,[.8,.15,.3125]));
+ }finally{ink.release();full.release();half.release();}
 });
