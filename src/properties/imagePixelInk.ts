@@ -58,7 +58,7 @@ export const imagePixelInkGLSL=`
   float sourceDelta=sourceHigh-sourceLow;
   float inkHigh=max(ink.r,max(ink.g,ink.b)),inkLow=min(ink.r,min(ink.g,ink.b));
   vec3 hue=source.a>.75?(ink.rgb-vec3(inkLow))/max(inkHigh-inkLow,.00001):source.a>.25?(source.rgb-vec3(sourceLow))/max(sourceDelta,.00001):(rgb-vec3(low))/max(delta,.00001);
-  float saturation=inkHigh>inkLow?delta/max(high,.00001)*imagePixelSaturation:0.0;
+  float saturation=inkHigh>inkLow?min(delta/max(high,.00001)*imagePixelSaturation,1.0):0.0;
   return inkHigh*mix(vec3(1.0),hue,saturation);
  }
 `;

@@ -7,7 +7,7 @@ import {paletteColorTraits,colorHue} from '../src/scene/palette.ts';
 // The controlled GPU probe separately exercises sampling, glyph clipping and compositing.
 const expression=(pattern,values)=>{
  const source=imagePixelInkGLSL.match(pattern)?.[1];assert.ok(source);
- return Function(...Object.keys(values),'max','clamp',`return ${source};`)(...Object.values(values),Math.max,(v,a,b)=>Math.max(a,Math.min(b,v)));
+ return Function(...Object.keys(values),'max','min','clamp',`return ${source};`)(...Object.values(values),Math.max,Math.min,(v,a,b)=>Math.max(a,Math.min(b,v)));
 };
 function shade(ink,rgb){
  const {width,data}=ink.texture.image,traits=paletteColorTraits(rgb.map(c=>c*255));
@@ -104,14 +104,14 @@ test('occupation inverse reverses color ownership while keeping swatch brightnes
 test('dark wallpaper detail keeps bright ink and honors explicit saturation',()=>{
  const p={...palette,pixelSources:['#10cc55'],colors:['#66ff98']};
  const dark=[.02,.14,.04],light=[.08,.8,.25];
- for(const saturation of [0,.45,1]){
+ for(const saturation of [0,.45,1,2]){
   const ink=acquireImagePixelInk({...p,saturation});
   try{
    const a=shade(ink,dark),b=shade(ink,light),peak=Math.max(...a);
    assert.equal(peak,1,'dark wallpaper cannot dim a bright palette anchor');
    assert.equal(peak,Math.max(...b));
    const sourceSaturation=(Math.max(...dark)-Math.min(...dark))/Math.max(...dark);
-   assert.ok(Math.abs(1-Math.min(...a)/peak-sourceSaturation*saturation)<1e-6);
+   assert.ok(Math.abs(1-Math.min(...a)/peak-Math.min(1,sourceSaturation*saturation))<1e-6);
   }finally{ink.release();}
  }
 });
@@ -122,6 +122,7 @@ test('default and 100% preserve differing wallpaper saturation within one hue fa
  const ink=acquireImagePixelInk({...p,saturation:undefined});
  const full=acquireImagePixelInk({...p,saturation:1});
  const half=acquireImagePixelInk({...p,saturation:.5});
+ const double=acquireImagePixelInk({...p,saturation:2});
  try{
   assert.equal(ink.key,full.key);
   assert.equal(ink.texture,half.texture);
@@ -131,7 +132,8 @@ test('default and 100% preserve differing wallpaper saturation within one hue fa
    assert.equal(Math.max(...normal),1);
    assert.ok(Math.abs(saturation(normal)-saturation(sample))<1e-6);
    assert.ok(Math.abs(saturation(muted)-.5*saturation(sample))<1e-6);
+   assert.ok(Math.abs(saturation(shade(double,sample))-Math.min(1,2*saturation(sample)))<1e-6);
   }
   assert.notDeepEqual(shade(ink,[.8,.6,.65]),shade(ink,[.8,.15,.3125]));
- }finally{ink.release();full.release();half.release();}
+ }finally{ink.release();full.release();half.release();double.release();}
 });

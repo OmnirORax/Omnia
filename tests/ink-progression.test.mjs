@@ -45,10 +45,23 @@ test('indexed glyph pixels resolve through a tiny palette lookup with glow deriv
   }
   sink.render({color:'#ff0000',palette:{...p,colors:['#ff0000'],fillOpacity:0}});
   assert.equal(body.children[0].children[0].children.find(node=>node.attrs.result==='outlineColor').attrs['flood-color'],'#ff0000');
-  sink.render({color:'#ff0000',palette:{mode:'text',distribution:'pixels',ink:'pale',colors:['#ff0000'],fillOpacity:0}});
-  assert.ok('data-document-image-pixels' in host.attrs);
-  assert.equal(host.style['--document-image-pale'],'0.75');
-  assert.equal(body.children[0].children[0].children.find(node=>node.attrs.result==='outlineColor').attrs.in,'edgeInk');
+  const pixelPalette={mode:'text',distribution:'pixels',ink:'pale',colors:['#ff0000']};
+  const frameFilter=()=>body.children.map(svg=>svg.children[0]).find(entry=>host.style['--document-image-filter']===`url(#${entry.attrs.id})`);
+  for(const paleAmount of [0,.75,.99]){
+   sink.render({color:'#ff0000',palette:{...pixelPalette,paleAmount},glow:1});
+   const pixels=frameFilter();
+   assert.ok('data-document-image-pixels' in host.attrs);
+   assert.equal(pixels.children.find(node=>node.attrs.result==='glowEnergy').attrs.in,'SourceGraphic');
+   assert.equal(pixels.children.find(node=>node.attrs.result==='luminousGlow').attrs.in2,'SourceGraphic');
+   assert.equal(pixels.children.find(node=>node.attrs.result==='glowColor'),undefined);
+   const fill=pixels.children.find(node=>node.attrs.result==='paleFill');
+   if(paleAmount>0){
+    assert.ok(Math.abs(Number(fill.children[0].attrs.slope)-(1-paleAmount))<1e-9);
+    assert.equal(Number(fill.children[0].attrs.intercept),paleAmount);
+   }else assert.equal(fill,undefined);
+  }
+  sink.render({color:'#ff0000',palette:{...pixelPalette,fillOpacity:0}});
+  assert.equal(frameFilter().children.find(node=>node.attrs.result==='outlineColor').attrs.in,'edgeInk');
   sink.dispose();
  }finally{globalThis.document=previous;}
 });

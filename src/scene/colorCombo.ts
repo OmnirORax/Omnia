@@ -8,7 +8,7 @@ import {paletteInk,type PaletteSettings} from '../properties/textPalette.ts';
 import {writePaint} from '../core/appearance.ts';
 import type {World,Origin} from '../core/model.ts';
 export type ImageColorCombo={text:string;textGlow:string;node:string;nodeGlow:string;textPalette:string[];textPixelSources?:string[];textWeights:number[];textStrength:number;textDarkSupport:boolean;textAvailable?:number;textRatio?:number[];textRelations?:ColorRelations;textField?:ImageField;source:ScenePalette};
-const vivid=(color:string,boost:boolean|number)=>{const rgb=paletteRGB(color),hi=Math.max(...rgb),lo=Math.min(...rgb),span=hi-lo;if(!hi)return '#ffffff';const saturation=typeof boost==='number'?boost:boost?Math.max(.85,span/hi):span/hi;return paletteHex(rgb.map(c=>span?255*(1-saturation+saturation*(c-lo)/span):255));};
+const vivid=(color:string,boost:boolean|number)=>{const rgb=paletteRGB(color),hi=Math.max(...rgb),lo=Math.min(...rgb),span=hi-lo;if(!hi)return '#ffffff';const saturation=typeof boost==='number'?Math.min(1,boost):boost?Math.max(.85,span/hi):span/hi;return paletteHex(rgb.map(c=>span?255*(1-saturation+saturation*(c-lo)/span):255));};
 const contrast=(a:number,b:number)=>(Math.max(a,b)+.05)/(Math.min(a,b)+.05);
 /** Adjust only the failing accent, rather than bleaching every other motif color. */
 function readableAccent(color:string,ink:number,tones:SceneTones){if(ink<1||color==='#000000')return color;const rgb=paletteRGB(color),passes=(c:number[])=>{const light=colorLuminance(c.map(v=>255*(1-ink)+v*ink));return contrast(light,tones.background)>=4.5||tones.darkSupport&&Math.max(contrast(light,tones.low),contrast(light,tones.high))>=4.5;};if(passes(rgb))return color;const target=passes([255,255,255])?255:passes([0,0,0])?0:undefined;if(target===undefined)return color;let low=0,high=1;for(let i=0;i<12;i++){const mid=(low+high)/2;if(passes(rgb.map(v=>v+(target-v)*mid)))high=mid;else low=mid;}return paletteHex(rgb.map(v=>v+(target-v)*high));}
@@ -33,8 +33,9 @@ export function motifCandidates(palette:ScenePalette,settings:PaletteSettings={}
 }
 export function imageTextPalette(palette:ScenePalette,settings:PaletteSettings={}){
  const selected=motifCandidates(palette,settings).filter(c=>c.enabled);if(!selected.length)throw Error('Keep at least one motif color.');
- const ink=paletteInk(settings),saturation=settings.saturation??settings.ink==='color';
- return selected.map(c=>{const rgb=paletteRGB(c.color),neutral=Math.max(...rgb)===Math.min(...rgb),textGlow=readableAccent(neutral?c.color:vivid(c.color,saturation),ink,palette.tones);return {source:c.color,textGlow,text:paletteHex(paletteRGB(textGlow).map(v=>255*(1-ink)+v*ink)),weight:c.occupation!,strength:ink,darkSupport:selected.some(c=>c.id==='n0'||c.color==='#000000')};});
+ const ink=paletteInk(settings),colored=settings.ink==='color',saturation=settings.saturation??colored;
+ const adjustContrast=colored||settings.distribution!=='pixels';
+ return selected.map(c=>{const rgb=paletteRGB(c.color),neutral=Math.max(...rgb)===Math.min(...rgb),rawGlow=neutral?c.color:vivid(c.color,saturation),textGlow=adjustContrast?readableAccent(rawGlow,ink,palette.tones):rawGlow;return {source:c.color,textGlow,text:paletteHex(paletteRGB(textGlow).map(v=>255*(1-ink)+v*ink)),weight:c.occupation!,strength:ink,darkSupport:selected.some(c=>c.id==='n0'||c.color==='#000000')};});
 }
 export function matchedImageColors(combo:ImageColorCombo,settings:PaletteSettings={}){
  const palette=imageTextPalette(combo.source,settings),first=palette[0],candidates=motifCandidates(combo.source,settings),members=candidates.filter(c=>c.enabled),available=candidates.length;

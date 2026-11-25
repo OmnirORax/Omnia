@@ -17,7 +17,7 @@ test('manual node colors override inherited palette after save/load',()=>{
  const world=emptyWorld(),node=addStructure(world,[0,0,0],1);writePaint(world,'text',[],{color:'#ffbfbf',glowColor:'#ff0000',palette});writePaint(world,'nodeText',[node.origin],{color:'#112233'});const saved=JSON.parse(JSON.stringify(world));validateWorld(saved);assert.equal(readPaint(saved,'nodeText',node.origin).palette,undefined);assert.equal(readPaint(saved,'nodeText',node.origin).color,'#112233');
 });
 test('palette validation bounds settings, weights and colors; old across-node saves become within-text',async()=>{
- const {validatePaint}=await import('../src/properties/visual.ts');for(const p of [{...palette,motifOverrides:{h0:'yes'}},{...palette,balance:0},{...palette,softness:1},{...palette,saturation:2},{...palette,saturation:NaN},{...palette,darkSupport:'yes'},{...palette,layout:'bad'},{...palette,pattern:'bad'},{...palette,spread:'bad'},{...palette,weights:[1]},{...palette,weights:[1,0]},{...palette,seed:NaN},{mode:'text',colors:[]},{mode:'text',colors:Array(257).fill('#ff0000')},{mode:'text',colors:['red']}])assert.throws(()=>validatePaint({palette:p},true));assert.throws(()=>validatePaint({palette},false));const world=emptyWorld(),node=addStructure(world,[0,0,0],1);world.appearance={text:{palette:{...palette,mode:'nodes'}},imageColors:{default:{enabled:true,manual:[],mode:'nodes'}}};node.textAppearance={palette:{...palette,mode:'nodes'}};validateWorld(world);assert.equal(world.appearance.text.palette.mode,'text');assert.equal(node.textAppearance.palette.mode,'text');assert.equal(world.appearance.imageColors.default.mode,'text');
+ const {validatePaint}=await import('../src/properties/visual.ts');for(const p of [{...palette,motifOverrides:{h0:'yes'}},{...palette,balance:0},{...palette,softness:1},{...palette,saturation:2.01},{...palette,saturation:NaN},{...palette,darkSupport:'yes'},{...palette,layout:'bad'},{...palette,pattern:'bad'},{...palette,spread:'bad'},{...palette,weights:[1]},{...palette,weights:[1,0]},{...palette,seed:NaN},{mode:'text',colors:[]},{mode:'text',colors:Array(257).fill('#ff0000')},{mode:'text',colors:['red']}])assert.throws(()=>validatePaint({palette:p},true));assert.throws(()=>validatePaint({palette},false));const world=emptyWorld(),node=addStructure(world,[0,0,0],1);world.appearance={text:{palette:{...palette,mode:'nodes'}},imageColors:{default:{enabled:true,manual:[],mode:'nodes'}}};node.textAppearance={palette:{...palette,mode:'nodes'}};validateWorld(world);assert.equal(world.appearance.text.palette.mode,'text');assert.equal(node.textAppearance.palette.mode,'text');assert.equal(world.appearance.imageColors.default.mode,'text');
 });
 
 test('pale amount changes the shared ink mix and leaves colored ink unchanged',async()=>{
@@ -30,6 +30,7 @@ test('pale amount changes the shared ink mix and leaves colored ink unchanged',a
  assert.equal(paletteInk({...p,ink:'color',paleAmount:.99}),1);
  for(const paleAmount of [0,.75,.99])assert.ok(validPaletteSettings({paleAmount}));
  for(const paleAmount of [-.1,1,NaN])assert.ok(!validPaletteSettings({paleAmount}));
+ assert.ok(validPaletteSettings({saturation:2}));assert.ok(!validPaletteSettings({saturation:2.01}));
 });
 
 test('Image pixels permits fractional scale and the exposed maximum pale amount survives validation',()=>{

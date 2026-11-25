@@ -100,3 +100,12 @@ test('Image pixels keeps a chromatic node accent when black leads the enabled pa
  assert.deepEqual(pixels.textPalette,relations.textPalette);
  assert.equal(matchedImageColors(source,{...settings,distribution:'pixels',included:['#000000']}).node,'#000000');
 });
+
+test('Pale amount changes fill while keeping the same resolved image-pixel glow palette',()=>{
+ const source=imageColorCombo(scene([[900,[80,102,140]],[100,[110,20,28]]]));
+ const settings={ink:'pale',distribution:'pixels',saturation:1.5};
+ const plain=imageTextPalette(source.source,{...settings,paleAmount:0});
+ const pale=imageTextPalette(source.source,{...settings,paleAmount:.99});
+ assert.deepEqual(plain.map(entry=>entry.textGlow),pale.map(entry=>entry.textGlow));
+ assert.notDeepEqual(plain.map(entry=>entry.text),pale.map(entry=>entry.text));
+});

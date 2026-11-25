@@ -5,7 +5,7 @@ import {readPaint} from '../core/appearance.ts';
 import {motifSwatches} from './motifSwatches.ts';
 import type {MotifCandidate} from './colorCombo.ts';
 import {focusTheme,setThemeFocus,setMotifMembership} from './themeControls.ts';
-import {palettePaleAmount,paletteFillOpacity,PALETTE_INKS,PALETTE_SCALE,PALETTE_PROGRESSIONS,PALETTE_DISTRIBUTION_AXES,type PaletteSettings} from '../properties/textPalette.ts';
+import {palettePaleAmount,paletteFillOpacity,PALETTE_INKS,PALETTE_SCALE,PALETTE_SATURATION_MAX,PALETTE_PROGRESSIONS,PALETTE_DISTRIBUTION_AXES,type PaletteSettings} from '../properties/textPalette.ts';
 import {configureAutoColors,autoColorKey} from './autoColors.ts';
 import {imageTrash} from './imageTrash.ts';
 import {localSceneStorage,type SceneStorage,type SceneImage} from './storage.ts';
@@ -106,7 +106,7 @@ export function scenePanel(host: Host,initialTab:SceneTab='image') {
     const strip=document.createElement('div');strip.className='theme-pattern-preview';strip.dataset.uiPaintOwner='geometry';body.append(strip);numberSync.push(()=>{const p=resolved();strip.hidden=!current().debugPattern||!p;const pixels=!strip.hidden&&p?.distribution==='pixels';useDocumentWallpaper(strip,pixels?p:undefined);if(!strip.hidden&&p){strip.style.backgroundImage=pixels?'var(--document-image-frame)':focusPaletteCSS(p,true);strip.style.height=pixels||isImageField(p)?'96px':'18px';}});
     subscriptions.push(()=>useDocumentWallpaper(strip));
     numeric('Scale ×',()=>current().scale??1,PALETTE_SCALE.min,()=>PALETTE_SCALE.max,n=>({scale:n}),PALETTE_SCALE.step);
-    numeric('Saturation',()=>Math.round((current().saturation??1)*100),0,()=>100,n=>({saturation:n/100}));
+    numeric('Saturation',()=>Math.round((current().saturation??1)*100),0,()=>PALETTE_SATURATION_MAX*100,n=>({saturation:n/100}));
     function syncTheme(){auto.checked=!!host.read().appearance?.imageColors?.[autoColorKey(target)]?.enabled;for(const input of paletteControls)input.disabled=!auto.checked;for(const sync of numberSync)sync();swatches.render(host.motifs?.(target)??[],!auto.checked);}
     button('Restore auto colors',()=>{host.change(world=>configureAutoColors(world,target,true,true,{motifOverrides:undefined}));syncTheme();});
     if(host.subscribeMotifs)subscriptions.push(host.subscribeMotifs(syncTheme));
