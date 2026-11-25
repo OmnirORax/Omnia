@@ -42,6 +42,7 @@ export function focusSequence(ratio:readonly number[],distribution:Exclude<TextP
 /** One bounded pixel cycle is shared by DOM text, window contours and world labels. */
 export const isImageField=(p:TextPalette|undefined)=>p?.distribution==='image'&&!!p.field;
 export const isSourceField=(p:TextPalette|undefined)=>isImageField(p)&&typeof p?.field?.rgb==='string';
+export const isFittedField=(p:TextPalette|undefined)=>isImageField(p)&&(isSourceField(p)||p?.field?.fit===true);
 export const hasPalettePaint=(p:TextPalette|undefined)=>!!p&&(p.colors.length>1||isSourceField(p));
 export function focusPattern(p:TextPalette){
  const source=isSourceField(p),ratio=focusRatio(p),relations=p.distribution==='image'&&!isImageField(p)?p.relations?.[p.distributionAxis==='vertical'?'vertical':'horizontal']:undefined,key=source?JSON.stringify([p.field,paletteInk(p)]):JSON.stringify([p.colors,ratio,p.distribution,p.inverseDistribution,paletteInk(p),relations,isImageField(p)?p.field:undefined]);let found=patterns.get(key);if(found)return found;
@@ -53,5 +54,5 @@ export function focusPattern(p:TextPalette){
 }
 export const focusPaletteAxis=(p:TextPalette)=>p.distributionAxis==='vertical'?1:0;
 export function focusPaletteCSS(p:TextPalette,straightStream=false){const pattern=focusPattern(p),vertical=!isImageField(p)&&!straightStream&&focusPaletteAxis(p)===1,key=vertical?'verticalCSS':'css';if(!pattern[key]){const canvas=document.createElement('canvas');canvas.width=isImageField(p)?pattern.width:vertical?1:pattern.indices.length;canvas.height=isImageField(p)?pattern.height:vertical?pattern.indices.length:1;const ctx=canvas.getContext('2d')!,pixels=ctx.createImageData(canvas.width,canvas.height);pixels.data.set(pattern.ink);ctx.putImageData(pixels,0,0);pattern[key]=`url("${canvas.toDataURL('image/png')}")`;}return pattern[key]!;}
-export function focusPaletteGeometry(p:TextPalette){if(isSourceField(p))return {size:'100% 100%',repeat:'no-repeat'};if(isImageField(p)){const f=focusPattern(p),scale=p.scale??1;return {size:`${f.width*scale}px ${f.height*scale}px`,repeat:'repeat'};}const period=focusPeriod(p);return focusPaletteAxis(p)===1?{size:`100% ${period}px`,repeat:'repeat-y'}:{size:`${period}px 100%`,repeat:'repeat-x'};}
+export function focusPaletteGeometry(p:TextPalette){if(isFittedField(p))return {size:'100% 100%',repeat:'no-repeat'};if(isImageField(p)){const f=focusPattern(p),scale=p.scale??1;return {size:`${f.width*scale}px ${f.height*scale}px`,repeat:'repeat'};}const period=focusPeriod(p);return focusPaletteAxis(p)===1?{size:`100% ${period}px`,repeat:'repeat-y'}:{size:`${period}px 100%`,repeat:'repeat-x'};}
 export const focusPeriod=(p:TextPalette)=>Math.max(1,focusPattern(p).indices.length)*(p.scale??1);

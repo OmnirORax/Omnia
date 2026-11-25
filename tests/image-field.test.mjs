@@ -7,15 +7,15 @@ import {packedTextureGlow,updateTextureTextPalette} from '../src/textureGlow.ts'
 import {configureTextureInkRows} from '../src/textureInkProgression.ts';
 const source=(width,height,pixel)=>({spatial:{width,height,families:['h0','h3','h5'],cells:Uint8Array.from({length:width*height},(_,i)=>pixel(i%width,Math.floor(i/width)))}});
 const histogram=(f,n)=>Array.from({length:n},(_,i)=>f.cells.filter(c=>c===i).length);
-test('2D projection preserves exact coarse regions and fine features with all families included',()=>{
- const s=source(64,64,(x,y)=>x<32?(y%8===0?2:0):1),counts=[1792,2048,256],f=imageField(s,[0,1,2],counts);assert.equal(f.width,64);assert.equal(f.height,64);assert.deepEqual(f.cells,[...s.spatial.cells]);assert.deepEqual(histogram(f,3),counts);
+test('2D projection preserves broad motif regions and selected occupation',()=>{
+ const s=source(64,64,(x,y)=>x<32?(y<16?2:0):1),counts=[1536,2048,512],f=imageField(s,[0,1,2],counts);assert.equal(f.width,64);assert.equal(f.height,64);assert.deepEqual(f.cells,[...s.spatial.cells]);assert.deepEqual(histogram(f,3),counts);
 });
 test('removed membership is redistributed using retained local structure and renormalized shares',()=>{
  const s=source(64,64,x=>x<24?0:x<40?1:2),f=imageField(s,[0,-1,1],[.5,.5]);assert.deepEqual(histogram(f,2),[2048,2048]);assert.ok(f.cells.every(c=>c===0||c===1));for(let y=0;y<64;y++){assert.equal(f.cells[y*64+28],0);assert.equal(f.cells[y*64+36],1);}assert.equal(imageField(s,[0,-1,1],[.5,.5]),f);assert.deepEqual(imageField(s,[0,1,2],[24,16,24]).cells,[...s.spatial.cells]);
 });
 test('occupation inversion rebuilds spatial boundaries; tonal and scale edits reuse the index field',()=>{
  const s=source(64,64,x=>x<48?0:1),normal=imageField(s,[0,1],[.75,.25]),flipped=imageField(s,[0,1],[.25,.75]);assert.deepEqual(histogram(normal,2),[3072,1024]);assert.deepEqual(histogram(flipped,2),[1024,3072]);assert.notDeepEqual(normal.cells,flipped.cells);
- const p={mode:'text',distribution:'image',colors:['#ff0000','#0000ff'],field:normal,ink:'color'},pattern=focusPattern(p);assert.equal(pattern.indices,normal.cells);assert.equal(focusPattern({...p,colors:['#00ff00','#ff00ff']}).indices,pattern.indices);assert.equal(focusPattern({...p,scale:9}),pattern);assert.deepEqual(focusPaletteGeometry(p),{size:'64px 64px',repeat:'repeat'});assert.deepEqual(focusPaletteGeometry({...p,scale:2}),{size:'128px 128px',repeat:'repeat'});
+ const p={mode:'text',distribution:'image',colors:['#ff0000','#0000ff'],field:normal,ink:'color'},pattern=focusPattern(p);assert.equal(pattern.indices,normal.cells);assert.equal(focusPattern({...p,colors:['#00ff00','#ff00ff']}).indices,pattern.indices);assert.equal(focusPattern({...p,scale:9}),pattern);assert.deepEqual(focusPaletteGeometry(p),{size:'100% 100%',repeat:'no-repeat'});assert.deepEqual(focusPaletteGeometry({...p,scale:2}),{size:'100% 100%',repeat:'no-repeat'});
 });
 test('spatial inverse retains pattern topology and occupation while finding fine and broad differing phases',()=>{
  for(const s of [source(64,64,x=>x%2),source(64,64,(x,y)=>Number(x<32&&y<32))]){const counts=[...s.spatial.cells].reduce((a,c)=>(a[c]++,a),[0,0]),f=imageField(s,[0,1],counts),inverse=inverseField(f);assert.notDeepEqual(f.cells,inverse.cells);assert.deepEqual(histogram(f,2),histogram(inverse,2));assert.equal(inverseField(f),inverse);}

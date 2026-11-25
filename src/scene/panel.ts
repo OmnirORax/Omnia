@@ -1,4 +1,4 @@
-import {focusPaletteCSS,isImageField,isSourceField,FOCUS_DISTRIBUTIONS} from '../properties/focusPalette.ts';
+import {focusPaletteCSS,isImageField,isSourceField,isFittedField,FOCUS_DISTRIBUTIONS} from '../properties/focusPalette.ts';
 import {bindOperationValueControl} from '../ui/operationValueControl.ts';
 import {readPaint} from '../core/appearance.ts';
 import {motifSwatches} from './motifSwatches.ts';
@@ -102,7 +102,7 @@ export function scenePanel(host: Host,initialTab:SceneTab='image') {
     const strip=document.createElement('div');strip.className='theme-pattern-preview';strip.dataset.uiPaintOwner='geometry';body.append(strip);numberSync.push(()=>{const p=resolved();strip.hidden=!current().debugPattern||!p;if(!strip.hidden&&p){strip.style.backgroundImage=focusPaletteCSS(p,true);strip.style.height=isImageField(p)?'96px':'18px';}});
     const scaleControl=numeric('Scale ×',()=>current().scale??1,1,()=>4096,n=>({scale:n}),.25);
     const saturationControl=numeric('Saturation',()=>Math.round((current().saturation??1)*100),0,()=>100,n=>({saturation:n/100}));
-    numberSync.push(()=>{const source=isSourceField(resolved());swatches.root.hidden=occupation.hidden=scaleControl.hidden=saturationControl.hidden=source;});
+    numberSync.push(()=>{const source=isSourceField(resolved());swatches.root.hidden=occupation.hidden=saturationControl.hidden=source;scaleControl.hidden=isFittedField(resolved());});
     function syncTheme(){auto.checked=!!host.read().appearance?.imageColors?.[autoColorKey(target)]?.enabled;for(const input of paletteControls)input.disabled=!auto.checked;for(const sync of numberSync)sync();swatches.render(host.motifs?.(target)??[],!auto.checked);}
     button('Restore auto colors',()=>{host.change(world=>configureAutoColors(world,target,true,true,{motifOverrides:undefined}));syncTheme();});
     if(host.subscribeMotifs)subscriptions.push(host.subscribeMotifs(syncTheme));
