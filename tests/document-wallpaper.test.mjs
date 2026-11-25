@@ -2,30 +2,27 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as T from 'three';
 import {createDocumentWallpaper,useDocumentWallpaper} from '../src/scene/documentWallpaper.ts';
+import {createDocumentPixelPainter} from '../src/text/imagePixelPresentation.ts';
 import {createWallpaperSampling} from '../src/scene/wallpaperSample.ts';
 
 test('open image-pixel documents get display RGB at viewport coordinates from a bounded capture',{timeout:3000},async()=>{
- const previousDocument=globalThis.document,previousImageData=globalThis.ImageData;
- const style=new Map(),host={};let target=null,captures=0,captured;
+ const previousDocument=globalThis.document,previousImage=globalThis.Image;
+ const style=new Map(),attributes=new Set(),host={};let target=null,captures=0,captured;
  let publish;
- const published=new Promise(resolve=>{publish=resolve;});
+ const published=()=>new Promise(resolve=>{publish=resolve;});
  globalThis.document={
-  documentElement:{style:{
+  documentElement:{toggleAttribute(name,on){if(on)attributes.add(name);else attributes.delete(name);},style:{
    setProperty(name,value){style.set(name,value);if(name==='--scene-text-frame-size')publish();},
    removeProperty(name){style.delete(name);},
   }},
-  createElement:()=>({
-   getContext:()=>({putImageData(data){assert.equal(data.bytes[0],123);}}),
-   toBlob:callback=>callback(new Blob(['canvas'],{type:'image/png'})),
-  }),
  };
- globalThis.ImageData=class{constructor(bytes){this.bytes=bytes;}};
+ globalThis.Image=class{async decode(){assert.match(this.src,/^blob:/);}};
  const renderer={
   getRenderTarget:()=>target,
   setRenderTarget(next){target=next;},
-  render(mesh){captured=target;assert.match(mesh.material.fragmentShader,/displayColour\(sampleWallpaper\(vec2\(screenUV.x,1.0-screenUV.y\)\)\)/);},
+  render(mesh){captured=target;assert.match(mesh.material.fragmentShader,/displayColour\(sampleWallpaper\(screenUV\)\)\.bgr/);},
   async readRenderTargetPixelsAsync(read,_x,_y,w,h,bytes){
-   captures++;assert.equal(target,null);assert.equal(read,captured);assert.equal(w,1920);assert.equal(h,1080);bytes[0]=123;
+   captures++;assert.equal(target,null);assert.equal(read,captured);assert.equal(w,captures===2?960:1920);assert.equal(h,captures===2?540:1080);bytes[0]=captures===1?123:234;
   },
  };
  const {uniforms}=createWallpaperSampling(),image=new T.Texture();
@@ -33,14 +30,69 @@ test('open image-pixel documents get display RGB at viewport coordinates from a 
  const wallpaper=createDocumentWallpaper(renderer,uniforms);
  try{
   wallpaper.resize(3840,2160);assert.equal(captures,0);
+  const first=published();
   useDocumentWallpaper(host,true);
-  await published;
+  await first;
   assert.equal(captures,1);assert.match(style.get('--scene-text-frame'),/^url\("blob:/);
-  assert.equal(style.get('--scene-text-frame-size'),'100% 100%');
+  assert.equal(style.get('--scene-text-frame-size'),'3840px 2160px');
+  assert.ok(attributes.has('data-scene-text-frame'));
+  const bitmap=async()=>{
+   const fileUrl=JSON.parse(style.get('--scene-text-frame').slice(4,-1));
+   const response=await fetch(fileUrl);
+   assert.equal(response.headers.get('content-type'),'image/bmp');
+   return new DataView(await response.arrayBuffer());
+  };
+  const still=await bitmap();
+  assert.equal(still.getUint16(0,true),0x4D42);
+  assert.equal(still.getInt32(18,true),1920);
+  assert.equal(still.getUint8(54),123);
+  const next=published();
+  uniforms.bounce.value=1.05;
+  wallpaper.updateMotion();
+  await next;
+  const motion=await bitmap();
+  assert.equal(motion.getInt32(18,true),960);
+  assert.equal(motion.getUint8(54),234);
+  await published();
+  assert.equal((await bitmap()).getInt32(18,true),1920);
+  assert.equal(captures,3);
   useDocumentWallpaper(host,false);
-  assert.equal(style.size,0);
+  assert.equal(style.size,0);assert.equal(attributes.size,0);
  }finally{
   useDocumentWallpaper(host,false);wallpaper.dispose();image.dispose();
-  globalThis.document=previousDocument;globalThis.ImageData=previousImageData;
+  globalThis.document=previousDocument;globalThis.Image=previousImage;
  }
+});
+
+test('document pixel offsets follow window motion and scrolling without measuring the text again',()=>{
+ const previousWindow=globalThis.window,previousObserver=globalThis.MutationObserver;
+ const styles=()=>({values:new Map(),setProperty(k,v){this.values.set(k,v);},removeProperty(k){this.values.delete(k);}});
+ const standardEvents=()=>Object.assign(new EventTarget(),{style:styles()});
+ const attrs=new Set(),element={style:styles(),setAttribute(name){attrs.add(name);},removeAttribute(name){attrs.delete(name);}};
+ const scrollDOM=standardEvents(),panel={},contentDOM=standardEvents();
+ let position={left:100,top:200},moved,reads=0,disconnected=false;
+ contentDOM.getBoundingClientRect=()=>position;
+ contentDOM.querySelectorAll=()=>[element];
+ element.getClientRects=()=>{reads++;return [{left:112,top:264}];};
+ globalThis.window=standardEvents();
+ globalThis.MutationObserver=class{
+  constructor(callback){moved=callback;}
+  observe(element){assert.equal(element,panel);}
+  disconnect(){disconnected=true;}
+ };
+ const view={dom:{closest:()=>panel},contentDOM,scrollDOM,requestMeasure({read,write}){write(read(this),this);}};
+ const painter=createDocumentPixelPainter();
+ const screen=(axis)=>parseFloat(contentDOM.style.values.get(`--document-image-${axis}`))+parseFloat(element.style.values.get(`--image-pixel-${axis}`));
+ try{
+  painter.watch(view);
+  painter.render(view,painter.read(view));
+  assert.equal(screen('x'),-112);assert.equal(screen('y'),-264);
+  position={left:300,top:250};moved();
+  assert.equal(screen('x'),-312);assert.equal(screen('y'),-314);
+  position={left:300,top:180};scrollDOM.dispatchEvent(new Event('scroll'));
+  assert.equal(screen('y'),-244);
+  assert.equal(reads,1);
+  painter.clear();
+  assert.equal(attrs.size,0);assert.equal(contentDOM.style.values.size,0);assert.equal(element.style.values.size,0);assert.equal(disconnected,true);
+ }finally{painter.clear();globalThis.window=previousWindow;globalThis.MutationObserver=previousObserver;}
 });

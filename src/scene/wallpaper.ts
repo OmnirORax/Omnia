@@ -34,12 +34,6 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
   const geometry = new THREE.PlaneGeometry(2, 2), mesh = new THREE.Mesh(geometry, material);
   mesh.userData.glowIntensity = 0; mesh.frustumCulled = false; mesh.renderOrder = -100000; mesh.visible = false; mesh.raycast = () => {};
   scene.add(mesh);
-  const documentImage=(url?:string)=>{
-    const root=document.documentElement;
-    if(url)root.style.setProperty('--scene-text-image',`url(${JSON.stringify(url)})`);
-    else root.style.removeProperty('--scene-text-image');
-    root.toggleAttribute('data-scene-text-image',!!url);
-  };
   let texture: THREE.Texture | null = null, epoch = 0, alive = true;
   let settings=normalizeSceneVfx(undefined),frame=0,last=0,deadline=0,elapsed=0;
   const reduced=window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -55,14 +49,21 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
     deadline=nextVfxDeadline(deadline,now,settings.maxFps);
     const dt=last?Math.min(.1,(now-last)/1000):0;last=now;elapsed+=dt;
     const audio=readSceneAudioResponse();
-    material.uniforms.time.value=elapsed;
-    material.uniforms.light.value=audio.light;
+    const bounce=1+audio.bounce;
+    const moving=uniforms.light.value!==audio.light||uniforms.bounce.value!==bounce||
+      !!uniforms.waves.value&&(
+        !!material.uniforms.waveAmplitudeX.value&&!!material.uniforms.waveSpeedX.value||
+        !!material.uniforms.waveAmplitudeY.value&&!!material.uniforms.waveSpeedY.value
+      );
+    uniforms.time.value=elapsed;
+    uniforms.light.value=audio.light;
     // Wave audio response is temporarily disabled; keep authored displacement unchanged.
-    material.uniforms.bounce.value=1+audio.bounce;
+    uniforms.bounce.value=bounce;
+    if(moving)documentWallpaper.updateMotion();
     requestPaint();schedule();
   };
   const visibility=()=>{cancel();schedule();};
-  const motion=()=>{cancel();material.uniforms.waves.value=reduced.matches?0:Number(settings.waves);material.uniforms.bounce.value=1;material.uniforms.light.value=0;material.uniforms.waveAudio.value=1;requestPaint();schedule();};
+  const motion=()=>{cancel();material.uniforms.waves.value=reduced.matches?0:Number(settings.waves);material.uniforms.bounce.value=1;material.uniforms.light.value=0;material.uniforms.waveAudio.value=1;documentWallpaper.refresh();requestPaint();schedule();};
   const stopAudio=subscribeSceneAudio(()=>{if(!isSceneAudioConnected()){material.uniforms.bounce.value=1;material.uniforms.light.value=0;material.uniforms.waveAudio.value=1;requestPaint();}schedule();});
   document.addEventListener('visibilitychange',visibility);reduced.addEventListener('change',motion);
   return {
@@ -94,7 +95,7 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
       if(!url||!keepPrevious){
         configureSceneCorrection(correction,null);cancel();elapsed=0;
         material.uniforms.time.value=0;material.uniforms.bounce.value=1;material.uniforms.light.value=0;material.uniforms.waveAudio.value=1;
-        mesh.visible=false;documentImage();texture?.dispose();texture=null;material.uniforms.image.value=null;documentWallpaper.reset();requestPaint();
+        mesh.visible=false;texture?.dispose();texture=null;material.uniforms.image.value=null;documentWallpaper.reset();requestPaint();
       }
       if(!url)return;
       try{
@@ -102,7 +103,7 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
         if(!alive||mine!==epoch){loaded.dispose();return;}
         loaded.colorSpace=THREE.SRGBColorSpace;const previous=texture;texture=loaded;previous?.dispose();
         material.uniforms.image.value=loaded;material.uniforms.imageAspect.value=loaded.image.width/loaded.image.height;
-        mesh.visible=true;documentImage(typeof url==='string'?url:undefined);documentWallpaper.reset();requestPaint();schedule();
+        mesh.visible=true;documentWallpaper.reset();requestPaint();schedule();
       }catch{/* Preserve the current same-source image if replacement fails. */}
     },
     setCorrection(value:Corrections|null){configureSceneCorrection(correction,value);documentWallpaper.refresh();requestPaint();},
@@ -110,6 +111,6 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
     feedback(color: THREE.Color, strength: number) {
       material.uniforms.feedbackColor.value.copy(color); material.uniforms.feedbackStrength.value = strength;
     },
-    dispose() { alive = false;documentImage();documentWallpaper.dispose();cancel();stopAudio();disposeSceneAudio();document.removeEventListener('visibilitychange',visibility);reduced.removeEventListener('change',motion); epoch++; texture?.dispose();scene.remove(mesh);compositeQuad.dispose(); material.dispose(); geometry.dispose(); },
+    dispose() { alive = false;documentWallpaper.dispose();cancel();stopAudio();disposeSceneAudio();document.removeEventListener('visibilitychange',visibility);reduced.removeEventListener('change',motion); epoch++; texture?.dispose();scene.remove(mesh);compositeQuad.dispose(); material.dispose(); geometry.dispose(); },
   };
 }
