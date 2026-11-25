@@ -16,6 +16,10 @@ header { position: fixed; top: 14px; left: 16px; display: flex; align-items: cen
 header button { width: 28px; height: 28px; font-size: calc(18px * var(--visual-text-scale, 1)); }
 .node-search-panel { width:260px; }
 .node-search-panel #find { width:100%; }
+.node-search-fields { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:4px; }
+.node-search-results { max-height:min(48vh,320px); overflow:auto; }
+.node-search-results button { display:grid; width:100%; text-align:left; overflow-wrap:anywhere; }
+.node-search-results span { opacity:.8; }
 #empty { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); color: #777e70; pointer-events: none; white-space: nowrap; }
 #empty span { color: #c4cb9b; }
 #status { position: fixed; left: 20px; bottom: 15px; max-width: calc(100vw - 40px); color: #969e8c; font-size: calc(11px * var(--visual-text-scale, 1)); background: #101113e8; border-radius: 3px; }

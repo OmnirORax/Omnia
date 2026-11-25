@@ -17,7 +17,7 @@ import { EditorView, drawSelection, keymap, scrollPastEnd } from '@codemirror/vi
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { markdown, markdownKeymap } from '@codemirror/lang-markdown';
 import { Strikethrough, TaskList } from '@lezer/markdown';
-import { HighlightStyle, syntaxHighlighting, codeFolding } from '@codemirror/language';
+import { HighlightStyle, syntaxHighlighting, codeFolding, foldedRanges, unfoldEffect } from '@codemirror/language';
 import { tags } from '@lezer/highlight';
 import { closeSearchPanel, getSearchQuery, openSearchPanel, search, searchKeymap, SearchQuery, setSearchQuery } from '@codemirror/search';
 import { readPaint } from '../core/appearance.ts';
@@ -34,6 +34,7 @@ import { capitalizeSentence, uppercaseSelection, codeBlock, deleteLines, heading
 import { documentMouseSelection } from './mouse.ts';
 import {createGlyphPresentation} from '../omnic/presentation.ts';
 import { documentPresentation,refreshDocumentGlyphs } from './presentation.ts';
+import { documentSearchPattern,firstDocumentMatch } from './worldSearch.ts';
 
 export function editDocument(origin: Origin, read: () => World, commit: (text: NodeText) => void, feedback: (message: string) => void, closed?: () => void) {
   const current = locate(read(), origin); if (!current) return;
@@ -157,7 +158,19 @@ export function editDocument(origin: Origin, read: () => World, commit: (text: N
     const palette=paint.palette&&(paint.palette.distribution==='pixels'||paint.palette.colors.length>1)?paint.palette:undefined;
     const changed=palettePaint.render(paint);editor?.dispatch({effects:[setDocumentPalette.of(palette),setDocumentInkTypography.of(JSON.stringify([paint.font,paint.fontSize,paint.embolden,fontSize])),...(changed?[showDocumentPalette.of(palettePaint.enabled)]:[])]});
   }
-  refreshAppearance();queueMicrotask(()=>{if(view.root.isConnected)editor?.dispatch({effects:refreshLexicon.of()});});editor.focus(); return {...view,refreshAppearance,previewAppearance(world:World){paintSession.render(readPaint(world,'nodeText',origin));}};
+  function revealSearchMatch(value:string){
+    if(!editor)return;
+    const pattern=documentSearchPattern(value),match=pattern&&firstDocumentMatch(pattern,editor.state.doc.toString());
+    if(match){
+      const unfold=[];
+      const folds=foldedRanges(editor.state).iter(match.from);
+      for(;folds.value&&folds.from<match.to;folds.next())if(folds.to>match.from)unfold.push(unfoldEffect.of({from:folds.from,to:folds.to}));
+      const query=new SearchQuery({search:value,literal:true});
+      editor.dispatch({selection:{anchor:match.from,head:match.to},effects:[...unfold,setSearchQuery.of(query),EditorView.scrollIntoView(match.from,{y:'center'})]});
+    }
+    editor.focus();
+  }
+  refreshAppearance();queueMicrotask(()=>{if(view.root.isConnected)editor?.dispatch({effects:refreshLexicon.of()});});editor.focus(); return {...view,refreshAppearance,revealSearchMatch,previewAppearance(world:World){paintSession.render(readPaint(world,'nodeText',origin));}};
 }
 
 const DOCUMENT_SHORTCUT_LABELS:Record<string,string>={'Alt-1':'Fold all headings','Alt-2':'Unfold all headings','Mod-b':'Bold','Mod-i':'Italic','Mod-ArrowUp':'Move line up','Mod-ArrowDown':'Move line down','Alt-Delete':'Delete line','Mod-Delete':'Remove heading','Mod-F7':'Choose heading','Mod-1':'Numbered list','Mod-2':'Bullet list','Mod-Shift-3':'Cycle list','Mod-Shift-4':'Strikethrough','Mod-5':'Inline code','Alt-Mod-1':'Code block','Mod-3':'Capitalize','Mod-4':'Uppercase','Alt-ArrowRight':'Regex search','Mod-PageUp':'Increase font size','Mod-PageDown':'Decrease font size','Escape':'Close / cancel'};

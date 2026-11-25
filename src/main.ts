@@ -107,6 +107,8 @@ installBrowserShortcutGuard();
 installCursorTracking();
 const element = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const tools = element('tools'), status = element('status'), search = document.createElement('input');
+type NodeSearchScope='names'|'documents';
+let nodeSearchScope:NodeSearchScope='names';
 search.id='find';search.type='search';search.placeholder='Find nodes…';search.setAttribute('aria-label','Find nodes');search.autocomplete='off';
 type Target = Origin | Edge;
 const isNode = (target: Target): target is Origin => 'born' in target;
@@ -182,7 +184,7 @@ function refresh(reason?:'document') {
   requestFormSync();
   updateUIAppearance(store.world.appearance);
   for (const document of documents.values()) document?.refreshAppearance();
-  const query = search.value.trim().toLocaleLowerCase();
+  const query = nodeSearchScope==='names'?search.value.trim().toLocaleLowerCase():'';
   const atlas=visibleInAtlas(store.world);
   shown = query ? new Set(store.world.nodes.filter(node => node.label.toLocaleLowerCase().includes(query)).map(node => key(node.origin))) : atlas;
   if(atlas&&shown)shown=new Set([...shown].filter(id=>atlas.has(id)));
@@ -483,6 +485,7 @@ function searchActions():SearchAction[]{return [
  {label:'Redo',keywords:'redo history mb5 ctrl y control y',run:()=>travelHistory('redo')},
  {label:'Create structure',key:'W',keywords:'add new node structure',run:()=>view?.toggleCreation(),available:!!view},
  {label:'Document',key:'D',keywords:'node document text notes writing',run:openDocument,available:!!selectedOrigins().length},
+ {label:'Find in node documents',key:'Ctrl+S',keywords:'search world text content notes',run:()=>openNodeSearch('documents')},
  {label:'Composition',keywords:'node parts include references invariants',run:parts,available:!!selectedOrigins().length},
  {label:'Node tools',keywords:'node child parent copy variants attach detach hide connect remove',run:nodeTools,available:!!selectedOrigins().length},
  {label:'Node visual',keywords:'import image svg glb character object mesh show text size',run:visuals,available:!!selectedOrigins().length},
@@ -509,18 +512,56 @@ function searchRenderer(results:HTMLElement){
 const searchSettings=defineMenu('search',()=>{
  const results=document.createElement('div');results.className='settings-search-results';const render=searchRenderer(results),input=open('Search',render,true);tools.append(results);if(input.value)render(input.value);input.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();results.querySelector<HTMLElement>('input,select,button:not(:disabled)')?.focus();}});positionMenu();input.focus();
 },true);
-let nodeSearchView:ReturnType<typeof panel>|undefined;
-const createNodeSearch=viewHistory.defineWindow('nodeSearch',()=>{
- const window=panel('Find nodes',()=>{search.value='';nodeSearchView=undefined;refresh();});
- nodeSearchView=window;window.root.classList.add('node-search-panel');window.body.append(search);
+let nodeSearchView:(ReturnType<typeof panel>&{setScope:(scope:NodeSearchScope)=>void;searchDocuments:()=>void;openFirst:()=>void})|undefined;
+const createNodeSearch=viewHistory.defineWindow('nodeSearch',(initialScope:NodeSearchScope='names')=>{
+ let timer:ReturnType<typeof setTimeout>|undefined,revision=0;
+ const window=panel('Find nodes',()=>{
+  clearTimeout(timer);revision++;stop();search.value='';nodeSearchScope='names';nodeSearchView=undefined;refresh();
+ });
+ const fields=document.createElement('div'),scope=document.createElement('select'),results=document.createElement('div'),status=document.createElement('output');
+ fields.className='node-search-fields';scope.setAttribute('aria-label','Search scope');
+ scope.append(new Option('Names','names'),new Option('Documents','documents'));
+ results.className='node-search-results';status.hidden=true;
+ fields.append(search,scope);window.body.append(fields,results,status);window.root.classList.add('node-search-panel');
+ function searchDocuments(){
+  clearTimeout(timer);
+  const request=++revision,query=search.value.trim();
+  results.replaceChildren();status.hidden=true;
+  if(nodeSearchScope!=='documents'||!query)return;
+  timer=setTimeout(async()=>{
+   try{
+    const {searchNodeDocuments}=await import('./text/worldSearch.ts');
+    if(request!==revision)return;
+    const {matches,truncated}=searchNodeDocuments(store.world,query);
+    for(const {origin,label,snippet}of matches){
+     const button=document.createElement('button'),title=document.createElement('strong'),excerpt=document.createElement('span');
+     button.type='button';title.textContent=label;excerpt.textContent=snippet;button.append(title,excerpt);
+     button.onclick=()=>openDocument(origin,undefined,query);results.append(button);
+    }
+    status.textContent=truncated?`Showing the first ${matches.length} matching documents`:matches.length?'':'No matching documents';
+    status.hidden=!status.textContent;
+   }catch(error){if(request===revision)feedback(String(error));}
+  },120);
+ }
+ function setScope(next:NodeSearchScope){
+  nodeSearchScope=next;scope.value=next;
+  const label=next==='documents'?'Find in node documents':'Find nodes';
+  search.placeholder=`${label}…`;search.setAttribute('aria-label',label);
+  refresh();searchDocuments();
+ }
+ const stop=store.subscribe(()=>{if(nodeSearchScope==='documents'&&search.value.trim())searchDocuments();});
+ scope.onchange=()=>{setScope(scope.value==='documents'?'documents':'names');search.focus();};
+ nodeSearchView={...window,setScope,searchDocuments,openFirst:()=>results.querySelector('button')?.click()};
+ setScope(initialScope);
  requestAnimationFrame(()=>{if(search.isConnected){search.focus();search.select();}});
  return window;
 });
-function openNodeSearch(){
+function openNodeSearch(scope?:NodeSearchScope){
  view?.cancel();close();
- if(nodeSearchView?.root.isConnected){search.focus();search.select();return;}
- createNodeSearch();
+ if(nodeSearchView?.root.isConnected){if(scope&&scope!==nodeSearchScope)nodeSearchView.setScope(scope);search.focus();search.select();return;}
+ createNodeSearch(scope);
 }
+function clearNodeSearch(){search.value='';nodeSearchView?.searchDocuments();}
 window.addEventListener('keydown',event=>{
  if(capturingShortcut()||event.isComposing||event.defaultPrevented||!matchesShortcut(event,worldBinding('Ctrl+S')))return;
  event.preventDefault();event.stopImmediatePropagation();if(!event.repeat)runWorldAction(worldShortcutId('Ctrl+S'));
@@ -531,7 +572,7 @@ let workspaceView: ReturnType<typeof workspacePanel> | undefined;
 function openWorkspace(restore?:ViewSpec) {
   if(!viewHistory.performing){viewHistory.perform(()=>openWorkspace(restore));return;}
   renderClose(); if (workspaceView?.root.isConnected) { close();workspaceView.root.focus(); return; }
-  workspaceView = workspacePanel({ account:openAccount, omnic:()=>openComposer(),atlas:openLibrary,draft:draftControl, selected: () => selectedOrigins().map(origin => JSON.stringify(origin)), read: () => store.world, replace: world => { store.replace(world); selection.clear(); search.value = ''; refresh(); }, recover: () => { store.recover(); selection.clear(); search.value = ''; refresh(); }, beforeReplace: () => {
+  workspaceView = workspacePanel({ account:openAccount, omnic:()=>openComposer(),atlas:openLibrary,draft:draftControl, selected: () => selectedOrigins().map(origin => JSON.stringify(origin)), read: () => store.world, replace: world => { store.replace(world); selection.clear(); clearNodeSearch(); refresh(); }, recover: () => { store.recover(); selection.clear(); clearNodeSearch(); refresh(); }, beforeReplace: () => {
     for(const composer of composers.values())composer.close(); library?.close();
     documentEpoch++; view?.cancel(); close(); selection.cancel(); sceneView?.close();colorInclusions?.close();
     for (const document of documents.values()) document?.close();
@@ -555,17 +596,18 @@ function openScene(tab:SceneTab='image',restore?:ViewSpec) {
   sceneView = scenePanel({motifs:origin=>autoImageColors.motifs(store.world,origin),subscribeMotifs:autoImageColors.subscribe,previewTheme:(origin,settings)=>previewPaint(origin?'nodeText':'text',origin?[origin]:[],settings?autoImageColors.preview(store.world,origin,settings):undefined),account:openAccount, subscribe:store.subscribe, read: () => store.world, selected: ()=>restore?.selection as Origin[]??selectedOrigins(), change: (edit, group) => store.change(edit, group), preview: candidate => view.session.update(candidate, selectedOrigins()[0]), session: view.session, feedback },tab);
   viewHistory.adopt('scene',{kind:'scene',args:[tab],selection:[...selectedOrigins()]},sceneView,restore);
 }
-const documents = new Map<string, ReturnType<typeof editDocument>>(), openingDocuments = new Set<string>();
+const documents = new Map<string, ReturnType<typeof editDocument>>(), openingDocuments = new Map<string,{query?:string}>();
 let documentEpoch = 0;
-function openDocument(requested?:Origin,restore?:ViewSpec) {
+function openDocument(requested?:Origin,restore?:ViewSpec,query?:string) {
   const origin = requested??selectedOrigins()[0]; if (!origin) return; renderClose();
   const id = key(origin), existing = documents.get(id);
-  if (existing?.root.isConnected) { close();existing.root.querySelector<HTMLElement>('.cm-content')?.focus(); return; }
-  if (openingDocuments.has(id)) return;
-  openingDocuments.add(id); const epoch = documentEpoch,actionId=universalHistory.currentActionId;
+  if (existing?.root.isConnected) { close();if(query)existing.revealSearchMatch(query);else existing.root.querySelector<HTMLElement>('.cm-content')?.focus();return; }
+  const pending=openingDocuments.get(id);
+  if(pending){if(query)pending.query=query;return;}
+  const opening={query};openingDocuments.set(id,opening);const epoch = documentEpoch,actionId=universalHistory.currentActionId;
   void loadEditor(()=>import('./text/editor.ts')).then(({ editDocument }) => {
     if (epoch !== documentEpoch || !locate(store.world, origin)||restore&&!viewHistory.wants(restore)) return;
-    viewHistory.perform(()=>{const document=editDocument(origin, () => store.world, text => store.changeDocument(origin,text,`document:${id}`), feedback, () => documents.delete(id));documents.set(id,document);if(document)viewHistory.adopt(`document:${id}`,{kind:'document',args:[origin]},document,restore);},actionId);
+    viewHistory.perform(()=>{const document=editDocument(origin, () => store.world, text => store.changeDocument(origin,text,`document:${id}`), feedback, () => documents.delete(id));documents.set(id,document);if(document){viewHistory.adopt(`document:${id}`,{kind:'document',args:[origin]},document,restore);if(opening.query)document.revealSearchMatch(opening.query);}},actionId);
   }).catch(error => {viewHistory.failed(restore,error);feedback(error instanceof Error ? error.message : String(error));}).finally(() => openingDocuments.delete(id));
 }
 
@@ -629,7 +671,7 @@ const worldControls=defineMenu('world',()=>{
   const immersion=immersiveAction(),immersiveButton=button(immersion.label,immersion.run);immersiveButton.disabled=immersion.available===false;immersiveButton.dataset.immersiveMode='';
   button('History',openHistory);
   button('Camera & rotation',openNavigation);
-  button('Show all nodes', () => { store.change(world => { for (const node of world.nodes) {node.hidden=false;node.collapsed=false;} });search.value='';close();refresh(); });
+  button('Show all nodes', () => { store.change(world => { for (const node of world.nodes) {node.hidden=false;node.collapsed=false;} });clearNodeSearch();close();refresh(); });
   button('Fit all', () => { view?.focus(store.world.nodes.map(node => node.origin),true);close(); });positionMenu();
 });
 const visuals=defineMenu('visualAsset',()=>{
@@ -671,8 +713,12 @@ function travelHistory(direction:'undo'|'redo'){
   if(editing)field.blur();flushLiveForms();view?.cancel();selection.cancel();travelGlobalHistory(direction);
   if(editing&&field.isConnected)field.focus({preventScroll:true});refresh();
 }
-search.oninput = () => { close(); refresh(); };
-search.onkeydown = event => { if (event.key === 'Enter' && shown && !selection.requesting) { selection.set(store.world.nodes.filter(node => shown!.has(key(node.origin))).map(node => node.origin)); search.blur(); refresh(); } };
+search.oninput = () => { if(nodeSearchScope==='documents')nodeSearchView?.searchDocuments();else {close();refresh();} };
+search.onkeydown = event => {
+ if(event.key!=='Enter'||event.isComposing)return;
+ if(nodeSearchScope==='documents'){event.preventDefault();nodeSearchView?.openFirst();return;}
+ if(shown&&!selection.requesting){selection.set(store.world.nodes.filter(node=>shown!.has(key(node.origin))).map(node=>node.origin));search.blur();refresh();}
+};
 tools.addEventListener('contextmenu', event => { event.preventDefault(); event.stopPropagation(); });
 window.addEventListener('keydown',event=>{
   if(!matchesShortcut(event,worldBinding('Esc'))||event.defaultPrevented)return;
