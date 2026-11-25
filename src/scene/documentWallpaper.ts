@@ -5,17 +5,17 @@ import {FullScreenQuad} from 'three/addons/postprocessing/Pass.js';
 import {wallpaperSampleGLSL,type WallpaperSampleUniforms} from './wallpaperSample.ts';
 
 export type TextWallpaperPixels={width:number;height:number;pixels:Uint8Array};
-type Frame={key:string;scale:number;axis:number;inverse:number;cpu:boolean;pixels?:TextWallpaperPixels;ink:ImagePixelInk;texture:{value:THREE.Texture|null};uses:number;revision?:number;target?:THREE.WebGLRenderTarget;url?:string};
+type Frame={key:string;scale:number;inverse:number;cpu:boolean;pixels?:TextWallpaperPixels;ink:ImagePixelInk;texture:{value:THREE.Texture|null};uses:number;revision?:number;target?:THREE.WebGLRenderTarget;url?:string};
 const frames=new Map<string,Frame>(),consumers=new Map<HTMLElement,ReturnType<typeof acquireTextWallpaper>>();
 const listeners=new Set<()=>void>();
-const frameKey=(p:TextPalette)=>JSON.stringify([imagePixelInkKey(p),p.scale??1,p.distributionAxis??'horizontal',!!p.inverseDistribution,p.progression==='ink-serpentine']);
+const frameKey=(p:TextPalette)=>JSON.stringify([imagePixelInkKey(p),p.scale??1,!!p.inverseDistribution,p.progression==='ink-serpentine']);
 export const textWallpaperPixels=(p:TextPalette)=>frames.get(frameKey(p))?.pixels;
 /** Documents and world labels retain the same static, resolved image per palette. */
 export function acquireTextWallpaper(palette:TextPalette){
  const ink=acquireImagePixelInk(palette),scale=palette.scale??1,key=frameKey(palette);
  let frame=frames.get(key);
  if(frame)ink.release();
- else{frame={key,scale,axis:Number(palette.distributionAxis==='vertical'),inverse:Number(!!palette.inverseDistribution),cpu:palette.progression==='ink-serpentine',ink,texture:{value:null},uses:0};frames.set(key,frame);}
+ else{frame={key,scale,inverse:Number(!!palette.inverseDistribution),cpu:palette.progression==='ink-serpentine',ink,texture:{value:null},uses:0};frames.set(key,frame);}
  frame.uses++;
  const owned=frame;
  if(owned.uses===1)for(const listener of listeners)listener();
@@ -53,7 +53,7 @@ function wallpaperBitmap(width:number,height:number,bytes:Uint8Array<ArrayBuffer
 /** Rebuild only after an image, authored color setting, viewport or palette change. */
 export function createDocumentWallpaper(renderer:THREE.WebGLRenderer,uniforms:WallpaperSampleUniforms,requestPaint=()=>{}){
  let width=1,height=1,revision=0,sourceRevision=0,timer:ReturnType<typeof setTimeout>|undefined,running=false,closed=false,pending=false;
- const imagePixelInk={value:null as THREE.Texture|null},imagePixelSaturation={value:1},imagePixelScale={value:1},imagePixelAxis={value:0},imagePixelInverse={value:0};
+ const imagePixelInk={value:null as THREE.Texture|null},imagePixelSaturation={value:1},imagePixelScale={value:1},imagePixelInverse={value:0};
  let quad:FullScreenQuad|undefined,material:THREE.ShaderMaterial|undefined;
  const available=()=>!closed&&frames.size>0&&!!uniforms.image.value;
  const clear=()=>{
@@ -85,15 +85,14 @@ export function createDocumentWallpaper(renderer:THREE.WebGLRenderer,uniforms:Wa
    if(!quad){
     material=new THREE.ShaderMaterial({
      // Animation and transient selection feedback never alter the applied text image.
-     uniforms:{...uniforms,time:{value:0},bounce:{value:1},light:{value:0},waves:{value:0},feedbackStrength:{value:0},imagePixelInk,imagePixelSaturation,imagePixelScale,imagePixelAxis,imagePixelInverse},
+     uniforms:{...uniforms,time:{value:0},bounce:{value:1},light:{value:0},waves:{value:0},feedbackStrength:{value:0},imagePixelInk,imagePixelSaturation,imagePixelScale,imagePixelInverse},
      depthTest:false,depthWrite:false,toneMapped:false,
      vertexShader:'varying vec2 screenUV; void main(){screenUV=uv;gl_Position=vec4(position.xy,1.0,1.0);}',
      fragmentShader:`${wallpaperSampleGLSL}${imagePixelInkGLSL}
-      uniform float imagePixelScale; uniform float imagePixelAxis; uniform float imagePixelInverse;
+      uniform float imagePixelScale; uniform float imagePixelInverse;
       varying vec2 screenUV;
       void main(){
        vec2 pixelUV=(screenUV-.5)/imagePixelScale+.5;
-       if(imagePixelAxis>.5)pixelUV=pixelUV.yx;
        if(imagePixelInverse>.5)pixelUV=vec2(1.0)-pixelUV;
        pixelUV=fract(pixelUV);
        gl_FragColor=vec4(mapImagePixel(displayColour(sampleWallpaper(pixelUV))),1.0);
@@ -106,7 +105,7 @@ export function createDocumentWallpaper(renderer:THREE.WebGLRenderer,uniforms:Wa
     const rebuild=frame.revision!==sourceRevision||!frame.target||frame.target.width!==w||frame.target.height!==h;
     if(rebuild){
      frame.target??=new THREE.WebGLRenderTarget(w,h,{depthBuffer:false});frame.target.setSize(w,h);
-     imagePixelInk.value=frame.ink.texture;imagePixelSaturation.value=frame.ink.saturation;imagePixelScale.value=frame.scale;imagePixelAxis.value=frame.axis;imagePixelInverse.value=frame.inverse;
+     imagePixelInk.value=frame.ink.texture;imagePixelSaturation.value=frame.ink.saturation;imagePixelScale.value=frame.scale;imagePixelInverse.value=frame.inverse;
      const previous=renderer.getRenderTarget();
      try{renderer.setRenderTarget(frame.target);quad.render(renderer);}finally{renderer.setRenderTarget(previous);}
      frame.revision=sourceRevision;

@@ -103,11 +103,11 @@ test('Image pixels scale changes the shared centered crop while reusing the colo
   const expression=mesh.material.fragmentShader.match(/vec2 pixelUV=([^;]+);/)[1];
   const map=Function('screenUV','imagePixelScale',`return ${expression};`);
   paints.push({scale:u.imagePixelScale.value,uv:[0,.25,.5,.75,1].map(v=>map(v,u.imagePixelScale.value))});
-  lookups.push(u.imagePixelInk.value);modifiers.push([u.imagePixelAxis.value,u.imagePixelInverse.value]);
+  lookups.push(u.imagePixelInk.value);modifiers.push(u.imagePixelInverse.value);assert.equal(u.imagePixelAxis,undefined);
  }};
  let ready;const drawn=()=>new Promise(resolve=>{ready=resolve;});
  const wallpaper=createDocumentWallpaper(renderer,uniforms,()=>ready());wallpaper.resize(640,480);
- let a,b,same,vertical;
+ let a,b,same,vertical,directionOnly;
  try{
   const first=drawn();a=acquireTextWallpaper(palette);await first;
   assert.deepEqual(paints[0],{scale:1,uv:[0,.25,.5,.75,1]});
@@ -115,8 +115,12 @@ test('Image pixels scale changes the shared centered crop while reusing the colo
   assert.notEqual(a.key,b.key);assert.equal(b.texture,same.texture);assert.notEqual(a.texture.value,b.texture.value);
   assert.deepEqual(paints[1],{scale:2,uv:[.25,.375,.5,.625,.75]});
   assert.equal(lookups[0],lookups[1],'scaling must reuse the unchanged color transform');
+  directionOnly=acquireTextWallpaper({...palette,scale:2,distributionAxis:'vertical'});
+  assert.equal(directionOnly.key,b.key,'distribution direction must not alter the image frame');
+  assert.equal(directionOnly.texture,b.texture,'documents and nodes share the same untransposed image');
+  assert.equal(paints.length,2,'direction alone does not rebuild the image');
   const modified=drawn();vertical=acquireTextWallpaper({...palette,scale:.25,distributionAxis:'vertical',inverseDistribution:true});await modified;
-  assert.notEqual(b.key,vertical.key);assert.deepEqual(modifiers.at(-1),[1,1]);assert.equal(paints.at(-1).scale,.25);
-  assert.equal(lookups[0],lookups.at(-1),'orientation and scale share the same color lookup');
- }finally{vertical?.release();same?.release();b?.release();a?.release();wallpaper.dispose();uniforms.image.value.dispose();globalThis.document=previousDocument;}
+  assert.notEqual(b.key,vertical.key);assert.equal(modifiers.at(-1),1);assert.equal(paints.at(-1).scale,.25);
+  assert.equal(lookups[0],lookups.at(-1),'inverse and scale share the same color lookup');
+ }finally{directionOnly?.release();vertical?.release();same?.release();b?.release();a?.release();wallpaper.dispose();uniforms.image.value.dispose();globalThis.document=previousDocument;}
 });
