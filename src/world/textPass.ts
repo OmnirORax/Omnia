@@ -1,5 +1,4 @@
 import {bindTextWallpaper} from '../textureGlow.ts';
-import type {WallpaperSampleUniforms} from '../scene/wallpaperSample.ts';
 import * as T from 'three';
 export const WORLD_TEXT_LAYER=2;
 const uniforms={worldTextDepth:{value:null as T.DepthTexture|null},worldTextViewport:{value:new T.Vector2(1,1)},worldTextDepthEnabled:{value:0}};
@@ -19,8 +18,8 @@ export function nativeTextMaterial(material:T.MeshBasicMaterial){
 }
 export function withoutWorldText<Result>(camera:T.Camera,render:()=>Result):Result{const mask=camera.layers.mask;camera.layers.disable(WORLD_TEXT_LAYER);try{return render();}finally{camera.layers.mask=mask;}}
 /** Does not re-render graph geometry or allocate a full-resolution offscreen target. */
-export function renderWorldText(renderer:T.WebGLRenderer,scene:T.Scene,camera:T.Camera,depth:T.DepthTexture,wallpaper?:WallpaperSampleUniforms){
+export function renderWorldText(renderer:T.WebGLRenderer,scene:T.Scene,camera:T.Camera,depth:T.DepthTexture){
  const mask=camera.layers.mask,background=scene.background,autoClear=renderer.autoClear;
- try{uniforms.worldTextDepth.value=depth;renderer.getDrawingBufferSize(uniforms.worldTextViewport.value);bindTextWallpaper(wallpaper,uniforms.worldTextViewport.value.x,uniforms.worldTextViewport.value.y);uniforms.worldTextDepthEnabled.value=1;camera.layers.set(WORLD_TEXT_LAYER);scene.background=null;renderer.autoClear=false;renderer.setRenderTarget(null);renderer.clearDepth();renderer.render(scene,camera);}
- finally{bindTextWallpaper(undefined,0,0);camera.layers.mask=mask;scene.background=background;renderer.autoClear=autoClear;uniforms.worldTextDepthEnabled.value=0;uniforms.worldTextDepth.value=null;}
+ try{uniforms.worldTextDepth.value=depth;renderer.getDrawingBufferSize(uniforms.worldTextViewport.value);bindTextWallpaper(uniforms.worldTextViewport.value.x,uniforms.worldTextViewport.value.y);uniforms.worldTextDepthEnabled.value=1;camera.layers.set(WORLD_TEXT_LAYER);scene.background=null;renderer.autoClear=false;renderer.setRenderTarget(null);renderer.clearDepth();renderer.render(scene,camera);}
+ finally{camera.layers.mask=mask;scene.background=background;renderer.autoClear=autoClear;uniforms.worldTextDepthEnabled.value=0;uniforms.worldTextDepth.value=null;}
 }

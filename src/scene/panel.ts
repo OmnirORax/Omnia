@@ -4,7 +4,7 @@ import {readPaint} from '../core/appearance.ts';
 import {motifSwatches} from './motifSwatches.ts';
 import type {MotifCandidate} from './colorCombo.ts';
 import {focusTheme,setThemeFocus,setMotifMembership} from './themeControls.ts';
-import {paletteFillOpacity,PALETTE_INKS,PALETTE_PROGRESSIONS,PALETTE_DISTRIBUTION_AXES,type PaletteSettings} from '../properties/textPalette.ts';
+import {palettePaleAmount,paletteFillOpacity,PALETTE_INKS,PALETTE_PROGRESSIONS,PALETTE_DISTRIBUTION_AXES,type PaletteSettings} from '../properties/textPalette.ts';
 import {configureAutoColors,autoColorKey} from './autoColors.ts';
 import {imageTrash} from './imageTrash.ts';
 import {localSceneStorage,type SceneStorage,type SceneImage} from './storage.ts';
@@ -93,6 +93,8 @@ export function scenePanel(host: Host,initialTab:SceneTab='image') {
       numberSync.push(()=>{input.value=String(read());input.setAttribute('aria-valuemax',String(max()));});return row;
     }
     select('ink','Text color',PALETTE_INKS);
+    const pale=numeric('Pale %',()=>Math.round(palettePaleAmount(current())*100),0,()=>99,n=>({paleAmount:n/100}));
+    numberSync.push(()=>{pale.hidden=(current().ink??'color')!=='pale';});
     numeric('Text fill %',()=>Math.round(paletteFillOpacity(current())*100),0,()=>100,n=>({fillOpacity:n/100}));
     const inverse=(label:string,key:'inverseDistribution'|'inverseOccupation',row?:HTMLElement)=>{const input=button('Inverse',()=>edit({[key]:!current()[key]}),row);input.className='theme-inverse';input.setAttribute('aria-label',`Inverse ${label}`);paletteControls.push(input);numberSync.push(()=>input.setAttribute('aria-pressed',String(!!current()[key])));};
     inverse('distribution','inverseDistribution',select('distribution','Distribution',FOCUS_DISTRIBUTIONS));

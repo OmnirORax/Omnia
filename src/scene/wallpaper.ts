@@ -1,17 +1,17 @@
 import {createDocumentWallpaper} from './documentWallpaper.ts';
 import {configureSceneCorrection} from './normalizationShader.ts';
-import {createWallpaperSampling,wallpaperSampleGLSL,type WallpaperSampleUniforms} from './wallpaperSample.ts';
+import {createWallpaperSampling,wallpaperSampleGLSL} from './wallpaperSample.ts';
 import type {Corrections} from './normalization.ts';
 import {normalizeSceneVfx,WAVE_CONTROLS,nextVfxDeadline,type SceneVfx} from './vfx.ts';
 import {readSceneAudioResponse,configureSceneAudioResponse,isSceneAudioConnected,subscribeSceneAudio,disposeSceneAudio} from './audio.ts';
 import * as THREE from 'three';
 import {FullScreenQuad} from 'three/addons/postprocessing/Pass.js';
-export interface WallpaperComposite {readonly visible:boolean;readonly sampleUniforms:WallpaperSampleUniforms;without<T>(render:()=>T):T;renderComposite(world:THREE.Texture):void;}
+export interface WallpaperComposite {readonly visible:boolean;without<T>(render:()=>T):T;renderComposite(world:THREE.Texture):void;}
 
 /** A screen-space image behind the existing scene, with the same selection feedback. */
 export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, renderer: THREE.WebGLRenderer) {
   const {correction,uniforms}=createWallpaperSampling();
-  const documentWallpaper=createDocumentWallpaper(renderer,uniforms);
+  const documentWallpaper=createDocumentWallpaper(renderer,uniforms,requestPaint);
   const material = new THREE.ShaderMaterial({
     depthTest:false,depthWrite:false,toneMapped:false,
     uniforms:{...uniforms,worldLayer:{value:null},compositeWorld:{value:0},sceneGlowPass:{value:0}},
@@ -50,25 +50,18 @@ export function createWallpaper(scene: THREE.Scene, requestPaint: () => void, re
     const dt=last?Math.min(.1,(now-last)/1000):0;last=now;elapsed+=dt;
     const audio=readSceneAudioResponse();
     const bounce=1+audio.bounce;
-    const moving=uniforms.light.value!==audio.light||uniforms.bounce.value!==bounce||
-      !!uniforms.waves.value&&(
-        !!material.uniforms.waveAmplitudeX.value&&!!material.uniforms.waveSpeedX.value||
-        !!material.uniforms.waveAmplitudeY.value&&!!material.uniforms.waveSpeedY.value
-      );
     uniforms.time.value=elapsed;
     uniforms.light.value=audio.light;
     // Wave audio response is temporarily disabled; keep authored displacement unchanged.
     uniforms.bounce.value=bounce;
-    if(moving)documentWallpaper.updateMotion();
     requestPaint();schedule();
   };
   const visibility=()=>{cancel();schedule();};
-  const motion=()=>{cancel();material.uniforms.waves.value=reduced.matches?0:Number(settings.waves);material.uniforms.bounce.value=1;material.uniforms.light.value=0;material.uniforms.waveAudio.value=1;documentWallpaper.refresh();requestPaint();schedule();};
+  const motion=()=>{cancel();material.uniforms.waves.value=reduced.matches?0:Number(settings.waves);material.uniforms.bounce.value=1;material.uniforms.light.value=0;material.uniforms.waveAudio.value=1;requestPaint();schedule();};
   const stopAudio=subscribeSceneAudio(()=>{if(!isSceneAudioConnected()){material.uniforms.bounce.value=1;material.uniforms.light.value=0;material.uniforms.waveAudio.value=1;requestPaint();}schedule();});
   document.addEventListener('visibilitychange',visibility);reduced.addEventListener('change',motion);
   return {
     get visible(){return mesh.visible;},
-    sampleUniforms:uniforms,
     without<T>(render:()=>T){const visible=mesh.visible;mesh.visible=false;try{return render();}finally{mesh.visible=visible;}},
     renderComposite(world:THREE.Texture){
       material.uniforms.worldLayer.value=world;material.uniforms.compositeWorld.value=1;

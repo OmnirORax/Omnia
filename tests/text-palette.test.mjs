@@ -19,3 +19,15 @@ test('manual node colors override inherited palette after save/load',()=>{
 test('palette validation bounds settings, weights and colors; old across-node saves become within-text',async()=>{
  const {validatePaint}=await import('../src/properties/visual.ts');for(const p of [{...palette,motifOverrides:{h0:'yes'}},{...palette,balance:0},{...palette,softness:1},{...palette,saturation:2},{...palette,saturation:NaN},{...palette,darkSupport:'yes'},{...palette,layout:'bad'},{...palette,pattern:'bad'},{...palette,spread:'bad'},{...palette,weights:[1]},{...palette,weights:[1,0]},{...palette,seed:NaN},{mode:'text',colors:[]},{mode:'text',colors:Array(257).fill('#ff0000')},{mode:'text',colors:['red']}])assert.throws(()=>validatePaint({palette:p},true));assert.throws(()=>validatePaint({palette},false));const world=emptyWorld(),node=addStructure(world,[0,0,0],1);world.appearance={text:{palette:{...palette,mode:'nodes'}},imageColors:{default:{enabled:true,manual:[],mode:'nodes'}}};node.textAppearance={palette:{...palette,mode:'nodes'}};validateWorld(world);assert.equal(world.appearance.text.palette.mode,'text');assert.equal(node.textAppearance.palette.mode,'text');assert.equal(world.appearance.imageColors.default.mode,'text');
 });
+
+test('pale amount changes the shared ink mix and leaves colored ink unchanged',async()=>{
+ const {paletteInk,validPaletteSettings}=await import('../src/properties/textPalette.ts');
+ const p={mode:'text',ink:'pale',colors:['#ff0000']};
+ assert.equal(paletteInk(p),.25);
+ assert.equal(paletteInk({...p,paleAmount:.5}),.5);
+ assert.equal(paletteInk({...p,paleAmount:0}),1);
+ assert.equal(textPalettePair({...p,paleAmount:.5},0).color,'#ff8080');
+ assert.equal(paletteInk({...p,ink:'color',paleAmount:.99}),1);
+ for(const paleAmount of [0,.75,.99])assert.ok(validPaletteSettings({paleAmount}));
+ for(const paleAmount of [-.1,1,NaN])assert.ok(!validPaletteSettings({paleAmount}));
+});
