@@ -19,7 +19,7 @@ export function refreshTextureInkProgression(material:T.MeshBasicMaterial){const
  ctx.putImageData(image,0,0);material.map!.needsUpdate=true;state.size.value.set(canvas.width,canvas.height);state.source=canvas;state.tableWidth.value=scan.major;
  const texture=new T.DataTexture(scan.columns,scan.major,rows.length-1,T.RGBAFormat,T.FloatType);texture.minFilter=texture.magFilter=T.NearestFilter;texture.needsUpdate=true;state.texture=texture;state.table.value=texture;
 }
-export function updateTextureInkProgression(material:T.Material,palette?:TextPalette){const state=states.get(material);if(!state)return;const field=isImageField(palette),fieldChanged=state.field.value!==Number(field);state.field.value=Number(field);const patterned=!!palette&&(palette.colors.length>1||palette.distribution==='pixels'),stream=!field&&palette?.progression==='start-end'&&patterned,active=(field||palette?.progression==='ink-serpentine'||stream)&&patterned;const modeChanged=state.stream.value!==Number(stream);state.stream.value=Number(stream);state.scale.value=palette?.distribution==='pixels'?1:palette?.scale??1;
+export function updateTextureInkProgression(material:T.Material,palette?:TextPalette){const state=states.get(material);if(!state)return;const field=isImageField(palette),fieldChanged=state.field.value!==Number(field);state.field.value=Number(field);const stream=!field&&palette?.progression==='start-end'&&palette.colors.length>1,active=(field||palette?.progression==='ink-serpentine'||stream)&&palette!.colors.length>1;const modeChanged=state.stream.value!==Number(stream);state.stream.value=Number(stream);state.scale.value=palette?.scale??1;
  if(!active){state.enabled.value=0;state.texture?.dispose();state.texture=undefined;state.table.value=empty;state.source=undefined;return;}
  const axis=focusPaletteAxis(palette!),changed=axis!==state.axis.value;state.axis.value=axis;state.enabled.value=stream||field?0:1;const source=(material as T.MeshBasicMaterial).map?.image;if(state.texture&&source===state.source&&!changed&&!modeChanged&&!fieldChanged)return;refreshTextureInkProgression(material as T.MeshBasicMaterial);
  if(!state.texture)state.enabled.value=0;
@@ -48,11 +48,6 @@ float textStreamPosition(vec2 uv){
  vec3 part=texture2D(textInkColumns,vec2(0.5,(row+0.5)/textInkRows.z)).rgb;
  return (part.r+clamp(uv.x*textInkSize.x-part.g,0.0,part.b))/textStreamTotal/textStreamScale;
 }
-vec2 inkScanScale(vec2 uv,float pixelRatio){
- vec2 flow=textInkAxis==1?vec2(1.0-uv.y,uv.x):vec2(uv.x,1.0-uv.y);
- vec2 size=textInkAxis==1?textInkSize.yx:textInkSize;
- return vec2(1.0/max(length(vec2(dFdx(flow.x),dFdy(flow.x)))*size.x*pixelRatio,0.000001),1.0/max(length(vec2(dFdx(flow.y),dFdy(flow.y)))*size.y*pixelRatio,0.000001));
-}
 float inkScanPosition(vec2 uv,vec4 coverage,float pixelRatio){
  vec2 flow=textInkAxis==1?vec2(1.0-uv.y,uv.x):vec2(uv.x,1.0-uv.y);
  vec2 size=textInkAxis==1?textInkSize.yx:textInkSize;
@@ -60,16 +55,10 @@ float inkScanPosition(vec2 uv,vec4 coverage,float pixelRatio){
  float row=clamp(floor(((1.0-uv.y)*textInkSize.y-textInkRows.x)/textInkRows.y),0.0,textInkRows.z-1.0);
  float origin=textInkAxis==1&&row>0.0?textInkRows.x+row*textInkRows.y:0.0;
  vec3 column=texture2D(textInkColumns,vec2((floor(nativeX-origin)+0.5)/textInkTableWidth,(row+0.5)/textInkRows.z)).rgb;
- vec2 screenScale=inkScanScale(uv,pixelRatio);
- float sx=screenScale.x,sy=screenScale.y;
+ float sx=1.0/max(length(vec2(dFdx(flow.x),dFdy(flow.x)))*size.x*pixelRatio,0.000001);
+ float sy=1.0/max(length(vec2(dFdx(flow.y),dFdy(flow.y)))*size.y*pixelRatio,0.000001);
  float subColumn=floor(fract(nativeX)*sx),rank=floor(coverage.b*max(0.0,column.g-1.0)+0.5);
  float y=(rank+fract(nativeY))*sy,up=1.0-step(1.0,mod(floor(column.b*sx)+subColumn+(textInkAxis==1?1.0:0.0),2.0));
  return column.r*sx*sy+subColumn*column.g*sy+mix(y,max(0.0,column.g*sy-y),up);
-}
-float inkScanFraction(vec2 uv,vec4 coverage,float pixelRatio){
- float row=clamp(floor(((1.0-uv.y)*textInkSize.y-textInkRows.x)/textInkRows.y),0.0,textInkRows.z-1.0);
- float total=texture2D(textInkColumns,vec2(0.5/textInkTableWidth,(row+0.5)/textInkRows.z)).a;
- vec2 scale=inkScanScale(uv,pixelRatio);
- return inkScanPosition(uv,coverage,pixelRatio)/max(1.0,total*scale.x*scale.y);
 }
 `;

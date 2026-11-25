@@ -78,34 +78,3 @@ test('document ink maps change direction while preserving the selected progressi
 test('multiline vertical maps use local row tables and restart each text row',()=>{
  const m=mask(['#.#','###','...','###','#.#']),scan=scanInk(m.width,m.height,m.data,3,4,[0,3,5],1);assert.equal(scan.major,3);assert.equal(scan.columns.length,3*2*4);assert.equal(inkPosition(scan,0,0,0),0);assert.equal(inkPosition(scan,0,3,1),0);assert.equal(inkPosition(scan,2,4,1),3);assert.equal(inkPosition(scan,0,4,1),4);
 });
-
-test('Image pixels serpentine reuses ink ranks to traverse the cached RGB image, including pale mixing',()=>{
- const m=mask(['##','##']),scan=scanInk(2,2,m.data),pixels={width:4,height:1,pixels:new Uint8Array([255,0,0,255,0,255,0,255,0,0,255,255,255,255,255,255])};
- const palette={...p,distribution:'pixels',ink:'color'},out=paintInkScan(scan,palette,false,pixels);
- for(let y=0;y<2;y++)for(let x=0;x<2;x++){
-  const at=(y*2+x)*4,rank=inkPosition(scan,x,y);
-  assert.deepEqual([...out.slice(at,at+4)],[...pixels.pixels.slice(rank*4,rank*4+4)]);
- }
- const pale=paintInkScan(scan,{...palette,ink:'pale',paleAmount:.5},false,pixels);
- assert.ok([...pale].every((c,i)=>i%4===3?c===255:c===128||c===255));
- assert.equal(scan.columns[3],4,'every column retains its row total for the native shader');
-});
-
-test('Image pixels retains its text-coordinate modes even with one enabled hue and applies scale only once',()=>{
- for(const progression of ['ink-serpentine','start-end']){
-  const pixels=new Uint8ClampedArray([255,255,0,255,255,255,0,255,255,255,0,255,255,255,0,255]);
-  let reads=0;
-  const canvas={width:2,height:2,getContext:()=>({getImageData:()=>{reads++;return {data:pixels};},putImageData(){}})};
-  const material=new T.MeshBasicMaterial({map:new T.CanvasTexture(canvas)});packedTextureGlow(material);configureTextureInkRows(material,0,2,1);
-  const palette={mode:'text',distribution:'pixels',colors:['#ff0000'],progression,scale:2};updateTextureTextPalette(material,palette);
-  const shader={uniforms:{},fragmentShader:T.ShaderLib.basic.fragmentShader};material.onBeforeCompile(shader,{});
-  assert.equal(shader.uniforms.textInkScan.value,progression==='ink-serpentine'?1:0);
-  assert.equal(shader.uniforms.textStream.value,progression==='start-end'?1:0);
-  assert.equal(shader.uniforms.textStreamScale.value,1);
-  updateTextureTextPalette(material,{...palette,scale:4,distributionAxis:'vertical'});
-  assert.equal(shader.uniforms.textInkAxis.value,0,'Image pixels ignores saved vertical direction');
-  assert.equal(shader.uniforms.textPaletteAxis.value,0);
-  assert.equal(reads,1,'scale and saved direction changes reuse glyph geometry');
-  material.dispose();material.map.dispose();
- }
-});

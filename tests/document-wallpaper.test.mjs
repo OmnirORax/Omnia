@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as T from 'three';
-import {createDocumentWallpaper,useDocumentWallpaper,acquireTextWallpaper,textWallpaperPixels} from '../src/scene/documentWallpaper.ts';
+import {createDocumentWallpaper,useDocumentWallpaper,acquireTextWallpaper} from '../src/scene/documentWallpaper.ts';
 import {createDocumentPixelPainter} from '../src/text/imagePixelPresentation.ts';
 import {createWallpaperSampling} from '../src/scene/wallpaperSample.ts';
 
@@ -51,10 +51,17 @@ test('documents and world labels share one static capture; only authored changes
   assert.equal(draws,4);assert.equal(captures,3);assert.equal(world.texture.value,captured.texture);
   const reuse=published();useDocumentWallpaper(host,palette);await reuse;
   assert.equal(draws,4,'opening a document must reuse the already rendered world frame');assert.equal(captures,4);
-  world.release();world=undefined;
-  const cpuReady=published(),serpentine={...palette,progression:'ink-serpentine',saturation:.5};useDocumentWallpaper(host,serpentine);await cpuReady;
-  const cpu=textWallpaperPixels(serpentine);assert.equal(cpu.width,1920);assert.equal(cpu.height,1080);
-  assert.deepEqual([...cpu.pixels.slice(0,4)],[123,52,62,255],'the shared RGB copy is retained before BMP channel swapping');
+  const worldFrame=world.texture;
+  for(const progression of ['ink-serpentine','start-end']){
+   const uri=style.get('--document-image-frame');
+   useDocumentWallpaper(host,{...palette,progression,distributionAxis:'vertical'});
+   assert.equal(style.get('--document-image-frame'),uri);
+   const handle=acquireTextWallpaper({...palette,progression,distributionAxis:'vertical'});
+   assert.equal(handle.texture,worldFrame);
+   handle.release();
+  }
+  assert.equal(captures,4);
+
  }finally{
   world?.release();useDocumentWallpaper(host);wallpaper.dispose();image.dispose();globalThis.document=previousDocument;globalThis.Image=previousImage;
  }

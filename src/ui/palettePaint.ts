@@ -60,7 +60,7 @@ export function createPalettePaint(host:HTMLElement,inkEnabled=false,frameHost=h
  render(paint:Paint){
   const p=paint.palette,patterned=!!p&&p.colors.length>1;
   const pixels=inkEnabled&&p?.distribution==='pixels',debug=(patterned||pixels)&&!!p?.debugPattern;
-  if(pixels){host.style.setProperty('--document-image-pale',String(1-paletteInk(p)));host.style.setProperty('--document-image-ink','linear-gradient(rgb(255 255 255 / var(--document-image-pale)),rgb(255 255 255 / var(--document-image-pale))),var(--document-image-frame)');}
+  if(pixels)host.style.setProperty('--document-image-pale',String(1-paletteInk(p)));
   host.toggleAttribute('data-document-image-pixels',pixels);
   if(inkEnabled)useDocumentWallpaper(frameHost,pixels?p:undefined);
   const fill=inkEnabled&&!debug?paletteFillOpacity(p):1;
@@ -71,6 +71,6 @@ export function createPalettePaint(host:HTMLElement,inkEnabled=false,frameHost=h
    host.style.setProperty('--document-palette-size',geometry?.size??'100% 100%');host.style.setProperty('--document-palette-repeat',geometry?.repeat??'no-repeat');
    host.style.setProperty('--document-palette-gradient',!patterned?'linear-gradient(currentColor,currentColor)':focus?focusPaletteCSS(p):p.pattern==='generated'?generatedTextPaletteCSS(p):textPaletteCSS(p));
    host.style.setProperty('--document-palette-filter',normal.render(paint,false,fill));
-   host.style.setProperty('--document-ink-filter',inkEnabled&&(patterned||pixels)&&!isImageField(p)&&p.progression==='ink-serpentine'?(pixels?normal.render(paint,false,fill):ink.render(paint,true,fill)):'none');
+   host.style.setProperty('--document-ink-filter',inkEnabled&&!pixels&&patterned&&!isImageField(p)&&p.progression==='ink-serpentine'?ink.render(paint,true,fill):'none');
   }else{host.toggleAttribute('data-focus-theme',false);host.toggleAttribute('data-pattern-debug',false);for(const name of ['--document-palette-gradient','--document-palette-filter','--document-ink-filter'])host.style.removeProperty(name);}return changed;
  },dispose(){if(inkEnabled)useDocumentWallpaper(frameHost);normal.dispose();ink.dispose();}};}

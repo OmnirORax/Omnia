@@ -7,7 +7,7 @@ import type {TextPalette} from '../properties/textPalette.ts';
 import {StateEffect} from '@codemirror/state';
 import {Decoration,ViewPlugin,type EditorView,type ViewUpdate,type DecorationSet} from '@codemirror/view';
 import {glyphField,glyphIndexAt} from './source.ts';
-const usesPixelCoordinates=(p?:TextPalette)=>p?.distribution==='pixels'&&!['ink-serpentine','start-end'].includes(p.progression??'');
+const usesPixelCoordinates=(p?:TextPalette)=>p?.distribution==='pixels';
 const setFieldCuts=StateEffect.define<readonly number[]>();
 export const setDocumentInkTypography=StateEffect.define<string>();
 export const setDocumentPalette=StateEffect.define<TextPalette|undefined>();
@@ -19,7 +19,6 @@ export const documentPalette=ViewPlugin.fromClass(class{
  enabled=false;palette:TextPalette|undefined;ink=createInkTextPainter();stream=createStartEndPainter();field=createDocumentFieldPainter();pixels=createDocumentPixelPainter();cuts:readonly number[]=[];queued=false;closed=false;dirty=true;typography='';rows:ReturnType<typeof readInkRows>=[];fontSet:FontFaceSet|undefined;onFont=()=>{};decorations:DecorationSet=Decoration.none;
  constructor(view:EditorView){this.fontSet=typeof document==='undefined'?undefined:document.fonts;this.onFont=()=>{this.ink.invalidate();this.stream.invalidate();this.field.invalidate();this.measure(view,true);};this.fontSet?.addEventListener('loadingdone',this.onFont);}
  measure(view:EditorView,rebuild:boolean){this.dirty ||= rebuild;const progression=this.palette?.progression;if(this.closed||!usesPixelCoordinates(this.palette)&&!isImageField(this.palette)&&!['ink-serpentine','start-end'].includes(progression??'')||!this.enabled||this.queued||typeof view.requestMeasure!=='function')return;this.queued=true;
-  if(this.palette?.distribution==='pixels')this.pixels.watch(view,()=>this.measure(view,true));
   if(usesPixelCoordinates(this.palette)){
    this.pixels.watch(view);
    view.requestMeasure({key:this,read:view=>this.closed?undefined:this.pixels.read(view),write:layout=>{
@@ -42,8 +41,7 @@ export const documentPalette=ViewPlugin.fromClass(class{
 
  update(update:ViewUpdate){let changed=false,paintChanged=false;if(update.docChanged)this.cuts=[];for(const tr of update.transactions)for(const effect of tr.effects)if(effect.is(setFieldCuts)){this.cuts=effect.value;changed=true;}for(const tr of update.transactions)for(const effect of tr.effects)if(effect.is(setDocumentInkTypography)&&this.typography!==effect.value){this.typography=effect.value;this.dirty=true;paintChanged=true;}for(const tr of update.transactions)for(const effect of tr.effects)if(effect.is(setDocumentPalette)){if(isImageField(this.palette)!==isImageField(effect.value))changed=true;if(usesPixelCoordinates(this.palette)!==usesPixelCoordinates(effect.value)){changed=true;this.cuts=[];}this.palette=effect.value;paintChanged=true;}for(const tr of update.transactions)for(const effect of tr.effects)if(effect.is(showDocumentPalette)){this.enabled=effect.value;changed=true;}
   if(changed||update.docChanged||update.viewportChanged)this.decorations=this.build(update.view);
-  if(!this.enabled||this.palette?.distribution!=='pixels')this.pixels.clear();
-  else if(!usesPixelCoordinates(this.palette))this.pixels.clearPositions();
+  if(!this.enabled||!usesPixelCoordinates(this.palette))this.pixels.clear();
   if(usesPixelCoordinates(this.palette)){this.field.clear();this.ink.clear();this.stream.clear();}
   // Selection-dependent formatting can replace spans without changing document geometry.
   // Rebind the painters to the mounted DOM after that redraw; keep their raster caches.

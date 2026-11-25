@@ -22,10 +22,8 @@ export function createDocumentPixelPainter(){
   element.style.removeProperty('--image-pixel-x');
   element.style.removeProperty('--image-pixel-y');
  };
- const clearPositions=()=>{for(const element of painted)unpaint(element);painted.clear();};
  return {
-  clearPositions,
-  watch(view:EditorView,repaint?:()=>void){
+  watch(view:EditorView){
    if(activeView===view)return;
    activeView=view;
    const refresh=()=>view.requestMeasure({key:origin,read:origin,write:(point,view)=>{if(activeView===view)updateOrigin(view,point);}});
@@ -34,9 +32,7 @@ export function createDocumentPixelPainter(){
    const panel=view.dom.closest('.node-document-panel');
    const observer=new MutationObserver(refresh);
    if(panel)observer.observe(panel,{attributes:true,attributeFilter:['style']});
-   const frame=view.dom.closest('.document-content');let frameObserver:MutationObserver|undefined;
-   if(frame&&frame!==panel&&repaint){frameObserver=new MutationObserver(repaint);frameObserver.observe(frame,{attributes:true,attributeFilter:['style']});}
-   stopPosition=()=>{frameObserver?.disconnect();observer.disconnect();window.removeEventListener('resize',refresh);view.scrollDOM.removeEventListener('scroll',refresh);};
+   stopPosition=()=>{observer.disconnect();window.removeEventListener('resize',refresh);view.scrollDOM.removeEventListener('scroll',refresh);};
   },
   read(view:EditorView):PixelLayout{
    const point=origin(view),cuts:PixelLayout['cuts']=[],runs:PixelLayout['runs']=[];
@@ -67,7 +63,8 @@ export function createDocumentPixelPainter(){
    activeView?.contentDOM.style.removeProperty('--document-image-x');
    activeView?.contentDOM.style.removeProperty('--document-image-y');
    activeView=undefined;
-   clearPositions();
+   for(const element of painted)unpaint(element);
+   painted.clear();
   },
  };
 }
