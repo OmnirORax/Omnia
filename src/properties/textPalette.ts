@@ -11,6 +11,16 @@ export const FOCUS_DISTRIBUTIONS=[['balanced','Balanced'],['grouped','Grouped'],
 export type PaletteSettings={included?:readonly string[];distributionAxis?:typeof PALETTE_DISTRIBUTION_AXES[number][0];progression?:typeof PALETTE_PROGRESSIONS[number][0];distribution?:typeof FOCUS_DISTRIBUTIONS[number][0];scale?:number;top?:number;selection?:typeof PALETTE_SELECTIONS[number][0];softness?:number;balance?:number;saturation?:number;layout?:typeof PALETTE_LAYOUTS[number][0];pattern?:typeof PALETTE_PATTERNS[number][0]|'generated';match?:typeof PALETTE_MATCHES[number][0];ink?:typeof PALETTE_INKS[number][0];spread?:typeof PALETTE_SPREADS[number][0];seed?:number};
 export type TextPalette=PaletteSettings&{mode:'text';colors:readonly string[];weights?:readonly number[];strength?:number;darkSupport?:boolean;available?:number;imageRatio?:readonly number[]};
 export const PALETTE_STOP_LIMIT=24;
+/** Discard only settings written by the removed motif-field experiment. */
+export function retirePaletteRework(value:unknown){
+ const p=value as PaletteSettings&Record<string,unknown>;
+ if(!p||typeof p!=='object'||Array.isArray(p)||p.motif!==true)return false;
+ // The experiment allowed quarter-scale values; the restored control starts at one.
+ if(typeof p.scale==='number'&&Number.isFinite(p.scale)&&p.scale>=.25&&p.scale<1)p.scale=1;
+ for(const key of ['motif','motifSelection','inverseDistribution','inverseOccupation','motifField','motifSwatches'])delete p[key];
+ return true;
+}
+
 /** Retire the experimental manual override; ratios belong to the resolved image palette. */
 export function retirePaletteRatio(p:PaletteSettings){delete (p as PaletteSettings&{ratio?:unknown}).ratio;}
 export function validPaletteSettings(p:PaletteSettings){return (p.distributionAxis===undefined||PALETTE_DISTRIBUTION_AXES.some(([id])=>id===p.distributionAxis))&&(p.progression===undefined||PALETTE_PROGRESSIONS.some(([id])=>id===p.progression))&&(p.distribution===undefined||FOCUS_DISTRIBUTIONS.some(([id])=>id===p.distribution))&&(p.scale===undefined||Number.isFinite(p.scale)&&p.scale>=1&&p.scale<=4096)&&(p.top===undefined||Number.isInteger(p.top)&&p.top>=1&&p.top<=8)&&(p.included===undefined||Array.isArray(p.included)&&p.included.length>0&&p.included.length<=8&&new Set(p.included.map(c=>typeof c==='string'?c.toLowerCase():c)).size===p.included.length&&p.included.every(c=>typeof c==='string'&&/^#[\da-f]{6}$/i.test(c)))&&(p.selection===undefined||PALETTE_SELECTIONS.some(([id])=>id===p.selection))&&(p.softness===undefined||Number.isFinite(p.softness)&&p.softness>=.02&&p.softness<=.49)&&(p.balance===undefined||Number.isFinite(p.balance)&&p.balance>=.2&&p.balance<=.8)&&(p.saturation===undefined||Number.isFinite(p.saturation)&&p.saturation>=0&&p.saturation<=1)&&(p.layout===undefined||PALETTE_LAYOUTS.some(([id])=>id===p.layout))&&(p.pattern===undefined||p.pattern==='generated'||PALETTE_PATTERNS.some(([id])=>id===p.pattern))&&(p.match===undefined||PALETTE_MATCHES.some(([id])=>id===p.match))&&(p.ink===undefined||PALETTE_INKS.some(([id])=>id===p.ink))&&(p.spread===undefined||PALETTE_SPREADS.some(([id])=>id===p.spread))&&(p.seed===undefined||Number.isInteger(p.seed)&&p.seed>=0&&p.seed<=0xffffffff);}
