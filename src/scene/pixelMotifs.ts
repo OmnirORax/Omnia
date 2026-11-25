@@ -1,6 +1,20 @@
 import {PIXEL_MOTIF_LIMIT,type MotifFill,type MotifRect,type PixelMotifs} from '../properties/pixelMotifs.ts';
 import type {ScenePalette} from './palette.ts';
 
+/** Keep all selected areas in their original coordinate system around one center. */
+export function selectedMotifExtent(spatial:ScenePalette['spatial'],owners:readonly number[]):MotifRect|undefined{
+ if(!spatial)return;
+ const {width,height,cells}=spatial;
+ let left=width,right=-1,top=height,bottom=-1;
+ for(let i=0;i<cells.length;i++){
+  if(!(owners[cells[i]]>=0))continue;
+  const x=i%width,y=Math.floor(i/width);
+  left=Math.min(left,x);right=Math.max(right,x);top=Math.min(top,y);bottom=Math.max(bottom,y);
+ }
+ if(right<left)return;
+ return [left/width,top/height,(right-left+1)/width,(bottom-top+1)/height];
+}
+
 /** Find islands in the existing bounded color map. One empty cell can separate neighbors. */
 function groupPixelMotifs({width,height,cells}:NonNullable<ScenePalette['spatial']>,owners:readonly number[]){
  const visited=new Uint8Array(cells.length),queue=new Int32Array(cells.length);

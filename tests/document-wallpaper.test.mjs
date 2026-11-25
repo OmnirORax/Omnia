@@ -4,6 +4,7 @@ import * as T from 'three';
 import {createDocumentWallpaper,useDocumentWallpaper,acquireTextWallpaper} from '../src/scene/documentWallpaper.ts';
 import {createDocumentPixelPainter} from '../src/text/imagePixelPresentation.ts';
 import {createWallpaperSampling} from '../src/scene/wallpaperSample.ts';
+import {visibleTextCenter} from '../src/text/visibleTextCenter.ts';
 
 test('documents and world labels share one static capture; only authored changes rebuild it',{timeout:3000},async()=>{
  const previousDocument=globalThis.document,previousImage=globalThis.Image;
@@ -155,4 +156,31 @@ test('a picked crop repeats at its source size on the shared frame for its own i
   const replacement=nextDraw();wallpaper.reset('scene-b');await replacement;
   assert.equal(draws.at(-1).count,0);
  }finally{half?.release();frame?.release();wallpaper.dispose();uniforms.image.value.dispose();globalThis.document=originalDocument;}
+});
+
+test('centering uses a separate, unfurled frame and moving text reuses its bitmap',{timeout:3000},async()=>{
+ const originals={document:globalThis.document,Image:globalThis.Image};
+ const styles=new Map(),attributes=new Set(),style={setProperty:(key,value)=>styles.set(key,value),removeProperty:key=>styles.delete(key)};
+ const host={style,toggleAttribute(name,value){if(value)attributes.add(name);else attributes.delete(name);}};
+ globalThis.document={documentElement:{style}};globalThis.Image=class{async decode(){}};
+ const {uniforms}=createWallpaperSampling();uniforms.image.value=new T.Texture();
+ const palette={mode:'text',distribution:'pixels',centerImagePixels:true,scale:.5,colors:['#ff0000']};
+ let target=null,painted,draws=0,reads=0;
+ const renderer={getRenderTarget:()=>target,setRenderTarget(next){target=next;},render({material}){
+  draws++;assert.equal(material.uniforms.imagePixelCentered.value,true);
+  assert.match(material.fragmentShader,/clamp\(point\+\.5,vec2\(0\.0\),vec2\(\.999999\)\)/);
+ },async readRenderTargetPixelsAsync(){reads++;}};
+ const wallpaper=createDocumentWallpaper(renderer,uniforms,()=>painted());
+ const key={};
+ try{
+  const frame=new Promise(resolve=>{painted=resolve;});
+  wallpaper.resize(64,48);useDocumentWallpaper(host,palette);await frame;
+  assert.ok(attributes.has('data-scene-text-centered'));
+  const bitmap=styles.get('--document-image-frame');
+  visibleTextCenter.updateDocument(key,{left:.2,top:.1,right:.7,bottom:.5});
+  await new Promise(resolve=>setTimeout(resolve,25));
+  assert.equal(styles.get('--visible-text-left'),'20vw');
+  assert.equal(styles.get('--document-image-frame'),bitmap);
+  assert.equal(draws,1);assert.equal(reads,1);
+ }finally{visibleTextCenter.updateDocument(key);useDocumentWallpaper(host);wallpaper.dispose();uniforms.image.value.dispose();Object.assign(globalThis,originals);}
 });

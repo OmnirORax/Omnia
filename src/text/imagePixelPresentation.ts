@@ -1,5 +1,6 @@
 import type {EditorView} from '@codemirror/view';
 import {textSlices} from './textSlices.ts';
+import {observeDocumentViewport} from './documentViewport.ts';
 
 type PixelLayout={
  point:{left:number;top:number};
@@ -27,12 +28,7 @@ export function createDocumentPixelPainter(){
    if(activeView===view)return;
    activeView=view;
    const refresh=()=>view.requestMeasure({key:origin,read:origin,write:(point,view)=>{if(activeView===view)updateOrigin(view,point);}});
-   view.scrollDOM.addEventListener('scroll',refresh,{passive:true});
-   window.addEventListener('resize',refresh);
-   const panel=view.dom.closest('.node-document-panel');
-   const observer=new MutationObserver(refresh);
-   if(panel)observer.observe(panel,{attributes:true,attributeFilter:['style']});
-   stopPosition=()=>{observer.disconnect();window.removeEventListener('resize',refresh);view.scrollDOM.removeEventListener('scroll',refresh);};
+   stopPosition=observeDocumentViewport(view,refresh);
   },
   read(view:EditorView):PixelLayout{
    const point=origin(view),cuts:PixelLayout['cuts']=[],runs:PixelLayout['runs']=[];

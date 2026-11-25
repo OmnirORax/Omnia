@@ -1,4 +1,5 @@
 import {createDocumentPixelPainter} from './imagePixelPresentation.ts';
+import {observeDocumentTextCenter} from './documentTextCenter.ts';
 import {createDocumentFieldPainter} from './fieldPresentation.ts';
 import {isImageField} from '../properties/focusPalette.ts';
 import {createStartEndPainter} from './startEndProgression.ts';
@@ -17,7 +18,8 @@ const emojiPattern=(()=>{try{return new RegExp('\\p{RGI_Emoji}','gv');}catch{ret
 const gradientMark=Decoration.mark({class:'cm-image-palette'}),emojiMark=Decoration.mark({class:'cm-native-emoji'});
 export const documentPalette=ViewPlugin.fromClass(class{
  enabled=false;palette:TextPalette|undefined;ink=createInkTextPainter();stream=createStartEndPainter();field=createDocumentFieldPainter();pixels=createDocumentPixelPainter();cuts:readonly number[]=[];queued=false;closed=false;dirty=true;typography='';rows:ReturnType<typeof readInkRows>=[];fontSet:FontFaceSet|undefined;onFont=()=>{};decorations:DecorationSet=Decoration.none;
- constructor(view:EditorView){this.fontSet=typeof document==='undefined'?undefined:document.fonts;this.onFont=()=>{this.ink.invalidate();this.stream.invalidate();this.field.invalidate();this.measure(view,true);};this.fontSet?.addEventListener('loadingdone',this.onFont);}
+ center:ReturnType<typeof observeDocumentTextCenter>;
+ constructor(view:EditorView){this.center=observeDocumentTextCenter(view);this.fontSet=typeof document==='undefined'?undefined:document.fonts;this.onFont=()=>{this.ink.invalidate();this.stream.invalidate();this.field.invalidate();this.measure(view,true);this.center.refresh();};this.fontSet?.addEventListener('loadingdone',this.onFont);}
  measure(view:EditorView,rebuild:boolean){this.dirty ||= rebuild;const progression=this.palette?.progression;if(this.closed||!usesPixelCoordinates(this.palette)&&!isImageField(this.palette)&&!['ink-serpentine','start-end'].includes(progression??'')||!this.enabled||this.queued||typeof view.requestMeasure!=='function')return;this.queued=true;
   if(usesPixelCoordinates(this.palette)){
    this.pixels.watch(view);
@@ -46,9 +48,10 @@ export const documentPalette=ViewPlugin.fromClass(class{
   // Selection-dependent formatting can replace spans without changing document geometry.
   // Rebind the painters to the mounted DOM after that redraw; keep their raster caches.
   const redraw=changed||update.docChanged||update.viewportChanged||update.geometryChanged||update.selectionSet||update.focusChanged;
+  if(paintChanged||redraw)this.center.refresh();
   if((usesPixelCoordinates(this.palette)||isImageField(this.palette)||['ink-serpentine','start-end'].includes(this.palette?.progression??''))&&this.enabled){if(paintChanged||redraw)this.measure(update.view,!!redraw);}else{this.field.clear();this.ink.clear();this.stream.clear();this.rows=[];this.dirty=true;}
  }
- destroy(){this.closed=true;this.pixels.clear();this.field.clear();this.ink.clear();this.stream.clear();this.rows=[];this.fontSet?.removeEventListener('loadingdone',this.onFont);}
+ destroy(){this.closed=true;this.center.dispose();this.pixels.clear();this.field.clear();this.ink.clear();this.stream.clear();this.rows=[];this.fontSet?.removeEventListener('loadingdone',this.onFont);}
  build(view:EditorView){if(!this.enabled)return Decoration.none;const ranges:ReturnType<typeof gradientMark.range>[]=[],glyphs=view.state.field(glyphField);
   const gradient=(from:number,to:number)=>{if(!isImageField(this.palette)&&!usesPixelCoordinates(this.palette)){ranges.push(gradientMark.range(from,to));return;}let at=from;for(const cut of this.cuts){if(cut<=at||cut>=to)continue;ranges.push(Decoration.mark({class:'cm-image-palette',attributes:{'data-field-fragment':String(at)}}).range(at,cut));at=cut;}if(at<to)ranges.push(Decoration.mark({class:'cm-image-palette',attributes:{'data-field-fragment':String(at)}}).range(at,to));};
   const textRun=(from:number,to:number)=>{let start=from;for(const match of view.state.sliceDoc(from,to).matchAll(emojiPattern)){const at=from+match.index;if(start<at)gradient(start,at);start=at+match[0].length;ranges.push(emojiMark.range(at,start));}if(start<to)gradient(start,to);};

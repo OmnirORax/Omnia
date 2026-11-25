@@ -107,26 +107,28 @@ export function scenePanel(host: Host,initialTab:SceneTab='image') {
     const strip=document.createElement('div');strip.className='theme-pattern-preview';strip.dataset.uiPaintOwner='geometry';body.append(strip);numberSync.push(()=>{const p=resolved();strip.hidden=!current().debugPattern||!p;const pixels=!strip.hidden&&p?.distribution==='pixels';useDocumentWallpaper(strip,pixels?p:undefined);if(!strip.hidden&&p){strip.style.backgroundImage=pixels?'var(--document-image-frame)':focusPaletteCSS(p,true);strip.style.height=pixels||isImageField(p)?'96px':'18px';}});
     subscriptions.push(()=>useDocumentWallpaper(strip));
     const motifRow=document.createElement('div');body.append(motifRow);
-    const repeat=button('Repeat motifs',()=>edit({repeatMotifs:!current().repeatMotifs}),motifRow);
-    repeat.className='theme-inverse';
+    const repeat=button('Repeat motifs',()=>edit({repeatMotifs:!current().repeatMotifs,centerImagePixels:undefined}),motifRow);
+    const centered=button('Center on text',()=>edit({centerImagePixels:!current().centerImagePixels,repeatMotifs:undefined}),motifRow);
+    repeat.className=centered.className='theme-inverse';
+    const cropping=()=>!!(current().repeatMotifs||current().centerImagePixels);
     let cropRevision=0,closeCrop:(()=>void)|undefined,cropSource:string|undefined;
     const cancelCrop=()=>{cropRevision++;closeCrop?.();closeCrop=undefined;cropSource=undefined;};
     subscriptions.push(cancelCrop);
     const crop=button('Pick crop',async()=>{
       const image=autoColorImage(host.read(),autoColorKey(target));if(!image)return;
       cancelCrop();cropSource=image;const revision=cropRevision;
-      const active=()=>live&&version===imageVersion&&revision===cropRevision&&image===autoColorImage(host.read(),autoColorKey(target))&&current().distribution==='pixels'&&!!current().repeatMotifs;
+      const active=()=>live&&version===imageVersion&&revision===cropRevision&&image===autoColorImage(host.read(),autoColorKey(target))&&current().distribution==='pixels'&&cropping();
       const previous=current().motifCrop;
       const close=await openMotifCropPicker(await localSceneBlob(image),previous?.image===image?previous.rect:undefined,active,
         rect=>attempt(()=>edit({motifCrop:{image,rect}})),()=>{if(revision===cropRevision){closeCrop=undefined;cropSource=undefined;}});
       if(revision===cropRevision)closeCrop=close;else close?.();
     },motifRow);
     const automatic=button('Auto crop',()=>{cancelCrop();edit({motifCrop:undefined});},motifRow);
-    paletteControls.push(repeat,crop,automatic);
+    paletteControls.push(repeat,centered,crop,automatic);
     numberSync.push(()=>{
-      const {distribution,repeatMotifs,motifCrop}=current(),image=autoColorImage(host.read(),autoColorKey(target));
-      motifRow.hidden=distribution!=='pixels';repeat.setAttribute('aria-pressed',String(!!repeatMotifs));
-      crop.hidden=!repeatMotifs||!image;automatic.hidden=crop.hidden||motifCrop?.image!==image;
+      const {distribution,repeatMotifs,motifCrop,centerImagePixels}=current(),image=autoColorImage(host.read(),autoColorKey(target));
+      motifRow.hidden=distribution!=='pixels';repeat.setAttribute('aria-pressed',String(!!repeatMotifs));centered.setAttribute('aria-pressed',String(!!centerImagePixels));
+      crop.hidden=!cropping()||!image;automatic.hidden=crop.hidden||motifCrop?.image!==image;
       if(cropSource&&(motifRow.hidden||crop.hidden||!auto.checked||cropSource!==image))cancelCrop();
     });
     numeric('Scale ×',()=>current().scale??1,PALETTE_SCALE.min,()=>PALETTE_SCALE.max,n=>({scale:n}),PALETTE_SCALE.step);

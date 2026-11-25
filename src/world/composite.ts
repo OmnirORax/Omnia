@@ -1,4 +1,5 @@
-import {WORLD_TEXT_LAYER,withoutWorldText,renderWorldText} from './textPass.ts';
+import {WORLD_TEXT_LAYER,withoutWorldText,renderWorldText,bindWorldText} from './textPass.ts';
+import {visibleTextCenter} from '../text/visibleTextCenter.ts';
 import type {WallpaperComposite} from '../scene/wallpaper.ts';
 import {RENDER_BUDGET,budgetPixelRatio,sceneSampleCount} from '../renderBudget.ts';
 import * as THREE from 'three';
@@ -69,6 +70,7 @@ export function createSceneComposite(renderer:THREE.WebGLRenderer,scene:THREE.Sc
           failed = true;disposeBloom();renderer.setRenderTarget(null);
         }
       }
+      if(visibleTextCenter.enabled){scene.updateMatrixWorld();camera.updateMatrixWorld();bindWorldText(renderer,scene,camera);}
       renderer.render(scene, camera);
     },
  dispose(){disposeBloom();}

@@ -160,6 +160,10 @@ input[type="number"]:enabled:not([readonly]), input[inputmode="numeric"]:enabled
   background-size:var(--scene-text-frame-size);
   background-repeat:no-repeat;
 }
+[data-document-image-pixels] [data-scene-text-frame][data-scene-text-centered] .cm-image-palette[data-image-pixel-position] {
+  background-position:calc(var(--document-image-x) + var(--image-pixel-x) + var(--visible-text-left,0px)) calc(var(--document-image-y) + var(--image-pixel-y) + var(--visible-text-top,0px));
+  background-size:var(--visible-text-width,100vw) var(--visible-text-height,100vh);
+}
 .cm-image-palette *{text-shadow:none;-webkit-text-fill-color:inherit}
 
 .cm-native-emoji,.cm-native-emoji *{background-image:none;-webkit-text-fill-color:initial!important;-webkit-text-stroke:0!important;text-shadow:none!important;filter:none}

@@ -3,7 +3,7 @@ import type {ImageField} from '../properties/imageField.ts';
 import {imageRelations} from './imageRelations.ts';
 import type {ColorRelations} from '../properties/colorRelations.ts';
 import {extractScenePalette,paletteHex,paletteRGB,colorLuminance,nearestPaletteTrait,paletteColorTraits,paletteFamily,PALETTE_FAMILIES,type SceneSignal,type ScenePalette,type SceneTones} from './palette.ts';
-import {buildPixelMotifs} from './pixelMotifs.ts';
+import {buildPixelMotifs,selectedMotifExtent} from './pixelMotifs.ts';
 import type {PixelMotifs} from '../properties/pixelMotifs.ts';
 import {imageRatio} from '../properties/focusPalette.ts';
 import {paletteInk,type PaletteSettings} from '../properties/textPalette.ts';
@@ -44,10 +44,11 @@ function resolvedPixelMotifs(source:ScenePalette,owners:readonly number[],image:
  const crop=settings.motifCrop?.image===image?settings.motifCrop?.rect:undefined;
  let layouts=motifLayouts.get(source);
  if(!layouts){layouts=new Map();motifLayouts.set(source,layouts);}
- const key=JSON.stringify([owners,image,crop]);
+ const key=JSON.stringify([owners,image,crop,!!settings.centerImagePixels]);
  if(!layouts.has(key)){
   if(layouts.size>=12)layouts.delete(layouts.keys().next().value!);
-  layouts.set(key,buildPixelMotifs(source.spatial,owners,image,crop));
+  const extent=crop??(settings.centerImagePixels?selectedMotifExtent(source.spatial,owners):undefined);
+  layouts.set(key,buildPixelMotifs(source.spatial,owners,image,extent));
  }
  return layouts.get(key);
 }
@@ -55,7 +56,7 @@ export function matchedImageColors(combo:ImageColorCombo,settings:PaletteSetting
  const palette=imageTextPalette(combo.source,settings),first=palette[0],candidates=motifCandidates(combo.source,settings),members=candidates.filter(c=>c.enabled),available=candidates.length;
  let textRelations:ColorRelations|undefined,textField:ImageField|undefined,textPixelMotifs:PixelMotifs|undefined;
  const relations=settings.distribution==='image'&&combo.source.spatial;
- const repeat=settings.distribution==='pixels'&&settings.repeatMotifs;
+ const repeat=settings.distribution==='pixels'&&(settings.repeatMotifs||settings.centerImagePixels);
  if(relations||repeat){
   const destinations=new Map([...combo.source.accents,...combo.source.neutrals].map(c=>{
    const family=c.id??paletteFamily(paletteRGB(c.color));

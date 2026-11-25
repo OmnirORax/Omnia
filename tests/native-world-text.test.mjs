@@ -17,7 +17,9 @@ test('Image pixels samples the shared static frame without live wallpaper unifor
  const palette={mode:'text',distribution:'pixels',ink:'pale',pixelSources:['#a15555','#3366bb'],colors:['#ff0000','#0000ff']};
  updateTextureTextPalette(material,palette);assert.notEqual(material.customProgramCacheKey(),defaultKey);
  const shader={uniforms:{},fragmentShader:T.ShaderLib.basic.fragmentShader};material.onBeforeCompile(shader,{});
- assert.ok(shader.fragmentShader.includes('texture2D(imagePixelFrame,gl_FragCoord.xy/wallpaperViewport)'));
+  assert.equal(shader.uniforms.imagePixelCentered.value,false);
+  assert.ok(shader.fragmentShader.includes('vec2 pixelUV=gl_FragCoord.xy/wallpaperViewport'));
+  assert.ok(shader.fragmentShader.includes('texture2D(imagePixelFrame,pixelUV)'));
  assert.ok(!shader.fragmentShader.includes(wallpaperSampleGLSL));
  assert.equal(shader.uniforms.imagePixelFrameReady.value,0);
  assert.equal(shader.uniforms.textPaletteInk.value,.25);

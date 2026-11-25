@@ -1,4 +1,5 @@
 import {acquireTextWallpaper} from './scene/documentWallpaper.ts';
+import {visibleTextCenter} from './text/visibleTextCenter.ts';
 import {SCENE_COLOR_SPACE_GLSL} from './scene/pulse.ts';
 import {initializeTextureInkProgression,updateTextureInkProgression,inkProgressionShader} from './textureInkProgression.ts';
 import {isFocusPalette,focusPattern,focusPeriod,focusPaletteAxis,isImageField} from './properties/focusPalette.ts';
@@ -16,7 +17,11 @@ export function packGlowCoverage(clean:Uint8ClampedArray,halo:Uint8ClampedArray)
  for(let i=0;i<halo.length;i+=4){const shadow=halo[i+3];halo[i]=clean[i+3];halo[i+1]=shadow;halo[i+2]=0;halo[i+3]=255;}
 }
 const wallpaperViewport={value:new T.Vector2(1,1)};
-export function bindTextWallpaper(width:number,height:number){wallpaperViewport.value.set(width,height);}
+const wallpaperTextBounds={value:new T.Vector4(0,0,1,1)};
+export function bindTextWallpaper(width:number,height:number){
+ wallpaperViewport.value.set(width,height);
+ if(visibleTextCenter.enabled){const {left,top,right,bottom}=visibleTextCenter.bounds;wallpaperTextBounds.value.set(left,1-bottom,right-left,bottom-top);}
+}
 const sizes=new WeakMap<T.Material,{imagePixels:boolean;imageFrame?:ReturnType<typeof acquireTextWallpaper>;imagePixelFrame:{value:T.Texture|null};imagePixelFrameReady:{value:number};fillOpacity:{value:number};fieldSize:{value:T.Vector2};field:{value:number};scale:{value:number};debug:{value:number};detail:{value:number};color:{value:T.Color};count:{value:number};stops:{value:T.Vector4[]};layout:{value:number};spread:{value:number};strength:{value:number};generated:{value:number};focus:{value:number};axis:{value:number};period:{value:number};pattern:{value:T.Texture};releasePattern?:()=>void;paletteKey?:string}>();
 export function updateTextureGlowSize(material:T.MeshBasicMaterial){
  const state=sizes.get(material),image=material.map?.image as {width:number;height:number}|undefined;
@@ -79,7 +84,7 @@ export function packedTextureGlow(material:T.MeshBasicMaterial){
   target.onBeforeCompile=(shader,renderer)=>{
    before.call(target,shader,renderer);Object.assign(shader.uniforms,inkUniforms);shader.uniforms.textFillOpacity=state.fillOpacity;shader.uniforms.textPaletteField=state.field;shader.uniforms.textFieldSize=state.fieldSize;shader.uniforms.textFieldScale=state.scale;shader.uniforms.textPatternDebug=state.debug;shader.uniforms.glowInkColor=state.color;shader.uniforms.textPaletteCount=state.count;shader.uniforms.textPaletteStops=state.stops;shader.uniforms.textPaletteLayout=state.layout;shader.uniforms.textPaletteSpread=state.spread;shader.uniforms.textPaletteInk=state.strength;shader.uniforms.textPaletteGenerated=state.generated;shader.uniforms.textPaletteFocus=state.focus;shader.uniforms.textPaletteAxis=state.axis;shader.uniforms.textPalettePeriod=state.period;shader.uniforms.textPixelRatio=textPixelRatio;shader.uniforms.textPalettePattern=state.pattern;
    const imagePixels=target===material&&state.imagePixels;
-   if(imagePixels)Object.assign(shader.uniforms,{wallpaperViewport,imagePixelFrame:state.imagePixelFrame,imagePixelFrameReady:state.imagePixelFrameReady});
+   if(imagePixels)Object.assign(shader.uniforms,{wallpaperViewport,wallpaperTextBounds,imagePixelFrame:state.imagePixelFrame,imagePixelFrameReady:state.imagePixelFrameReady,imagePixelCentered:{get value(){return !!state.imageFrame?.centered;}}});
    const coverage=target===material?`
     float clean=coverage.r;
     float halo=max(0.0,coverage.g-clean);
@@ -98,7 +103,9 @@ export function packedTextureGlow(material:T.MeshBasicMaterial){
     vec3 ink=diffuseColor.rgb,glow=glowInkColor;
     ${imagePixels?`vec3 pixelHue=vec3(1.0);
     if(imagePixelFrameReady>.5){
-     pixelHue=texture2D(imagePixelFrame,gl_FragCoord.xy/wallpaperViewport).rgb;
+     vec2 pixelUV=gl_FragCoord.xy/wallpaperViewport;
+     if(imagePixelCentered)pixelUV=clamp((pixelUV-wallpaperTextBounds.xy)/wallpaperTextBounds.zw,0.0,1.0);
+     pixelHue=texture2D(imagePixelFrame,pixelUV).rgb;
      vec3 hue=pixelHue;
      glow=linearColour(hue);
      ink=linearColour(mix(vec3(1.0),hue,textPaletteInk));
@@ -110,7 +117,7 @@ export function packedTextureGlow(material:T.MeshBasicMaterial){
     diffuseColor.a*=total;
     if(textPatternDebug&&(textPaletteCount>1${imagePixels?'||imagePixelFrameReady>.5':''})){diffuseColor.rgb=${imagePixels?'imagePixelFrameReady>.5?linearColour(pixelHue):':''}paletteLinear(paletteGlow(vMapUv,coverage));diffuseColor.a=max(diffuseColor.a,0.4*opacity);}
    `:'diffuseColor.a*=coverage.r;';
-   const wallpaperShader=imagePixels?SCENE_COLOR_SPACE_GLSL+'uniform vec2 wallpaperViewport; uniform sampler2D imagePixelFrame; uniform float imagePixelFrameReady;\n':'';
+   const wallpaperShader=imagePixels?SCENE_COLOR_SPACE_GLSL+'uniform vec2 wallpaperViewport; uniform vec4 wallpaperTextBounds; uniform bool imagePixelCentered; uniform sampler2D imagePixelFrame; uniform float imagePixelFrameReady;\n':'';
    shader.fragmentShader=wallpaperShader+paletteShader+'uniform vec3 glowInkColor;\n'+shader.fragmentShader.replace('#include <map_fragment>',`
     #ifdef USE_MAP
     // Keep text's fine strokes instead of blending too early into a coarser

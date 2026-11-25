@@ -34,6 +34,17 @@ test('neighboring accents stay in one unscaled source patch and distant shapes s
  assert.equal(next.textPixelMotifs,motifs,'scale and Pale reuse the extracted layout');
 });
 
+test('center on text uses one extent for the selected shapes and retains a picked crop',()=>{
+ const combo=imageColorCombo(sample()),centered={...settings,centerImagePixels:true,repeatMotifs:false};
+ const motifs=matchedImageColors(combo,centered,'scene-a').textPixelMotifs;
+ assert.deepEqual(motifs.patches,[{source:[2/width,2/height,16/width,7/height],x:0,y:0}]);
+ assert.deepEqual(motifs.size,[16/width,7/height]);
+ const rect=[.3,.2,.4,.5],picked={...centered,motifCrop:{image:'scene-a',rect}};
+ assert.deepEqual(matchedImageColors(combo,picked,'scene-a').textPixelMotifs.patches[0].source,rect);
+ assert.equal(validPaletteSettings({centerImagePixels:'true'}),false);
+ assert.equal(validTextPalette(comboPalette(matchedImageColors(combo,centered,'scene-a'),centered)),true);
+});
+
 test('the motif lookup preserves enabled pixels and gives adjacent colors the removed pixels',()=>{
  const combo=matchedImageColors(imageColorCombo(sample()),settings,'scene-a'),palette=comboPalette(combo,settings);
  const ink=acquireImagePixelInk(palette);
