@@ -3,22 +3,38 @@ import {nearestPaletteTrait,paletteColorTraits,paletteHueFamily,paletteFamily,pa
 import type {TextPalette} from './textPalette.ts';
 
 const HUES=360,TONES=256,WIDTH=HUES+TONES;
+const MOTIF_REPLACEMENT_ROW=4,MOTIF_FIELD_ROW=6;
 export type ImagePixelInk={key:string;texture:T.DataTexture;saturation:number;release:()=>void};
-export const imagePixelInkKey=(p:TextPalette)=>JSON.stringify([p.pixelSources??p.colors,p.colors,p.saturation??1,!!p.inverseOccupation,p.inverseOccupation?p.weights:undefined,p.pixelMotifs?.owners]);
+const inkLookup=(p:TextPalette)=>[p.pixelSources??p.colors,p.colors,!!p.inverseOccupation,p.inverseOccupation?p.weights:undefined,p.pixelMotifs?.owners,p.pixelMotifs?.fill];
+export const imagePixelInkKey=(p:TextPalette)=>JSON.stringify([...inkLookup(p),p.saturation??1]);
 const textures=new Map<string,{texture:T.DataTexture;uses:number}>();
 
 /** Resolve ink once per palette; retain the source beside it for continuous pixel detail. */
 export function acquireImagePixelInk(p:TextPalette):ImagePixelInk{
  const sources=p.pixelSources??p.colors,saturation=p.saturation??1;
- const owners=p.pixelMotifs?.owners;
- const textureKey=JSON.stringify([sources,p.colors,!!p.inverseOccupation,p.inverseOccupation?p.weights:undefined,owners]),key=imagePixelInkKey(p);
+ const owners=p.pixelMotifs?.owners,fill=p.pixelMotifs?.fill?.families;
+ const textureKey=JSON.stringify(inkLookup(p)),key=imagePixelInkKey(p);
  let entry=textures.get(textureKey);
  if(!entry){
   const rgb=sources.map(paletteRGB),traits=rgb.map(paletteColorTraits),colors=p.colors.map(paletteRGB);
   const enabled=new Set(traits.filter(swatch=>swatch.chromatic).map(swatch=>paletteHueFamily(swatch.hue)));
   const order=rgb.map((_,i)=>i).sort((a,b)=>(p.weights?.[b]??1)-(p.weights?.[a]??1));
   const destinations=rgb.map((_,i)=>p.inverseOccupation?order[order.length-1-order.indexOf(i)]:i);
-  const height=owners?4:2,data=new Uint8Array(WIDTH*height*4);
+  const rowBytes=WIDTH*4,height=owners?MOTIF_FIELD_ROW+Math.ceil((fill?.length??1)/rowBytes):2;
+  const data=new Uint8Array(rowBytes*height);
+  if(owners){
+   const defaultFamily=owners.length;
+   for(let family=0;family<=defaultFamily;family++){
+    const owner=family===defaultFamily?0:owners[family];
+    if(owner<0)continue;
+    const destination=destinations[owner];
+    data.set([...colors[destination],255],MOTIF_REPLACEMENT_ROW*rowBytes+family*4);
+    data.set([...rgb[owner],destination!==owner?255:0],(MOTIF_REPLACEMENT_ROW+1)*rowBytes+family*4);
+   }
+   // One byte per source cell, packed four per texel after the ink lookup.
+   if(fill)for(let i=0;i<fill.length;i++)data[MOTIF_FIELD_ROW*rowBytes+i]=parseInt(fill[i],16);
+   else data[MOTIF_FIELD_ROW*rowBytes]=defaultFamily;
+  }
   for(let slot=0;slot<WIDTH;slot++){
    const chromatic=slot<HUES,hue=slot+.5,tone=slot-HUES;
    if(owners){
@@ -63,13 +79,10 @@ export const imagePixelInkGLSL=`
   }
   return int(slot);
  }
- vec3 resolveImagePixel(vec3 rgb,int slot,int row,float gap){
+ vec3 resolveImagePixel(vec3 rgb,vec4 mapped,vec4 source){
   float high=max(rgb.r,max(rgb.g,rgb.b)),low=min(rgb.r,min(rgb.g,rgb.b));
   float delta=high-low;
-  vec4 mapped=texelFetch(imagePixelInk,ivec2(slot,row),0);
-  if(mapped.a==0.0)return vec3(gap);
   vec3 ink=mapped.rgb;
-  vec4 source=texelFetch(imagePixelInk,ivec2(slot,row+1),0);
   float sourceHigh=max(source.r,max(source.g,source.b)),sourceLow=min(source.r,min(source.g,source.b));
   float sourceDelta=sourceHigh-sourceLow;
   float inkHigh=max(ink.r,max(ink.g,ink.b)),inkLow=min(ink.r,min(ink.g,ink.b));
@@ -79,9 +92,18 @@ export const imagePixelInkGLSL=`
  }
  vec3 mapImagePixel(vec3 rgb){
   rgb=clamp(rgb,0.0,1.0);
-  return resolveImagePixel(rgb,imagePixelSlot(rgb),0,0.0);
+  int slot=imagePixelSlot(rgb);
+  return resolveImagePixel(rgb,texelFetch(imagePixelInk,ivec2(slot,0),0),texelFetch(imagePixelInk,ivec2(slot,1),0));
  }
- vec3 mapMotifPixel(vec3 original,vec3 corrected,float gap){
-  return resolveImagePixel(clamp(corrected,0.0,1.0),imagePixelSlot(clamp(original,0.0,1.0)),2,gap);
+ vec3 mapMotifPixel(vec4 original,vec3 corrected,vec2 uv,vec2 gridSize){
+  int slot=imagePixelSlot(clamp(original.rgb,0.0,1.0));
+  vec4 mapped=texelFetch(imagePixelInk,ivec2(slot,2),0);
+  if(original.a>=.05&&mapped.a>0.0)return resolveImagePixel(clamp(corrected,0.0,1.0),mapped,texelFetch(imagePixelInk,ivec2(slot,3),0));
+  ivec2 cell=ivec2(clamp(floor(uv*gridSize),vec2(0.0),gridSize-1.0));
+  int index=cell.y*int(gridSize.x)+cell.x,texel=index/4;
+  vec4 encoded=texelFetch(imagePixelInk,ivec2(texel%${WIDTH},${MOTIF_FIELD_ROW}+texel/${WIDTH}),0);
+  int family=int(floor(encoded[index%4]*255.0+.5));
+  vec4 source=texelFetch(imagePixelInk,ivec2(family,${MOTIF_REPLACEMENT_ROW+1}),0);
+  return resolveImagePixel(source.rgb,texelFetch(imagePixelInk,ivec2(family,${MOTIF_REPLACEMENT_ROW}),0),source);
  }
 `;

@@ -5,16 +5,16 @@ import * as THREE from 'three';
 import {FullScreenQuad} from 'three/addons/postprocessing/Pass.js';
 import {wallpaperSampleGLSL,type WallpaperSampleUniforms} from './wallpaperSample.ts';
 
-type Frame={key:string;scale:number;inverse:number;ink:ImagePixelInk;motifs?:PixelMotifs;gap:number;texture:{value:THREE.Texture|null};uses:number;revision?:number;target?:THREE.WebGLRenderTarget;url?:string};
+type Frame={key:string;scale:number;inverse:number;ink:ImagePixelInk;motifs?:PixelMotifs;texture:{value:THREE.Texture|null};uses:number;revision?:number;target?:THREE.WebGLRenderTarget;url?:string};
 const frames=new Map<string,Frame>(),consumers=new Map<HTMLElement,ReturnType<typeof acquireTextWallpaper>>();
 const listeners=new Set<()=>void>();
-const frameKey=(p:TextPalette)=>JSON.stringify([imagePixelInkKey(p),p.scale??1,!!p.inverseDistribution,p.pixelMotifs]);
+const frameKey=(p:TextPalette)=>JSON.stringify([imagePixelInkKey(p),p.scale??1,!!p.inverseDistribution,p.pixelMotifs?.image,p.pixelMotifs?.size,p.pixelMotifs?.patches]);
 /** Documents and world labels retain the same static, resolved image per palette. */
 export function acquireTextWallpaper(palette:TextPalette){
  const ink=acquireImagePixelInk(palette),scale=palette.scale??1,key=frameKey(palette);
  let frame=frames.get(key);
  if(frame)ink.release();
- else{frame={key,scale,inverse:Number(!!palette.inverseDistribution),ink,motifs:palette.pixelMotifs,gap:palette.colors.includes('#000000')?.18:0,texture:{value:null},uses:0};frames.set(key,frame);}
+ else{frame={key,scale,inverse:Number(!!palette.inverseDistribution),ink,motifs:palette.pixelMotifs,texture:{value:null},uses:0};frames.set(key,frame);}
  frame.uses++;
  const owned=frame;
  if(owned.uses===1)for(const listener of listeners)listener();
@@ -54,7 +54,7 @@ export function createDocumentWallpaper(renderer:THREE.WebGLRenderer,uniforms:Wa
  let width=1,height=1,revision=0,sourceRevision=0,timer:ReturnType<typeof setTimeout>|undefined,running=false,closed=false,pending=false;
  let sourceImage:string|undefined;
  const imagePixelInk={value:null as THREE.Texture|null},imagePixelSaturation={value:1},imagePixelScale={value:1},imagePixelInverse={value:0};
- const motifCount={value:0},motifSize={value:new THREE.Vector2(1,1)},motifGap={value:0};
+ const motifCount={value:0},motifSize={value:new THREE.Vector2(1,1)},motifGridSize={value:new THREE.Vector2(1,1)};
  const motifSources={value:Array.from({length:PIXEL_MOTIF_LIMIT},()=>new THREE.Vector4())};
  const motifDestinations={value:Array.from({length:PIXEL_MOTIF_LIMIT},()=>new THREE.Vector2())};
  let quad:FullScreenQuad|undefined,material:THREE.ShaderMaterial|undefined;
@@ -88,32 +88,40 @@ export function createDocumentWallpaper(renderer:THREE.WebGLRenderer,uniforms:Wa
    if(!quad){
     material=new THREE.ShaderMaterial({
      // Animation and transient selection feedback never alter the applied text image.
-     uniforms:{...uniforms,time:{value:0},bounce:{value:1},light:{value:0},waves:{value:0},feedbackStrength:{value:0},imagePixelInk,imagePixelSaturation,imagePixelScale,imagePixelInverse,motifCount,motifSize,motifGap,motifSources,motifDestinations},
+     uniforms:{...uniforms,time:{value:0},bounce:{value:1},light:{value:0},waves:{value:0},feedbackStrength:{value:0},imagePixelInk,imagePixelSaturation,imagePixelScale,imagePixelInverse,motifCount,motifSize,motifGridSize,motifSources,motifDestinations},
      depthTest:false,depthWrite:false,toneMapped:false,
      vertexShader:'varying vec2 screenUV; void main(){screenUV=uv;gl_Position=vec4(position.xy,1.0,1.0);}',
      fragmentShader:`${wallpaperSampleGLSL}${imagePixelInkGLSL}
       uniform float imagePixelScale; uniform float imagePixelInverse;
-      uniform int motifCount; uniform vec2 motifSize; uniform float motifGap;
+      uniform int motifCount; uniform vec2 motifSize; uniform vec2 motifGridSize;
       uniform vec4 motifSources[${PIXEL_MOTIF_LIMIT}];
       uniform vec2 motifDestinations[${PIXEL_MOTIF_LIMIT}];
       varying vec2 screenUV;
       vec3 sampleMotifs(){
-       vec2 tile=(vec2(screenUV.x,1.0-screenUV.y)-.5)*wallpaperCover()/imagePixelScale;
+       vec2 cover=wallpaperCover();
+       vec2 tile=(vec2(screenUV.x,1.0-screenUV.y)-.5)*cover/imagePixelScale;
        if(imagePixelInverse>.5)tile=-tile;
        // Use the unwrapped footprint for filtering across tile and patch boundaries.
        vec2 dx=dFdx(vec2(tile.x,-tile.y)),dy=dFdy(vec2(tile.x,-tile.y));
        tile=mod(tile+motifSize*.5,motifSize);
+       vec2 uv=vec2(0.0);
+       float nearest=1e30;
        for(int i=0;i<${PIXEL_MOTIF_LIMIT};i++){
         if(i>=motifCount)break;
         vec2 p=tile-motifDestinations[i];
         vec4 sourceRect=motifSources[i];
-        if(any(lessThan(p,vec2(0.0)))||any(greaterThanEqual(p,sourceRect.zw)))continue;
-        vec2 uv=sourceRect.xy+p;
-        vec4 texel=textureGrad(image,vec2(uv.x,1.0-uv.y),dx,dy);
-        if(texel.a<.05)return vec3(motifGap);
-        return mapMotifPixel(displayColour(texel.rgb),displayColour(colourWallpaperPixel(texel.rgb)),motifGap);
+        if(all(greaterThanEqual(p,vec2(0.0)))&&all(lessThan(p,sourceRect.zw))){uv=sourceRect.xy+p;break;}
+        // Extend the closest patch into the spaces left by packing irregular rectangles.
+        vec2 edge=clamp(p,vec2(0.0),sourceRect.zw);
+        vec2 offset=(p-edge)/cover;
+        float distanceSquared=dot(offset,offset);
+        if(distanceSquared<nearest){
+         nearest=distanceSquared;
+         uv=sourceRect.xy+min(edge,sourceRect.zw*.9999);
+        }
        }
-       return vec3(motifGap);
+       vec4 texel=textureGrad(image,vec2(uv.x,1.0-uv.y),dx,dy);
+       return mapMotifPixel(vec4(displayColour(texel.rgb),texel.a),displayColour(colourWallpaperPixel(texel.rgb)),uv,motifGridSize);
       }
       void main(){
        if(motifCount>0){gl_FragColor=vec4(sampleMotifs(),1.0);return;}
@@ -134,7 +142,7 @@ export function createDocumentWallpaper(renderer:THREE.WebGLRenderer,uniforms:Wa
      const motifs=frame.motifs?.image===undefined||frame.motifs.image===sourceImage?frame.motifs:undefined;
      motifCount.value=motifs?.patches.length??0;
      if(motifs){
-      motifGap.value=frame.gap;
+      motifGridSize.value.set(motifs.fill?.width??1,motifs.fill?.height??1);
       motifSize.value.set(...motifs.size);
       motifs.patches.forEach(({source,x,y},index)=>{
        motifSources.value[index].set(...source);motifDestinations.value[index].set(x,y);

@@ -20,7 +20,9 @@ test('the real picker accepts colors, cancels drafts, toggles motif membership, 
  assert.deepEqual(selected(),['#00ff00','#ff0000']);
  await rightClick('#ff0000');assert.deepEqual(selected(),['#ff0000']);
  await rightClick('#00ff00');assert.deepEqual(selected(),['#00ff00']);
+ await rightClick('#00ff00');assert.deepEqual(selected(),['#00ff00','#ff0000']);
  // The store records resolved paint separately from the membership edit.
+ store.undo();store.undo();await auto.settle();assert.deepEqual(selected(),['#00ff00']);
  store.undo();store.undo();await auto.settle();assert.deepEqual(selected(),['#ff0000']);
  store.undo();store.undo();await auto.settle();assert.deepEqual(selected(),['#00ff00','#ff0000']);
  view.close();assert.equal(subscriptions,0);const before=store.world;input.value='#0000ff';input.dispatchEvent(new Event('input'));input.dispatchEvent(new Event('change'));red.onclick();reset.onclick();assert.equal(store.world,before);auto.dispose();

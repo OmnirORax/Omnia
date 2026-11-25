@@ -7,6 +7,7 @@ import {acquireImagePixelInk} from '../src/properties/imagePixelInk.ts';
 import {emptyWorld} from '../src/core/model.ts';
 import {configureAutoColors,createAutoColors} from '../src/scene/autoColors.ts';
 import {readPaint} from '../src/core/appearance.ts';
+import {buildPixelMotifs} from '../src/scene/pixelMotifs.ts';
 
 const width=24,height=12;
 function sample(){
@@ -33,7 +34,7 @@ test('neighboring accents stay in one unscaled source patch and distant shapes s
  assert.equal(next.textPixelMotifs,motifs,'scale and Pale reuse the extracted layout');
 });
 
-test('the motif lookup masks excluded hues while the standard pixel lookup still remaps them',()=>{
+test('the motif lookup preserves enabled pixels and gives adjacent colors the removed pixels',()=>{
  const combo=matchedImageColors(imageColorCombo(sample()),settings,'scene-a'),palette=comboPalette(combo,settings);
  const ink=acquireImagePixelInk(palette);
  try{
@@ -43,14 +44,31 @@ test('the motif lookup masks excluded hues while the standard pixel lookup still
   assert.equal(texel(2,0)[3],0);
   assert.deepEqual(texel(2,120).slice(0,3),[0,255,0]);
   const blue=texel(2,225);assert.ok(blue[2]>blue[1]&&blue[2]>blue[0]&&blue[3]===255);
+  const selected=texel(4,family('h3'));assert.deepEqual(selected,[0,255,0,255]);
+  const lookup=(x,y)=>data[6*width*4+y*palette.pixelMotifs.fill.width+x];
+  assert.equal(lookup(1,3),family('h3'),'removed red beside green takes green');
+  assert.equal(lookup(8,3),family('h5'),'the same removed red beside blue takes blue');
  }finally{ink.release();}
 });
 
-test('single accents use Pale to show their shapes and manual crops are specific to an image',()=>{
+test('projection keeps surviving cells fixed and stretches inside a crop from its own accents',()=>{
+ const red=family('h0'),green=family('h3'),blue=family('h5');
+ const owners=PALETTE_FAMILIES.map(id=>id==='h3'?0:id==='h5'?1:-1);
+ const spatial={width:2,height:5,cells:Uint8Array.of(green,red,red,red,red,green,red,red,blue,blue),families:PALETTE_FAMILIES};
+ const projected=buildPixelMotifs(spatial,owners).fill;
+ assert.equal(projected.families[0],String(green));
+ assert.equal(projected.families[8],String(blue));
+ assert.equal(projected.families[6],String(blue),'the gap is closer to blue along this tall image');
+ const cropped=buildPixelMotifs(spatial,owners,'scene-a',[0,0,1,.75]);
+ assert.ok([...cropped.fill.families].every(id=>id===String(green)));
+});
+
+test('a single surviving accent fills the whole motif and manual crops are specific to an image',()=>{
  const combo=imageColorCombo(sample());
  const solo={...settings,motifOverrides:{...settings.motifOverrides,h5:false}};
  assert.equal(matchedImageColors(combo,solo,'scene-a').textPixelMotifs.patches.length,2);
- assert.equal(matchedImageColors(combo,{...solo,ink:'color'},'scene-a').textPixelMotifs,undefined);
+ const colored=matchedImageColors(combo,{...solo,ink:'color'},'scene-a').textPixelMotifs;
+ assert.ok([...colored.fill.families].every(id=>id===String(family('h3'))));
  const rect=[.3,.4,.15,.2],manual={...settings,motifCrop:{image:'scene-a',rect}};
  const result=matchedImageColors(combo,manual,'scene-a').textPixelMotifs;
  assert.deepEqual(result.size,rect.slice(2));

@@ -55,7 +55,7 @@ export function matchedImageColors(combo:ImageColorCombo,settings:PaletteSetting
  const palette=imageTextPalette(combo.source,settings),first=palette[0],candidates=motifCandidates(combo.source,settings),members=candidates.filter(c=>c.enabled),available=candidates.length;
  let textRelations:ColorRelations|undefined,textField:ImageField|undefined,textPixelMotifs:PixelMotifs|undefined;
  const relations=settings.distribution==='image'&&combo.source.spatial;
- const repeat=settings.distribution==='pixels'&&settings.repeatMotifs&&(members.length>1||settings.ink!=='color');
+ const repeat=settings.distribution==='pixels'&&settings.repeatMotifs;
  if(relations||repeat){
   const destinations=new Map([...combo.source.accents,...combo.source.neutrals].map(c=>{
    const family=c.id??paletteFamily(paletteRGB(c.color));

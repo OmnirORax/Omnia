@@ -10,8 +10,10 @@ export function setThemeFocus(world:World,origin:Origin|undefined,delta:PaletteS
 export function setMotifMembership(world:World,origin:Origin|undefined,id:string,selection:boolean|'only',candidates:readonly {id:string;enabled:boolean}[]){
  const motifOverrides={...themeSettings(world,origin).motifOverrides};
  if(selection==='only'){
-  if(!candidates.some(candidate=>candidate.id===id))return;
-  for(const candidate of candidates)motifOverrides[candidate.id]=candidate.id===id;
+  const clicked=candidates.find(candidate=>candidate.id===id);
+  if(!clicked)return;
+  const isolated=clicked.enabled&&candidates.every(candidate=>!candidate.enabled||candidate.id===id);
+  for(const candidate of candidates)motifOverrides[candidate.id]=isolated||candidate.id===id;
  }else{
   if(!candidates.some(candidate=>candidate.id===id?selection:candidate.enabled))throw Error('Keep at least one motif color.');
   motifOverrides[id]=selection;

@@ -1,4 +1,4 @@
-import {PIXEL_MOTIF_LIMIT,type MotifRect,type PixelMotifs} from '../properties/pixelMotifs.ts';
+import {PIXEL_MOTIF_LIMIT,type MotifFill,type MotifRect,type PixelMotifs} from '../properties/pixelMotifs.ts';
 import type {ScenePalette} from './palette.ts';
 
 /** Find islands in the existing bounded color map. One empty cell can separate neighbors. */
@@ -27,8 +27,51 @@ function groupPixelMotifs({width,height,cells}:NonNullable<ScenePalette['spatial
  return shapes.sort((a,b)=>b.count-a.count).slice(0,PIXEL_MOTIF_LIMIT);
 }
 
+/** Exact nearest selected source cell, using horizontal sweeps and squared row distances. */
+function motifFill(spatial:NonNullable<ScenePalette['spatial']>,owners:readonly number[],crop?:MotifRect):MotifFill|undefined{
+ const {width,height,cells}=spatial;
+ const seeds=Array.from(cells,(family,at)=>{
+  if(!(owners[family]>=0))return false;
+  if(!crop)return true;
+  const x=(at%width+.5)/width,y=(Math.floor(at/width)+.5)/height;
+  return x>=crop[0]&&x<crop[0]+crop[2]&&y>=crop[1]&&y<crop[1]+crop[3];
+ });
+ if(!seeds.some(Boolean))return crop?motifFill(spatial,owners):undefined;
+ // Scan the shorter dimension for the second pass, even on very thin sources.
+ const transpose=height>width,columns=Math.max(width,height),rows=Math.min(width,height);
+ const at=(x:number,y:number)=>transpose?x*width+y:y*width+x;
+ const nearest=new Int32Array(cells.length).fill(-1),result=new Array<string>(cells.length);
+ for(let y=0;y<rows;y++){
+  let left=-1,right=-1;
+  for(let x=0;x<columns;x++){
+   if(seeds[at(x,y)])left=x;
+   nearest[y*columns+x]=left;
+  }
+  for(let x=columns-1;x>=0;x--){
+   if(seeds[at(x,y)])right=x;
+   const left=nearest[y*columns+x];
+   if(right>=0&&(left<0||right-x<x-left))nearest[y*columns+x]=right;
+  }
+ }
+ for(let y=0;y<rows;y++)for(let x=0;x<columns;x++){
+  const index=at(x,y);
+  let family=cells[index];
+  if(!seeds[index]){
+   let best=Infinity;
+   for(let row=0;row<rows;row++){
+    const column=nearest[row*columns+x];
+    if(column<0)continue;
+    const distance=(row-y)**2+(column-x)**2;
+    if(distance<best){best=distance;family=cells[at(column,row)];}
+   }
+  }
+  result[index]=family.toString(16);
+ }
+ return {width,height,families:result.join('')};
+}
+
 export function buildPixelMotifs(spatial:ScenePalette['spatial'],owners:readonly number[],image?:string,crop?:MotifRect):PixelMotifs|undefined{
- if(crop)return {image,owners,size:[crop[2],crop[3]],patches:[{source:crop,x:0,y:0}]};
+ if(crop)return {image,owners,fill:spatial&&motifFill(spatial,owners,crop),size:[crop[2],crop[3]],patches:[{source:crop,x:0,y:0}]};
  if(!spatial)return;
  const shapes=groupPixelMotifs(spatial,owners);
  if(!shapes.length)return;
@@ -42,5 +85,5 @@ export function buildPixelMotifs(spatial:ScenePalette['spatial'],owners:readonly
   packedWidth=Math.max(packedWidth,x+shape.width);rowHeight=Math.max(rowHeight,shape.height);x+=shape.width+1;
   return patch;
  });
- return {image,owners,size:[packedWidth/width,(y+rowHeight)/height],patches};
+ return {image,owners,fill:motifFill(spatial,owners),size:[packedWidth/width,(y+rowHeight)/height],patches};
 }
