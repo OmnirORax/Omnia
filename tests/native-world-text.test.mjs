@@ -1,7 +1,9 @@
 import test from 'node:test';import assert from 'node:assert/strict';import * as T from 'three';
 import {WORLD_TEXT_LAYER,nativeTextMaterial,withoutWorldText,renderWorldText} from '../src/world/textPass.ts';
 import {packedTextureGlow,updateTextureTextPalette} from '../src/textureGlow.ts';
-import {createWallpaperSampling,wallpaperSampleGLSL} from '../src/scene/wallpaperSample.ts';import {emptyWorld,addStructure} from '../src/core/model.ts';import {writePaint,readPaint,nodeTextPaint} from '../src/core/appearance.ts';
+import {createWallpaperSampling,wallpaperSampleGLSL} from '../src/scene/wallpaperSample.ts';
+import {vividImagePixelGLSL} from '../src/properties/imagePixelInk.ts';
+import {textPalettePair} from '../src/properties/textPalette.ts';import {emptyWorld,addStructure} from '../src/core/model.ts';import {writePaint,readPaint,nodeTextPaint} from '../src/core/appearance.ts';
 import {sceneOutputPixelRatio,budgetPixelRatio,RENDER_BUDGET} from '../src/renderBudget.ts';
 test('native text pass uses output pixels, graph depth and restores renderer state after rendering or failure',()=>{
  const scene=new T.Scene(),camera=new T.PerspectiveCamera();scene.background=new T.Color('red');camera.layers.enable(WORLD_TEXT_LAYER);const mask=camera.layers.mask,background=scene.background,depth=new T.DepthTexture(),material=new T.MeshBasicMaterial();nativeTextMaterial(material);const shader={uniforms:{},fragmentShader:T.ShaderLib.basic.fragmentShader};material.onBeforeCompile(shader,{});
@@ -21,6 +23,15 @@ test('Image pixels reads the live wallpaper at the native text viewport and pres
  const shader={uniforms:{},fragmentShader:T.ShaderLib.basic.fragmentShader};
  material.onBeforeCompile(shader,{});
  assert.ok(shader.fragmentShader.includes(wallpaperSampleGLSL));
+ assert.match(shader.fragmentShader,/ink=glow;\s*if\(textPaletteInk<1.0\)\{/);
+ assert.match(shader.fragmentShader,/glow=linearColour\(hue\);\s*ink=linearColour\(mix\(vec3\(1.0\),hue,textPaletteInk\)\);/);
+ const channel=Function('rgb','low','span','max',`return ${vividImagePixelGLSL.match(/vec3 vivid=([^;]+);/)[1]};`);
+ const boost=(rgb)=>rgb.map(c=>channel(c,Math.min(...rgb),Math.max(...rgb)-Math.min(...rgb),Math.max));
+ for(const [sample,swatch] of [[[.8,.55,.55],'#ff0000'],[[.48,.48,.82],'#0000ff']]){
+  const vivid=boost(sample);
+  const pale=vivid.map(c=>Math.round((.75+.25*c)*255).toString(16)).join('');
+  assert.equal(`#${pale}`,textPalettePair({mode:'text',ink:'pale',colors:[swatch]},0).color);
+ }
  assert.ok(shader.fragmentShader.includes('sampleWallpaper(gl_FragCoord.xy/wallpaperViewport)'));
  assert.equal(shader.uniforms.textPaletteInk.value,.25);
  let draws=0;

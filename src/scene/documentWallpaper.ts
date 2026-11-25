@@ -1,14 +1,20 @@
+import {vividImagePixelGLSL} from '../properties/imagePixelInk.ts';
 import * as THREE from 'three';
 import {FullScreenQuad} from 'three/addons/postprocessing/Pass.js';
 import {wallpaperSampleGLSL,type WallpaperSampleUniforms} from './wallpaperSample.ts';
 
-const consumers=new Set<HTMLElement>();
+type DocumentInk='color'|'pale';
+const consumers={color:new Set<HTMLElement>(),pale:new Set<HTMLElement>()};
+const inks=['color','pale'] as const;
 const listeners=new Set<()=>void>();
+const demandedInks=()=>inks.filter(ink=>consumers[ink].size>0);
+const frameKey={color:'scene-text-frame',pale:'scene-text-pale-frame'} as const;
 
-export function useDocumentWallpaper(host:HTMLElement,enabled:boolean){
- const active=consumers.size>0;
- if(enabled)consumers.add(host);else consumers.delete(host);
- if(active!==(consumers.size>0))for(const listener of listeners)listener();
+export function useDocumentWallpaper(host:HTMLElement,enabled:boolean,pale=false){
+ const prior=demandedInks().join(',');
+ for(const ink of inks)consumers[ink].delete(host);
+ if(enabled)consumers[pale?'pale':'color'].add(host);
+ if(prior!==demandedInks().join(','))for(const listener of listeners)listener();
 }
 
 const MOTION_INTERVAL=1000/15;
@@ -32,19 +38,25 @@ function wallpaperBitmap(width:number,height:number,bytes:Uint8Array<ArrayBuffer
 
 /** Publish rendered wallpaper frames only while a document needs them. */
 export function createDocumentWallpaper(renderer:THREE.WebGLRenderer,uniforms:WallpaperSampleUniforms){
- let width=1,height=1,revision=0,timer:ReturnType<typeof setTimeout>|undefined,running=false,closed=false,url:string|undefined;
+ let width=1,height=1,revision=0,timer:ReturnType<typeof setTimeout>|undefined,running=false,closed=false;
+ const urls=new Map<DocumentInk,string>(),paleFrame={value:0};
  let quad:FullScreenQuad|undefined,material:THREE.ShaderMaterial|undefined,target:THREE.WebGLRenderTarget|undefined;
  let lastMotion=-Infinity,lastCapture=-Infinity,scheduledAt=Infinity,pending=false;
- const available=()=>!closed&&consumers.size>0&&!!uniforms.image.value;
+ const available=()=>!closed&&(consumers.color.size>0||consumers.pale.size>0)&&!!uniforms.image.value;
  const inMotion=(now:number)=>now-lastMotion<MOTION_IDLE;
  const releaseTarget=()=>{target?.dispose();target=undefined;};
+ const clearFrame=(ink:DocumentInk)=>{
+  const url=urls.get(ink);
+  if(!url)return;
+  const root=document.documentElement;
+  root.style.removeProperty(`--${frameKey[ink]}`);
+  root.toggleAttribute(`data-${frameKey[ink]}`,false);
+  URL.revokeObjectURL(url);
+  urls.delete(ink);
+ };
  const clear=()=>{
-  const style=document.documentElement.style;
-  style.removeProperty('--scene-text-frame');
-  style.removeProperty('--scene-text-frame-size');
-  document.documentElement.toggleAttribute('data-scene-text-frame',false);
-  if(url)URL.revokeObjectURL(url);
-  url=undefined;
+  for(const ink of inks)clearFrame(ink);
+  document.documentElement.style.removeProperty('--scene-text-frame-size');
  };
  const schedule=()=>{
   if(running||!available())return;
@@ -63,7 +75,8 @@ export function createDocumentWallpaper(renderer:THREE.WebGLRenderer,uniforms:Wa
  };
  const refresh=()=>{revision++;pending=true;schedule();};
  const demand=()=>{
-  if(!consumers.size){clear();if(!running)releaseTarget();}
+  for(const ink of inks)if(!consumers[ink].size)clearFrame(ink);
+  if(!consumers.color.size&&!consumers.pale.size){clear();if(!running)releaseTarget();}
   refresh();
  };
  listeners.add(demand);
@@ -72,38 +85,47 @@ export function createDocumentWallpaper(renderer:THREE.WebGLRenderer,uniforms:Wa
   if(!available())return;
   running=true;pending=false;lastCapture=performance.now();
   let nextUrl:string|undefined;
-  const scale=Math.min(1,Math.sqrt((moving?MOTION_PIXELS:STATIC_PIXELS)/(width*height)));
+  const requested=demandedInks();
+  const scale=Math.min(1,Math.sqrt((moving?MOTION_PIXELS:STATIC_PIXELS)/(width*height*requested.length)));
   const w=Math.max(1,Math.floor(width*scale)),h=Math.max(1,Math.floor(height*scale));
   try{
    target??=new THREE.WebGLRenderTarget(w,h,{depthBuffer:false});
    target.setSize(w,h);
    if(!quad){
     material=new THREE.ShaderMaterial({
-     uniforms,depthTest:false,depthWrite:false,toneMapped:false,
+     uniforms:{...uniforms,paleFrame},depthTest:false,depthWrite:false,toneMapped:false,
      vertexShader:'varying vec2 screenUV; void main(){screenUV=uv;gl_Position=vec4(position.xy,1.0,1.0);}',
      // Write display-space bytes in the order required by BMP.
-     fragmentShader:`${wallpaperSampleGLSL}
-      varying vec2 screenUV;
-      void main(){gl_FragColor=vec4(displayColour(sampleWallpaper(screenUV)).bgr,1.0);}`,
+     fragmentShader:`${wallpaperSampleGLSL}${vividImagePixelGLSL}
+      uniform float paleFrame; varying vec2 screenUV;
+      void main(){
+       vec3 rgb=displayColour(sampleWallpaper(screenUV));
+       if(paleFrame>.5)rgb=vividImagePixel(rgb);
+       gl_FragColor=vec4(rgb.bgr,1.0);
+      }`,
     });
     quad=new FullScreenQuad(material);
    }
-   const previous=renderer.getRenderTarget();
-   try{renderer.setRenderTarget(target);quad.render(renderer);}finally{renderer.setRenderTarget(previous);}
-   const bytes=new Uint8Array(w*h*4);
-   await renderer.readRenderTargetPixelsAsync(target,0,0,w,h,bytes);
-   if(captured!==revision||!available())return;
-   nextUrl=URL.createObjectURL(wallpaperBitmap(w,h,bytes));
-   const frame=new Image();
-   frame.src=nextUrl;
-   await frame.decode();
-   if(captured!==revision||!available())return;
-   const style=document.documentElement.style;
-   style.setProperty('--scene-text-frame',`url(${JSON.stringify(nextUrl)})`);
-   style.setProperty('--scene-text-frame-size',`${width}px ${height}px`);
-   document.documentElement.toggleAttribute('data-scene-text-frame',true);
-   if(url)URL.revokeObjectURL(url);
-   url=nextUrl;nextUrl=undefined;
+   for(const ink of requested){
+    paleFrame.value=Number(ink==='pale');
+    const previous=renderer.getRenderTarget();
+    try{renderer.setRenderTarget(target);quad.render(renderer);}finally{renderer.setRenderTarget(previous);}
+    const bytes=new Uint8Array(w*h*4);
+    await renderer.readRenderTargetPixelsAsync(target,0,0,w,h,bytes);
+    if(captured!==revision||!available())return;
+    nextUrl=URL.createObjectURL(wallpaperBitmap(w,h,bytes));
+    const frame=new Image();
+    frame.src=nextUrl;
+    await frame.decode();
+    if(captured!==revision||!available())return;
+    const root=document.documentElement;
+    root.style.setProperty(`--${frameKey[ink]}`,`url(${JSON.stringify(nextUrl)})`);
+    root.style.setProperty('--scene-text-frame-size',`${width}px ${height}px`);
+    root.toggleAttribute(`data-${frameKey[ink]}`,true);
+    const previousUrl=urls.get(ink);
+    if(previousUrl)URL.revokeObjectURL(previousUrl);
+    urls.set(ink,nextUrl);nextUrl=undefined;
+   }
   }catch{/* Keep the document palette when display-color capture is unavailable. */}
   finally{
    if(nextUrl)URL.revokeObjectURL(nextUrl);

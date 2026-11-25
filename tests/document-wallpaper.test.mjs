@@ -7,7 +7,7 @@ import {createWallpaperSampling} from '../src/scene/wallpaperSample.ts';
 
 test('open image-pixel documents get display RGB at viewport coordinates from a bounded capture',{timeout:3000},async()=>{
  const previousDocument=globalThis.document,previousImage=globalThis.Image;
- const style=new Map(),attributes=new Set(),host={};let target=null,captures=0,captured;
+ const style=new Map(),attributes=new Set(),host={};let target=null,captures=0,captured,paleCapture=false;
  let publish;
  const published=()=>new Promise(resolve=>{publish=resolve;});
  globalThis.document={
@@ -20,9 +20,12 @@ test('open image-pixel documents get display RGB at viewport coordinates from a 
  const renderer={
   getRenderTarget:()=>target,
   setRenderTarget(next){target=next;},
-  render(mesh){captured=target;assert.match(mesh.material.fragmentShader,/displayColour\(sampleWallpaper\(screenUV\)\)\.bgr/);},
+  render(mesh){
+   captured=target;paleCapture=mesh.material.uniforms.paleFrame.value===1;
+   assert.match(mesh.material.fragmentShader,/if\(paleFrame>\.5\)rgb=vividImagePixel\(rgb\);/);
+  },
   async readRenderTargetPixelsAsync(read,_x,_y,w,h,bytes){
-   captures++;assert.equal(target,null);assert.equal(read,captured);assert.equal(w,captures===2?960:1920);assert.equal(h,captures===2?540:1080);bytes[0]=captures===1?123:234;
+   captures++;assert.equal(target,null);assert.equal(read,captured);assert.equal(w,captures===2?960:1920);assert.equal(h,captures===2?540:1080);bytes[0]=paleCapture?255:captures===1?123:234;
   },
  };
  const {uniforms}=createWallpaperSampling(),image=new T.Texture();
@@ -36,8 +39,8 @@ test('open image-pixel documents get display RGB at viewport coordinates from a 
   assert.equal(captures,1);assert.match(style.get('--scene-text-frame'),/^url\("blob:/);
   assert.equal(style.get('--scene-text-frame-size'),'3840px 2160px');
   assert.ok(attributes.has('data-scene-text-frame'));
-  const bitmap=async()=>{
-   const fileUrl=JSON.parse(style.get('--scene-text-frame').slice(4,-1));
+  const bitmap=async(key='--scene-text-frame')=>{
+   const fileUrl=JSON.parse(style.get(key).slice(4,-1));
    const response=await fetch(fileUrl);
    assert.equal(response.headers.get('content-type'),'image/bmp');
    return new DataView(await response.arrayBuffer());
@@ -56,6 +59,12 @@ test('open image-pixel documents get display RGB at viewport coordinates from a 
   await published();
   assert.equal((await bitmap()).getInt32(18,true),1920);
   assert.equal(captures,3);
+  const pale=published();
+  useDocumentWallpaper(host,true,true);
+  await pale;
+  assert.ok(!attributes.has('data-scene-text-frame'));
+  assert.ok(attributes.has('data-scene-text-pale-frame'));
+  assert.equal((await bitmap('--scene-text-pale-frame')).getUint8(54),255);
   useDocumentWallpaper(host,false);
   assert.equal(style.size,0);assert.equal(attributes.size,0);
  }finally{

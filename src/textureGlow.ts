@@ -1,3 +1,4 @@
+import {vividImagePixelGLSL} from './properties/imagePixelInk.ts';
 import {createWallpaperSampling,wallpaperSampleGLSL,type WallpaperSampleUniforms} from './scene/wallpaperSample.ts';
 import {initializeTextureInkProgression,updateTextureInkProgression,inkProgressionShader} from './textureInkProgression.ts';
 import {isFocusPalette,focusPattern,focusPeriod,focusPaletteAxis,isImageField} from './properties/focusPalette.ts';
@@ -100,7 +101,12 @@ export function packedTextureGlow(material:T.MeshBasicMaterial){
     vec3 ink=diffuseColor.rgb,glow=glowInkColor;
     ${imagePixels?`if(wallpaperAvailable>.5){
      glow=sampleWallpaper(gl_FragCoord.xy/wallpaperViewport);
-     ink=textPaletteInk>=1.0?glow:linearColour(mix(vec3(1.0),displayColour(clamp(glow,0.0,1.0)),textPaletteInk));
+     ink=glow;
+     if(textPaletteInk<1.0){
+      vec3 hue=vividImagePixel(displayColour(glow));
+      glow=linearColour(hue);
+      ink=linearColour(mix(vec3(1.0),hue,textPaletteInk));
+     }
     }else`:''}
     if(textPaletteCount>1&&inkCoverage+halo>0.0){vec3 hue=paletteGlow(vMapUv,coverage);ink=paletteLinear(mix(vec3(1.0),hue,textPaletteInk));glow=paletteLinear(hue);}
     halo*=step(${TEXT_EMISSION_THRESHOLD},max(glow.r,max(glow.g,glow.b)));
@@ -109,7 +115,7 @@ export function packedTextureGlow(material:T.MeshBasicMaterial){
     diffuseColor.a*=total;
     if(textPatternDebug&&textPaletteCount>1){diffuseColor.rgb=paletteLinear(paletteGlow(vMapUv,coverage));diffuseColor.a=max(diffuseColor.a,0.4*opacity);}
    `:'diffuseColor.a*=coverage.r;';
-   const wallpaperShader=imagePixels?wallpaperSampleGLSL+'uniform vec2 wallpaperViewport; uniform float wallpaperAvailable;\n':'';
+   const wallpaperShader=imagePixels?wallpaperSampleGLSL+vividImagePixelGLSL+'uniform vec2 wallpaperViewport; uniform float wallpaperAvailable;\n':'';
    shader.fragmentShader=wallpaperShader+paletteShader+'uniform vec3 glowInkColor;\n'+shader.fragmentShader.replace('#include <map_fragment>',`
     #ifdef USE_MAP
     // Keep text's fine strokes instead of blending too early into a coarser
@@ -119,6 +125,6 @@ export function packedTextureGlow(material:T.MeshBasicMaterial){
     ${coverage}
     #endif
    `);
-  };target.customProgramCacheKey=()=>target===material?`omnium.packed-text-glow.base.v20.${Number(state.imagePixels)}`:'omnium.packed-text-glow.mask.v3';
+  };target.customProgramCacheKey=()=>target===material?`omnium.packed-text-glow.base.v21.${Number(state.imagePixels)}`:'omnium.packed-text-glow.mask.v3';
  });
 }

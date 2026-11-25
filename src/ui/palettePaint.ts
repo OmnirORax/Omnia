@@ -60,9 +60,11 @@ export function createPalettePaint(host:HTMLElement,inkEnabled=false){const norm
  render(paint:Paint){
   const p=paint.palette,patterned=!!p&&p.colors.length>1;
   const pixels=inkEnabled&&p?.distribution==='pixels',debug=patterned&&!pixels&&!!p.debugPattern;
+  const pale=pixels&&paletteInk(p)<1;
   if(pixels)host.style.setProperty('--document-image-pale',String(1-paletteInk(p)));
+  host.toggleAttribute('data-document-image-pale',pale);
   host.toggleAttribute('data-document-image-pixels',pixels);
-  if(inkEnabled)useDocumentWallpaper(host,pixels);
+  if(inkEnabled)useDocumentWallpaper(host,pixels,pale);
   const fill=inkEnabled&&!debug?paletteFillOpacity(p):1;
   const active=patterned||pixels||fill<1,changed=active!==enabled;enabled=active;
   if(active&&p){
