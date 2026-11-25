@@ -75,7 +75,7 @@ export function packedTextureGlow(material:T.MeshBasicMaterial){
     halo*=step(${TEXT_EMISSION_THRESHOLD},max(glow.r,max(glow.g,glow.b)));total=clean+halo;
     diffuseColor.rgb=(ink*clean+glow*halo)/max(total,.00001);
     diffuseColor.a*=total;
-    if(textPatternDebug&&textPaletteCount>1){diffuseColor.rgb=paletteLinear(paletteGlow(vMapUv,coverage));diffuseColor.a=max(diffuseColor.a,0.4*opacity);}
+    if(textPatternDebug&&textPaletteCount>1){float underlay=(1.0-clean)*0.08*opacity;vec3 field=paletteLinear(paletteGlow(vMapUv,coverage));diffuseColor.rgb=(diffuseColor.rgb*diffuseColor.a+field*underlay)/max(diffuseColor.a+underlay,0.00001);diffuseColor.a=min(1.0,diffuseColor.a+underlay);}
    `:'diffuseColor.a*=coverage.r;';
    shader.fragmentShader=paletteShader+'uniform vec3 glowInkColor;\n'+shader.fragmentShader.replace('#include <map_fragment>',`
     #ifdef USE_MAP
@@ -86,6 +86,6 @@ export function packedTextureGlow(material:T.MeshBasicMaterial){
     ${coverage}
     #endif
    `);
-  };target.customProgramCacheKey=()=>target===material?'omnium.packed-text-glow.base.v17':'omnium.packed-text-glow.mask.v3';
+  };target.customProgramCacheKey=()=>target===material?'omnium.packed-text-glow.base.v18':'omnium.packed-text-glow.mask.v3';
  });
 }

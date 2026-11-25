@@ -11,7 +11,7 @@ export function sampleSceneGrid(pixels:Uint8ClampedArray,width:number,height:num
  for(let y=0;y<h;y++)for(let x=0;x<w;x++){const at=(Math.min(height-1,Math.floor((y+.5)*height/h))*width+Math.min(width-1,Math.floor((x+.5)*width/w)))*4;out.set(pixels.subarray(at,at+4),(y*w+x)*4);}
  return {pixels:out,width:w,height:h};
 }
-export function paletteFamily(rgb:readonly number[]){const hi=Math.max(...rgb),lo=Math.min(...rgb),hue=colorHue(rgb);return (hi<32||hi===0||(hi-lo)/hi<.18)?`n${hi<64?0:hi<190?1:2}`:`h${hue<15||hue>=345?0:hue<55?1:hue<85?2:hue<165?3:hue<205?4:hue<255?5:hue<290?6:7}`;}
+export function paletteFamily(rgb:readonly number[]){const hi=Math.max(...rgb),lo=Math.min(...rgb),hue=colorHue(rgb);if(hi>=210&&lo>=160&&(hi-lo)/hi<.3)return 'n2';return (hi<32||hi===0||(hi-lo)/hi<.18)?`n${hi<64?0:hi<190?1:2}`:`h${hue<15||hue>=345?0:hue<55?1:hue<85?2:hue<165?3:hue<205?4:hue<255?5:hue<290?6:7}`;}
 export type ScenePalette={spatial?:{width:number;height:number;families:readonly string[];cells:Uint8Array;rgb?:string};tones:SceneTones;accents:{id?:string;color:string;weight:number;salience?:number;meanColor?:string}[];neutrals:{id?:string;color:string;weight:number;salience?:number;meanColor?:string}[]};
 /** Count color families together, so many nearby blues cannot displace an orange accent. */
 export function extractScenePalette(signal:SceneSignal):ScenePalette{

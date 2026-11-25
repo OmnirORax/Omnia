@@ -1,0 +1,27 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {paletteFamily} from '../src/scene/palette.ts';
+import {imageColorCombo,motifCandidates,matchedImageColors} from '../src/scene/colorCombo.ts';
+import {imageField} from '../src/scene/imageField.ts';
+import {visibleFieldSlices} from '../src/text/fieldPresentation.ts';
+import {visibleTextStream} from '../src/text/startEndProgression.ts';
+test('warm and cool near-white highlights remain white without swallowing saturated accents',()=>{
+ for(const color of [[245,220,185],[190,220,250],[255,245,225]])assert.equal(paletteFamily(color),'n2');for(const color of [[255,200,30],[20,60,255],[255,30,30]])assert.notEqual(paletteFamily(color),'n2');
+});
+test('quiet black background is not a default motif, while explicit black and high-contrast black motifs remain available',()=>{
+ const width=64,height=64,pixels=new Uint8ClampedArray(width*height*4);for(let y=0;y<height;y++)for(let x=0;x<width;x++)pixels.set([...(x<48?[8,8,12]:y%4<2?[245,220,185]:[20,100,255]),255],(y*width+x)*4);const source=imageColorCombo({pixels,width,height}),black=motifCandidates(source.source).find(c=>c.id==='n0');assert.ok(black);assert.equal(black.enabled,false);const normal=matchedImageColors(source,{distribution:'image'});assert.ok(!normal.textPalette.includes('#000000'));assert.ok(normal.textPalette.includes('#ffffff'));assert.equal(motifCandidates(source.source,{motifOverrides:{n0:true}}).find(c=>c.id==='n0').enabled,true);
+ const checker=new Uint8ClampedArray(width*height*4);for(let y=0;y<height;y++)for(let x=0;x<width;x++)checker.set([...(Math.floor(x/4)%2?[255,20,30]:[0,0,0]),255],(y*width+x)*4);assert.equal(motifCandidates(imageColorCombo({pixels:checker,width,height}).source).find(c=>c.id==='n0').enabled,true);
+});
+test('thin connected light rings stay in their source positions even when a supplied quota disagrees',()=>{
+ const width=64,height=64,cells=Uint8Array.from({length:width*height},(_,at)=>Math.abs(Math.hypot(at%width-32,Math.floor(at/width)-32)-20)<.65?2:at%width<32?0:1),source={spatial:{width,height,cells}},field=imageField(source,[0,1,2],[.499,.499,.002]),white=[...cells].filter(c=>c===2).length;assert.ok(field.cells.filter(c=>c===2).length>=white*.9);for(let at=0;at<cells.length;at++)if(field.cells[at]===2)assert.equal(cells[at],2);assert.ok(field.cells.filter(c=>c===2).length>4096*.002*5);
+ const inverse=imageField(source,[0,1,2],[.002,.499,.499],[],true);assert.deepEqual([0,1,2].map(c=>inverse.cells.filter(v=>v===c).length).sort((a,b)=>a-b),[0,1,2].map(c=>field.cells.filter(v=>v===c).length).sort((a,b)=>a-b));
+});
+test('visible text bounds exclude offscreen text and empty gaps and refit as the viewport scrolls',()=>{
+ const p=(from,left,top,right,bottom)=>({element:{},from,to:from+1,left,top,right,bottom}),parts=[p(0,0,-100,200,-90),p(1,10,20,40,30),p(2,80,20,110,30),p(3,20,60,70,70),p(4,0,100,200,110)],clip={left:0,top:0,right:120,bottom:80},visible=visibleFieldSlices(parts,clip);assert.deepEqual(visible.map(p=>[p.from,p.x,p.y]),[[1,0,0],[2,70,0],[3,10,10]]);assert.deepEqual(visible[0].bounds,{width:100,height:20});assert.equal(visible[0].bounds,visible[2].bounds);const scrolled=visibleFieldSlices(parts,{...clip,top:50,bottom:90});assert.deepEqual(scrolled.map(p=>[p.from,p.x,p.y]),[[3,0,0]]);assert.deepEqual(scrolled[0].bounds,{width:50,height:10});assert.equal(visibleTextStream(visible).total,110);assert.equal(visibleTextStream(scrolled).total,50);
+ const partial=visibleFieldSlices([p(0,-10,-5,30,5)],{left:0,top:0,right:100,bottom:100});assert.deepEqual(partial[0].bounds,{width:30,height:5});assert.equal(partial[0].x,-10);assert.equal(partial[0].y,-5);
+});
+test('scroll refits coalesce and stop after the document palette plugin is disposed',async()=>{
+ const {EditorState}=await import('@codemirror/state'),{documentPalette,setDocumentPalette,showDocumentPalette}=await import('../src/text/palettePresentation.ts'),{glyphField}=await import('../src/text/source.ts');let state=EditorState.create({doc:'abc',extensions:[glyphField.init(()=>[])]});const scrollDOM=new EventTarget(),requests=[],view={state,scrollDOM,visibleRanges:[{from:0,to:3}],requestMeasure:m=>requests.push(m)},plugin=documentPalette.create(view);let renders=0;plugin.field={read:()=>[],render(){renders++;},clear(){},invalidate(){}};plugin.cuts=[0,3];const tr=state.update({effects:[setDocumentPalette.of({mode:'text',distribution:'image',colors:['#ffffff','#ff0000'],field:{width:2,height:1,cells:[0,1],fit:true}}),showDocumentPalette.of(true)]});view.state=tr.state;plugin.update({view,transactions:[tr]});scrollDOM.dispatchEvent(new Event('scroll'));assert.equal(requests.length,1);requests[0].write([{from:0,to:3}]);assert.equal(renders,1);scrollDOM.dispatchEvent(new Event('scroll'));scrollDOM.dispatchEvent(new Event('scroll'));assert.equal(requests.length,2);plugin.destroy();scrollDOM.dispatchEvent(new Event('scroll'));assert.equal(requests.length,2);requests[1].write([]);assert.equal(renders,1);
+});
+test('white motif highlights do not get globally recolored dark by the contrast adjustment',()=>{
+ const pixels=new Uint8ClampedArray(Array.from({length:1000},(_,i)=>[...(i<900?[255,240,215]:[245,20,30]),255]).flat()),source=imageColorCombo(pixels),combo=matchedImageColors(source,{distribution:'image',ink:'color'});assert.ok(combo.textPalette.includes('#ffffff'));assert.ok(!combo.textPalette.includes('#000000'));
+});
