@@ -1,4 +1,3 @@
-import {isSourceField} from '../properties/focusPalette.ts';
 import {PALETTE_COLOR_LIMIT} from '../properties/textPalette.ts';
 import {panel} from '../ui/panel.ts';
 import {bindColorSession} from '../ui/colorSession.ts';
@@ -14,7 +13,7 @@ export function colorInclusionPanel(host:Host,origin?:Origin){
  const view=panel(origin?'Node colors':'Theme colors',()=>{live=false;stop();stopMotifs();session.cancel();}),input=document.createElement('input'),add=document.createElement('button'),grid=motifSwatches((candidate,enabled)=>change(world=>setMotifMembership(world,origin,candidate.id,enabled,host.motifs?.(origin)??[]))),reset=document.createElement('button');input.type='color';input.value=draft;input.setAttribute('aria-label','Include hue');add.textContent='+';add.setAttribute('aria-label','Include current color');reset.textContent='↺';reset.setAttribute('aria-label','Use image motif');reset.onclick=()=>change(world=>setThemeInclusions(world,origin,[]));view.body.append(input,add,reset,grid.root);
  const include=(color:string)=>change(world=>setThemeInclusions(world,origin,[...(themeSettings(world,origin).included??[]),color]));
  const session=bindColorSession(input,{read:()=>draft,preview:()=>{},commit:color=>{draft=color;include(color);},cancel:()=>{}});add.onclick=()=>include(input.value);
- function sync(){if(origin&&!locate(host.read(),origin)){view.close();return;}const source=isSourceField(readPaint(host.read(),origin?'nodeText':'text',origin).palette),colors=themeSettings(host.read(),origin).included??[];grid.render(host.motifs?.(origin)??[],source);input.disabled=source;add.disabled=source||colors.length>=PALETTE_COLOR_LIMIT;reset.disabled=source||!colors.length;}
+ function sync(){if(origin&&!locate(host.read(),origin)){view.close();return;}const colors=themeSettings(host.read(),origin).included??[];grid.render(host.motifs?.(origin)??[]);add.disabled=colors.length>=PALETTE_COLOR_LIMIT;reset.disabled=!colors.length;}
  const stopMotifs=host.subscribeMotifs?.(sync)??(()=>{});
  stop=host.subscribe(sync);sync();return {...view,origin,openPicker(){input.focus();try{if(input.showPicker)input.showPicker();else input.click();}catch{/* The visible input remains available when native opening is restricted. */}}};
 }

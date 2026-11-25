@@ -1,5 +1,3 @@
-import {nativeFieldSource} from '../properties/nativeField.ts';
-import {nativeSceneSample} from './nativeSample.ts';
 import {sampleSceneGrid,type SceneSample} from './palette.ts';
 import NormalizationWorker from './normalization.worker?worker&inline';
 import {sampleScenePixels,normalizationKey,type NormalizationPreferences,type NormalizationReport} from './normalization.ts';
@@ -71,10 +69,10 @@ export async function forgetNormalizedScene(original:Blob){
 }
 
 /** Read-only bounded scene signal input; normalization's canonical sample is never replaced. */
-export async function sceneSourceSample(original:Blob,signal?:AbortSignal,fullResolution=false){
+export async function sceneSourceSample(original:Blob,signal?:AbortSignal){
  aborted(signal);const digest=await crypto.subtle.digest('SHA-256',await original.arrayBuffer()),hash=Array.from(new Uint8Array(digest),v=>v.toString(16).padStart(2,'0')).join('');aborted(signal);
- const cached=paletteSamples.get(hash),native=fullResolution?nativeFieldSource(hash):undefined;if(cached&&(!fullResolution||native))return {key:hash,...cached,pixels:cached.pixels.slice(),native:native?{key:hash,width:native.width,height:native.height}:cached.native};
+ const cached=paletteSamples.get(hash);if(cached)return {key:hash,...cached,pixels:cached.pixels.slice()};
  const image=await createImageBitmap(original);let sample:SceneSample;
- try{aborted(signal);if(fullResolution){sample=await nativeSceneSample(image,hash,pixels=>new Promise<Uint8Array>((resolve,reject)=>{const worker=new NormalizationWorker(),cleanup=()=>{worker.terminate();signal?.removeEventListener('abort',cancel);},cancel=()=>{cleanup();reject(new DOMException('Pattern decoding cancelled.','AbortError'));};worker.onmessage=event=>{cleanup();if(event.data.error)reject(Error(event.data.error));else resolve(event.data.indices);};worker.onerror=()=>{cleanup();reject(Error('Native pattern classification failed.'));};signal?.addEventListener('abort',cancel,{once:true});worker.postMessage({kind:'families',pixels},[pixels.buffer]);}));}else{if(image.width>4096||image.height>4096||image.width*image.height>12_000_000)throw new Error('Scene exceeds the signal analysis limit.');const scale=Math.min(1,Math.sqrt(4096/(image.width*image.height))),canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.floor(image.width*scale));canvas.height=Math.max(1,Math.floor(image.height*scale));const ctx=canvas.getContext('2d',{willReadFrequently:true});if(!ctx)throw new Error('Scene colour analysis is unavailable.');ctx.drawImage(image,0,0,canvas.width,canvas.height);sample={pixels:ctx.getImageData(0,0,canvas.width,canvas.height).data,width:canvas.width,height:canvas.height};}}finally{image.close();}
+ try{aborted(signal);if(image.width>4096||image.height>4096||image.width*image.height>12_000_000)throw new Error('Scene exceeds the signal analysis limit.');const scale=Math.min(1,Math.sqrt(4096/(image.width*image.height))),canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.floor(image.width*scale));canvas.height=Math.max(1,Math.floor(image.height*scale));const ctx=canvas.getContext('2d',{willReadFrequently:true});if(!ctx)throw new Error('Scene colour analysis is unavailable.');ctx.drawImage(image,0,0,canvas.width,canvas.height);sample={pixels:ctx.getImageData(0,0,canvas.width,canvas.height).data,width:canvas.width,height:canvas.height};}finally{image.close();}
  if(paletteSamples.size>=8)paletteSamples.delete(paletteSamples.keys().next().value!);paletteSamples.set(hash,sample);aborted(signal);return {key:hash,...sample,pixels:sample.pixels.slice()};
 }

@@ -160,5 +160,3 @@ input[type="number"]:enabled:not([readonly]), input[inputmode="numeric"]:enabled
 
 [data-pattern-debug] .cm-image-palette{background-clip:border-box;-webkit-background-clip:border-box;-webkit-text-fill-color:#fff;text-shadow:0 1px 2px #000,0 -1px 2px #000;outline:1px dashed #fff}
 .theme-pattern-preview{height:18px;background-size:100% 100%;background-repeat:no-repeat;border:1px dashed #fff}.theme-pattern-preview[hidden]{display:none}
-
-.scene-content .motif-swatches[hidden],.scene-content .theme-inverse[hidden]{display:none}
