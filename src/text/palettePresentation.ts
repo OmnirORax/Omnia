@@ -43,7 +43,10 @@ export const documentPalette=ViewPlugin.fromClass(class{
   if(changed||update.docChanged||update.viewportChanged)this.decorations=this.build(update.view);
   if(!this.enabled||!usesPixelCoordinates(this.palette))this.pixels.clear();
   if(usesPixelCoordinates(this.palette)){this.field.clear();this.ink.clear();this.stream.clear();}
-  if((usesPixelCoordinates(this.palette)||isImageField(this.palette)||['ink-serpentine','start-end'].includes(this.palette?.progression??''))&&this.enabled){if(paintChanged||changed||update.docChanged||update.viewportChanged||update.geometryChanged)this.measure(update.view,changed||update.docChanged||update.viewportChanged||update.geometryChanged);}else{this.field.clear();this.ink.clear();this.stream.clear();this.rows=[];this.dirty=true;}
+  // Selection-dependent formatting can replace spans without changing document geometry.
+  // Rebind the painters to the mounted DOM after that redraw; keep their raster caches.
+  const redraw=changed||update.docChanged||update.viewportChanged||update.geometryChanged||update.selectionSet||update.focusChanged;
+  if((usesPixelCoordinates(this.palette)||isImageField(this.palette)||['ink-serpentine','start-end'].includes(this.palette?.progression??''))&&this.enabled){if(paintChanged||redraw)this.measure(update.view,!!redraw);}else{this.field.clear();this.ink.clear();this.stream.clear();this.rows=[];this.dirty=true;}
  }
  destroy(){this.closed=true;this.pixels.clear();this.field.clear();this.ink.clear();this.stream.clear();this.rows=[];this.fontSet?.removeEventListener('loadingdone',this.onFont);}
  build(view:EditorView){if(!this.enabled)return Decoration.none;const ranges:ReturnType<typeof gradientMark.range>[]=[],glyphs=view.state.field(glyphField);
